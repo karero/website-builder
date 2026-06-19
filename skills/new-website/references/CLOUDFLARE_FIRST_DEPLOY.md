@@ -15,13 +15,17 @@ them** rather than handing over a dashboard tour.
 ## A. Token-assisted bootstrap — RECOMMENDED for Cloudflare newcomers
 
 The owner mints **one scoped, expiring API token**; you (the agent) run Wrangler to
-create the project and deploy — **no dashboard for the deploy itself**. Two things the
-token/Wrangler **cannot** do (confirmed against current Cloudflare docs, June 2026):
-attach a custom domain (Wrangler has no Pages custom-domain command —
-[workers-sdk#11772](https://github.com/cloudflare/workers-sdk/issues/11772) is open) and
-enable Crawler Hints/IndexNow (it has [no API at all](https://community.cloudflare.com/t/how-do-i-enable-crawler-hints-through-the-api/384104)).
-So this is the fastest path to "my site is live"; the custom domain and IndexNow are a
-short dashboard visit afterwards (or the browser-assisted path in C).
+create the project and deploy — **no dashboard for the deploy itself**. Two doc facts to
+know (confirmed against current Cloudflare docs, June 2026):
+- **Custom domain:** Wrangler has *no* Pages custom-domain command
+  ([workers-sdk#11772](https://github.com/cloudflare/workers-sdk/issues/11772) is open),
+  but the **Pages REST API can attach it with the same Pages-Edit token** — so the token
+  *does* cover this, just not via the Wrangler CLI.
+- **Crawler Hints / IndexNow:** [no API at all](https://community.cloudflare.com/t/how-do-i-enable-crawler-hints-through-the-api/384104) —
+  it's the one dashboard toggle in `search-console-setup`, whatever deploy path you pick.
+
+So this is the fastest path to "my site is live"; IndexNow is a short dashboard visit
+afterwards (or the browser-assisted path in C).
 
 **Tradeoff — state this up front:** this uses Wrangler's **direct-upload** deploy model.
 Ongoing deploys are then `wrangler pages deploy`, **not** Cloudflare's git-push auto-build
@@ -34,11 +38,13 @@ live fast with zero dashboard time.
 
 1. Dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
 2. **Permissions** — add only what the chosen steps need:
-   - **Account › Cloudflare Pages › Edit** — create the project + deploy. *(required — the
-     only permission the deploy itself needs.)*
-   - **Zone › DNS › Edit**, scoped to the **one** zone — only if you'll attach the custom
-     domain via the Cloudflare **REST API**. If you'll attach the domain in the dashboard
-     instead (simpler), skip this. *(optional)*
+   - **Account › Cloudflare Pages › Edit** (a.k.a. `Pages Write`) — create the project,
+     deploy, **and** attach a custom domain via the Pages REST API
+     (`POST /accounts/{id}/pages/projects/{name}/domains`). *(required — and it's all the
+     happy path needs.)*
+   - **Zone › DNS › Edit**, scoped to the **one** zone — **only** if the flow also creates
+     or changes DNS records itself. Attaching the custom domain does **not** need this on
+     its own; skip it unless you're scripting DNS. *(optional)*
    - *(There is no Crawler Hints permission — it has no API. Enable IndexNow via the single
      dashboard toggle in `search-console-setup`, whichever deploy path you pick.)*
 3. **Account Resources:** include only the owner's account. **Zone Resources:** only the
@@ -49,8 +55,10 @@ live fast with zero dashboard time.
 ### Hand it to the agent safely — never the repo
 
 - Provide it as a session env var: `export CLOUDFLARE_API_TOKEN=…` (Wrangler reads this),
-  or a gitignored `.dev.vars`. The starter `.gitignore` already excludes `.env*`/`.dev.vars`,
-  and the `clean` CI gate scans for leaked tokens as a backstop.
+  or a gitignored `.dev.vars` (also Wrangler-recognised). The starter `.gitignore` excludes
+  `.env*` and `.dev.vars`, so it's the **primary** leak protection in a generated site.
+  *(This suite repo additionally runs a `clean` CI gate that scans the distributed skill
+  package for stray tokens — that gate does **not** run in generated sites.)*
 - **Never** commit it, paste it into a tracked file, or put it in the README.
 
 ### Assistant guardrails (non-negotiable)
@@ -59,7 +67,8 @@ live fast with zero dashboard time.
    and ask for a custom token with the permissions above.
 2. **Expiring + minimal.** Confirm the token has an end date and only the needed scopes
    before using it; if it looks over-scoped (e.g. "All zones"), say so and ask them to narrow it.
-3. **Never commit the credential** — env/`.dev.vars` only; rely on `.gitignore` + the `clean` gate.
+3. **Never commit the credential** — env var or gitignored `.dev.vars` only; the starter
+   `.gitignore` is the backstop.
 4. **Confirm before each account-modifying command** — state what it will do (create project
    `X`, deploy, add a DNS record for `Y`) and run it only on the owner's go-ahead.
 5. **Revoke when done** — once the site is live, tell the owner to delete the token
@@ -78,7 +87,9 @@ npx wrangler pages deploy dist --project-name <project>
 
 # 3. Custom domain: NO Wrangler command exists for Pages custom domains.
 #    Attach it in the dashboard (Workers & Pages -> your project -> Custom domains ->
-#    Set up a domain), OR via the Cloudflare REST API using the Zone>DNS>Edit token.
+#    Set up a domain), OR via the Pages REST API with the SAME Pages-Edit token:
+#    POST /accounts/{id}/pages/projects/{project}/domains  {"name":"<domain>"}
+#    (Zone>DNS>Edit is only needed if you also script the DNS record itself.)
 ```
 
 Ongoing deploys under (A): re-run `wrangler pages deploy dist --project-name <project>`
