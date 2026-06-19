@@ -8,9 +8,10 @@ adapted, gives a step-by-step test, and ends with a report-back template.
 
 - README documents Antigravity as a first-class tool (install into `~/.gemini/config/skills`).
 - **The `new-website` scaffold no longer hardcodes `~/.claude/skills`.** Its cp-block now
-  resolves a `$SKILLS_ROOT` variable that auto-detects your skills root (it checks
-  `~/.claude/skills`, `~/.agents/skills`, `~/.gemini/config/skills`) — so the template and
-  sibling-skill copies work under Antigravity. You can also force it:
+  resolves a `$SKILLS_ROOT` variable that auto-detects your skills root in priority order
+  Claude Code → Antigravity → Codex (`~/.claude/skills`, `~/.gemini/config/skills`,
+  `~/.agents/skills`) — so the template and sibling-skill copies work under Antigravity. You
+  can also force it:
   `export SKILLS_ROOT=~/.gemini/config/skills`.
 - `docs/ANTIGRAVITY.md` added (install options + permission differences).
 - **No skill content was duplicated** — `skills/*` stays the single source of truth.
@@ -20,9 +21,9 @@ adapted, gives a step-by-step test, and ends with a report-back template.
 ### 1. Install
 ```bash
 mkdir -p ~/.gemini/config/skills && cp -R skills/* ~/.gemini/config/skills/
-ls ~/.gemini/config/skills            # expect 18 skill folders, incl. new-website
+ls ~/.gemini/config/skills            # expect every suite skill folder, incl. new-website
 ```
-**Expected:** 18 entries.
+**Expected:** one folder per suite skill (`new-website` plus the siblings).
 
 ### 2. Skill discovery
 Restart/refresh Antigravity, then confirm it recognizes `new-website` and the `website-*`
@@ -56,8 +57,11 @@ In a **fresh, empty** folder, say `new website` (or "I want to build a new websi
 ### 5. Scaffold copies resolve
 Let the orchestrator run the scaffold (steps 0–3). Watch the `cp "$SKILLS_ROOT"/…`
 commands.
-**Expected:** `.gitignore`, `.claude/settings.json`, `SETUP.md`, and the 17 sibling skills
-copy into the new project with **no "No such file or directory"** errors.
+**Expected:** `.gitignore`, `SETUP.md`, and the bundled sibling skills copy into the new
+project with **no "No such file or directory"** errors. `.claude/settings.json` is Claude
+Code-only and is skipped under Antigravity (it uses its own sandbox approval model). The
+bundled skills land in `$PROJECT_SKILLS_DIR` — `.agents/skills` for an Antigravity install
+(`export PROJECT_SKILLS_DIR=.agents/skills` to force it).
 
 ### 6. (Optional) build the generated site
 ```bash
@@ -73,7 +77,7 @@ model) and that `website-permissions` is a harmless no-op.
 
 ```
 Antigravity version:
-1. Install (18 folders):           PASS / FAIL —
+1. Install (all skill folders):    PASS / FAIL —
 2. Discovery (sees new-website):   PASS / FAIL —
 3. $SKILLS_ROOT resolved to:       __________
 4. "new website" starts interview: PASS / FAIL —

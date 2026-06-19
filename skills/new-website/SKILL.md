@@ -162,12 +162,13 @@ Assemble the project at `<site>/` so it travels without any global setup:
        [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
      done
    fi
-   # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default;
-   # Codex reads repo-scoped skills from .agents/skills, so derive that for a Codex install.
-   # Force a Codex-only handoff with: export PROJECT_SKILLS_DIR=.agents/skills
+   # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default
+   # (.claude/skills). Codex and Antigravity read repo-scoped skills from .agents/skills, so
+   # derive that when the suite was installed through either of them. Force it with:
+   # export PROJECT_SKILLS_DIR=.agents/skills
    if [ -z "${PROJECT_SKILLS_DIR:-}" ]; then
      case "$SKILLS_ROOT" in
-       "$HOME/.agents/skills"*) PROJECT_SKILLS_DIR=".agents/skills" ;;
+       "$HOME/.agents/skills"*|"$HOME/.gemini/config/skills"*|*/.agents/skills*) PROJECT_SKILLS_DIR=".agents/skills" ;;
        *) PROJECT_SKILLS_DIR=".claude/skills" ;;
      esac
    fi

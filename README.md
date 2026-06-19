@@ -82,7 +82,7 @@ compatibility checklist.
 ## Layout
 
 ```
-skills/            the 18 suite skills (canonical)
+skills/            the suite skills (canonical)
   new-website/     orchestrator + templates/ (Astro starter overlay + test suite) +
                    references/WEBSITE_ARCHITECTURE.md (hosting-tier 1/2/3 decision doc,
                    the companion to the orchestrator's stack-decision interview)

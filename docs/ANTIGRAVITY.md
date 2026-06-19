@@ -34,6 +34,8 @@ Once installed, open an Antigravity chat in your target directory and simply tri
 
 Antigravity will recognize the `new-website` skill, run the stack-decision interview, scaffold the `templates/astro` overlay, and sequence the rest of the `website-*` skills perfectly.
 
+When the suite is installed through Antigravity (`$SKILLS_ROOT` = `~/.gemini/config/skills`), the scaffold bundles the project's skills into **`.agents/skills/`** (which Antigravity reads as workspace skills), so the generated project is self-contained for Antigravity rather than Claude's `.claude/skills/`. To force it regardless: `export PROJECT_SKILLS_DIR=.agents/skills` before scaffolding.
+
 ## 3. Key Differences & "Claude-isms" to Ignore
 
 Because Antigravity and Claude Code handle permissions differently, you will notice a few minor discrepancies that you can safely ignore:

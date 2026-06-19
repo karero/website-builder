@@ -41,8 +41,9 @@ $new-website
 Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay, and
 sequences the rest of the `website-*` skills.
 
-> **On a machine that also has Claude Code installed,** the scaffold's auto-detect defaults
-> to `~/.claude/skills`. Force Codex's copy first:
+> **On a machine that also has Claude Code or Antigravity installed,** the scaffold's
+> auto-detect prefers them over Codex (order: Claude Code → Antigravity → Codex). Force
+> Codex's copy first:
 > ```bash
 > export SKILLS_ROOT="$HOME/.agents/skills"
 > ```
