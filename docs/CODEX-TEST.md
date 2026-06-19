@@ -9,9 +9,10 @@ a step-by-step test, and ends with a report-back template.
 - `scripts/install-codex.sh` (+ `make install-codex`) symlinks `skills/*` into
   `~/.agents/skills` — the mirror of `install.sh` (which targets `~/.claude/skills`).
 - **The `new-website` scaffold no longer hardcodes `~/.claude/skills`.** Its cp-block now
-  resolves a `$SKILLS_ROOT` variable that auto-detects your skills root (it checks
-  `~/.claude/skills`, `~/.agents/skills`, `~/.gemini/config/skills`) — so the template and
-  sibling-skill copies work under Codex. You can also force it:
+  resolves a `$SKILLS_ROOT` variable that auto-detects your skills root in priority order
+  Claude Code → Antigravity → Codex (`~/.claude/skills`, `~/.gemini/config/skills`,
+  `~/.agents/skills`) — so the template and sibling-skill copies work under Codex. You can
+  also force it:
   `export SKILLS_ROOT=~/.agents/skills`.
 - `docs/CODEX.md` added (install + the differences from Claude Code).
 - **No skill content was duplicated** — `skills/*` stays the single source of truth.
@@ -32,8 +33,8 @@ project-local install.
 **Expected:** `new-website` is discoverable.
 
 ### 3. `$SKILLS_ROOT` resolution self-test
-This is the exact logic the scaffold runs. On a machine that ALSO has Claude Code, force
-Codex's path first:
+This is the exact logic the scaffold runs. On a machine that also has Claude Code or
+Antigravity, force Codex's path first:
 ```bash
 export SKILLS_ROOT=~/.agents/skills           # needed if Claude Code or Antigravity is also installed
 if [ -z "${SKILLS_ROOT:-}" ]; then

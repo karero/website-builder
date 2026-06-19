@@ -61,8 +61,8 @@ Everything reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
 
 ### 3. `src/layouts/Base.astro` — locale-aware (VERIFIED build output)
 Add the imports + derive locale/alternates, set `<html lang>` from the current
-locale, and emit self-referencing hreflang + `x-default`. This exact code was
-built and its output checked (reciprocal hreflang, correct trailing slashes):
+locale, and emit self-referencing hreflang + `x-default`. Build and confirm the output
+(reciprocal hreflang, and clean trailing slashes under `trailingSlash: 'never'`):
 ```astro
 ---
 import { getRelativeLocaleUrl } from 'astro:i18n';
@@ -81,8 +81,11 @@ if (currentLocale !== DEFAULT_LOCALE) {
   neutral = cleanPath.replace(new RegExp('^/' + currentLocale + '(?=/|$)'), '');
 }
 if (neutral === '') neutral = '/';
-const alternates = LOCALES.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, neutral), site).href }));
-const xDefault = new URL(getRelativeLocaleUrl(DEFAULT_LOCALE, neutral), site).href;
+// getRelativeLocaleUrl() expects a bare path segment (or none for the locale root) — NOT a
+// leading-slash path — or it can drift the trailing slash under trailingSlash: 'never'.
+const localePath = neutral === '/' ? undefined : neutral.replace(/^\//, '');
+const alternates = LOCALES.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, localePath), site).href }));
+const xDefault = new URL(getRelativeLocaleUrl(DEFAULT_LOCALE, localePath), site).href;
 ---
 <html lang={currentLocale}>
   <head>
@@ -99,7 +102,7 @@ WebPage/WebSite schema should use `currentLocale`.
 
 ### 4. `src/components/LanguageSwitcher.astro` (new)
 A small nav control that links the **current page** in each locale, using the same
-`getRelativeLocaleUrl(loc, neutral)` it computes from `Astro.url`/`Astro.currentLocale`,
+`getRelativeLocaleUrl(loc, localePath)` it computes from `Astro.url`/`Astro.currentLocale`,
 labelled from `LOCALE_LABELS`, marking the active one `aria-current="true"`.
 
 ### 5. Page/content structure

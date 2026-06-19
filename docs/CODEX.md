@@ -60,9 +60,10 @@ sequences the rest of the `website-*` skills.
   no-op for Codex.
 - Project-bundled skills are copied into `.claude/skills/` by default (so a Claude
   recipient is self-contained). The scaffold derives `$PROJECT_SKILLS_DIR` automatically —
-  if the suite was installed through Codex (`$SKILLS_ROOT` = `~/.agents/skills`), generated
-  projects bundle into `.agents/skills/` instead, so they're Codex-self-contained. Force it
-  with `export PROJECT_SKILLS_DIR=.agents/skills` for a **Codex-only handoff**.
+  if the suite was installed through Codex or Antigravity (`$SKILLS_ROOT` = `~/.agents/skills`
+  or `~/.gemini/config/skills`), generated projects bundle into `.agents/skills/` instead, so
+  they're self-contained for that tool. Force it with `export PROJECT_SKILLS_DIR=.agents/skills`
+  for a **Codex-only handoff**.
 
 ## Scope
 
