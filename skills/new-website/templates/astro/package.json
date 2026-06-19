@@ -8,6 +8,7 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "ship": "bash scripts/ship.sh",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "check": "astro check",

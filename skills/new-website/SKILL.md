@@ -31,6 +31,8 @@ Everything needed is bundled here:
   function, headers, llms.txt, GDPR privacy page draft). Its `README.md` is the
   assembly manual.
 - `templates/SETUP.md` — accounts (GitHub + Cloudflare) + tools + the bootstrap.
+- `templates/PUBLISHING.md` — plain-English "how to publish" for the owner
+  (`commit`/`push`/`branch` explained + step-by-step per publish model).
 - `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
   permission allowlist to copy into the repo.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
@@ -109,11 +111,22 @@ non-expert can answer, and record the answers in the project `README.md`.
      cookie-consent banner. Any analytics script is gated to the production
      branch only. The privacy page must match whatever is chosen here.
 
-6. **Domain + deploy?**
-   - New domain or subdomain of an existing site? (Affects canonical URLs and
-     whether existing SEO authority carries over.)
-   - DNS moves to Cloudflare; branches are fixed: `main` = noindex preview,
-     `production` = live.
+6. **Domain + how do changes go live? (publish model)**
+   *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain
+   them, let the owner choose**; recommend two-stage. Record the choice in the README.*
+   - New domain or subdomain of an existing site? (Affects canonical URLs and whether
+     existing SEO authority carries over.) DNS moves to Cloudflare.
+   - **Two-stage — recommended (default).** `main` is a private **preview** (noindexed
+     `*.pages.dev`); `production` is the **live** site. The owner pushes to `main`, checks
+     the preview link, then runs **`npm run ship`** to publish. A mistake never reaches the
+     live domain. *Scaffold adds:* the `production` branch, the `_middleware.ts` noindex
+     guard, and the `ship` script.
+   - **Single-stage — simplest.** One branch — `main` is live, so every push goes straight
+     to the public site. Fewer moving parts, no safety net. Pick this only for a low-stakes
+     site whose owner is fine with "save = instantly public."
+   - **Don't assume git fluency.** Whichever they choose, hand them
+     `templates/PUBLISHING.md` (plain-English `commit` / `push` / `branch` + the exact
+     step-by-step to publish) and walk the **first** publish through with them.
 
 Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-pattern — use Astro.
 
@@ -193,6 +206,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    prompt (it still asks for `rm -rf`, `git push --force`, `wrangler … delete`, `gh repo delete`):
    ```bash
    cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .          # all tools — receiving party can set up too
+   cp "$SKILLS_ROOT"/new-website/templates/PUBLISHING.md .     # plain-English "how to publish" for the owner
    # Claude Code only:
    mkdir -p .claude
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
@@ -293,8 +307,12 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup,
       German-market sites translated to German. The imprint stays site-specific.
-- [ ] Deployed to Cloudflare Pages; `main` = noindex preview, `production` = live;
-      analytics (if any) fires on the production branch only.
+- [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
+      **Two-stage:** create the live branch (`git checkout -b production && git push -u
+      origin production`), then in Cloudflare set *Production branch* = `production` — so
+      `main` = noindexed preview, `production` = live; analytics fires on production only.
+      **Single-stage:** `main` = live (default Cloudflare production branch).
+      Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
@@ -302,6 +320,18 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`, and a `README.md` with
       the decision answers + "how to add a page / run tests / deploy".
+
+### Always say whether it's PREVIEW or LIVE (two-stage)
+A non-technical owner cannot tell a preview URL from the live site. So **every time** you
+push to `main` (or they do), state it explicitly — never let a preview read as live:
+
+> ✅ Your changes are on the **preview**: `https://main.<project>.pages.dev` — **this is NOT
+> live yet.** When it looks right, run `npm run ship` to publish to `<live-domain>`.
+
+Only after `npm run ship` (or the merge into `production`) **and** the Cloudflare production
+build finishes is it actually live at `<live-domain>` — confirm that separately ("✅ now
+live at …"). On a **single-stage** site there is no preview: say plainly that the push **is
+going live now**.
 
 ## Notes
 
