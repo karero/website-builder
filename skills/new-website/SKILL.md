@@ -116,14 +116,17 @@ non-expert can answer, and record the answers in the project `README.md`.
    them, let the owner choose**; recommend two-stage. Record the choice in the README.*
    - New domain or subdomain of an existing site? (Affects canonical URLs and whether
      existing SEO authority carries over.) DNS moves to Cloudflare.
-   - **Two-stage — recommended (default).** `main` is a private **preview** (noindexed
-     `*.pages.dev`); `production` is the **live** site. The owner pushes to `main`, checks
+   - **Two-stage — recommended (default).** `main` is an **unlisted, noindexed preview**
+     (`*.pages.dev` — noindexed, but public-by-URL, not access-controlled); `production` is
+     the **live** site. The owner pushes to `main`, checks
      the preview link, then runs **`npm run ship`** to publish. A mistake never reaches the
      live domain. *Scaffold adds:* the `production` branch, the `_middleware.ts` noindex
      guard, and the `ship` script.
    - **Single-stage — simplest.** One branch — `main` is live, so every push goes straight
      to the public site. Fewer moving parts, no safety net. Pick this only for a low-stakes
-     site whose owner is fine with "save = instantly public."
+     site whose owner is fine with "save = instantly public." **Note:** the `_middleware.ts`
+     noindex guard de-indexes every `*.pages.dev` host, so a single-stage site is invisible
+     to Google until a **custom domain** is attached — say this when recommending it.
    - **Don't assume git fluency.** Whichever they choose, hand them
      `templates/PUBLISHING.md` (plain-English `commit` / `push` / `branch` + the exact
      step-by-step to publish) and walk the **first** publish through with them.
@@ -309,7 +312,8 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       German-market sites translated to German. The imprint stays site-specific.
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
-      origin production`), then in Cloudflare set *Production branch* = `production` — so
+      origin production && git checkout main` — end back on `main`), then in Cloudflare set
+      *Production branch* = `production` — so
       `main` = noindexed preview, `production` = live; analytics fires on production only.
       **Single-stage:** `main` = live (default Cloudflare production branch).
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
