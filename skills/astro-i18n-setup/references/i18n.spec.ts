@@ -53,7 +53,9 @@ test.describe('i18n — hreflang contract', () => {
       ).toEqual(EXPECTED_CODES);
 
       for (const a of alts) {
-        expect(a.href.startsWith(SITE.url), `${path}: alternate "${a.hreflang}" href must be absolute (${a.href})`).toBe(true);
+        // SITE.url + '/' (not bare SITE.url) so a lookalike origin or a slash-less
+        // join like "https://example.comabout" can't sneak through.
+        expect(a.href.startsWith(SITE.url + '/'), `${path}: alternate "${a.hreflang}" href must be the absolute production URL (${a.href})`).toBe(true);
       }
 
       const selfLocale = localeOf(path);
@@ -73,8 +75,11 @@ test.describe('i18n — hreflang contract', () => {
       for (const a of alts) {
         if (a.hreflang === 'x-default') continue;
         const target = urlToPath.get(a.href);
-        if (!target) continue; // alternate outside PAGES (e.g. an unbuilt locale) — skip
-        const back = seen.get(target)!.alts.find((x) => x.hreflang === selfLocale);
+        // Every locale alternate must resolve to a page in PAGES — otherwise that
+        // locale's pages were never built/listed and its reciprocity goes unchecked
+        // (the exact "A links B, B never links back" mistake this file exists to catch).
+        expect(target, `${path}: alternate "${a.hreflang}" → ${a.href} has no matching page in PAGES — build + list every locale's routes`).toBeDefined();
+        const back = seen.get(target!)!.alts.find((x) => x.hreflang === selfLocale);
         expect(back?.href, `${target} must link back to ${path} under hreflang="${selfLocale}"`).toBe(url);
       }
     }

@@ -74,8 +74,9 @@ build stays fully static (no adapter, no auth, no server). Steps applied to the 
    ```
    Mirror the site's real Content Collections (the same `path`/schema the Astro
    `src/content.config.ts` reads), so the CMS and the site agree on shape.
-4. **Allowlist** — add to `templates/claude/settings.json` (and the project's copy):
-   `Bash(npx keystatic:*)`, `WebFetch(domain:keystatic.com)`.
+4. **Allowlist** — `Bash(npx keystatic:*)` + `WebFetch(domain:keystatic.com)` already ship
+   in the template `settings.json`; just confirm they're present in the project's copy
+   (don't re-add — avoid duplicates).
 5. **README** — document the workflow: `npm run dev` → open `/keystatic` → edit → the files
    under `src/content/` change → `git commit && git push` → Cloudflare deploys.
 

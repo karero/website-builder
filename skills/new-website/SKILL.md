@@ -194,7 +194,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy all seventeen skills in (the seven
+3. **Skills travel with the repo** — copy the seventeen always-on skills in (plus the
+   conditional setup skills below when the interview selected them) (the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
    `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,
@@ -225,13 +226,13 @@ Assemble the project at `<site>/` so it travels without any global setup:
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
 
-   **Conditional setup skills** (only when the interview selected them — they don't
-   ship with a single-locale, CMS-free site):
+   **Conditional setup skills** — run the matching line ONLY when the interview
+   selected it (they don't ship with a single-locale, CMS-free site):
    ```bash
-   # Q3 chose Keystatic:
-   [ "$CMS" = keystatic ] && cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
-   # Q4 chose 2+ languages:
-   [ "$MULTILANG" = yes ] && cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   # If Q3 = "non-technical editor" (Keystatic):
+   cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
+   # If Q4 = "2+ languages at launch":
+   cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
    ```
 4. **Docs** — copy `templates/positioning.md` → `POSITIONING.md`,
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →

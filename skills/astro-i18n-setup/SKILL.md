@@ -54,7 +54,10 @@ export const LOCALES = ['en', 'de'] as const;        // keep in sync with astro.
 export const DEFAULT_LOCALE = 'en';
 export const LOCALE_LABELS: Record<string, string> = { en: 'English', de: 'Deutsch' };
 ```
-Remove `SITE.locale`; everything reads `DEFAULT_LOCALE` / `Astro.currentLocale` now.
+Remove `SITE.locale` — and the matching `lang = SITE.locale` default prop in
+`Base.astro` (line ~28): the layout derives the locale from `Astro.currentLocale` now
+(step 3), so leaving that default referencing the deleted export breaks the build.
+Everything reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
 
 ### 3. `src/layouts/Base.astro` — locale-aware (VERIFIED build output)
 Add the imports + derive locale/alternates, set `<html lang>` from the current
