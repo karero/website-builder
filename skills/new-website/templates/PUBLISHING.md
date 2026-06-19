@@ -31,8 +31,11 @@ which, or just look at your branches: only `main` = single-stage; `main` **and**
 
 ## Two-stage (recommended) — "preview first, then publish"
 
-`main` is a **private preview** (search engines ignore it); `production` is the **live**
-site. You can push freely to `main` — nothing goes public until you publish.
+`main` is an **unlisted, noindexed preview**; `production` is the **live** site. You can
+push freely to `main` — nothing reaches your live domain until you publish. (Search engines
+are told to ignore the preview, but it isn't password-protected: **anyone who has the preview
+URL can open it.** Don't put confidential content on a preview unless the project is behind
+Cloudflare Access or similar.)
 
 **Every time you change the site:**
 
@@ -41,7 +44,7 @@ site. You can push freely to `main` — nothing goes public until you publish.
 git add -A
 git commit -m "describe what you changed, e.g. update opening hours"
 
-# 2. Upload them — this builds your PRIVATE PREVIEW (not live yet)
+# 2. Upload them — this builds your NOINDEXED PREVIEW (not on the live domain yet)
 git push
 
 # 3. Look at the preview. Open the preview link from Cloudflare
@@ -51,11 +54,15 @@ git push
 npm run ship
 ```
 
-`npm run ship` does the "merge `main` into `production` and upload" step for you, safely —
-you never have to run the branch commands by hand. A few seconds after it finishes,
-Cloudflare builds the live site.
+`npm run ship` uploads `main` to the live (`production`) branch for you — you never run the
+branch commands by hand. A few seconds after it finishes, Cloudflare builds the live site.
 
-> **Nothing is public until step 4.** Steps 1–3 only ever touch the preview.
+> **The first upload each session runs a quick self-check** (it builds the site and runs the
+> tests before uploading). It may take a minute, and **if something is broken it stops the
+> upload and tells you** rather than publishing a broken page. To skip it for one push (e.g.
+> a tiny text fix you've already checked): `git push --no-verify`.
+
+> **Nothing reaches the live domain until step 4.** Steps 1–3 only update the noindexed preview.
 
 ---
 
@@ -63,6 +70,11 @@ Cloudflare builds the live site.
 
 One branch, `main`, and it **is** the live site. There's no preview — every upload goes
 straight online. Simple, but there's no safety net, so check locally first (`npm run dev`).
+
+> **You need a custom domain for Google to see the site.** A bare Cloudflare
+> `*.pages.dev` URL is **noindexed by design** (so stray preview URLs never get indexed).
+> Until you attach your real domain in Cloudflare, the live site works but search engines
+> ignore it.
 
 **Every time you change the site:**
 
@@ -87,7 +99,7 @@ git push
   **Rollback** to restore it instantly.
 - **Made a typo in the last save (not pushed yet)?** Re-edit, then
   `git add -A && git commit -m "fix typo"` again.
-- **`git push` says "rejected"?** Someone/something updated the cloud copy — run
+- **`git push` says "rejected"?** (on `main`) Someone/something updated the cloud copy — run
   `git pull` first, then `git push` again.
 
 When in doubt, ask before you `npm run ship` / `git push` — those are the only two commands

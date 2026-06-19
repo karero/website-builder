@@ -20,8 +20,9 @@ if [ "$(git rev-parse @)" != "$(git rev-parse '@{u}' 2>/dev/null || echo none)" 
 fi
 
 echo "→ Publishing main → production. This goes LIVE."
-git checkout production
-git merge --no-ff main -m "Publish: merge main into production"
-git push origin production
-git checkout main
+# Push main straight to the remote production branch — no local checkout, so a failure
+# (rejected push, red pre-push gate, network) never strands the owner on production.
+# Fast-forward only: if production has somehow diverged, this is rejected loudly rather
+# than silently publishing the wrong thing.
+git push origin main:production
 echo "✓ Published. Cloudflare is building the live site now (live in ~1 minute)."
