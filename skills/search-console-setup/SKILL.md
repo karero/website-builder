@@ -92,20 +92,25 @@ open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can
   own open `public/robots.txt` authoritative, instead of a Cloudflare-managed file that
   can inject AI-bot `Disallow` rules behind your back.
 
-> **Assistant: offer to do these Cloudflare dashboard clicks for the user.** The
-> Crawler Hints toggle and the Control AI crawlers panel above are dashboard actions,
-> not repo edits — so offer to perform them via the **Claude in Chrome** extension
-> instead of just listing steps. Offer this concretely:
-> 1. Ask the user to **install the "Claude in Chrome" extension** — it's what gives you
->    real click/navigate access; plain screen control can only *read* a browser.
-> 2. Ask them to **open Chrome and log in to the Cloudflare dashboard themselves** —
->    never handle their credentials or 2FA.
-> 3. With their go-ahead and the target zone, navigate to **Caching → Configuration**
->    (Crawler Hints) and **Security → Bots → Control AI crawlers**, read the current
->    values back to the user, and only then set any that don't match the posture above.
+> **Assistant: offer to do these Cloudflare dashboard clicks for the user** if your
+> runtime can drive a browser. The Crawler Hints toggle and the Control AI crawlers
+> panel above are dashboard actions, not repo edits — so offering to perform them beats
+> just listing steps. Pick the path that matches your runtime:
+> - **Claude Code with Claude in Chrome** — offer that extension: ask the user to
+>   install it (it's what gives real click/navigate access; plain screen control can
+>   only *read* a browser).
+> - **Another agent (Codex, Antigravity, …)** — offer your own browser-automation tool
+>   if you have one; otherwise walk the user through the clicks.
 >
-> If the extension isn't installed or the user declines, fall back to walking them
-> through the clicks. Never attempt these dashboard changes through screen control.
+> Whichever path, the shape is the same:
+> 1. The user **opens the browser and logs in to Cloudflare themselves** — never handle
+>    their credentials or 2FA.
+> 2. With their explicit go-ahead and the target zone, navigate to **Caching →
+>    Configuration** (Crawler Hints) and **Security → Bots → Control AI crawlers**, read
+>    the current values back, and only then set any that don't match the posture above.
+>
+> If no browser automation is available or the user declines, fall back to walking them
+> through the clicks. Never attempt these dashboard changes through blind screen control.
 
 ## 4. Confirm it's working
 

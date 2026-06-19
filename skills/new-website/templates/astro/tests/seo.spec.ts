@@ -92,15 +92,25 @@ test('robots.txt stays open and llms.txt exists', async ({ request, baseURL }) =
 
   // Two sources of truth (SITE.url and the static Sitemap line) must agree, or the
   // declared sitemap 404s — the classic "forgot to set the domain before launch".
+  // Compare full origin (not just host) so http→https and the like are caught too.
   const sitemap = body.match(/^\s*Sitemap:\s*(\S+)/im)?.[1];
   expect(sitemap, 'robots.txt must declare a Sitemap: line').toBeTruthy();
   expect(
-    new URL(sitemap!).host,
-    `robots.txt Sitemap host ≠ SITE.url host (${SITE.url}) — update public/robots.txt`,
-  ).toBe(new URL(SITE.url).host);
+    new URL(sitemap!).origin,
+    `robots.txt Sitemap origin ≠ SITE.url origin (${SITE.url}) — update public/robots.txt`,
+  ).toBe(new URL(SITE.url).origin);
 
   const llms = await request.get(`${baseURL}/llms.txt`);
   expect(llms.status(), 'public/llms.txt (the AI answer-engine index) must be served').toBe(200);
+
+  // Once the real domain is set, the llms.txt scaffold must be filled in too —
+  // leftover `example.com` means stale placeholder content shipped to crawlers.
+  if (new URL(SITE.url).host !== 'example.com') {
+    expect(
+      (await llms.text()).includes('example.com'),
+      'llms.txt still contains example.com placeholders — replace them with real content',
+    ).toBe(false);
+  }
 });
 
 // ── Hosted PDFs: the doc-title IS the search-result title ──────────────────────
