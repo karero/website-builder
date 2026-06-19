@@ -1,0 +1,38 @@
+name: template-tests
+# Runs the scaffolded Astro template's own Playwright suite (a11y / seo / navigation /
+# images / tone / email / links / positioning) against a production build, so a change to
+# the template can't silently ship a regression. In particular it exercises the seo.spec
+# indexability guard (open robots.txt + llms.txt present), which the repo's only other
+# workflow (`clean`, a PII/secrets scan) never touches. CI is set by Actions, so the
+# Playwright config starts its own preview server (no reuseExistingServer).
+on:
+  push:
+    paths:
+      - 'skills/new-website/templates/astro/**'
+      - '.github/workflows/template-tests.yml'
+  pull_request:
+    paths:
+      - 'skills/new-website/templates/astro/**'
+      - '.github/workflows/template-tests.yml'
+
+defaults:
+  run:
+    working-directory: skills/new-website/templates/astro
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # The template pins its Node version; build/test on the same one Cloudflare uses.
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Install dependencies
+        # No committed lockfile in the template (scaffolded projects generate their own),
+        # so `npm install`, not `npm ci`.
+        run: npm install --no-audit --no-fund
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Run template test suite
+        run: npm test
