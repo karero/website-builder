@@ -56,7 +56,8 @@ skills/            the 18 suite skills (canonical)
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, outgoing-link-audit, search-console-setup   (bundled deps)
 reference/
-  WEBSITE_ARCHITECTURE.md   Cloudflare tier 1/2/3 decision tree
+  WEBSITE_ARCHITECTURE.md   hosting-tier reference (tiers 1/2/3) — the companion to the
+                            new-website orchestrator's stack-decision interview
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (so Claude loads them)
   package.sh       build dist/website-builder.zip for handoff

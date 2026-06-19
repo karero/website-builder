@@ -14,6 +14,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCAN="skills reference"
+# Generic checks (email / home-path / secret) also cover the root docs that ship in the
+# handoff. NOT the scripts (they DEFINE the secret regexes — would self-match). The name
+# denylist stays on $SCAN only: LICENSE legitimately carries the owner name + clone URLs.
+SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE Makefile"
 fail=0
 report() { # <label> <grep-output>
   [ -z "$2" ] && return 0
@@ -35,20 +39,20 @@ else
 fi
 
 # 2. Personal home paths (non-portable + identifying).
-report "home path" "$(grep -rnE '/(Users|home)/[A-Za-z0-9._-]+' $SCAN 2>/dev/null)"
+report "home path" "$(grep -rnE '/(Users|home)/[A-Za-z0-9._-]+' $SCAN_DOCS 2>/dev/null)"
 
 # 3. Real email addresses (anything that is not an obvious placeholder/markup token).
 EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
-report "email address" "$(grep -rinE "$EMAIL" $SCAN 2>/dev/null \
+report "email address" "$(grep -rinE "$EMAIL" $SCAN_DOCS 2>/dev/null \
   | grep -viE '@(example|test|domain|yoursite|site|company)\b|example\.(com|org)|@(type|id|context|media|import|2x|3x|font-face|keyframes)|(you|user|name|email|first\.last|hello|info|team)@')"
 
 # 4. Credential / secret formats + private keys + JWTs.
 SECRETS='(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})'
-report "credential/secret" "$(grep -rnE "$SECRETS" $SCAN 2>/dev/null)"
+report "credential/secret" "$(grep -rnE "$SECRETS" $SCAN_DOCS 2>/dev/null)"
 
 # 5. Secret-looking assignments:  (api_key|secret|token|password|...) = "longish-literal"
 ASSIGN='(api[_-]?key|secret|client[_-]?secret|access[_-]?token|auth[_-]?token|password|passwd|bearer)["'"'"' ]*[:=]["'"'"' ]*["'"'"'][^"'"'"' ]{8,}'
-report "secret-looking assignment" "$(grep -rinE "$ASSIGN" $SCAN 2>/dev/null \
+report "secret-looking assignment" "$(grep -rinE "$ASSIGN" $SCAN_DOCS 2>/dev/null \
   | grep -viE 'placeholder|example|your[_-]|<[a-z]|x{4,}|\.\.\.|process\.env|import\.meta\.env|REPLACE|TODO|\[bracket\]')"
 
 if [ "$fail" -ne 0 ]; then
@@ -58,4 +62,4 @@ if [ "$fail" -ne 0 ]; then
   echo "tighten the pattern in scripts/check_clean.sh."
   exit 1
 fi
-echo "OK — no personal names, contact info, or credentials in: $SCAN"
+echo "OK — no personal names, contact info, or credentials in: $SCAN_DOCS"
