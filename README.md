@@ -17,7 +17,7 @@ which constantly drifted. Now there is one canonical copy here; the global insta
 ## Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
-Console/API account). Then, **three steps**:
+Console/API account). Then, **four steps**:
 
 ```bash
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
