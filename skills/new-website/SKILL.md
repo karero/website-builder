@@ -87,9 +87,15 @@ non-expert can answer, and record the answers in the project `README.md`.
    - Two+ **at launch** (e.g. a DE+EN consultancy site) → run
      **`astro-i18n-setup`** (Astro i18n: clean default locale + prefixed others,
      self-referencing hreflang + `x-default`, sitemap alternates, language switcher,
-     per-locale test harness) from the first commit — retrofitting URL structure
-     later breaks links and SEO.
-   - "Maybe English someday" → treat as one language now.
+     per-locale test harness).
+   - **Multilingual, but building one language first?** Fine — keep the default locale
+     **unprefixed** from day 1, ship/test the primary language, then run
+     **`astro-i18n-setup`** to add the second locale when translations are ready. Because
+     the default stays at `/`, that's additive, not a breaking retrofit (skill →
+     *Phased rollout*).
+   - "Maybe English someday" → treat as one language now; the unprefixed default keeps a
+     future second locale additive. **The only costly change is later moving the default
+     off `/`** (e.g. `/` → `/en/`).
 
 5. **Analytics — will anyone act on the numbers? (optional)**
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
