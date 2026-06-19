@@ -63,7 +63,7 @@ sequences the rest of the `website-*` skills.
   if the suite was installed through Codex or Antigravity (`$SKILLS_ROOT` = `~/.agents/skills`
   or `~/.gemini/config/skills`), generated projects bundle into `.agents/skills/` instead, so
   they're self-contained for that tool. Force it with `export PROJECT_SKILLS_DIR=.agents/skills`
-  for a **Codex-only handoff**.
+  for a **Codex or Antigravity handoff**.
 
 ## Scope
 

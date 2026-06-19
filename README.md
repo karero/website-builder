@@ -112,9 +112,12 @@ the decision interview calls for them, and they run **once, at scaffold time**:
   + prefixed others), self-referencing hreflang + `x-default`, sitemap alternates, a language
   switcher, and per-locale test harness. Triggered when interview Q4 = *two or more languages
   at launch* (retrofitting URL structure later breaks links and SEO).
-- **`keystatic-setup`** — adds **Keystatic**, a git-based CMS, so a non-technical person can
-  edit content through a UI while the data stays as Markdown in the repo. Triggered when
-  interview Q3 = *a non-technical person edits content*. Don't install speculatively.
+- **`keystatic-setup`** — adds **Keystatic**, a git-based CMS (by the Keystone team), so a
+  non-technical person edits content through a UI while the data stays as Markdown in the
+  repo. Wires **local mode** by default (edit via the dev server, commit to git) and
+  documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
+  to the repo, no dev server). Triggered when interview Q3 = *a non-technical person edits
+  content*; don't install speculatively.
 
 Because they're opt-in, the standard scaffold is unchanged — a site with one language and a
 developer-edited repo never touches either.
