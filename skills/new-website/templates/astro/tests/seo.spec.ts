@@ -76,6 +76,43 @@ test('sitemap matches PAGES (drift alarm)', async ({ request, baseURL }) => {
   ).toEqual([...PAGES].sort());
 });
 
+// Indexability guard: the site is useless if a future edit silently closes it to
+// crawlers. Cloudflare's "Disable robots.txt configuration" leaves THIS file
+// authoritative, so it must stay open and point at the real domain. A blanket
+// `Disallow: /` (or a llms.txt that 404s) is the failure we refuse to ship.
+test('robots.txt stays open and llms.txt exists', async ({ request, baseURL }) => {
+  const robots = await request.get(`${baseURL}/robots.txt`);
+  expect(robots.status(), 'public/robots.txt must be served').toBe(200);
+  const body = await robots.text();
+
+  expect(
+    /^\s*Disallow:\s*\/\s*$/m.test(body),
+    'robots.txt blocks the whole site (Disallow: /) — crawlers and AI engines can\'t index it',
+  ).toBe(false);
+
+  // Two sources of truth (SITE.url and the static Sitemap line) must agree, or the
+  // declared sitemap 404s — the classic "forgot to set the domain before launch".
+  // Compare full origin (not just host) so http→https and the like are caught too.
+  const sitemap = body.match(/^\s*Sitemap:\s*(\S+)/im)?.[1];
+  expect(sitemap, 'robots.txt must declare a Sitemap: line').toBeTruthy();
+  expect(
+    new URL(sitemap!).origin,
+    `robots.txt Sitemap origin ≠ SITE.url origin (${SITE.url}) — update public/robots.txt`,
+  ).toBe(new URL(SITE.url).origin);
+
+  const llms = await request.get(`${baseURL}/llms.txt`);
+  expect(llms.status(), 'public/llms.txt (the AI answer-engine index) must be served').toBe(200);
+
+  // Once the real domain is set, the llms.txt scaffold must be filled in too —
+  // leftover `example.com` means stale placeholder content shipped to crawlers.
+  if (new URL(SITE.url).host !== 'example.com') {
+    expect(
+      (await llms.text()).includes('example.com'),
+      'llms.txt still contains example.com placeholders — replace them with real content',
+    ).toBe(false);
+  }
+});
+
 // ── Hosted PDFs: the doc-title IS the search-result title ──────────────────────
 // A PDF has no <title>; Bing/Google print its embedded doc-title in results.
 // Authoring tools leave a placeholder ("PowerPoint-Präsentation") or a filename

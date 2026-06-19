@@ -81,6 +81,37 @@ Cloudflare-managed domain.
 - No manual key file: don't add an `indexnow.txt`/key to `public/` — Cloudflare's
   managed key would conflict. (Only self-host a key if you're NOT using Crawler Hints.)
 
+### Also in the Cloudflare dashboard — keep crawlers *allowed*
+
+Newer Cloudflare zones add a **Security → Bots → Control AI crawlers** panel. For the
+open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can block):
+
+- **Block AI training bots → "Do not block (allow crawlers)"** — blocking here stops
+  ChatGPT / Perplexity / Claude / Gemini from reading and *citing* you (see `ai-seo`).
+- **Manage your robots.txt → "Disable robots.txt configuration"** — leaves the repo's
+  own open `public/robots.txt` authoritative, instead of a Cloudflare-managed file that
+  can inject AI-bot `Disallow` rules behind your back.
+
+> **Assistant: offer to do these Cloudflare dashboard clicks for the user** if your
+> runtime can drive a browser. The Crawler Hints toggle and the Control AI crawlers
+> panel above are dashboard actions, not repo edits — so offering to perform them beats
+> just listing steps. Pick the path that matches your runtime:
+> - **Claude Code with Claude in Chrome** — offer that extension: ask the user to
+>   install it (it's what gives real click/navigate access; plain screen control can
+>   only *read* a browser).
+> - **Another agent (Codex, Antigravity, …)** — offer your own browser-automation tool
+>   if you have one; otherwise walk the user through the clicks.
+>
+> Whichever path, the shape is the same:
+> 1. The user **opens the browser and logs in to Cloudflare themselves** — never handle
+>    their credentials or 2FA.
+> 2. With their explicit go-ahead and the target zone, navigate to **Caching →
+>    Configuration** (Crawler Hints) and **Security → Bots → Control AI crawlers**, read
+>    the current values back, and only then set any that don't match the posture above.
+>
+> If no browser automation is available or the user declines, fall back to walking them
+> through the clicks. Never attempt these dashboard changes through blind screen control.
+
 ## 4. Confirm it's working
 
 - **GSC:** the **Pages** / **Indexing** report shows URLs moving to "Indexed" over a
