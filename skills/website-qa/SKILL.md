@@ -87,6 +87,30 @@ Feature → the high-value test to add:
 Keep it thin: a marketing site needs a high-value harness, not 1000 unit tests. Don't test a
 cosmetic you'll change next week; do pin every contract a third party could silently break.
 
+## 1c. Enforce the gate on push (the pre-push hook)
+
+The baseline only protects the site if it actually runs before a deploy. The scaffold ships
+a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `npm run build`, `check_seo.py`
+(if present) and `npm test`, and **refuses the push if anything is red** — so a broken build
+never reaches the deploy branch. It's wired automatically: the `prepare` script in
+`package.json` points `core.hooksPath` at `scripts/hooks` on `npm install`.
+
+This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
+so without this hook a red test would still deploy. The hook is what makes "fails → does not
+ship" literally true on a direct-push-to-`main` workflow, without forcing a slower PR flow.
+
+**Offer it as a choice — never silently impose or remove it (Rule 1/Rule 12).** When setting
+up or handing off a site, surface both directions:
+- **Relax for one push:** `git push --no-verify` (skips the hook for that push only).
+- **Disable entirely:** `git config --unset core.hooksPath` (re-enable with
+  `npm install`, or `git config core.hooksPath scripts/hooks`).
+- **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. drop the full build for speed).
+
+A team that wants the speed of direct pushes and the safety of the gate keeps it on; a solo
+builder mid-experiment may want it off. Make the call explicit with the user; don't decide for
+them. (Requires the per-machine `npx playwright install chromium` from SETUP.md, or the test
+step errors — a fail-loud, fixable by setup, not a reason to drop the hook.)
+
 ## 2. Performance — Lighthouse / PageSpeed (FCP & LCP)
 
 Performance numbers need a real run; this is a **handoff to the user** (the agent

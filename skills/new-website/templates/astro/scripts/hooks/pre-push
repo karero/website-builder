@@ -1,0 +1,26 @@
+#!/bin/sh
+# Quality gate — blocks a push if the site's tests fail, so a broken build
+# never reaches the deploy branch. This is the local enforcement of the
+# test-driven contract (CI in .github/workflows/ runs the same checks).
+#
+# Wired automatically by the "prepare" script in package.json (npm install sets
+# core.hooksPath to scripts/hooks). The `check_seo.py` step runs only if that
+# file exists, so this same hook works whether SEO is a Python gate or seo.spec.ts.
+#
+# Relax for ONE push:   git push --no-verify
+# Disable entirely:     git config --unset core.hooksPath
+#
+set -e
+
+echo "▶ pre-push gate: building…"
+npm run build
+
+if [ -f tests/check_seo.py ]; then
+  echo "▶ pre-push gate: SEO checks…"
+  python3 tests/check_seo.py
+fi
+
+echo "▶ pre-push gate: tests…"
+npm test
+
+echo "✓ pre-push gate passed — pushing."
