@@ -14,9 +14,14 @@ them** rather than handing over a dashboard tour.
 
 ## A. Token-assisted bootstrap — RECOMMENDED for Cloudflare newcomers
 
-The owner mints **one scoped, expiring API token**; you (the agent) run Wrangler + the
-Cloudflare API to create the project, deploy, attach the domain, and enable Crawler Hints.
-The owner never opens the dashboard. Fastest path to "my site is live."
+The owner mints **one scoped, expiring API token**; you (the agent) run Wrangler to
+create the project and deploy — **no dashboard for the deploy itself**. Two things the
+token/Wrangler **cannot** do (confirmed against current Cloudflare docs, June 2026):
+attach a custom domain (Wrangler has no Pages custom-domain command —
+[workers-sdk#11772](https://github.com/cloudflare/workers-sdk/issues/11772) is open) and
+enable Crawler Hints/IndexNow (it has [no API at all](https://community.cloudflare.com/t/how-do-i-enable-crawler-hints-through-the-api/384104)).
+So this is the fastest path to "my site is live"; the custom domain and IndexNow are a
+short dashboard visit afterwards (or the browser-assisted path in C).
 
 **Tradeoff — state this up front:** this uses Wrangler's **direct-upload** deploy model.
 Ongoing deploys are then `wrangler pages deploy`, **not** Cloudflare's git-push auto-build
@@ -29,12 +34,13 @@ live fast with zero dashboard time.
 
 1. Dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
 2. **Permissions** — add only what the chosen steps need:
-   - **Account › Cloudflare Pages › Edit** — create the project + deploy. *(required)*
-   - **Zone › DNS › Edit** — only if attaching a Cloudflare-managed custom domain;
-     scope it to the **one** zone. *(optional)*
-   - The Crawler Hints / Cache-Configuration permission — only if flipping IndexNow with
-     the token instead of the one dashboard toggle. **`[verify exact permission name via the
-     `cloudflare` skill / API docs]`** *(optional; the `search-console-setup` toggle is simpler)*.
+   - **Account › Cloudflare Pages › Edit** — create the project + deploy. *(required — the
+     only permission the deploy itself needs.)*
+   - **Zone › DNS › Edit**, scoped to the **one** zone — only if you'll attach the custom
+     domain via the Cloudflare **REST API**. If you'll attach the domain in the dashboard
+     instead (simpler), skip this. *(optional)*
+   - *(There is no Crawler Hints permission — it has no API. Enable IndexNow via the single
+     dashboard toggle in `search-console-setup`, whichever deploy path you pick.)*
 3. **Account Resources:** include only the owner's account. **Zone Resources:** only the
    one target zone (never "All zones").
 4. **Expiry:** set an **End date ~1 week out** — enough to bootstrap, then it dies on its own.
@@ -70,9 +76,9 @@ npx wrangler pages project create <project> --production-branch <main|production
 npm run build
 npx wrangler pages deploy dist --project-name <project>
 
-# 3. Custom domain (only if DNS is on Cloudflare).
-#    [verify exact command — recent Wrangler: `wrangler pages ...`; otherwise the
-#     Cloudflare API / dashboard. Confirm via the `wrangler` skill before running.]
+# 3. Custom domain: NO Wrangler command exists for Pages custom domains.
+#    Attach it in the dashboard (Workers & Pages -> your project -> Custom domains ->
+#    Set up a domain), OR via the Cloudflare REST API using the Zone>DNS>Edit token.
 ```
 
 Ongoing deploys under (A): re-run `wrangler pages deploy dist --project-name <project>`
