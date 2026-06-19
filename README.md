@@ -16,18 +16,20 @@ You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude pla
 Console/API account). Then, **three steps**:
 
 ```bash
-# 1. Clone and install the skills globally. Claude only loads skills from
+# 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
+unzip website-builder.zip && cd website-builder
+#   from source instead:  git clone https://github.com/karero/website-builder.git && cd website-builder
+
+# 2. From that folder, install the skills globally. Claude only loads skills from
 #    ~/.claude/skills/, so this one command is the whole setup — no copying by hand.
-git clone https://github.com/karero/website-builder.git
-cd website-builder
 ./scripts/install.sh          # symlinks every skill into ~/.claude/skills/ (idempotent)
                               # macOS/Linux/WSL/Git-Bash. Or: make install
 ```
 
 ```
-# 2. Restart Claude Code so it discovers the new skills.
+# 3. Restart Claude Code so it discovers the new skills.
 
-# 3. Open Claude Code in a FRESH, EMPTY folder for your new site, and say:
+# 4. Open Claude Code in a FRESH, EMPTY folder for your new site, and say:
        new website
 ```
 
@@ -37,8 +39,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 → design → QA → review → launch**. It also walks you through the one-time build tools
 (Node, git, `gh`, `wrangler`, image tools) the first time you actually build.
 
-> **Updating later:** `git pull` in this repo updates every skill at once — the global
-> copies are symlinks, not copies, so there's nothing to re-install.
+> **Updating later:** if you cloned, `git pull` updates every skill at once — the global
+> copies are symlinks, not copies, so there's nothing to re-install. From a zip, re-run
+> `./scripts/install.sh` in a newer unzipped copy.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell

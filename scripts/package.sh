@@ -27,7 +27,10 @@ REQUIRED=(
   README.md
   LICENSE
   THIRD-PARTY-LICENSES.md
+  Makefile
   scripts/install.sh
+  scripts/check_clean.sh
+  scripts/package.sh
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
 )
