@@ -16,8 +16,9 @@ which constantly drifted. Now there is one canonical copy here; the global insta
 
 > [!TIP]
 > **Not technical? You don't have to do any of this alone.** At any point — setup, building, or
-> launch — just ask the AI (Claude Code, Antigravity, or Codex) to **guide you step by step in
-> plain language**. It can run the commands for you and explain what each one does.
+> launch — just ask your AI assistant (Claude Code, Antigravity, or Codex) to **guide you step
+> by step in plain language**. It can run many of the commands for you (with your approval) and
+> explain what each one does.
 
 ## Quick start — build your first site
 
