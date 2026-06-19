@@ -92,7 +92,7 @@ skills/            the suite skills (canonical)
                    testimonials, qa, review, permissions
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, outgoing-link-audit, search-console-setup   (bundled deps)
-  astro-i18n-setup, keystatic-setup   (opt-in, run once at scaffold time — see below)
+  astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -106,18 +106,20 @@ docs/
 ## Opt-in setup skills
 
 Two skills are **not** part of the default build — the orchestrator pulls them in only when
-the decision interview calls for them, and they run **once, at scaffold time**:
+the decision interview calls for them:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
   + prefixed others), self-referencing hreflang + `x-default`, sitemap alternates, a language
-  switcher, and per-locale test harness. Triggered when interview Q4 = *two or more languages
-  at launch* (retrofitting URL structure later breaks links and SEO).
+  switcher, and per-locale test harness. Use it for a **two-language launch**, or for a
+  **phased rollout** where the primary language ships first and a secondary prefixed locale is
+  added later while default URLs stay unchanged. (The costly retrofit is moving the default
+  locale off `/`; adding a secondary locale is additive.) Triggered by interview Q4.
 - **`keystatic-setup`** — adds **Keystatic**, a git-based CMS (by the Keystone team), so a
   non-technical person edits content through a UI while the data stays as Markdown in the
   repo. Wires **local mode** by default (edit via the dev server, commit to git) and
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
-  to the repo, no dev server). Triggered when interview Q3 = *a non-technical person edits
-  content*; don't install speculatively.
+  to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
+  person edits content*; don't install speculatively.
 
 Because they're opt-in, the standard scaffold is unchanged — a site with one language and a
 developer-edited repo never touches either.

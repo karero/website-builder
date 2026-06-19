@@ -202,13 +202,13 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
 3. **Skills travel with the repo** — copy the seventeen always-on skills in, plus any
-   conditional setup skills selected by the interview: (the seven
+   conditional setup skills selected by the interview, so the handoffs resolve for the
+   receiving party. The always-on set is the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
    `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,
    `image` — plus `outgoing-link-audit` (link sweep), `website-permissions` (allowlist),
-   and `search-console-setup` (post-launch GSC/Bing/IndexNow)), so the handoffs resolve
-   for the receiving party:
+   and `search-console-setup` (post-launch GSC/Bing/IndexNow):
    ```bash
    mkdir -p "$PROJECT_SKILLS_DIR"
    cp -R "$SKILLS_ROOT"/website-positioning \
