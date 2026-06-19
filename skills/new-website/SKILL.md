@@ -316,6 +316,11 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       *Production branch* = `production` — so
       `main` = noindexed preview, `production` = live; analytics fires on production only.
       **Single-stage:** `main` = live (default Cloudflare production branch).
+      **Creating the Pages project + first deploy** (the step a Cloudflare newcomer
+      struggles with) — offer the bootstrap options in
+      `references/CLOUDFLARE_FIRST_DEPLOY.md`: recommend the **token-assisted** path for
+      owners new to Cloudflare (least-privilege, expiring token; you run Wrangler), with
+      git-integration (push-to-deploy, no token) and browser/manual as the other offered paths.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
