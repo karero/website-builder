@@ -78,13 +78,16 @@ non-expert can answer, and record the answers in the project `README.md`.
      redeploy is the workflow).
    - A non-technical person (client, co-organizer writing posts) →
      **Keystatic** (git-based, no separate backend). Can be added later —
-     don't install it speculatively.
+     don't install it speculatively. When chosen, run **`keystatic-setup`**
+     (local mode; the GitHub cloud-mode upgrade is documented there).
 
 4. **One language or several?**
    *Decides: i18n routing from day 1 or never.*
    - One language (German-only counts) → skip i18n entirely.
-   - Two+ **at launch** (e.g. a DE+EN consultancy site) → Astro i18n with
-     `/de/` + `/en/` routes from the first commit — retrofitting URL structure
+   - Two+ **at launch** (e.g. a DE+EN consultancy site) → run
+     **`astro-i18n-setup`** (Astro i18n: clean default locale + prefixed others,
+     self-referencing hreflang + `x-default`, sitemap alternates, language switcher,
+     per-locale test harness) from the first commit — retrofitting URL structure
      later breaks links and SEO.
    - "Maybe English someday" → treat as one language now.
 
@@ -221,6 +224,15 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
+
+   **Conditional setup skills** (only when the interview selected them — they don't
+   ship with a single-locale, CMS-free site):
+   ```bash
+   # Q3 chose Keystatic:
+   [ "$CMS" = keystatic ] && cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
+   # Q4 chose 2+ languages:
+   [ "$MULTILANG" = yes ] && cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   ```
 4. **Docs** — copy `templates/positioning.md` → `POSITIONING.md`,
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.

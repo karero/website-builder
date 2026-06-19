@@ -7,6 +7,7 @@
       "Bash(npm test:*)",
       "Bash(npm exec:*)",
       "Bash(npx astro:*)",
+      "Bash(npx keystatic:*)",
       "Bash(npx playwright:*)",
       "Bash(npx wrangler pages dev:*)",
       "Bash(npx wrangler whoami:*)",
@@ -64,7 +65,8 @@
       "Bash(echo:*)",
       "Bash(open:*)",
       "WebFetch(domain:docs.astro.build)",
-      "WebFetch(domain:developers.cloudflare.com)"
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:keystatic.com)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
