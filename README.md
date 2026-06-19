@@ -105,11 +105,12 @@ docs/
 ## Use it locally
 
 ```bash
-make install     # symlink every skill into ~/.claude/skills/ (idempotent)
+make install         # symlink every skill into ~/.claude/skills/  (Claude Code, idempotent)
+make install-codex   # symlink every skill into ~/.agents/skills/   (OpenAI Codex)
 ```
 
 Edit a skill once, here, and the change is live everywhere (the global location is a
-symlink, not a copy). Restart your Claude session to pick up new/renamed skills.
+symlink, not a copy). Restart your session to pick up new/renamed skills.
 
 ## Hand it off
 

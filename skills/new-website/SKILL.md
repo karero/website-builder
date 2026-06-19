@@ -178,16 +178,19 @@ Assemble the project at `<site>/` so it travels without any global setup:
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
    and `src/config.ts`. **Astro 6 needs Node ≥22.12** — the overlay's `.nvmrc` pins
    22 for local + Cloudflare Pages builds.
-2. **Permissions:** copy the allowlist so routine `npm`/`astro`/`playwright`/`git
-   commit` calls don't prompt (it still asks for `rm -rf`, `git push --force`,
-   `wrangler … delete`, `gh repo delete`):
+2. **Permissions.** Copy the setup guide into the project (all tools), then — **Claude Code
+   only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't
+   prompt (it still asks for `rm -rf`, `git push --force`, `wrangler … delete`, `gh repo delete`):
    ```bash
+   cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .          # all tools — receiving party can set up too
+   # Claude Code only:
    mkdir -p .claude
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
-   cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .   # so the receiving party can set up too
    ```
-   For the allow/deny model and how to extend it safely when a prompt keeps
-   recurring, use **`website-permissions`**.
+   *Codex / Antigravity: skip the `.claude/settings.json` copy — it's Claude Code-specific.
+   Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
+   Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
+   it safely when a prompt keeps recurring, use **`website-permissions`**.
 3. **Skills travel with the repo** — copy all seventeen skills in (the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
    `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
