@@ -33,7 +33,9 @@ REQUIRED=(
   scripts/check_clean.sh
   scripts/package.sh
   docs/ANTIGRAVITY.md
+  docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md
+  docs/CODEX-TEST.md
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
 )

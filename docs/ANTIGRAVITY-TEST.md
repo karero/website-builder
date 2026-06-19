@@ -44,6 +44,11 @@ echo "$SKILLS_ROOT"                   # expect: .../.gemini/config/skills
 ```
 **Expected:** prints your `~/.gemini/config/skills`.
 
+> The loop's `~/.agents/skills` entry is **Codex's** location, and `~/.gemini/config/skills`
+> is Antigravity's **global** install. If you used the **workspace** install (Option B in
+> [ANTIGRAVITY.md](ANTIGRAVITY.md)), the skills live in the project's `.agents/skills` —
+> point the scaffold at it with `export SKILLS_ROOT="$PWD/.agents/skills"`.
+
 ### 4. Trigger the orchestrator
 In a **fresh, empty** folder, say `new website` (or "I want to build a new website").
 **Expected:** the stack-decision interview starts.

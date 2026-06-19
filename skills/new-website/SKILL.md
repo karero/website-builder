@@ -10,7 +10,8 @@ description: >
   copying the website-* skills + the three SEO-depth skills (ai-seo,
   schema-markup, seo-audit) + site-architecture + the marketing skills it
   delegates to (customer-research, copywriting, image) + outgoing-link-audit +
-  website-permissions + search-console-setup INTO the project's .claude/skills/
+  website-permissions + search-console-setup INTO the project's skills dir
+  (`.claude/skills`, or `.agents/skills` for a Codex install — see `$PROJECT_SKILLS_DIR`)
   so the repo is self-contained for a third party. Default stack Astro → GitHub → Cloudflare
   Pages. Use at the very start of any new site. Trigger phrases: "new website",
   "start a new site", "scaffold a website", "spin up a site", "build a new
@@ -145,14 +146,26 @@ Assemble the project at `<site>/` so it travels without any global setup:
 
 0. **Git first, before any code:**
    ```bash
-   # Resolve where the suite is installed — Claude Code, Codex, or Antigravity.
-   # Honour an explicit $SKILLS_ROOT; otherwise auto-detect (Claude default).
-   # $SKILLS_ROOT is reused by the cp steps below.
+   # Resolve where the suite is installed (the cp SOURCE). Per tool:
+   #   ~/.claude/skills = Claude Code · ~/.agents/skills = Codex · ~/.gemini/config/skills = Antigravity
+   # Honour an explicit $SKILLS_ROOT; else auto-detect (Claude default). On a machine with
+   # more than one installed, set it yourself — e.g. `export SKILLS_ROOT=~/.agents/skills`
+   # (Codex) or `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
+   # `export SKILLS_ROOT="$PWD/.agents/skills"`.
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
      for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
        [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
      done
+   fi
+   # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default;
+   # Codex reads repo-scoped skills from .agents/skills, so derive that for a Codex install.
+   # Force a Codex-only handoff with: export PROJECT_SKILLS_DIR=.agents/skills
+   if [ -z "${PROJECT_SKILLS_DIR:-}" ]; then
+     case "$SKILLS_ROOT" in
+       "$HOME/.agents/skills"*) PROJECT_SKILLS_DIR=".agents/skills" ;;
+       *) PROJECT_SKILLS_DIR=".claude/skills" ;;
+     esac
    fi
    mkdir <site> && cd <site> && git init
    cp "$SKILLS_ROOT"/new-website/templates/.gitignore .
@@ -182,7 +195,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    and `search-console-setup` (post-launch GSC/Bing/IndexNow)), so the handoffs resolve
    for the receiving party:
    ```bash
-   mkdir -p .claude/skills
+   mkdir -p "$PROJECT_SKILLS_DIR"
    cp -R "$SKILLS_ROOT"/website-positioning \
          "$SKILLS_ROOT"/website-content-guide \
          "$SKILLS_ROOT"/website-seo-geo \
@@ -200,7 +213,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/outgoing-link-audit \
          "$SKILLS_ROOT"/website-permissions \
          "$SKILLS_ROOT"/search-console-setup \
-         .claude/skills/
+         "$PROJECT_SKILLS_DIR"/
    ```
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
@@ -232,8 +245,9 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 
 - **`EXT` is 0** → the site links only to itself. Say so and **skip silently** — do
   not ask.
-- **`EXT` ≥ 1** → use **`AskUserQuestion`** to ask whether to run the liveness sweep
-  now, e.g. *"The site has N outgoing links. Run the `outgoing-link-audit` liveness
+- **`EXT` ≥ 1** → ask whether to run the liveness sweep now — use a structured
+  user-input tool if the platform offers one (Claude Code's **`AskUserQuestion`**),
+  otherwise just ask in chat — e.g. *"The site has N outgoing links. Run the `outgoing-link-audit` liveness
   sweep before launch? (fetches each third-party URL; ~a few seconds each)"* — options
   **Run it now (recommended)** / **Skip — I'll run it monthly**. If they say run it,
   invoke the `outgoing-link-audit` skill; otherwise note it as a monthly follow-up.

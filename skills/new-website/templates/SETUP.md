@@ -87,7 +87,15 @@ be committed by accident:
 ```bash
 mkdir <site> && cd <site>
 git init
-cp ~/.claude/skills/new-website/templates/.gitignore .
+# Where the suite is installed: ~/.claude/skills (Claude Code) · ~/.agents/skills (Codex)
+# · ~/.gemini/config/skills (Antigravity). Honour an explicit $SKILLS_ROOT; else auto-detect.
+if [ -z "${SKILLS_ROOT:-}" ]; then
+  SKILLS_ROOT="$HOME/.claude/skills"
+  for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+    [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
+  done
+fi
+cp "$SKILLS_ROOT/new-website/templates/.gitignore" .
 git add .gitignore && git commit -m "chore: init repo with .gitignore"
 ```
 The template `.gitignore` excludes `node_modules/`, `dist/`, `.astro/`, Playwright artifacts,
@@ -98,11 +106,14 @@ Cloudflare/analytics secrets live in the Cloudflare dashboard's env vars, not th
 
 ## 4. Stop Claude asking permission for every command
 
-Copy the permission allowlist into the project so routine build commands (npm/astro/
-playwright/git read+commit, image tools) run without a prompt:
+**Claude Code only.** Copy the permission allowlist into the project so routine build
+commands (npm/astro/playwright/git read+commit, image tools) run without a prompt:
 ```bash
-mkdir -p .claude && cp ~/.claude/skills/new-website/templates/claude/settings.json .claude/settings.json
+mkdir -p .claude && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 ```
+> **Codex / Antigravity:** skip this — `.claude/settings.json` is Claude Code-specific. On
+> Codex, put durable project instructions in `AGENTS.md` and control command approval via
+> Codex's own rules/config. Antigravity uses its own sandbox/approval model.
 It deliberately does **not** auto-allow destructive/irreversible commands (`rm -rf`,
 `git push --force`, `git reset --hard`, `wrangler … delete`, `gh repo delete`) — those still
 ask. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
