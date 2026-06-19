@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
-# credentials may enter it. Scans skills/ + reference/ and exits 1 (with file:line) on
+# credentials may enter it. Scans skills/ + root docs and exits 1 (with file:line) on
 # any hit. Wired into `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:
@@ -13,7 +13,7 @@
 # loosening it to "match nothing".
 set -uo pipefail
 cd "$(dirname "$0")/.."
-SCAN="skills reference"
+SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
 # handoff. NOT the scripts (they DEFINE the secret regexes — would self-match). The name
 # denylist stays on $SCAN only: LICENSE legitimately carries the owner name + clone URLs.

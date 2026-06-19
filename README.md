@@ -48,20 +48,19 @@ allowlist), then sequences the sibling skills through **positioning → content 
 
 ```
 skills/            the 18 suite skills (canonical)
-  new-website/     orchestrator + templates/ (Astro starter overlay + test suite)
+  new-website/     orchestrator + templates/ (Astro starter overlay + test suite) +
+                   references/WEBSITE_ARCHITECTURE.md (hosting-tier 1/2/3 decision doc,
+                   the companion to the orchestrator's stack-decision interview)
   website-*        siblings (run in order): positioning (the strategic spine — what you
                    offer, for whom, what category; worked out FIRST, enforced by
                    positioning.spec.ts), content-guide, design-system, seo-geo,
                    testimonials, qa, review, permissions
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, outgoing-link-audit, search-console-setup   (bundled deps)
-reference/
-  WEBSITE_ARCHITECTURE.md   hosting-tier reference (tiers 1/2/3) — the companion to the
-                            new-website orchestrator's stack-decision interview
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (so Claude loads them)
-  package.sh       build dist/website-builder.zip for handoff
-  check_clean.sh   scan skills/ + reference/ for names / contact info / credentials (make check)
+  package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
+  check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
 ```
 
 ## Use it locally
@@ -88,7 +87,7 @@ The suite is a handoff artifact, so it must carry **no personal names, contact i
 credentials**.
 
 ```bash
-make check       # scans skills/ + reference/ for PII + secrets; fails on any hit
+make check       # scans skills/ + root docs for PII + secrets; fails on any hit
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic

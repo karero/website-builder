@@ -33,7 +33,7 @@ Everything needed is bundled here:
 - `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
   permission allowlist to copy into the repo.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
-- `reference/WEBSITE_ARCHITECTURE.md` (in this suite repo) — the Cloudflare
+- `references/WEBSITE_ARCHITECTURE.md` (bundled with this skill) — the Cloudflare
   **tier 1/2/3** decision tree + limits (the tiers are also summarized in §1, question 2).
 
 Sibling skills (run in order, each usable on its own):
@@ -62,7 +62,7 @@ non-expert can answer, and record the answers in the project `README.md`.
 
 2. **Any dynamic/backend behaviour — what must a server actually do?**
    *Decides: the Cloudflare tier. Pick the LOWEST tier that fits — going higher
-   is the classic mistake. Tier tree + limits: `reference/WEBSITE_ARCHITECTURE.md`.*
+   is the classic mistake. Tier tree + limits: `references/WEBSITE_ARCHITECTURE.md`.*
    - Visitors only read; contact is `mailto:` or a form service → **Tier 1
      static** (~90% of sites).
    - Exactly one small server task — a form that emails you, site search,

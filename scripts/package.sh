@@ -14,9 +14,30 @@ cd "$REPO_DIR"
 # can never leak into the handoff. LICENSE + THIRD-PARTY-LICENSES.md ship the notices the
 # README points to; Makefile makes `make install` work for a zip recipient.
 zip -r -X "$OUT/website-builder.zip" \
-  skills reference README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
+  skills README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/check_clean.sh scripts/package.sh \
   -x '*.DS_Store' '*/dist/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
+
+# Integrity check: a handoff zip missing any of these is broken (legal notices, install
+# path, the orchestrator, or the architecture doc it points at). Fail loud if so.
+REQUIRED=(
+  README.md
+  LICENSE
+  THIRD-PARTY-LICENSES.md
+  scripts/install.sh
+  skills/new-website/SKILL.md
+  skills/new-website/references/WEBSITE_ARCHITECTURE.md
+)
+zipfiles="$(unzip -Z1 "$OUT/website-builder.zip")"
+missing=0
+for f in "${REQUIRED[@]}"; do
+  grep -Fxq "$f" <<<"$zipfiles" || { echo "✗ MISSING from zip: $f"; missing=1; }
+done
+if [ "$missing" -ne 0 ]; then
+  echo "FAIL — handoff zip is incomplete (see ✗ above)."
+  exit 1
+fi
+echo "zip integrity OK — all critical files present"
