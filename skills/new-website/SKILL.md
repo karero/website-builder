@@ -321,6 +321,18 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`, and a `README.md` with
       the decision answers + "how to add a page / run tests / deploy".
 
+### Always say whether it's PREVIEW or LIVE (two-stage)
+A non-technical owner cannot tell a preview URL from the live site. So **every time** you
+push to `main` (or they do), state it explicitly — never let a preview read as live:
+
+> ✅ Your changes are on the **preview**: `https://main.<project>.pages.dev` — **this is NOT
+> live yet.** When it looks right, run `npm run ship` to publish to `<live-domain>`.
+
+Only after `npm run ship` (or the merge into `production`) **and** the Cloudflare production
+build finishes is it actually live at `<live-domain>` — confirm that separately ("✅ now
+live at …"). On a **single-stage** site there is no preview: say plainly that the push **is
+going live now**.
+
 ## Notes
 
 - Do not rebuild what existing skills cover — GEO depth → `ai-seo`; technical-SEO/
