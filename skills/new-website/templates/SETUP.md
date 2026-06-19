@@ -91,7 +91,7 @@ git init
 # · ~/.gemini/config/skills (Antigravity). Honour an explicit $SKILLS_ROOT; else auto-detect.
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
-  for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+  for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
     [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
   done
 fi

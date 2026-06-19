@@ -36,7 +36,7 @@ Antigravity's path first:
 export SKILLS_ROOT=~/.gemini/config/skills    # only needed if ~/.claude/skills also exists
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
-  for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+  for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
     [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
   done
 fi

@@ -38,7 +38,7 @@ Codex's path first:
 export SKILLS_ROOT=~/.agents/skills           # only needed if ~/.claude/skills also exists
 if [ -z "${SKILLS_ROOT:-}" ]; then
   SKILLS_ROOT="$HOME/.claude/skills"
-  for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+  for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
     [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
   done
 fi
@@ -53,10 +53,19 @@ In a **fresh, empty** folder, say `new website` — or invoke it explicitly: `$n
 ### 5. Scaffold copies resolve
 Let the orchestrator run the scaffold (steps 0–3). Watch the `cp "$SKILLS_ROOT"/…`
 commands.
-**Expected:** `.gitignore`, `.claude/settings.json`, `SETUP.md`, and the 17 sibling skills
-copy into the new project with **no "No such file or directory"** errors. (`.claude/` is
-just the project's bundled-skills folder; for a Codex-only handoff you can rename it to
-`.agents/`.)
+**Expected:** `.gitignore`, `SETUP.md`, and the 17 sibling skills copy into the new project
+with **no "No such file or directory"** errors.
+
+### 5b. Generated project is Codex-self-contained
+The scaffold derives `$PROJECT_SKILLS_DIR` from `$SKILLS_ROOT`. If you installed via Codex
+(`$SKILLS_ROOT` = `~/.agents/skills`), the bundled skills should land in **`.agents/skills/`**
+(not `.claude/skills/`), so the generated project works in Codex without renaming. To force
+it regardless: `export PROJECT_SKILLS_DIR=.agents/skills` before scaffolding.
+```bash
+ls .agents/skills        # expect the 17 bundled sibling skills
+```
+**Expected:** `.agents/skills/` exists with the bundled skills. (The Claude-only
+`.claude/settings.json` step is skipped for Codex — see docs/CODEX.md.)
 
 ### 6. (Optional) build the generated site
 ```bash

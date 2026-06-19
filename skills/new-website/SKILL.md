@@ -148,13 +148,14 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```bash
    # Resolve where the suite is installed (the cp SOURCE). Per tool:
    #   ~/.claude/skills = Claude Code · ~/.agents/skills = Codex · ~/.gemini/config/skills = Antigravity
-   # Honour an explicit $SKILLS_ROOT; else auto-detect (Claude default). On a machine with
+   # Honour an explicit $SKILLS_ROOT; else auto-detect in priority order
+   # Claude Code → Antigravity → Codex (Claude is the default/primary). On a machine with
    # more than one installed, set it yourself — e.g. `export SKILLS_ROOT=~/.agents/skills`
    # (Codex) or `~/.gemini/config/skills` (Antigravity); Antigravity workspace installs use
    # `export SKILLS_ROOT="$PWD/.agents/skills"`.
    if [ -z "${SKILLS_ROOT:-}" ]; then
      SKILLS_ROOT="$HOME/.claude/skills"
-     for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+     for d in "$HOME/.claude/skills" "$HOME/.gemini/config/skills" "$HOME/.agents/skills"; do
        [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
      done
    fi
