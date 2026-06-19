@@ -1,0 +1,13 @@
+name: clean
+# Fails the build if any personal name, contact info, or credential enters the skill
+# suite. The suite is a handoff artifact and must stay generic. See scripts/check_clean.sh.
+on:
+  push:
+  pull_request:
+jobs:
+  no-pii-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan skills for names / contact info / credentials
+        run: bash scripts/check_clean.sh

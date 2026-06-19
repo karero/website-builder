@@ -1,0 +1,24 @@
+name: CI
+# Runs astro check (strict TS) + the full quality harness (a11y / seo / navigation /
+# images / tone / positioning / email / links) against a production build. A red check blocks the
+# merge — the point. Needs a committed package-lock.json (npm ci).
+# node-version 22: Astro 6 requires Node >=22.12 (keep in sync with .nvmrc).
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm test

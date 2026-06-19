@@ -1,0 +1,113 @@
+# Setup: accounts, tools, git, and Claude permissions
+
+One-time machine setup for building/deploying the sites this skill scaffolds. Copy this
+file into a handed-off repo so the receiving party can get running too.
+
+---
+
+## 1. Accounts to create (human action — Claude can't do these)
+
+1. **GitHub — a PRIVATE account/repo.** https://github.com/signup → enable **2FA**. Client
+   work stays in **private** repos. Run `gh auth login` (see tools) so pushes need no password.
+2. **Cloudflare account.** https://dash.cloudflare.com/sign-up → enable **2FA**. Hosts the site
+   (Pages) and, if you move the domain's DNS there, the DNS. Free tier (unmetered bandwidth)
+   covers a small static site; upgrade to Workers Paid ($5/mo) only when a feature needs it.
+
+---
+
+## 2. Tools to install
+
+### macOS — via [Homebrew](https://brew.sh)
+```bash
+brew install node          # JS runtime + npm — runs Astro, the build, the tests
+brew install git           # version control (the deploy = "push to GitHub")
+brew install gh            # GitHub CLI — create repos & push from the terminal
+npm  install -g wrangler   # Cloudflare CLI — local Functions preview & manual deploys
+
+# image optimisation (see website-design-system)
+brew install webp          # cwebp/dwebp — PNG/JPG → WebP
+brew install libavif       # avifenc — → AVIF (smallest modern format)
+brew install oxipng        # lossless PNG shrink (favicons/icons)
+npm  install -g svgo       # minify SVGs (npm, not brew — needs node, above)
+brew install jpegoptim     # optimise JPEGs
+brew install exiftool      # strip EXIF/GPS from photos before publishing (privacy)
+brew install imagemagick   # `magick` — resize/crop/convert, build responsive sizes
+
+# Markdown reader/editor (read & edit CONTENT_GUIDE.md, BRAND.md, README, etc.)
+brew install --cask obsidian   # free Markdown editor (point a vault at the repo folder)
+
+# per machine, once (re-run after a Playwright upgrade):
+npx playwright install chromium   # the headless browser the tests drive
+```
+
+### Windows — via [winget](https://learn.microsoft.com/windows/package-manager/) (built into Win 11)
+```powershell
+winget install OpenJS.NodeJS.LTS      # Node + npm
+winget install Git.Git                # git
+winget install GitHub.cli             # gh
+npm  install -g wrangler              # Cloudflare CLI
+winget install ImageMagick.ImageMagick # `magick` — convert/resize, incl. WebP & AVIF
+npm  install -g svgo                   # minify SVGs
+winget install OliverBetz.ExifTool     # strip EXIF/GPS (verify id; or download the .exe)
+winget install Obsidian.Obsidian       # Markdown reader/editor
+# cwebp/dwebp CLIs: download libwebp from Google if needed — otherwise `magick` does WebP.
+# oxipng / jpegoptim: optional on Windows; `magick` covers PNG/JPEG optimisation + AVIF.
+npx playwright install chromium        # per machine, once
+```
+> On Windows, prefer building/testing inside **WSL2 (Ubuntu)** for parity with Cloudflare's
+> Linux build environment — fewer line-ending/path surprises.
+
+> **Node ≥22.12 required** (Astro 6) — the LTS installs above satisfy it; the repo's
+> `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` no
+> longer auto-runs native install scripts: if it warns "packages have install scripts
+> not yet covered", approve the two Astro needs or the build fails —
+> `npm approve-scripts esbuild && npm approve-scripts sharp`.
+
+### What each tool does
+| Tool | Function |
+|---|---|
+| node / npm | Runs Astro, builds the site, runs the test suite. |
+| git | Version control; the deploy is "push to GitHub". |
+| gh | Create the GitHub repo + push without a browser. |
+| wrangler | Cloudflare CLI — `wrangler pages dev` local Functions, manual deploys. |
+| @playwright/test | Drives a real browser for the tests (per-project dev dep). |
+| @axe-core/playwright | WCAG accessibility scanner inside Playwright (per-project dev dep). |
+| cwebp / avifenc | Convert raster images to WebP / AVIF. |
+| imagemagick (`magick`) | Resize/crop/convert; generate the responsive size set. |
+| oxipng / jpegoptim / svgo | Squeeze PNG / JPG / SVG. |
+| exiftool | Strip camera EXIF + GPS from photos (privacy). |
+| Obsidian | Read/edit the repo's Markdown docs (`CONTENT_GUIDE.md`, `BRAND.md`, READMEs) with live preview — open the site folder as a vault. Free; macOS + Windows. (VS Code's built-in Markdown preview also works if you'd rather not add an app.) |
+
+---
+
+## 3. Bootstrap git + .gitignore FIRST (before any code)
+
+Initialise version control **before** scaffolding, so secrets and `node_modules` can never
+be committed by accident:
+```bash
+mkdir <site> && cd <site>
+git init
+cp ~/.claude/skills/new-website/templates/.gitignore .
+git add .gitignore && git commit -m "chore: init repo with .gitignore"
+```
+The template `.gitignore` excludes `node_modules/`, `dist/`, `.astro/`, Playwright artifacts,
+`.env*` secrets, `.wrangler/`, and OS/editor cruft. **Never commit a `.env` or any token** —
+Cloudflare/analytics secrets live in the Cloudflare dashboard's env vars, not the repo.
+
+---
+
+## 4. Stop Claude asking permission for every command
+
+Copy the permission allowlist into the project so routine build commands (npm/astro/
+playwright/git read+commit, image tools) run without a prompt:
+```bash
+mkdir -p .claude && cp ~/.claude/skills/new-website/templates/claude/settings.json .claude/settings.json
+```
+It deliberately does **not** auto-allow destructive/irreversible commands (`rm -rf`,
+`git push --force`, `git reset --hard`, `wrangler … delete`, `gh repo delete`) — those still
+ask. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
+remove them from `allow` if you'd rather confirm each push.
+
+`settings.json` is committed (shared project policy). Personal/secret overrides go in
+`.claude/settings.local.json`, which the `.gitignore` keeps out of the repo. To extend the
+list later, run `/fewer-permission-prompts`.

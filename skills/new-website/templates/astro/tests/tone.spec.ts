@@ -1,0 +1,70 @@
+import { test, expect } from '@playwright/test';
+import { PAGES } from './_helpers';
+
+// Tone-of-voice guardrail (see the website-content-guide skill + CONTENT_GUIDE.md).
+// Hard rules across all user-facing copy AND metadata. Genuinely quoted human/customer
+// voice is exempt — wrap it in <blockquote>, <q>, or add data-tov-exempt.
+//
+// Language-aware: contraction/buzzword rules are ENGLISH rules. A page whose
+// <html lang> is not en* (a German-only site, a French or Spanish version) gets only
+// the universal rules — French elisions (c'est, d'une) and German colloquials
+// (geht's) would otherwise false-positive. The em-dash ban applies to every language.
+const UNIVERSAL_RULES: { label: string; re: RegExp }[] = [
+  { label: 'em dash —', re: /—/g },
+];
+const ENGLISH_RULES: { label: string; re: RegExp }[] = [
+  // ANY apostrophe contraction (don't, doesn't, won't, we're, you've, I'll, I'd, I'm) —
+  // generic, so the guard can't silently lag behind an enumerated list.
+  // Known gaps (accepted): y'all, 'tis, int'l, ma'am slip through; gov't/cont'd/OK'd
+  // false-positive (ALLOWLIST them). Names like O'Brien/o'clock are safe (suffix list).
+  { label: 'contraction', re: /\b[a-z]+[’'](t|re|ve|ll|d|m)\b/gi },
+  // 's only on pronouns/determiners — possessives ("the company's", "one's") stay legal.
+  { label: "'s contraction", re: /\b(it|that|what|there|here|who|let|she|he|how|where|when)[’']s\b/gi },
+  { label: 'buzzword', re: /\b(supercharge|world-class|best in class|best-in-class|leverage|leverages|leveraging|unlock|unlocks|unlocking|utilize|utilizes|seamless|seamlessly|robust|cutting-edge|empower|empowers|holistic|game-changing|revolutionary|synergy|synergies|next-level|turbocharge)\b/gi },
+];
+// Exact matches to tolerate (lowercase) — e.g. a brand name like "rock 'n' roll".
+const ALLOWLIST = new Set<string>([]);
+
+for (const path of PAGES) {
+  test(`tone — no banned phrasing on ${path}`, async ({ page }) => {
+    await page.goto(path);
+    const { text, lang } = await page.evaluate(() => {
+      const body = document.body.cloneNode(true) as HTMLElement;
+      body.querySelectorAll('[data-tov-exempt], blockquote, q, script, style, noscript').forEach((el) => el.remove());
+      // Also scan <head> metadata: title / description / OG / Twitter are
+      // user-facing (SERPs, social cards) but live outside <body>, so they would
+      // otherwise slip past the tone rules.
+      const metaSel = [
+        'meta[name="description"]',
+        'meta[property="og:title"]', 'meta[property="og:description"]',
+        'meta[name="twitter:title"]', 'meta[name="twitter:description"]',
+      ];
+      const meta = [document.title, ...metaSel.map((s) => document.querySelector(s)?.getAttribute('content') ?? '')];
+      return {
+        text: meta.join('\n') + '\n' + body.innerText,
+        lang: document.documentElement.lang || '',
+      };
+    });
+
+    const rules = lang.toLowerCase().startsWith('en')
+      ? [...UNIVERSAL_RULES, ...ENGLISH_RULES]
+      : UNIVERSAL_RULES;
+
+    const violations: string[] = [];
+    for (const { label, re } of rules) {
+      for (const m of text.matchAll(re)) {
+        // Normalize the apostrophe so one ALLOWLIST entry covers ’ and '.
+        if (ALLOWLIST.has(m[0].toLowerCase().replace(/’/g, "'"))) continue;
+        const i = m.index ?? 0;
+        const ctx = text.slice(Math.max(0, i - 25), i + 25).replace(/\s+/g, ' ').trim();
+        violations.push(`"${label}" → …${ctx}…`);
+      }
+    }
+    expect(
+      violations,
+      `${path} (lang="${lang}") breaks the tone rules. Em dash → comma/period/colon · contraction → ` +
+        `long form · drop the buzzword. Genuine quoted voice → [data-tov-exempt]/<blockquote>/<q>.\n` +
+        violations.map((v) => '  • ' + v).join('\n'),
+    ).toEqual([]);
+  });
+}

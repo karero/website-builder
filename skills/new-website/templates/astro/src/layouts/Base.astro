@@ -1,0 +1,148 @@
+---
+// Base layout — the SEO + theme spine. One (title, description) pair drives
+// <title>, OG, Twitter, canonical AND the WebPage schema, so they can never
+// drift (tests/seo.spec.ts enforces it).
+//
+//   <Base title="…" description="…"> … </Base>
+//   - title: keyword-tuned; the layout appends " | {SITE.name}" (keep total ≤ 60).
+//   - description: 120–160 chars.
+//   - image: per-page OG image (defaults to /og-image.png).
+//   - schemas: extra JSON-LD objects (FAQPage, Article, …).
+//   - <slot name="head" /> lets a page add its own <head> tags.
+import '../styles/global.css';
+import { SITE, COMPANY, ANALYTICS, SAME_AS, KNOWS_ABOUT } from '../config';
+
+interface Props {
+  title: string;
+  description?: string;
+  image?: string;
+  lang?: string;
+  noindex?: boolean;
+  schemas?: Record<string, unknown>[];
+}
+
+const {
+  title,
+  description = SITE.description,
+  image = '/og-image.png',
+  lang = SITE.locale,
+  noindex = false,
+  schemas = [],
+} = Astro.props;
+
+const site = Astro.site ?? new URL(SITE.url);
+// `build.format: 'file'` makes build-time pathnames end in .html (/privacy.html),
+// but Cloudflare serves the clean URL (/privacy) — canonicalize to the clean form.
+const cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+const canonical = new URL(cleanPath, site).href;
+const ogImage = new URL(image, site).href;
+const fullTitle = title === SITE.name ? SITE.titleHome : `${title} | ${SITE.name}`;
+const orgId = `${site.origin}/#organization`;
+
+const orgSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  '@id': orgId,
+  name: COMPANY.legalName,
+  alternateName: SITE.name,
+  url: site.origin,
+  logo: new URL(COMPANY.logo, site).href,
+  description: SITE.description,
+  ...(KNOWS_ABOUT.length ? { knowsAbout: KNOWS_ABOUT } : {}),
+  ...(SAME_AS.length ? { sameAs: SAME_AS } : {}),
+};
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  '@id': `${site.origin}/#website`,
+  url: `${site.origin}/`,
+  name: SITE.name,
+  publisher: { '@id': orgId },
+  inLanguage: lang,
+};
+const webPageSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  '@id': `${canonical}#webpage`,
+  url: canonical,
+  name: fullTitle,
+  description,
+  isPartOf: { '@id': `${site.origin}/#website` },
+  inLanguage: lang,
+};
+const allSchemas = [orgSchema, websiteSchema, webPageSchema, ...schemas].filter(Boolean);
+// noindex pages: ALSO exclude the route from the sitemap (filter in astro.config.mjs)
+// and from tests/_helpers.ts PAGES — a sitemap listing a noindex URL sends crawlers
+// contradictory signals, and the drift test in seo.spec.ts compares the two.
+const robots = noindex
+  ? 'noindex, follow'
+  : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+// og:locale from lang: 'de' → de_DE; regioned tags use base + region ('de-AT' →
+// de_AT, 'zh-Hans-CN' → zh_CN). Unmapped bases omit the tag entirely — og:locale
+// is optional, and a wrong en_US would contradict inLanguage.
+const OG_LOCALES: Record<string, string | undefined> = { en: 'en_US', de: 'de_DE', fr: 'fr_FR', es: 'es_ES', it: 'it_IT' };
+const [langBase = 'en', ...langRest] = lang.toLowerCase().split('-');
+const langRegion = langRest.at(-1);
+const ogLocale = langRegion && langRegion.length === 2
+  ? `${langBase}_${langRegion.toUpperCase()}`
+  : OG_LOCALES[langBase];
+---
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Set theme before first paint (no flash of the wrong theme). -->
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem('theme');
+          var theme = stored || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    <link rel="canonical" href={canonical} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content={SITE.themeColor} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    {ogLocale && <meta property="og:locale" content={ogLocale} />}
+    <!-- Twitter inherits OG: same strings, summary_large_image. -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    {allSchemas.map((schema) => (
+      <script type="application/ld+json" is:inline set:html={JSON.stringify(schema)} />
+    ))}
+
+    {ANALYTICS.enabled && (
+      <script is:inline defer data-domain={ANALYTICS.domain} src={`${ANALYTICS.scriptHost}/js/script.js`} />
+    )}
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <main id="main"><slot /></main>
+    <!-- Every page links the privacy policy (GDPR: reachable from anywhere). -->
+    <footer class="site-footer">
+      <a href="/privacy">Privacy Policy</a>
+    </footer>
+  </body>
+</html>

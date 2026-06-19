@@ -1,0 +1,20 @@
+# Example
+
+> One-sentence description of what this site/company is and who it serves. Served
+> at https://example.com/llms.txt — a curated index for AI answer engines (GEO).
+> Keep it accurate and in sync with the site.
+
+## Key pages
+- [Home](https://example.com/): positioning, primary action.
+- [About](https://example.com/about): who we are, the entity, leadership.
+- [How it works](https://example.com/how-it-works): the core explanation.
+
+## Facts
+- Legal entity: Example GmbH
+- Location: [city, country]
+- Founded: [year]
+- Contact: [email / page]
+
+## Authoritative on
+- [topic 1]
+- [topic 2]
