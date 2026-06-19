@@ -14,6 +14,11 @@ Replaces the previous arrangement where the suite lived in three hand-synced cop
 which constantly drifted. Now there is one canonical copy here; the global install is
 **derived** from it.
 
+> [!TIP]
+> **Not technical? You don't have to do any of this alone.** At any point — setup, building, or
+> launch — just ask the AI (Claude Code, Antigravity, or Codex) to **guide you step by step in
+> plain language**. It can run the commands for you and explain what each one does.
+
 ## Quick start — build your first site
 
 You need [Claude Code](https://code.claude.com/docs/en/setup) (a paid Claude plan or a
