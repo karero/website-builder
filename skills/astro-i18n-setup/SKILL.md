@@ -5,18 +5,24 @@ description: >
   routing (clean default locale + prefixed others), self-referencing hreflang +
   x-default in the Base layout, i18n sitemap alternates, a language switcher, and
   the test-harness changes that keep the green-from-commit-1 gate honest across
-  locales. Run ONCE, at scaffold time, when new-website Q4 = "two+ languages at
-  launch". Trigger phrases: "multi-language site", "add i18n", "DE+EN site",
+  locales. Run at scaffold time when new-website Q4 = "two+ languages at launch", OR
+  later to add a second language to a single-locale site whose default stays unprefixed
+  (phased rollout). Trigger phrases: "multi-language site", "add i18n", "DE+EN site",
   "internationalization", "hreflang setup", "two languages at launch".
 ---
 
 # Astro i18n setup (scaffold-time, opt-in)
 
 Wires turnkey internationalization into the `new-website` Astro overlay. **Opt-in:**
-the default scaffold stays single-locale; run this only when the site ships **2+
-languages at launch** (new-website §1 Q4). Retrofitting an existing single-locale
-site is OUT of scope — changing URL structure after launch breaks links and SEO
-(Astro's own warning); for that, plan a full migration, not this skill.
+the default scaffold stays single-locale. Run it either **at scaffold time** for a
+2+-language launch (new-website §1 Q4), **or later** when you add a second language to
+an existing single-locale site — see **Phased rollout** below.
+
+Safe vs unsafe: because the default locale stays **unprefixed** (`/`, not `/en/`), adding
+a *secondary* prefixed locale (`/de/…`) is purely additive — it never moves an existing
+URL. What DOES break links/SEO is moving the **default locale itself** off `/` (e.g.
+retrofitting `/` → `/en/`); this skill never does that, so keep `prefixDefaultLocale:
+false`. A full re-prefixing of the default is a migration, not this skill.
 
 Routing model (house default): **clean default locale, prefixed others** —
 `/` and `/about` are the default language (marked `x-default`); other languages get
@@ -26,6 +32,27 @@ default-locale URLs identical to a single-locale build, so nothing regresses.
 Deep SEO rules (reciprocity, x-default, canonical-vs-hreflang, sitemap structure,
 "translate the whole page not just chrome") live in
 `seo-audit/references/international-seo.md` — read it, don't re-derive it.
+
+## Phased rollout (primary language first, translate later)
+
+You don't have to translate everything before launch. Because the default locale is
+unprefixed, you can build and ship the **primary language first**, then add the second
+locale when the translations are ready — without moving a single existing URL:
+
+1. **Phase 1 — primary only.** Build the site in the default language and ship it. Keep
+   `LOCALES = [DEFAULT_LOCALE]` (one entry). `tests/i18n.spec.ts` **self-skips** while
+   there's a single locale (`LOCALES.length < 2`), so the full QA gate is green with no
+   half-built hreflang. You can skip this skill entirely for now, or apply it with a
+   single-locale `LOCALES` to pre-wire the layout.
+2. **Phase 2 — add the locale.** When translating, apply this skill's changes: add the new
+   locale to `astro.config` `i18n.locales`, the `sitemap({ i18n })` map, and `LOCALES`;
+   create the `src/pages/<locale>/…` pages. hreflang, `x-default`, sitemap alternates and
+   `i18n.spec.ts` now enforce both locales — and the default-language URLs are exactly what
+   they were in Phase 1.
+
+The one rule: commit to an **unprefixed default** from day 1 (`prefixDefaultLocale:
+false`). That's the only decision that's expensive to change later; the translations
+themselves are always additive.
 
 ## What it changes
 
