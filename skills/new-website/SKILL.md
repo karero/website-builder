@@ -145,12 +145,15 @@ Assemble the project at `<site>/` so it travels without any global setup:
 
 0. **Git first, before any code:**
    ```bash
-   # Resolve where the suite is installed — Claude Code, Codex, or Antigravity
-   # (defaults to Claude; $SKILLS_ROOT is reused by the cp steps below):
-   SKILLS_ROOT="$HOME/.claude/skills"
-   for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
-     [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
-   done
+   # Resolve where the suite is installed — Claude Code, Codex, or Antigravity.
+   # Honour an explicit $SKILLS_ROOT; otherwise auto-detect (Claude default).
+   # $SKILLS_ROOT is reused by the cp steps below.
+   if [ -z "${SKILLS_ROOT:-}" ]; then
+     SKILLS_ROOT="$HOME/.claude/skills"
+     for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+       [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
+     done
+   fi
    mkdir <site> && cd <site> && git init
    cp "$SKILLS_ROOT"/new-website/templates/.gitignore .
    git add .gitignore && git commit -m "chore: init repo with .gitignore"

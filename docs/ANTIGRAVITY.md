@@ -4,6 +4,8 @@ The `website-builder` skill suite was originally designed for Claude Code, but i
 
 Antigravity natively understands the `SKILL.md` format and can seamlessly orchestrate the pipeline from insights to launch.
 
+> Want to verify it works on your setup? Run through [ANTIGRAVITY-TEST.md](ANTIGRAVITY-TEST.md) — a step-by-step compatibility checklist with a report-back template.
+
 ## 1. Installation
 
 Antigravity automatically discovers skills placed in its customization roots. You have two options for installation:

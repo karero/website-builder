@@ -5,6 +5,8 @@ are plain Markdown (`SKILL.md` + templates), so Codex can run the same suite thr
 small adaptation layer. **`skills/*` stays the single source of truth** — nothing is
 duplicated for Codex.
 
+> Want to verify it works on your setup? Run through [CODEX-TEST.md](CODEX-TEST.md) — a step-by-step compatibility checklist with a report-back template.
+
 ## Install
 
 **From a clone:**

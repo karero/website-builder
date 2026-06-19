@@ -63,7 +63,8 @@ mkdir -p ~/.gemini/config/skills && cp -R skills/* ~/.gemini/config/skills/
 ```
 
 See [docs/ANTIGRAVITY.md](docs/ANTIGRAVITY.md) for install options and the minor
-permission differences.
+permission differences, and [docs/ANTIGRAVITY-TEST.md](docs/ANTIGRAVITY-TEST.md) for a
+step-by-step compatibility checklist.
 
 ### Using with OpenAI Codex
 
@@ -75,7 +76,8 @@ source of truth. Install, restart Codex, and say `new website` (or `$new-website
 ```
 
 See [docs/CODEX.md](docs/CODEX.md) for the clone/zip install, usage, and the differences
-from Claude Code.
+from Claude Code, and [docs/CODEX-TEST.md](docs/CODEX-TEST.md) for a step-by-step
+compatibility checklist.
 
 ## Layout
 
