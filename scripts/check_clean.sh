@@ -17,7 +17,7 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
 # handoff. NOT the scripts (they DEFINE the secret regexes — would self-match). The name
 # denylist stays on $SCAN only: LICENSE legitimately carries the owner name + clone URLs.
-SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE Makefile"
+SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE Makefile docs"
 fail=0
 report() { # <label> <grep-output>
   [ -z "$2" ] && return 0

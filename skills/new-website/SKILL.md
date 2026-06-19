@@ -145,8 +145,14 @@ Assemble the project at `<site>/` so it travels without any global setup:
 
 0. **Git first, before any code:**
    ```bash
+   # Resolve where the suite is installed — Claude Code, Codex, or Antigravity
+   # (defaults to Claude; $SKILLS_ROOT is reused by the cp steps below):
+   SKILLS_ROOT="$HOME/.claude/skills"
+   for d in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills"; do
+     [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
+   done
    mkdir <site> && cd <site> && git init
-   cp ~/.claude/skills/new-website/templates/.gitignore .
+   cp "$SKILLS_ROOT"/new-website/templates/.gitignore .
    git add .gitignore && git commit -m "chore: init repo with .gitignore"
    ```
 1. **Scaffold + overlay:** `npm create astro@latest .` (Empty, TS strict), then copy
@@ -160,8 +166,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `wrangler … delete`, `gh repo delete`):
    ```bash
    mkdir -p .claude
-   cp ~/.claude/skills/new-website/templates/claude/settings.json .claude/settings.json
-   cp ~/.claude/skills/new-website/templates/SETUP.md .   # so the receiving party can set up too
+   cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
+   cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .   # so the receiving party can set up too
    ```
    For the allow/deny model and how to extend it safely when a prompt keeps
    recurring, use **`website-permissions`**.
@@ -174,23 +180,23 @@ Assemble the project at `<site>/` so it travels without any global setup:
    for the receiving party:
    ```bash
    mkdir -p .claude/skills
-   cp -R ~/.claude/skills/website-positioning \
-         ~/.claude/skills/website-content-guide \
-         ~/.claude/skills/website-seo-geo \
-         ~/.claude/skills/website-design-system \
-         ~/.claude/skills/website-testimonials \
-         ~/.claude/skills/website-qa \
-         ~/.claude/skills/website-review \
-         ~/.claude/skills/ai-seo \
-         ~/.claude/skills/schema-markup \
-         ~/.claude/skills/seo-audit \
-         ~/.claude/skills/site-architecture \
-         ~/.claude/skills/customer-research \
-         ~/.claude/skills/copywriting \
-         ~/.claude/skills/image \
-         ~/.claude/skills/outgoing-link-audit \
-         ~/.claude/skills/website-permissions \
-         ~/.claude/skills/search-console-setup \
+   cp -R "$SKILLS_ROOT"/website-positioning \
+         "$SKILLS_ROOT"/website-content-guide \
+         "$SKILLS_ROOT"/website-seo-geo \
+         "$SKILLS_ROOT"/website-design-system \
+         "$SKILLS_ROOT"/website-testimonials \
+         "$SKILLS_ROOT"/website-qa \
+         "$SKILLS_ROOT"/website-review \
+         "$SKILLS_ROOT"/ai-seo \
+         "$SKILLS_ROOT"/schema-markup \
+         "$SKILLS_ROOT"/seo-audit \
+         "$SKILLS_ROOT"/site-architecture \
+         "$SKILLS_ROOT"/customer-research \
+         "$SKILLS_ROOT"/copywriting \
+         "$SKILLS_ROOT"/image \
+         "$SKILLS_ROOT"/outgoing-link-audit \
+         "$SKILLS_ROOT"/website-permissions \
+         "$SKILLS_ROOT"/search-console-setup \
          .claude/skills/
    ```
    The global copies stay the updateable source of truth; the project copies are

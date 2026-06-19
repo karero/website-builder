@@ -14,8 +14,8 @@ cd "$REPO_DIR"
 # can never leak into the handoff. LICENSE + THIRD-PARTY-LICENSES.md ship the notices the
 # README points to; Makefile makes `make install` work for a zip recipient.
 zip -r -X "$OUT/website-builder.zip" \
-  skills README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
-  scripts/install.sh scripts/check_clean.sh scripts/package.sh \
+  skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
+  scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   -x '*.DS_Store' '*/dist/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
@@ -29,8 +29,11 @@ REQUIRED=(
   THIRD-PARTY-LICENSES.md
   Makefile
   scripts/install.sh
+  scripts/install-codex.sh
   scripts/check_clean.sh
   scripts/package.sh
+  docs/ANTIGRAVITY.md
+  docs/CODEX.md
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
 )

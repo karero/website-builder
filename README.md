@@ -1,9 +1,13 @@
 # website-builder
 
 The **single source of truth** for the website-builder skill suite — an orchestrated
-set of Claude skills that build a new website end-to-end (insights → positioning →
+set of agent skills that build a new website end-to-end (insights → positioning →
 content → SEO/GEO → design → QA → review → launch), on the house stack
 **Astro → GitHub → Cloudflare Pages**.
+
+Developed and used with **Claude Code**. It also works with **Google Antigravity** and
+**OpenAI Codex** — the skills are plain `SKILL.md` files, so any of the three can run the
+same suite (see the per-tool notes right below the quick start).
 
 Replaces the previous arrangement where the suite lived in three hand-synced copies
 (`~/.claude/skills/`, a de-personalized `_new-site/` package, and a hand-built zip),
@@ -47,6 +51,32 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
 > (`Copy-Item -Recurse -Force .\skills\* "$env:USERPROFILE\.claude\skills\"`).
 
+### Using with Google Antigravity
+
+This suite is **100% compatible** with Google Antigravity, which natively understands the
+`SKILL.md` format and can orchestrate the whole pipeline (it can even run skills like
+`customer-research` or `seo-audit` as asynchronous subagents). Install the skills into your
+global config, then type `new website` in chat:
+
+```bash
+mkdir -p ~/.gemini/config/skills && cp -R skills/* ~/.gemini/config/skills/
+```
+
+See [docs/ANTIGRAVITY.md](docs/ANTIGRAVITY.md) for install options and the minor
+permission differences.
+
+### Using with OpenAI Codex
+
+Codex runs the same suite through a thin adaptation layer — `skills/*` stays the single
+source of truth. Install, restart Codex, and say `new website` (or `$new-website`):
+
+```bash
+./scripts/install-codex.sh        # symlinks skills/* into ~/.agents/skills/  (or: make install-codex)
+```
+
+See [docs/CODEX.md](docs/CODEX.md) for the clone/zip install, usage, and the differences
+from Claude Code.
+
 ## Layout
 
 ```
@@ -61,9 +91,13 @@ skills/            the 18 suite skills (canonical)
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, outgoing-link-audit, search-console-setup   (bundled deps)
 scripts/
-  install.sh       symlink skills/* into ~/.claude/skills/ (so Claude loads them)
+  install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
+  install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
   package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
+docs/
+  ANTIGRAVITY.md   using the suite with Google Antigravity
+  CODEX.md         using the suite with OpenAI Codex
 ```
 
 ## Use it locally
@@ -81,8 +115,9 @@ symlink, not a copy). Restart your Claude session to pick up new/renamed skills.
 make package     # → dist/website-builder.zip  (runs `make check` first)
 ```
 
-A recipient unzips it and runs `scripts/install.sh` (or copies `skills/*` into their
-`~/.claude/skills/`). The repo is the thing you share — by clone or by zip.
+A recipient unzips it and runs `scripts/install.sh` (Claude Code),
+`scripts/install-codex.sh` (Codex), or copies `skills/*` into their tool's skills root
+(Antigravity → `~/.gemini/config/skills/`). The repo is the thing you share — by clone or by zip.
 
 ## Stay generic (no names, no secrets)
 
