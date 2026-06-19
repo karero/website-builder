@@ -82,7 +82,7 @@ compatibility checklist.
 ## Layout
 
 ```
-skills/            the 18 suite skills (canonical)
+skills/            the suite skills (canonical)
   new-website/     orchestrator + templates/ (Astro starter overlay + test suite) +
                    references/WEBSITE_ARCHITECTURE.md (hosting-tier 1/2/3 decision doc,
                    the companion to the orchestrator's stack-decision interview)
@@ -92,6 +92,7 @@ skills/            the 18 suite skills (canonical)
                    testimonials, qa, review, permissions
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, outgoing-link-audit, search-console-setup   (bundled deps)
+  astro-i18n-setup, keystatic-setup   (opt-in, run once at scaffold time — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -101,6 +102,25 @@ docs/
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
 ```
+
+## Opt-in setup skills
+
+Two skills are **not** part of the default build — the orchestrator pulls them in only when
+the decision interview calls for them, and they run **once, at scaffold time**:
+
+- **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
+  + prefixed others), self-referencing hreflang + `x-default`, sitemap alternates, a language
+  switcher, and per-locale test harness. Triggered when interview Q4 = *two or more languages
+  at launch* (retrofitting URL structure later breaks links and SEO).
+- **`keystatic-setup`** — adds **Keystatic**, a git-based CMS (by the Keystone team), so a
+  non-technical person edits content through a UI while the data stays as Markdown in the
+  repo. Wires **local mode** by default (edit via the dev server, commit to git) and
+  documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
+  to the repo, no dev server). Triggered when interview Q3 = *a non-technical person edits
+  content*; don't install speculatively.
+
+Because they're opt-in, the standard scaffold is unchanged — a site with one language and a
+developer-edited repo never touches either.
 
 ## Use it locally
 

@@ -78,13 +78,16 @@ non-expert can answer, and record the answers in the project `README.md`.
      redeploy is the workflow).
    - A non-technical person (client, co-organizer writing posts) →
      **Keystatic** (git-based, no separate backend). Can be added later —
-     don't install it speculatively.
+     don't install it speculatively. When chosen, run **`keystatic-setup`**
+     (local mode; the GitHub cloud-mode upgrade is documented there).
 
 4. **One language or several?**
    *Decides: i18n routing from day 1 or never.*
    - One language (German-only counts) → skip i18n entirely.
-   - Two+ **at launch** (e.g. a DE+EN consultancy site) → Astro i18n with
-     `/de/` + `/en/` routes from the first commit — retrofitting URL structure
+   - Two+ **at launch** (e.g. a DE+EN consultancy site) → run
+     **`astro-i18n-setup`** (Astro i18n: clean default locale + prefixed others,
+     self-referencing hreflang + `x-default`, sitemap alternates, language switcher,
+     per-locale test harness) from the first commit — retrofitting URL structure
      later breaks links and SEO.
    - "Maybe English someday" → treat as one language now.
 
@@ -159,12 +162,13 @@ Assemble the project at `<site>/` so it travels without any global setup:
        [ -d "$d/new-website" ] && SKILLS_ROOT="$d" && break
      done
    fi
-   # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default;
-   # Codex reads repo-scoped skills from .agents/skills, so derive that for a Codex install.
-   # Force a Codex-only handoff with: export PROJECT_SKILLS_DIR=.agents/skills
+   # Where bundled skills go IN the generated project (the cp DESTINATION). Claude default
+   # (.claude/skills). Codex and Antigravity read repo-scoped skills from .agents/skills, so
+   # derive that when the suite was installed through either of them. Force it with:
+   # export PROJECT_SKILLS_DIR=.agents/skills
    if [ -z "${PROJECT_SKILLS_DIR:-}" ]; then
      case "$SKILLS_ROOT" in
-       "$HOME/.agents/skills"*) PROJECT_SKILLS_DIR=".agents/skills" ;;
+       "$HOME/.agents/skills"*|"$HOME/.gemini/config/skills"*|*/.agents/skills*) PROJECT_SKILLS_DIR=".agents/skills" ;;
        *) PROJECT_SKILLS_DIR=".claude/skills" ;;
      esac
    fi
@@ -191,7 +195,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy all seventeen skills in (the seven
+3. **Skills travel with the repo** — copy the seventeen always-on skills in, plus any
+   conditional setup skills selected by the interview: (the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
    `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,
@@ -221,6 +226,15 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
+
+   **Conditional setup skills** — run the matching line ONLY when the interview
+   selected it (they don't ship with a single-locale, CMS-free site):
+   ```bash
+   # If Q3 = "non-technical editor" (Keystatic):
+   cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
+   # If Q4 = "2+ languages at launch":
+   cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   ```
 4. **Docs** — copy `templates/positioning.md` → `POSITIONING.md`,
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.

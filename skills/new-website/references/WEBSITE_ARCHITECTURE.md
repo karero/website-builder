@@ -152,6 +152,8 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
   works perfectly with Astro + Cloudflare. (Decap is the alternative; hosted Sanity/Contentful
   only if structured content is reused across many surfaces.)
 - **Default: skip the CMS.** Add it only when a human-who-isn't-you needs the keys.
+- **When chosen, run the `keystatic-setup` skill** — it wires local mode (edit in the dev
+  server, commit/push) and documents the GitHub cloud-mode upgrade for browser editing.
 
 ---
 
@@ -202,10 +204,11 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
    - Accounts / DB / checkout / per-request SSR → **Tier 3** (Workers + D1) — or off-platform if it
      trips a Part-3 escape hatch.
 3. **Who edits content after launch?** You/Claude Code (default, no CMS) vs. non-technical client
-   (add **Keystatic**) vs. mix.
-4. **Languages?** One → skip i18n entirely. Multiple
-   from day one → Astro i18n routing + per-locale content collections. (A half-finished i18n
-   retrofit is a real, avoidable tax.)
+   (add **Keystatic** via the **`keystatic-setup`** skill) vs. mix.
+4. **Languages?** One → skip i18n entirely. Multiple from day one → run the
+   **`astro-i18n-setup`** skill (Astro i18n routing, self-referencing hreflang + `x-default`,
+   sitemap alternates, per-locale content + test harness). (A half-finished i18n retrofit is a
+   real, avoidable tax.)
 5. **Analytics? (optional)** Plausible (cookieless, paid license from €9/mo —
    https://plausible.io/#pricing) or, for many small sites, just Google Search Console (free).
 6. **Domain + DNS** on Cloudflare; **2-branch** Pages deploy (preview noindex / production live).

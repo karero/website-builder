@@ -41,8 +41,9 @@ $new-website
 Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay, and
 sequences the rest of the `website-*` skills.
 
-> **On a machine that also has Claude Code installed,** the scaffold's auto-detect defaults
-> to `~/.claude/skills`. Force Codex's copy first:
+> **On a machine that also has Claude Code or Antigravity installed,** the scaffold's
+> auto-detect prefers them over Codex (order: Claude Code → Antigravity → Codex). Force
+> Codex's copy first:
 > ```bash
 > export SKILLS_ROOT="$HOME/.agents/skills"
 > ```
@@ -59,9 +60,10 @@ sequences the rest of the `website-*` skills.
   no-op for Codex.
 - Project-bundled skills are copied into `.claude/skills/` by default (so a Claude
   recipient is self-contained). The scaffold derives `$PROJECT_SKILLS_DIR` automatically —
-  if the suite was installed through Codex (`$SKILLS_ROOT` = `~/.agents/skills`), generated
-  projects bundle into `.agents/skills/` instead, so they're Codex-self-contained. Force it
-  with `export PROJECT_SKILLS_DIR=.agents/skills` for a **Codex-only handoff**.
+  if the suite was installed through Codex or Antigravity (`$SKILLS_ROOT` = `~/.agents/skills`
+  or `~/.gemini/config/skills`), generated projects bundle into `.agents/skills/` instead, so
+  they're self-contained for that tool. Force it with `export PROJECT_SKILLS_DIR=.agents/skills`
+  for a **Codex or Antigravity handoff**.
 
 ## Scope
 
