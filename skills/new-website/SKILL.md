@@ -116,8 +116,9 @@ non-expert can answer, and record the answers in the project `README.md`.
    them, let the owner choose**; recommend two-stage. Record the choice in the README.*
    - New domain or subdomain of an existing site? (Affects canonical URLs and whether
      existing SEO authority carries over.) DNS moves to Cloudflare.
-   - **Two-stage — recommended (default).** `main` is a private **preview** (noindexed
-     `*.pages.dev`); `production` is the **live** site. The owner pushes to `main`, checks
+   - **Two-stage — recommended (default).** `main` is an **unlisted, noindexed preview**
+     (`*.pages.dev` — noindexed, but public-by-URL, not access-controlled); `production` is
+     the **live** site. The owner pushes to `main`, checks
      the preview link, then runs **`npm run ship`** to publish. A mistake never reaches the
      live domain. *Scaffold adds:* the `production` branch, the `_middleware.ts` noindex
      guard, and the `ship` script.

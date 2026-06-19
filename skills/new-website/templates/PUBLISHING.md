@@ -57,10 +57,11 @@ npm run ship
 `npm run ship` uploads `main` to the live (`production`) branch for you — you never run the
 branch commands by hand. A few seconds after it finishes, Cloudflare builds the live site.
 
-> **The first upload each session runs a quick self-check** (it builds the site and runs the
-> tests before uploading). It may take a minute, and **if something is broken it stops the
-> upload and tells you** rather than publishing a broken page. To skip it for one push (e.g.
-> a tiny text fix you've already checked): `git push --no-verify`.
+> **Each upload may run a quick self-check** (it builds the site and runs the tests before
+> uploading — so does `npm run ship`, which uploads too). It can take a minute, and **if
+> something is broken it stops the upload and tells you** rather than publishing a broken
+> page. To skip the check on a *manual* `git push` you've already verified:
+> `git push --no-verify`. If **`npm run ship`** stops partway, don't force it — ask for help.
 
 > **Nothing reaches the live domain until step 4.** Steps 1–3 only update the noindexed preview.
 

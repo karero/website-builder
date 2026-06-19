@@ -24,5 +24,12 @@ echo "→ Publishing main → production. This goes LIVE."
 # (rejected push, red pre-push gate, network) never strands the owner on production.
 # Fast-forward only: if production has somehow diverged, this is rejected loudly rather
 # than silently publishing the wrong thing.
-git push origin main:production
+if ! git push origin main:production; then
+  echo ""
+  echo "✗ Publish rejected — 'production' has commits that 'main' doesn't have."
+  echo "  (e.g. it was published from elsewhere, or kept history from an older ship flow.)"
+  echo "  Nothing was published and you're still safely on 'main'. Do NOT force-push —"
+  echo "  ask for help to reconcile the two branches."
+  exit 1
+fi
 echo "✓ Published. Cloudflare is building the live site now (live in ~1 minute)."
