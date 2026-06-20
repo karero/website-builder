@@ -39,6 +39,14 @@ function imageSize(b: Buffer): { w: number; h: number } | null {
   return null;
 }
 
+// The real image format from the magic bytes, to enforce og-images rule 3 / BRAND.md
+// ("extension must match the bytes"): a PNG renamed .jpg trips strict scrapers.
+function imageType(b: Buffer): 'png' | 'jpeg' | null {
+  if (b.length > 3 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
+  if (b.length > 1 && b[0] === 0xff && b[1] === 0xd8) return 'jpeg';
+  return null;
+}
+
 for (const path of PAGES) {
   test(`seo — head contract on ${path}`, async ({ page }) => {
     await page.goto(path);
@@ -63,7 +71,12 @@ for (const path of PAGES) {
     const ogImage = await meta(page, 'meta[property="og:image"]');
     expect(ogImage, 'og:image missing').toBeTruthy();
     expect(await meta(page, 'meta[name="twitter:image"]'), 'twitter:image must equal og:image').toBe(ogImage);
-    const ogPath = new URL(ogImage!, SITE.url).pathname;
+    // The card must be hosted ON-SITE (og-images: "keep cards on-site in public/ so the
+    // repo can verify them") — otherwise a remote/CDN URL whose pathname happens to exist
+    // locally would pass the disk check below.
+    const ogUrl = new URL(ogImage!, SITE.url);
+    expect(ogUrl.origin, `og:image must be hosted on SITE.url (${SITE.url}), not ${ogUrl.origin}`).toBe(new URL(SITE.url).origin);
+    const ogPath = ogUrl.pathname;
     const ogFile = join(process.cwd(), 'public', ogPath);
     let ogBytes: Buffer;
     try { ogBytes = readFileSync(ogFile); }
@@ -73,6 +86,11 @@ for (const path of PAGES) {
     const dim = imageSize(ogBytes);
     expect(dim, `og:image ${ogPath} is not a readable JPEG/PNG`).toBeTruthy();
     expect(`${dim!.w}×${dim!.h}`, `og:image ${ogPath} must be 1200×630 (1.91:1) — it's ${dim!.w}×${dim!.h}`).toBe('1200×630');
+    // Extension must match the bytes (og-images rule 3): a PNG renamed .jpg trips strict scrapers.
+    const extMatch = ogPath.toLowerCase().match(/\.(png|jpe?g)$/);
+    expect(extMatch, `og:image ${ogPath} must end in .png/.jpg/.jpeg`).toBeTruthy();
+    const wantType = extMatch![1] === 'png' ? 'png' : 'jpeg';
+    expect(imageType(ogBytes), `og:image ${ogPath} has a .${extMatch![1]} extension but its bytes are ${imageType(ogBytes) ?? 'neither PNG nor JPEG'} — extension must match the bytes`).toBe(wantType);
 
     expect(canonical, 'canonical missing').toBeTruthy();
     expect(await meta(page, 'meta[property="og:url"]'), 'og:url must equal canonical').toBe(canonical);
