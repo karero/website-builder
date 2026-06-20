@@ -17,6 +17,48 @@ async function meta(page: import('@playwright/test').Page, sel: string) {
   return page.locator(sel).getAttribute('content');
 }
 
+// Dep-free image dimensions from the raw bytes (PNG IHDR / JPEG SOF marker), so we
+// can assert the og:image is really 1200×630 without an image library — mirroring
+// the PDF byte-parsing below.
+function imageSize(b: Buffer): { w: number; h: number } | null {
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) }; // PNG IHDR
+  }
+  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {       // JPEG
+    let o = 2;
+    while (o + 9 < b.length) {
+      if (b[o] !== 0xff) { o++; continue; }
+      const m = b[o + 1];
+      // SOF markers carry the frame size (skip C4=DHT, C8=JPG-ext, CC=DAC)
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        return { h: b.readUInt16BE(o + 5), w: b.readUInt16BE(o + 7) };
+      }
+      o += 2 + b.readUInt16BE(o + 2); // jump to the next marker segment
+    }
+  }
+  return null;
+}
+
+// The real image format from the magic bytes, to enforce og-images rule 3 / BRAND.md
+// ("extension must match the bytes"): a PNG renamed .jpg trips strict scrapers.
+function imageType(b: Buffer): 'png' | 'jpeg' | null {
+  if (b.length > 3 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png';
+  if (b.length > 1 && b[0] === 0xff && b[1] === 0xd8) return 'jpeg';
+  return null;
+}
+
+// The default share card (Base.astro's default `image`). Keep in sync with Base.astro.
+const DEFAULT_OG_CARD = '/images/og/default.jpg';
+// Pages allowed to use the default card instead of their own per-page card. Everything
+// else MUST have a dedicated /images/og/<slug>.jpg card — a CONTENT page silently sharing
+// the generic default is the failure this guards. Opt-OUT model: as you add content pages
+// (uncomment them in _helpers PAGES), do NOT list them here, and the guard makes sure each
+// gets its own card. The starter ships only '/' + '/privacy', so it stays green from commit 1.
+//   - '/'        home: the default card IS the home card.
+//   - '/privacy' legal/utility — nobody shares it with a custom preview.
+// (A noindex 404 isn't here: it's excluded from PAGES entirely, so the guard never runs on it.)
+const OWN_CARD_EXEMPT = new Set<string>(['/', '/privacy']);
+
 for (const path of PAGES) {
   test(`seo — head contract on ${path}`, async ({ page }) => {
     await page.goto(path);
@@ -35,6 +77,41 @@ for (const path of PAGES) {
     expect(await meta(page, 'meta[property="og:description"]'), 'og:description must equal meta description').toBe(description);
     expect(await meta(page, 'meta[name="twitter:description"]'), 'twitter:description must equal meta description').toBe(description);
 
+    // og:image is the share preview. WhatsApp drops images > ~300 KB and crops
+    // anything that isn't 1.91:1, so every page's card must be an ON-SITE 1200×630
+    // JPEG/PNG ≤ 300 KB. Read the bytes (not the URL) — generate cards with `npm run og`.
+    const ogImage = await meta(page, 'meta[property="og:image"]');
+    expect(ogImage, 'og:image missing').toBeTruthy();
+    expect(await meta(page, 'meta[name="twitter:image"]'), 'twitter:image must equal og:image').toBe(ogImage);
+    // The card must be hosted ON-SITE (og-images: "keep cards on-site in public/ so the
+    // repo can verify them") — otherwise a remote/CDN URL whose pathname happens to exist
+    // locally would pass the disk check below.
+    const ogUrl = new URL(ogImage!, SITE.url);
+    expect(ogUrl.origin, `og:image must be hosted on SITE.url (${SITE.url}), not ${ogUrl.origin}`).toBe(new URL(SITE.url).origin);
+    const ogPath = ogUrl.pathname;
+    const ogFile = join(process.cwd(), 'public', ogPath);
+    let ogBytes: Buffer;
+    try { ogBytes = readFileSync(ogFile); }
+    catch { throw new Error(`og:image ${ogPath} not found in public/ — run \`npm run og\` to generate it`); }
+    const ogKb = ogBytes.length / 1024;
+    expect(ogKb, `og:image ${ogPath} is ${ogKb.toFixed(0)} KB > 300 (WhatsApp drops the preview)`).toBeLessThanOrEqual(300);
+    const dim = imageSize(ogBytes);
+    expect(dim, `og:image ${ogPath} is not a readable JPEG/PNG`).toBeTruthy();
+    expect(`${dim!.w}×${dim!.h}`, `og:image ${ogPath} must be 1200×630 (1.91:1) — it's ${dim!.w}×${dim!.h}`).toBe('1200×630');
+    // Extension must match the bytes (og-images rule 3): a PNG renamed .jpg trips strict scrapers.
+    const extMatch = ogPath.toLowerCase().match(/\.(png|jpe?g)$/);
+    expect(extMatch, `og:image ${ogPath} must end in .png/.jpg/.jpeg`).toBeTruthy();
+    const wantType = extMatch![1] === 'png' ? 'png' : 'jpeg';
+    expect(imageType(ogBytes), `og:image ${ogPath} has a .${extMatch![1]} extension but its bytes are ${imageType(ogBytes) ?? 'neither PNG nor JPEG'} — extension must match the bytes`).toBe(wantType);
+
+    // Every non-exempt page must have its OWN card, not the generic default.
+    if (!OWN_CARD_EXEMPT.has(path)) {
+      expect(
+        ogPath,
+        `${path} has no dedicated OG card (uses the default ${DEFAULT_OG_CARD}). Add it to scripts/generate_og_cards.py PAGES + set image="/images/og/<slug>.jpg" on the page, or add ${path} to OWN_CARD_EXEMPT.`,
+      ).not.toBe(DEFAULT_OG_CARD);
+    }
+
     expect(canonical, 'canonical missing').toBeTruthy();
     expect(await meta(page, 'meta[property="og:url"]'), 'og:url must equal canonical').toBe(canonical);
     // canonical is always the PRODUCTION URL (Astro.site), even when previewing on
@@ -48,6 +125,21 @@ for (const path of PAGES) {
     for (const b of blocks) expect(() => JSON.parse(b), 'JSON-LD must parse').not.toThrow();
   });
 }
+
+// "Its own" means DISTINCT: two non-exempt pages pointing at the same card is a wiring
+// copy-paste error (the share preview would misrepresent one of them). No-op until the
+// scaffold grows past its exempt starter pages.
+test('every non-exempt page has a DISTINCT og:image card', async ({ page }) => {
+  const seen = new Map<string, string>();
+  for (const path of PAGES) {
+    if (OWN_CARD_EXEMPT.has(path)) continue;
+    await page.goto(path);
+    const og = new URL((await meta(page, 'meta[property="og:image"]'))!, SITE.url).pathname;
+    const prev = seen.get(og);
+    expect(prev, `${path} and ${prev} share the same OG card (${og}) — each page needs its own`).toBeUndefined();
+    seen.set(og, path);
+  }
+});
 
 // Drift alarm: the sitemap is built from src/pages/**, PAGES is hand-maintained.
 // If they differ, a page was added without a PAGES entry — and EVERY suite

@@ -76,7 +76,8 @@ Mirror these into the theme-token block. Every text/background pair MUST pass
 
 ## OG / share image spec (1200 × 630)
 
-Recreate exactly so `public/og-image.png` stays on-brand:
+This drives `scripts/generate_og_cards.py` (run `npm run og`). Fill its BRAND block
+from the tokens below so `public/images/og/default.jpg` + the per-page cards stay on-brand:
 1. Canvas 1200×630, [background / gradient].
 2. Logo [position, size].
 3. Wordmark [text, position, size, colour].
@@ -92,10 +93,12 @@ Per-page variants: change only the headline; keep everything else identical.
   scrapers. Use **JPEG** for photographic cards (e.g. a speaker headshot), PNG only for
   flat logo/gradient cards that still come in under 300 KB.
 - Never ship a **square** image as `og:image` — it gets cropped to 1.91:1 on X/Teams.
-- If cards are per-page and photo-driven, **generate them with a script** (read page
-  frontmatter → composite portrait + headline → encode JPEG under 300 KB) rather than
-  hand-exporting — keeps them consistent and re-runnable. A `scripts/generate_og_cards.py`
-  that reads frontmatter and composites the card is the reusable pattern.
+- **Generate cards with the shipped script, not by hand** — `npm run og`
+  (`scripts/generate_og_cards.py`) renders a 1200×630 JPEG ≤ 300 KB per page you list,
+  keeping them consistent and re-runnable. Edit its BRAND + PAGES blocks; `tests/seo.spec.ts`
+  then enforces that every page's card exists at the right size. See the **og-images** skill.
+  For photo-driven cards (e.g. per-event speaker headshots), extend the script to read
+  frontmatter and composite the portrait — one card per content-collection entry.
 - **Logo on a dark card needs a light variant.** Most logo lockups ship a dark wordmark
   that vanishes on a dark OG background. Composite a **transparent PNG** (never a JPG — it
   boxes the logo) and use a white/light wordmark version; if only a dark one exists, recolour

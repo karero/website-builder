@@ -19,6 +19,8 @@ public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
 functions/_middleware.ts      # noindex every *.pages.dev preview (zero config)
 .github/workflows/ci.yml      # astro check + the suite on push/PR
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
+scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
+scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 tests/_helpers.ts  tests/{a11y,seo,navigation,images,tone,positioning,email,links}.spec.ts
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
@@ -44,8 +46,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color, analytics — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads).
-   Add `public/` icons + `og-image.png` (1200×630); edit the placeholder
-   `manifest.webmanifest`. Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
+   Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
+   block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
+   1200×630 share cards (`public/images/og/`; the starter ships a default).
+   Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
    a11y/seo/navigation/images/tone/positioning/email/links out of the box. Then build pages

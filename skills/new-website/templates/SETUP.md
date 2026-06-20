@@ -32,6 +32,7 @@ npm  install -g svgo       # minify SVGs (npm, not brew — needs node, above)
 brew install jpegoptim     # optimise JPEGs
 brew install exiftool      # strip EXIF/GPS from photos before publishing (privacy)
 brew install imagemagick   # `magick` — resize/crop/convert, build responsive sizes
+pip3 install Pillow        # OG share-card generator (`npm run og`); see og-images skill
 
 # Markdown reader/editor (read & edit CONTENT_GUIDE.md, BRAND.md, README, etc.)
 brew install --cask obsidian   # free Markdown editor (point a vault at the repo folder)
@@ -47,6 +48,8 @@ winget install Git.Git                # git
 winget install GitHub.cli             # gh
 npm  install -g wrangler              # Cloudflare CLI
 winget install ImageMagick.ImageMagick # `magick` — convert/resize, incl. WebP & AVIF
+winget install Python.Python.3.13      # Python — runtime for the OG share-card generator
+py -m pip install Pillow               # OG share-card generator (`npm run og`); see og-images skill
 npm  install -g svgo                   # minify SVGs
 winget install OliverBetz.ExifTool     # strip EXIF/GPS (verify id; or download the .exe)
 winget install Obsidian.Obsidian       # Markdown reader/editor
@@ -55,7 +58,9 @@ winget install Obsidian.Obsidian       # Markdown reader/editor
 npx playwright install chromium        # per machine, once
 ```
 > On Windows, prefer building/testing inside **WSL2 (Ubuntu)** for parity with Cloudflare's
-> Linux build environment — fewer line-ending/path surprises.
+> Linux build environment — fewer line-ending/path surprises. If you build in WSL2, install
+> the tools with the macOS/Linux commands above (including `pip3 install Pillow`) inside the
+> WSL2 shell, not the PowerShell ones.
 
 > **Node ≥22.12 required** (Astro 6) — the LTS installs above satisfy it; the repo's
 > `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` no

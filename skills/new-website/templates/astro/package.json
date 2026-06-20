@@ -8,6 +8,7 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "og": "node scripts/run_og.mjs",
     "ship": "bash scripts/ship.sh",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
