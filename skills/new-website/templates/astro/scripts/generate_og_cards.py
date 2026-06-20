@@ -14,8 +14,8 @@ How it fits the suite:
   - tests/seo.spec.ts verifies every referenced card exists, is ≤ 300 KB, a real
     JPEG/PNG, and exactly 1200×630 — so a missing or oversized card fails the build.
 
-Run from the project root:   npm run og        (= python3 scripts/generate_og_cards.py)
-Add --check to FAIL (exit 1) if any card would exceed 300 KB (used in CI / pre-push).
+Run from the project root:   npm run og        (= node scripts/run_og.mjs → python3/py/python)
+Add --check to FAIL (exit 1) if any card would exceed 300 KB:   npm run og -- --check
 
 Requires Pillow (local authoring tool — not a runtime dep):   pip3 install Pillow
 
