@@ -21,7 +21,7 @@ functions/_middleware.ts      # noindex every *.pages.dev preview (zero config)
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
-tests/_helpers.ts  tests/{a11y,seo,navigation,images,tone,positioning,email,links}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,images,tone,positioning,email,links}.spec.ts
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -52,7 +52,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
-   a11y/seo/navigation/images/tone/positioning/email/links out of the box. Then build pages
+   a11y/seo/navigation/anchors/images/tone/positioning/email/links out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already

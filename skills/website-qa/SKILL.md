@@ -2,7 +2,7 @@
 name: website-qa
 description: >
   The pre-launch QA gate for a new site: run the basic tests (a11y light+dark +
-  seo + navigation + images + tone + positioning + email + links), fix to green, then handle technical SEO /
+  seo + navigation + anchors + images + tone + positioning + email + links), fix to green, then handle technical SEO /
   performance — ask the user to run a
   Lighthouse / PageSpeed Insights test and act on First Contentful Paint (FCP)
   and Largest Contentful Paint (LCP). Use before launch (steps 7–8 of the
@@ -33,6 +33,10 @@ cosmetics; red → green → commit.
   `PAGES` fails here — the `website-seo-geo` contract).
 - `navigation.spec.ts` — every `PAGES` route returns 200; internal links resolve
   with no redirect hop (absolute URLs on the production host count as internal).
+- `anchors.spec.ts` — the other half of internal-link integrity: every in-site
+  `#fragment` (same-page `#x`, cross-page `/page#x`, or `/?q#x`) points at a real
+  element id on its target page. Catches the dead-anchor bug navigation.spec can't
+  see — a link that 200s but scrolls nowhere because the id doesn't exist. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
