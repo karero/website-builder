@@ -19,6 +19,8 @@ public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
 functions/_middleware.ts      # noindex every *.pages.dev preview (zero config)
 .github/workflows/ci.yml      # astro check + the suite on push/PR
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
+scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
+scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 tests/_helpers.ts  tests/{a11y,seo,navigation,images,tone,positioning,email,links}.spec.ts
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
