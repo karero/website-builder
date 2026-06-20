@@ -9,12 +9,13 @@ import { SITE } from '../src/config';
 // navigation.spec is satisfied — but if nothing on the page has id="section", the
 // click scrolls nowhere (or to the wrong place).
 //
-// Both the outgoing links AND the target pages' ids are read from the live DOM, so
-// client-rendered links/ids are covered. Target existence uses a plain request
-// (asset-safe: a PDF/file 200s without rendering), and fragments on non-HTML targets
-// are skipped — a PDF "#page=3" is a viewer instruction, not an element id. Pure
-// markup + fully offline, so it stays in the CI gate; external-link *liveness*
-// deliberately does not (see links.spec.ts + the outgoing-link-audit skill).
+// Outgoing links are read from the live DOM (so client-rendered links are covered),
+// as are the ids of every shipped page (PAGES); a target outside PAGES falls back to
+// its served HTML. Target existence uses a plain request (asset-safe: a PDF/file 200s
+// without rendering), and fragments on non-HTML targets are skipped — a PDF "#page=3"
+// is a viewer instruction, not an element id. Pure markup + fully offline, so it stays
+// in the CI gate; external-link *liveness* deliberately does not (see links.spec.ts +
+// the outgoing-link-audit skill).
 
 const stripWww = (h: string) => h.replace(/^www\./, '');
 const SITE_HOST = stripWww(new URL(SITE.url).hostname.toLowerCase());
