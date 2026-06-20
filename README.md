@@ -79,7 +79,7 @@ Once you run `new website`, the assistant will:
 
 1. Ask what kind of website you want to build.
 2. Help shape its positioning and structure.
-3. Create the website (Astro).
+3. Create the website (Astro) with a mobile-first, responsive layout.
 4. Draft your pages and content.
 5. Add SEO metadata, schema markup, and accessibility checks.
 6. Run tests and quality gates.
