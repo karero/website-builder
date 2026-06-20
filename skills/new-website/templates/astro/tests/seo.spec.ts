@@ -47,6 +47,18 @@ function imageType(b: Buffer): 'png' | 'jpeg' | null {
   return null;
 }
 
+// The default share card (Base.astro's default `image`). Keep in sync with Base.astro.
+const DEFAULT_OG_CARD = '/images/og/default.jpg';
+// Pages allowed to use the default card instead of their own per-page card. Everything
+// else MUST have a dedicated /images/og/<slug>.jpg card — a CONTENT page silently sharing
+// the generic default is the failure this guards. Opt-OUT model: as you add content pages
+// (uncomment them in _helpers PAGES), do NOT list them here, and the guard makes sure each
+// gets its own card. The starter ships only '/' + '/privacy', so it stays green from commit 1.
+//   - '/'        home: the default card IS the home card.
+//   - '/privacy' legal/utility — nobody shares it with a custom preview.
+// (A noindex 404 isn't here: it's excluded from PAGES entirely, so the guard never runs on it.)
+const OWN_CARD_EXEMPT = new Set<string>(['/', '/privacy']);
+
 for (const path of PAGES) {
   test(`seo — head contract on ${path}`, async ({ page }) => {
     await page.goto(path);
@@ -92,6 +104,14 @@ for (const path of PAGES) {
     const wantType = extMatch![1] === 'png' ? 'png' : 'jpeg';
     expect(imageType(ogBytes), `og:image ${ogPath} has a .${extMatch![1]} extension but its bytes are ${imageType(ogBytes) ?? 'neither PNG nor JPEG'} — extension must match the bytes`).toBe(wantType);
 
+    // Every non-exempt page must have its OWN card, not the generic default.
+    if (!OWN_CARD_EXEMPT.has(path)) {
+      expect(
+        ogPath,
+        `${path} has no dedicated OG card (uses the default ${DEFAULT_OG_CARD}). Add it to scripts/generate_og_cards.py PAGES + set image="/images/og/<slug>.jpg" on the page, or add ${path} to OWN_CARD_EXEMPT.`,
+      ).not.toBe(DEFAULT_OG_CARD);
+    }
+
     expect(canonical, 'canonical missing').toBeTruthy();
     expect(await meta(page, 'meta[property="og:url"]'), 'og:url must equal canonical').toBe(canonical);
     // canonical is always the PRODUCTION URL (Astro.site), even when previewing on
@@ -105,6 +125,21 @@ for (const path of PAGES) {
     for (const b of blocks) expect(() => JSON.parse(b), 'JSON-LD must parse').not.toThrow();
   });
 }
+
+// "Its own" means DISTINCT: two non-exempt pages pointing at the same card is a wiring
+// copy-paste error (the share preview would misrepresent one of them). No-op until the
+// scaffold grows past its exempt starter pages.
+test('every non-exempt page has a DISTINCT og:image card', async ({ page }) => {
+  const seen = new Map<string, string>();
+  for (const path of PAGES) {
+    if (OWN_CARD_EXEMPT.has(path)) continue;
+    await page.goto(path);
+    const og = new URL((await meta(page, 'meta[property="og:image"]'))!, SITE.url).pathname;
+    const prev = seen.get(og);
+    expect(prev, `${path} and ${prev} share the same OG card (${og}) — each page needs its own`).toBeUndefined();
+    seen.set(og, path);
+  }
+});
 
 // Drift alarm: the sitemap is built from src/pages/**, PAGES is hand-maintained.
 // If they differ, a page was added without a PAGES entry — and EVERY suite

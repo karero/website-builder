@@ -39,8 +39,12 @@ test gate.
   gets its own card by passing `image="/images/og/<slug>.jpg"`; everything else falls back
   to the default. `og:image` + `twitter:image` are derived from that one prop.
 - **`tests/seo.spec.ts`** — for every page, reads the referenced card off disk and asserts
-  it exists in `public/`, is ≤300 KB, a real JPEG/PNG, and exactly 1200×630. A missing or
-  oversized card **fails the build** — so OG cards can't silently rot.
+  it exists in `public/`, is ≤300 KB, a real JPEG/PNG, and exactly 1200×630. It also enforces
+  that every page has its **own** card (not the generic default) and that no two pages share
+  one — except an `OWN_CARD_EXEMPT` allowlist (home + utility pages, default `['/', '/privacy']`).
+  Opt-out: as you add content pages, leave them OUT of the allowlist and the guard flags any
+  that forgot a card. A missing/oversized/shared card **fails the build** — OG cards can't
+  silently rot, and a new page can't silently ship on the generic default.
 
 The starter ships a generated `public/images/og/default.jpg` so the suite is green from
 commit 1; you replace it with your brand by editing the script and re-running `npm run og`.
