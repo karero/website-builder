@@ -35,8 +35,8 @@ cosmetics; red → green → commit.
   with no redirect hop (absolute URLs on the production host count as internal).
 - `anchors.spec.ts` — the other half of internal-link integrity: every in-site
   `#fragment` (same-page `#x`, cross-page `/page#x`, relative `about#x`, or `/?q#x`)
-  points at a real element id on its target page — links and target ids both read
-  from the live DOM. Catches the dead-anchor bug navigation.spec can't see — a link
+  points at a real element id on its target page — links and shipped-page target ids
+  are read from the live DOM. Catches the dead-anchor bug navigation.spec can't see — a link
   that 200s but scrolls nowhere because the id doesn't exist. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
