@@ -1,11 +1,11 @@
 # website-builder
 
-**Build a fast, SEO-ready website with help from an AI coding assistant.**
+**Build a fast, mobile-friendly, SEO-ready website with help from an AI coding assistant.**
 
 website-builder is an open-source skill suite for **Claude Code**, **OpenAI Codex**, and
-**Google Antigravity**. It turns a short brief into a complete website — content, design,
-SEO, accessibility checks, schema markup, tests, and launch support — on a modern,
-privacy-friendly stack (Astro → GitHub → Cloudflare Pages).
+**Google Antigravity**. It turns a short brief into a complete website — content, mobile-first
+responsive design, SEO, accessibility checks, schema markup, tests, and launch support — on a
+modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages).
 
 You can use it even if you're not deeply technical. Whether you're a founder, a community
 organiser, a solo builder, a small team, or a developer, **the easiest way to start is to
