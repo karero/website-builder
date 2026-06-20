@@ -73,6 +73,10 @@ You **don't** need to install Node, git, the GitHub CLI, image tools, or anythin
 upfront — the assistant checks for those and helps you install them only when the moment
 comes.
 
+> **On Windows?** The smoothest path is **WSL2** (Ubuntu) — it matches the Linux setup your
+> site is built and published on, so everything just works. Your assistant can help you set
+> it up; just ask. (Native Windows works too — see [SETUP.md](skills/new-website/templates/SETUP.md).)
+
 ## What happens next
 
 Once you run `new website`, the assistant will:
