@@ -53,8 +53,9 @@ Copy this into the chat and send it:
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, restart yourself so they load,
-> and start a fresh site by running `new website` in a new, empty folder.
+> actually needed. Then install the website-builder skills, tell me when to restart or
+> reopen you so the skills load, and continue from there — starting a fresh site by running
+> `new website` in a new, empty folder.
 
 The assistant will take it from there: it checks what's on your computer, installs the
 website-builder skills, and asks your approval before doing anything that changes your

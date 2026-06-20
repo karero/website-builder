@@ -25,7 +25,9 @@ Real sites people ship with it:
 - small studio or agency websites
 
 It's **not** a hosted no-code website builder. You own the code, the repository, and the
-domain — there's no platform you're locked into and no monthly fee to keep your site online.
+domain — there's no platform you're locked into, and no hosted-builder subscription required
+to keep a basic static site online. (Your domain registration and your AI tool may still have
+their own costs.)
 
 ## You don't do this alone
 
@@ -52,8 +54,9 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, restart yourself so they load,
-> and start a fresh site by running `new website` in a new, empty folder.
+> actually needed. Then install the website-builder skills, tell me when to restart or
+> reopen you so the skills load, and continue from there — starting a fresh site by running
+> `new website` in a new, empty folder.
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
