@@ -41,6 +41,9 @@ $new-website
 Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay, and
 sequences the rest of the `website-*` skills.
 
+> With a large skill set, Codex itself notes it may not surface every skill automatically
+> when context is tight. Not a breakage — invoke any skill by name: `$og-images`, `$seo-audit`, etc.
+
 > **On a machine that also has Claude Code or Antigravity installed,** the scaffold's
 > auto-detect prefers them over Codex (order: Claude Code → Antigravity → Codex). Force
 > Codex's copy first:

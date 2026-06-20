@@ -75,6 +75,11 @@ Pillow, a local authoring dependency only (not shipped to the site or its runtim
 pip3 install Pillow
 ```
 
+On **Windows**, run authoring/build inside **WSL2** — the suite's recommended Windows
+environment (`SETUP.md`), where `python3` and the bash helpers all work. Running natively
+is fine too: `py -m pip install Pillow`, and `npm run og` already falls back `python3 → py
+-3 → python`.
+
 ## Going further — photo-driven cards
 
 The generator deliberately ships the **text-card** core (emblem + wordmark + accent bar +
