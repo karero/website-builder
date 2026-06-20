@@ -34,9 +34,10 @@ cosmetics; red → green → commit.
 - `navigation.spec.ts` — every `PAGES` route returns 200; internal links resolve
   with no redirect hop (absolute URLs on the production host count as internal).
 - `anchors.spec.ts` — the other half of internal-link integrity: every in-site
-  `#fragment` (same-page `#x`, cross-page `/page#x`, or `/?q#x`) points at a real
-  element id on its target page. Catches the dead-anchor bug navigation.spec can't
-  see — a link that 200s but scrolls nowhere because the id doesn't exist. Offline.
+  `#fragment` (same-page `#x`, cross-page `/page#x`, relative `about#x`, or `/?q#x`)
+  points at a real element id on its target page — links and target ids both read
+  from the live DOM. Catches the dead-anchor bug navigation.spec can't see — a link
+  that 200s but scrolls nowhere because the id doesn't exist. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).

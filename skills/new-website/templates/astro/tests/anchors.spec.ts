@@ -7,87 +7,95 @@ import { SITE } from '../src/config';
 // resolve": every "#fragment" actually points at a real element id on its target
 // page. A link like "/#section" or "/?tag=x#section" makes the page return 200, so
 // navigation.spec is satisfied — but if nothing on the page has id="section", the
-// click scrolls nowhere (or to the wrong place). It reads the live DOM, so links
-// rendered client-side are covered too. Pure markup + fully offline, so it stays in
-// the CI gate; external-link *liveness* deliberately does not (see links.spec.ts +
-// the outgoing-link-audit skill).
+// click scrolls nowhere (or to the wrong place).
+//
+// Both the outgoing links AND the target pages' ids are read from the live DOM, so
+// client-rendered links/ids are covered. Target existence uses a plain request
+// (asset-safe: a PDF/file 200s without rendering), and fragments on non-HTML targets
+// are skipped — a PDF "#page=3" is a viewer instruction, not an element id. Pure
+// markup + fully offline, so it stays in the CI gate; external-link *liveness*
+// deliberately does not (see links.spec.ts + the outgoing-link-audit skill).
 
 const stripWww = (h: string) => h.replace(/^www\./, '');
 const SITE_HOST = stripWww(new URL(SITE.url).hostname.toLowerCase());
 
 type Ref = { route: string; fragment: string };
 
-// Reduce an href to the in-site { route, fragment } it anchors to, or null when the
-// link carries no fragment (navigation.spec's job) or is external / non-navigational.
-function anchorRef(href: string, sourceRoute: string): Ref | null {
-  if (!href) return null;
-
-  // Same-host absolute URLs are internal too (matches navigation.spec) → relativise.
-  if (/^https?:\/\//i.test(href)) {
-    try {
-      const u = new URL(href);
-      if (stripWww(u.hostname.toLowerCase()) !== SITE_HOST) return null;
-      href = u.pathname + u.search + u.hash;
-    } catch {
-      return null;
-    }
+// Resolve an href against the page it appears on → the in-site { route, fragment }
+// it anchors to, or null when it carries no fragment (navigation.spec's job) or is
+// external / non-navigational. `new URL(href, base)` normalises every internal form
+// the same way: relative ("about#x", "../about#x"), root-relative ("/about#x"),
+// query ("/?q#x"), and same-host absolute URLs.
+function anchorRef(href: string, sourceAbs: string, testHost: string): Ref | null {
+  if (!href || /^(mailto:|tel:|javascript:|data:)/i.test(href)) return null;
+  let u: URL;
+  try {
+    u = new URL(href, sourceAbs);
+  } catch {
+    return null;
   }
-  if (/^(mailto:|tel:|javascript:|data:|\/\/)/i.test(href)) return null;
-
-  const hi = href.indexOf('#');
-  if (hi < 0) return null;                 // no fragment → not our concern
-  const fragment = href.slice(hi + 1);
-  if (!fragment) return null;              // bare "#" = top-of-page no-op
-
-  let path = href.slice(0, hi);
-  const qi = path.indexOf('?');
-  if (qi >= 0) path = path.slice(0, qi);
-
-  let route: string;
-  if (path === '') route = sourceRoute;                 // same-page "#x" / "?q#x"
-  else if (path.startsWith('/')) route = path.replace(/\/+$/, '') || '/';
-  else return null;                                     // bare-relative → skip
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  const host = stripWww(u.hostname.toLowerCase());
+  if (host !== testHost && host !== SITE_HOST) return null; // external
+  const fragment = u.hash.slice(1);
+  if (!fragment) return null; // no fragment → not our concern
+  const route = u.pathname.replace(/\/+$/, '') || '/';
   return { route, fragment };
 }
 
-test('every internal #anchor points at a real element id', async ({ page, request }) => {
-  // 1) Collect every in-site anchor link across all pages.
+// Every element id exposed by a freshly-loaded page (read from the live DOM).
+const idsOf = (page: import('@playwright/test').Page) =>
+  page.locator('[id]').evaluateAll((els) => els.map((e) => e.id).filter(Boolean));
+
+const idsFromHtml = (html: string) =>
+  new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+
+test('every internal #anchor points at a real element id', async ({ page, request, baseURL }) => {
+  const testHost = stripWww(new URL(baseURL!).hostname.toLowerCase());
+  const routeOf = (p: string) => new URL(p, baseURL!).pathname.replace(/\/+$/, '') || '/';
+
+  const idsByRoute = new Map<string, Set<string>>();
   const found: { from: string; href: string; ref: Ref }[] = [];
+
+  // 1) Visit every page: record its element ids (live DOM) and its outgoing anchor links.
   for (const path of PAGES) {
-    const route = path.replace(/\/+$/, '') || '/';
-    await page.goto(path, { waitUntil: 'load' });
+    const resp = await page.goto(path, { waitUntil: 'load' });
+    if (resp && resp.ok()) idsByRoute.set(routeOf(path), new Set(await idsOf(page)));
     const hrefs = await page
       .locator('a[href]')
       .evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''));
+    const sourceAbs = new URL(path, baseURL!).href;
     for (const href of hrefs) {
-      const ref = anchorRef(href, route);
-      if (ref) found.push({ from: route, href, ref });
+      const ref = anchorRef(href, sourceAbs, testHost);
+      if (ref) found.push({ from: routeOf(path), href, ref });
     }
   }
 
-  // 2) Fetch each referenced page once; index the element ids it exposes.
-  const idsByRoute = new Map<string, Set<string> | null>();
+  // 2) Resolve anchor targets not already loaded (a target not in PAGES): confirm it
+  //    exists, and if it's HTML grab its ids. Assets 200 without yielding ids.
+  const exists = new Map<string, boolean>();
   for (const route of new Set(found.map((f) => f.ref.route))) {
-    const r = await request.get(route);
-    if (!r.ok()) {
-      idsByRoute.set(route, null);
+    if (idsByRoute.has(route)) {
+      exists.set(route, true);
       continue;
     }
-    const html = await r.text();
-    const ids = new Set<string>();
-    for (const m of html.matchAll(/\sid="([^"]+)"/g)) ids.add(m[1]);
-    idsByRoute.set(route, ids);
+    const resp = await request.get(route);
+    exists.set(route, resp.ok());
+    if (resp.ok() && (resp.headers()['content-type'] || '').includes('text/html')) {
+      idsByRoute.set(route, idsFromHtml(await resp.text()));
+    }
   }
 
   // 3) Every fragment must exist on its target page.
   const problems: string[] = [];
   for (const { from, href, ref } of found) {
-    const ids = idsByRoute.get(ref.route);
-    if (ids == null) {
+    if (!exists.get(ref.route)) {
       problems.push(`[${from}] ${href} → target page "${ref.route}" did not load (404)`);
       continue;
     }
-    if (!ids.has(ref.fragment)) {
+    const ids = idsByRoute.get(ref.route);
+    // ids === undefined → non-HTML asset; "#page=3"-style fragments are valid there.
+    if (ids && !ids.has(ref.fragment)) {
       problems.push(`[${from}] ${href} → no element with id="${ref.fragment}" on "${ref.route}"`);
     }
   }
