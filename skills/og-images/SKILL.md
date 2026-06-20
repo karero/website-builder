@@ -36,8 +36,9 @@ test gate.
 - **`scripts/generate_og_cards.py`** — the generator. Renders one card per page you list,
   plus a `default.jpg`. Run it with **`npm run og`**. Idempotent; commit the output.
 - **`src/layouts/Base.astro`** — `image` prop defaults to `/images/og/default.jpg`. A page
-  gets its own card by passing `image="/images/og/<slug>.jpg"`; everything else falls back
-  to the default. `og:image` + `twitter:image` are derived from that one prop.
+  gets its own card by passing `image="/images/og/<slug>.jpg"`; a page with no `image=` falls
+  back to the default — which only **exempt utility pages** should do (the test below enforces
+  it). `og:image` + `twitter:image` are derived from that one prop.
 - **`tests/seo.spec.ts`** — for every page, reads the referenced card off disk and asserts
   it exists in `public/`, is ≤300 KB, a real JPEG/PNG, and exactly 1200×630. It also enforces
   that every page has its **own** card (not the generic default) and that no two pages share
@@ -58,8 +59,9 @@ commit 1; you replace it with your brand by editing the script and re-running `n
    The card is a **dark** share card by design: light text on a deep background reads well
    in every chat app regardless of whether the site theme is light or dark.
 2. **List per-page cards** in the `PAGES` block — one `(slug, title, [subtitle, …])` per
-   page that deserves its own card. Then set `image="/images/og/<slug>.jpg"` on that page's
-   `<Base>`. Pages you don't list use `default.jpg` automatically.
+   content page. Then set `image="/images/og/<slug>.jpg"` on that page's `<Base>`. Only
+   **exempt utility pages** (home, privacy, …) may fall back to `default.jpg`; every other
+   content page must be listed here and wired to its own card, or `seo.spec.ts` fails it.
 3. **Run `npm run og`**, then `npm test`. Commit the generated JPEGs.
 
 `npm run og -- --check` exits non-zero if any card exceeds 300 KB — wire it into CI or the

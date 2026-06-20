@@ -8,7 +8,7 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "og": "python3 scripts/generate_og_cards.py",
+    "og": "python3 scripts/generate_og_cards.py || py -3 scripts/generate_og_cards.py || python scripts/generate_og_cards.py",
     "ship": "bash scripts/ship.sh",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
