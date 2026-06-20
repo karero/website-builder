@@ -32,6 +32,7 @@ npm  install -g svgo       # minify SVGs (npm, not brew — needs node, above)
 brew install jpegoptim     # optimise JPEGs
 brew install exiftool      # strip EXIF/GPS from photos before publishing (privacy)
 brew install imagemagick   # `magick` — resize/crop/convert, build responsive sizes
+pip3 install Pillow        # OG share-card generator (`npm run og`); see og-images skill
 
 # Markdown reader/editor (read & edit CONTENT_GUIDE.md, BRAND.md, README, etc.)
 brew install --cask obsidian   # free Markdown editor (point a vault at the repo folder)

@@ -44,8 +44,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color, analytics — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads).
-   Add `public/` icons + `og-image.png` (1200×630); edit the placeholder
-   `manifest.webmanifest`. Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
+   Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
+   block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
+   1200×630 share cards (`public/images/og/`; the starter ships a default).
+   Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
    a11y/seo/navigation/images/tone/positioning/email/links out of the box. Then build pages

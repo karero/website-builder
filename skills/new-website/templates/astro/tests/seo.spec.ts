@@ -17,6 +17,28 @@ async function meta(page: import('@playwright/test').Page, sel: string) {
   return page.locator(sel).getAttribute('content');
 }
 
+// Dep-free image dimensions from the raw bytes (PNG IHDR / JPEG SOF marker), so we
+// can assert the og:image is really 1200×630 without an image library — mirroring
+// the PDF byte-parsing below.
+function imageSize(b: Buffer): { w: number; h: number } | null {
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+    return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) }; // PNG IHDR
+  }
+  if (b.length > 4 && b[0] === 0xff && b[1] === 0xd8) {       // JPEG
+    let o = 2;
+    while (o + 9 < b.length) {
+      if (b[o] !== 0xff) { o++; continue; }
+      const m = b[o + 1];
+      // SOF markers carry the frame size (skip C4=DHT, C8=JPG-ext, CC=DAC)
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) {
+        return { h: b.readUInt16BE(o + 5), w: b.readUInt16BE(o + 7) };
+      }
+      o += 2 + b.readUInt16BE(o + 2); // jump to the next marker segment
+    }
+  }
+  return null;
+}
+
 for (const path of PAGES) {
   test(`seo — head contract on ${path}`, async ({ page }) => {
     await page.goto(path);
@@ -34,6 +56,23 @@ for (const path of PAGES) {
     expect(await meta(page, 'meta[name="twitter:title"]'), 'twitter:title must equal <title>').toBe(title);
     expect(await meta(page, 'meta[property="og:description"]'), 'og:description must equal meta description').toBe(description);
     expect(await meta(page, 'meta[name="twitter:description"]'), 'twitter:description must equal meta description').toBe(description);
+
+    // og:image is the share preview. WhatsApp drops images > ~300 KB and crops
+    // anything that isn't 1.91:1, so every page's card must be an ON-SITE 1200×630
+    // JPEG/PNG ≤ 300 KB. Read the bytes (not the URL) — generate cards with `npm run og`.
+    const ogImage = await meta(page, 'meta[property="og:image"]');
+    expect(ogImage, 'og:image missing').toBeTruthy();
+    expect(await meta(page, 'meta[name="twitter:image"]'), 'twitter:image must equal og:image').toBe(ogImage);
+    const ogPath = new URL(ogImage!, SITE.url).pathname;
+    const ogFile = join(process.cwd(), 'public', ogPath);
+    let ogBytes: Buffer;
+    try { ogBytes = readFileSync(ogFile); }
+    catch { throw new Error(`og:image ${ogPath} not found in public/ — run \`npm run og\` to generate it`); }
+    const ogKb = ogBytes.length / 1024;
+    expect(ogKb, `og:image ${ogPath} is ${ogKb.toFixed(0)} KB > 300 (WhatsApp drops the preview)`).toBeLessThanOrEqual(300);
+    const dim = imageSize(ogBytes);
+    expect(dim, `og:image ${ogPath} is not a readable JPEG/PNG`).toBeTruthy();
+    expect(`${dim!.w}×${dim!.h}`, `og:image ${ogPath} must be 1200×630 (1.91:1) — it's ${dim!.w}×${dim!.h}`).toBe('1200×630');
 
     expect(canonical, 'canonical missing').toBeTruthy();
     expect(await meta(page, 'meta[property="og:url"]'), 'og:url must equal canonical').toBe(canonical);

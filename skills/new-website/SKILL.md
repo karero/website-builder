@@ -144,6 +144,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
 | 6 | Build: mobile graphics, dark mode, theme tokens | **`website-design-system`** |
 | 6 | Build: head metadata within limits, schema, llms.txt | **`website-seo-geo`** (+ `schema-markup`, `ai-seo`) |
+| 6 | Build: per-page OG share cards (`npm run og` → 1200×630 ≤300 KB, tested) | **`og-images`** |
 | 6 | Build: testimonials / Review schema from one data file (if the site has quotes) | **`website-testimonials`** |
 | 7 | QA: a11y (light+dark) / seo / navigation / images / tone / positioning / email / links | **`website-qa`** |
 | 8 | Performance: Lighthouse / PageSpeed for FCP & LCP | **`website-qa`** perf section (+ `seo-audit`) |
@@ -218,13 +219,14 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the seventeen always-on skills in, plus any
+3. **Skills travel with the repo** — copy the eighteen always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. The always-on set is the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
    `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,
-   `image` — plus `outgoing-link-audit` (link sweep), `website-permissions` (allowlist),
+   `image` — plus `outgoing-link-audit` (link sweep), `og-images` (per-page share cards),
+   `website-permissions` (allowlist),
    and `search-console-setup` (post-launch GSC/Bing/IndexNow):
    ```bash
    mkdir -p "$PROJECT_SKILLS_DIR"
@@ -243,6 +245,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/copywriting \
          "$SKILLS_ROOT"/image \
          "$SKILLS_ROOT"/outgoing-link-audit \
+         "$SKILLS_ROOT"/og-images \
          "$SKILLS_ROOT"/website-permissions \
          "$SKILLS_ROOT"/search-console-setup \
          "$PROJECT_SKILLS_DIR"/
@@ -304,8 +307,10 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       `tests/links.spec.ts` `STALE_DOMAINS`.
 - [ ] `sitemap-index.xml` present; `robots.txt` + `llms.txt` accurate.
 - [ ] Required schema validates (Rich Results / schema.org validator).
-- [ ] `og-image` (1200×630, **≤300 KB**, real JPEG/PNG — extension matches bytes; WhatsApp
-      drops previews over ~300 KB) + favicon/manifest icon set in place.
+- [ ] **OG share cards** generated (`npm run og`, the `og-images` skill): a 1200×630
+      JPEG **≤300 KB** per page (`public/images/og/`), each page wiring `image=` (or the
+      default). `tests/seo.spec.ts` enforces size/dimensions; WhatsApp drops previews over
+      ~300 KB. Plus favicon/manifest icon set in place.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup,

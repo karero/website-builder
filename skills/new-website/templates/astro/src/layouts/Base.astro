@@ -6,7 +6,8 @@
 //   <Base title="…" description="…"> … </Base>
 //   - title: keyword-tuned; the layout appends " | {SITE.name}" (keep total ≤ 60).
 //   - description: 120–160 chars.
-//   - image: per-page OG image (defaults to /og-image.png).
+//   - image: per-page OG image (1200×630, ≤300 KB; defaults to /images/og/default.jpg).
+//     Generate cards with `npm run og` (scripts/generate_og_cards.py); see the og-images skill.
 //   - schemas: extra JSON-LD objects (FAQPage, Article, …).
 //   - <slot name="head" /> lets a page add its own <head> tags.
 import '../styles/global.css';
@@ -24,7 +25,7 @@ interface Props {
 const {
   title,
   description = SITE.description,
-  image = '/og-image.png',
+  image = '/images/og/default.jpg',
   lang = SITE.locale,
   noindex = false,
   schemas = [],

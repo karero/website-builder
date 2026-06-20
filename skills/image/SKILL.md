@@ -278,6 +278,10 @@ curl -s https://yoursite.com | grep -oP 'src="[^"]+\.(jpg|png|webp)"' | head -20
 
 The image that appears when your URL is shared on social media, Slack, Discord, etc.
 
+> Building on this suite's Astro starter? Use the **`og-images`** skill — it ships a
+> committed `npm run og` generator for branded, tested, per-page 1200×630 cards. The
+> options below (Vercel OG, Satori, Cloudinary) are for stacks without that generator.
+
 ### Required Meta Tags
 
 ```html
