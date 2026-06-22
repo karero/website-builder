@@ -54,6 +54,11 @@ from** `og:description`; one does not replace the other — ship both, in sync.
   `FAQPage` on FAQs, `Article`/`TechArticle` with author `@id` + dates on posts,
   `Service`/`Product` as relevant. Author/Organization `@id`s and `sameAs` feed
   EEAT (see `website-content-guide`); keep `sameAs` URLs that actually resolve.
+- **Datetimes in JSON-LD carry an explicit timezone.** `VideoObject.uploadDate`,
+  `Event.startDate/endDate`, `Offer.validFrom`, `Article` dates etc. must be full
+  ISO-8601 with an offset (`2026-03-11T00:00:00+00:00`, not a bare `2026-03-11`).
+  Google's video parser rejects a date-only `uploadDate` as "missing a timezone" /
+  "invalid datetime value" — a GSC error that only surfaces weeks after launch.
 - Validate with Google Rich Results Test / schema.org validator before launch.
 
 ## GEO (generative engine optimization)
