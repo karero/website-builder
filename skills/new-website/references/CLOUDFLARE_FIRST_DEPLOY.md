@@ -96,8 +96,9 @@ npx wrangler pages deploy dist --project-name <project>
 > **Pages** sites: every command above is `wrangler pages …` and the deploy must print a
 > **`<project>.pages.dev`** URL. A bare `wrangler deploy` (no `pages`) publishes a **Worker**
 > and hands back a `*.workers.dev` URL instead — a real mistake we've seen on an older kit
-> version. If you see `workers.dev`, stop: you deployed the wrong project type. Delete the
-> stray Worker and re-run `wrangler pages deploy`.
+> version. If you see `workers.dev`, stop: you deployed the wrong project type. Confirm it's
+> the accidental Worker (not a pre-existing one with a similar name), then delete it and
+> re-run `wrangler pages deploy`.
 
 Ongoing deploys under (A): re-run `wrangler pages deploy dist --project-name <project>`
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
@@ -152,7 +153,9 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
    nameservers. A second pair of eyes catches the record that was dropped or mistyped.
 3. **Know which records must NOT be proxied (grey cloud, DNS-only).** Cloudflare's orange
    "proxy" cloud only makes sense for the **HTTP(S) hosts you actually serve through
-   Cloudflare** (apex + `www`). Everything else must stay **DNS-only**, or it breaks:
+   Cloudflare** (usually apex + `www` for this kit; proxy any other host only if it
+   intentionally serves HTTP through Cloudflare). Everything else must stay **DNS-only**, or
+   it breaks:
    - **MX records and the mail hostnames they point to** — proxying mail destroys delivery.
    - **SPF / DKIM / DMARC** and other **TXT** records (they aren't HTTP; proxy doesn't apply).
    - **CNAMEs that aren't your website** — the sneaky trap, because only A/AAAA/CNAME records
