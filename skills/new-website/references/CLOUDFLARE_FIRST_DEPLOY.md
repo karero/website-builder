@@ -134,7 +134,16 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 1. **Import, then check every record twice.** When Cloudflare scans the existing zone it
    often misses records. Compare the imported set against the old DNS provider's export
    **entry by entry, twice** — A/AAAA, CNAME, **all MX**, and every TXT (SPF, DKIM, DMARC,
-   verification tokens). A missing MX or SPF record = broken mail.
+   verification tokens). A missing MX or SPF record = broken mail. The scan is least reliable
+   on **CNAME, SRV, and CAA** records even when A/MX/TXT come through, so confirm those by
+   hand:
+   - **Microsoft 365 / Outlook:** verify `autodiscover` (CNAME → `autodiscover.outlook.com`),
+     the DKIM selector CNAMEs (`selector1._domainkey`, `selector2._domainkey`), and the
+     Teams/Skype SRV records (`_sip._tls`, `_sipfederationtls._tcp`). A missing `autodiscover`
+     has been seen on a real migration (Cloudflare may have since improved this — **verify, don't
+     assume**); without it Outlook mailbox auto-setup breaks.
+   - **CAA** records — if dropped, future TLS-cert issuance can silently fail.
+   - **Wildcard (`*`)** records and **subdomain NS delegations** — both commonly skipped.
 2. **Get a screenshot and double-check it.** Have the owner screenshot the final Cloudflare
    DNS table and pass it back so you can review it against the old zone before they flip the
    nameservers. A second pair of eyes catches the record that was dropped or mistyped.
@@ -155,6 +164,10 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 5. **Only after the passes agree and DNSSEC is handled**, change the nameservers / flip the
    apex. Then confirm the site loads on the live domain **and** send a test email both
    directions.
+
+> **Make rollback cheap.** Lower the record TTLs at the old provider ~24h *before* the move,
+> and **don't delete the old zone** until you've confirmed the new one resolves and mail
+> flows — so if anything's wrong you can point back quickly.
 
 > Drive these changes *with* the owner, not through blind screen control — same guardrail as
 > the bootstrap token steps above.
