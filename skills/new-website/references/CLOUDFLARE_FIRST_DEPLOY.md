@@ -92,6 +92,13 @@ npx wrangler pages deploy dist --project-name <project>
 #    (Zone>DNS>Edit is only needed if you also script the DNS record itself.)
 ```
 
+> **`pages deploy`, not plain `deploy` — or you get a `workers.dev` URL.** These are static
+> **Pages** sites: every command above is `wrangler pages …` and the deploy must print a
+> **`<project>.pages.dev`** URL. A bare `wrangler deploy` (no `pages`) publishes a **Worker**
+> and hands back a `*.workers.dev` URL instead — a real mistake we've seen on an older kit
+> version. If you see `workers.dev`, stop: you deployed the wrong project type. Delete the
+> stray Worker and re-run `wrangler pages deploy`.
+
 Ongoing deploys under (A): re-run `wrangler pages deploy dist --project-name <project>`
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
@@ -114,3 +121,34 @@ If the owner won't mint a token and won't do the dashboard alone: drive the dash
 your runtime's browser automation (**Claude in Chrome** under Claude Code; the agent's own
 browser tool otherwise — see `search-console-setup`), or read them the clicks one by one.
 Both work; both eat time and patience — which is why **(A) is recommended for true newcomers**.
+
+---
+
+## Going live: moving an existing domain's DNS to Cloudflare — verify twice
+
+When the site replaces a domain that already serves mail and a live site elsewhere (a
+rebuild migrating its DNS to Cloudflare), the cutover is the **single riskiest moment** — a
+wrong or wrongly-proxied record silently breaks email or the site right when it goes live.
+Treat it as a checklist *with* the owner, never a fire-and-forget edit:
+
+1. **Import, then check every record twice.** When Cloudflare scans the existing zone it
+   often misses records. Compare the imported set against the old DNS provider's export
+   **entry by entry, twice** — A/AAAA, CNAME, **all MX**, and every TXT (SPF, DKIM, DMARC,
+   verification tokens). A missing MX or SPF record = broken mail.
+2. **Get a screenshot and double-check it.** Have the owner screenshot the final Cloudflare
+   DNS table and pass it back so you can review it against the old zone before they flip the
+   nameservers. A second pair of eyes catches the record that was dropped or mistyped.
+3. **Know which records must NOT be proxied (grey cloud, DNS-only).** Cloudflare's orange
+   "proxy" cloud only makes sense for the **HTTP(S) hosts you actually serve through
+   Cloudflare** (apex + `www`). Everything else must stay **DNS-only**, or it breaks:
+   - **MX records and the mail hostnames they point to** — proxying mail destroys delivery.
+   - **SPF / DKIM / DMARC** and other **TXT** records (they aren't HTTP; proxy doesn't apply).
+   - `autodiscover` / `autoconfig` / `_dmarc` / mail-subdomains.
+   - Any record that must resolve to its **real origin IP** (e.g. a service expecting the
+     true address, not Cloudflare's edge).
+   Make sure the owner *understands* this distinction — don't just set it silently.
+4. **Only after both passes agree**, change the nameservers / flip the apex. Then confirm
+   the site loads on the live domain **and** send a test email both directions.
+
+> Drive these changes *with* the owner, not through blind screen control — same guardrail as
+> the bootstrap token steps above.
