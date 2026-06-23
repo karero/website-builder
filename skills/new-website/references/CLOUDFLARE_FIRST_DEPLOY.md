@@ -142,7 +142,10 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
      Teams/Skype SRV records (`_sip._tls`, `_sipfederationtls._tcp`). A missing `autodiscover`
      has been seen on a real migration (Cloudflare may have since improved this — **verify, don't
      assume**); without it Outlook mailbox auto-setup breaks.
-   - **CAA** records — if dropped, future TLS-cert issuance can silently fail.
+   - **CAA** records — two failure modes: if existing CAA records are *dropped*, or if they
+     are *restrictive and don't list Cloudflare's CA*, Cloudflare can't issue the TLS cert
+     for the domain (including the Pages custom domain). If any CAA records exist, **confirm
+     they permit Cloudflare's CAs before go-live.**
    - **Wildcard (`*`)** records and **subdomain NS delegations** — both commonly skipped.
 2. **Get a screenshot and double-check it.** Have the owner screenshot the final Cloudflare
    DNS table and pass it back so you can review it against the old zone before they flip the
@@ -152,7 +155,11 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
    Cloudflare** (apex + `www`). Everything else must stay **DNS-only**, or it breaks:
    - **MX records and the mail hostnames they point to** — proxying mail destroys delivery.
    - **SPF / DKIM / DMARC** and other **TXT** records (they aren't HTTP; proxy doesn't apply).
-   - `autodiscover` / `autoconfig` / `_dmarc` / mail-subdomains.
+   - **CNAMEs that aren't your website** — the sneaky trap, because only A/AAAA/CNAME records
+     *can* be proxied and onboarding often defaults the proxy **ON**: `autodiscover` /
+     `autoconfig`, **DKIM selector CNAMEs**, domain-**verification** CNAMEs, and third-party
+     service CNAMEs (email, helpdesk, status pages). A stray orange cloud on any of these
+     breaks the service — leave them DNS-only.
    - Any record that must resolve to its **real origin IP** (e.g. a service expecting the
      true address, not Cloudflare's edge).
    Make sure the owner *understands* this distinction — don't just set it silently.
@@ -165,9 +172,18 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
    apex. Then confirm the site loads on the live domain **and** send a test email both
    directions.
 
-> **Make rollback cheap.** Lower the record TTLs at the old provider ~24h *before* the move,
-> and **don't delete the old zone** until you've confirmed the new one resolves and mail
-> flows — so if anything's wrong you can point back quickly.
+> **Pages: attach the custom domain in the project — a DNS record alone isn't enough.** For a
+> Pages site, just adding a CNAME/record that points at `<project>.pages.dev` does **not**
+> connect the domain; the domain must be added through the Pages **Custom domains** flow
+> (dashboard, or the REST API in §A) or visitors get a **522**. And once it's attached, don't
+> "test" by pointing the record away from Pages and back — Cloudflare can serve errors until
+> it reactivates; use a redirect/origin rule for any temporary routing instead.
+
+> **Make rollback cheap — and don't tear the old setup down yet.** Lower the record TTLs at
+> the old provider ~24h *before* the move. After the flip, **keep the old zone, site, and mail
+> running through the propagation window** — resolvers may serve cached DNS for a while, so you
+> want an instant fall-back. Only retire the old setup once the new domain is confirmed
+> resolving and mail flows both directions.
 
 > Drive these changes *with* the owner, not through blind screen control — same guardrail as
 > the bootstrap token steps above.
