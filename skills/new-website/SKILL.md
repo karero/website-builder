@@ -347,6 +347,15 @@ build finishes is it actually live at `<live-domain>` — confirm that separatel
 live at …"). On a **single-stage** site there is no preview: say plainly that the push **is
 going live now**.
 
+**Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
+`main.<project>.pages.dev` (or the project alias `<project>.pages.dev`) — over the random
+per-deploy hash URL `<hash>.<project>.pages.dev`. The hash URL is ugly but **immutable**, so
+keep it as a **backup**: when an alias looks **stale** (cache/propagation lag, or it's still
+serving an older build), the hash URL pins the exact fresh deployment and confirms the new
+build is up. Whichever you quote, **open it and confirm it loads** rather than reporting it
+blind — and note it for the project. (A `pages.dev` URL is also the signal you deployed to
+**Pages**, not a Worker — see `references/CLOUDFLARE_FIRST_DEPLOY.md`.)
+
 ## Notes
 
 - Do not rebuild what existing skills cover — GEO depth → `ai-seo`; technical-SEO/
