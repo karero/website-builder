@@ -147,8 +147,14 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
    - Any record that must resolve to its **real origin IP** (e.g. a service expecting the
      true address, not Cloudflare's edge).
    Make sure the owner *understands* this distinction — don't just set it silently.
-4. **Only after both passes agree**, change the nameservers / flip the apex. Then confirm
-   the site loads on the live domain **and** send a test email both directions.
+4. **Disable DNSSEC at the registrar before touching nameservers.** Check whether DNSSEC is
+   enabled at the old provider/registrar; if it is, **turn it off first** (or follow
+   Cloudflare's DNSSEC migration path). Flipping nameservers while the old DS record is still
+   live leaves a signature chain Cloudflare can't satisfy — resolvers then return
+   `SERVFAIL` and the domain goes dark. Re-enable DNSSEC in Cloudflare afterwards if wanted.
+5. **Only after the passes agree and DNSSEC is handled**, change the nameservers / flip the
+   apex. Then confirm the site loads on the live domain **and** send a test email both
+   directions.
 
 > Drive these changes *with* the owner, not through blind screen control — same guardrail as
 > the bootstrap token steps above.
