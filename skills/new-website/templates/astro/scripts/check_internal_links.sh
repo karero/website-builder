@@ -2,8 +2,9 @@
 # Warn-only INTERNAL-link audit. Builds the inbound-link graph of the site and prints
 # which pages are ORPHANED (no internal link points at them — invisible to crawlers and
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
-# contextual in-body link). It NEVER fails the build (always exits 0) — it's the
-# judgment-side sweep, the script form of the `internal-link-audit` skill.
+# contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
+# only a broken auto-build exits non-zero, since it can't audit a missing/partial dist/.
+# It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
 # unreachable from the home page. This script is the richer report you act on — it tells
@@ -13,7 +14,18 @@
 # Portable to macOS bash 3.2 (no mapfile / no set -u).
 cd "$(git rev-parse --show-toplevel)" || exit 0
 
-[ -d dist ] || npm run build >/dev/null 2>&1
+# Audit the SHIPPED build. If dist/ is missing, build it and fail LOUDLY on a broken
+# build — never print an authoritative graph from a missing/partial dist/. If dist/
+# already exists, say we're reusing it (it may be stale; rebuild for a fresh audit).
+if [ -d dist ]; then
+  echo "ℹ using existing dist/ (not rebuilding — run 'npm run build' first for a fresh audit)" >&2
+else
+  echo "→ dist/ missing — building…" >&2
+  if ! npm run build; then
+    echo "✗ build failed — cannot audit links against a missing/partial dist/. Fix the build, then re-run." >&2
+    exit 1
+  fi
+fi
 
 # Own production host, derived from `site:` in astro.config.mjs so this stays
 # domain-agnostic. An absolute link to this host counts as internal, same as the tests.

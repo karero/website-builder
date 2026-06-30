@@ -35,23 +35,25 @@ const ROOT = '/';
 const stripWww = (host: string) => host.replace(/^www\./, '');
 const siteHost = stripWww(new URL(SITE.url).hostname);
 
-function toPath(href: string): string | null {
-  let path: string;
-  if (/^https?:\/\//i.test(href)) {
-    let u: URL;
-    try { u = new URL(href); } catch { return null; }
-    if (stripWww(u.hostname.toLowerCase()) !== siteHost) return null; // external
-    path = u.pathname;
-  } else if (href.startsWith('/') && !href.startsWith('//')) {
-    path = href.split(/[?#]/)[0]; // drop query/fragment from a relative-rooted link
-  } else {
-    return null; // mailto:, tel:, protocol-relative //, bare #frag, ./relative
+function toPath(href: string, sourceAbs: string): string | null {
+  // Resolve EVERY internal form against the page it appears on — a browser crawler
+  // reaches page-relative links ("about", "../pricing", "./team") too, not just
+  // "/rooted" ones. (anchors.spec.ts resolves the same way.) Skip non-navigational
+  // schemes / fragments / protocol-relative first.
+  if (/^(mailto:|tel:|javascript:):?/i.test(href) || href.startsWith('#') || href.startsWith('//')) {
+    return null;
   }
+  let u: URL;
+  try { u = new URL(href, sourceAbs); } catch { return null; }
+  const host = stripWww(u.hostname.toLowerCase());
+  const baseHost = stripWww(new URL(sourceAbs).hostname.toLowerCase());
+  if (host !== siteHost && host !== baseHost) return null; // external
+  const path = u.pathname.split(/[?#]/)[0];
   if (path === '' || path === '/') return '/';
   return path.replace(/\/$/, '');
 }
 
-test('no orphan pages — every route is reachable from the home page', async ({ page }) => {
+test('no orphan pages — every route is reachable from the home page', async ({ page, baseURL }) => {
   const known = new Set<string>(PAGES);
   expect(known.has(ROOT), `crawl root ${ROOT} must be in PAGES (home page)`).toBe(true);
 
@@ -64,11 +66,12 @@ test('no orphan pages — every route is reachable from the home page', async ({
     const path = queue.shift()!;
     const res = await page.goto(path);
     expect(res?.status(), `${path} should return 200 while crawling for orphans`).toBe(200);
+    const sourceAbs = new URL(path, baseURL!).href; // resolve page-relative hrefs against here
 
     const hrefs = await page.locator('a[href]').evaluateAll((as) =>
       as.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''));
     for (const href of hrefs) {
-      const target = toPath(href);
+      const target = toPath(href, sourceAbs);
       if (target && known.has(target) && !reachable.has(target)) {
         reachable.add(target);
         queue.push(target);
