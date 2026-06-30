@@ -187,7 +187,8 @@ skills/            the suite skills (canonical)
                    positioning.spec.ts), content-guide, design-system, seo-geo,
                    testimonials, qa, review, permissions
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
-  copywriting, image, og-images, outgoing-link-audit, search-console-setup   (bundled deps)
+  copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
+  search-console-setup   (bundled deps)
   astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
@@ -254,6 +255,34 @@ catches (any real email, credential/token formats, secret-looking assignments). 
 CI on every push/PR (`.github/workflows/clean.yml`) and is a prerequisite of `make package`,
 so a personalized build cannot ship. A genuine false positive is fixed by tightening a
 pattern in the script — never by loosening it.
+
+### Merging stacked PRs
+
+A PR whose base is **another feature branch** (not `main`) is *stacked* — e.g. a docs PR
+based on the feature PR it documents. Stacks are fine, but the merge order is a trap:
+
+> **What can go wrong:** if you merge the **base** PR into `main` first, and then merge the
+> **child** PR into that base branch, the child's content lands in a branch that has already
+> been folded into `main` — so it **never reaches `main`**, even though GitHub marks the child
+> "Merged". GitHub only auto-retargets a child to `main` if the child is still **open** when
+> its base merges; merging both at nearly the same time loses that window.
+
+Merge a stack with one of these orders, never both halves at once:
+
+1. **Up the stack (simplest):** merge the **child into its base branch** first, then merge the
+   **base PR (now containing both) into `main`**. One PR reaches `main`; nothing is stranded.
+2. **Retarget:** merge the **base PR into `main`**, then **retarget the child's base to `main`**
+   (GitHub usually does this automatically for an open child), confirm the child's diff vs
+   `main` is what you expect, and merge it.
+
+**Always verify after merging — trust the tree, not the badge:**
+
+```bash
+git fetch origin && git ls-tree -r --name-only origin/main -- <a file the PR added>
+```
+
+If an expected file is missing from `origin/main`, the merge stranded it; re-land the work in
+a fresh PR based on current `main` (rebase the branch onto `origin/main`, open a new PR).
 
 ## License & credits
 
