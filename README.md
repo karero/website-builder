@@ -187,7 +187,8 @@ skills/            the suite skills (canonical)
                    positioning.spec.ts), content-guide, design-system, seo-geo,
                    testimonials, qa, review, permissions
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
-  copywriting, image, og-images, outgoing-link-audit, search-console-setup   (bundled deps)
+  copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
+  search-console-setup   (bundled deps)
   astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
