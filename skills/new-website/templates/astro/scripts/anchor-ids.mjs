@@ -131,3 +131,16 @@ console.log(
   `anchor-ids: added ${totalAdded} id(s) across ${filesChanged} file(s)` +
     (skipped ? `, skipped ${skipped} file(s)` : '')
 );
+
+// Fail the build if any file was skipped. The skip itself is the safe choice (never
+// mutate HTML we couldn't parse confidently), but a skipped file ships a page with
+// un-id'd headings — silently breaking the "every section is linkable" promise. Exit
+// non-zero so `npm run build` / CI catches it; fix the stray "<h2"/"<h3" (usually in a
+// code block, comment or string) and rebuild. Clean output → skipped 0 → exit 0.
+if (skipped) {
+  console.error(
+    `anchor-ids: FAILING build — ${skipped} file(s) skipped (heading-count mismatch); ` +
+      `their h2/h3 anchors were NOT generated. Resolve the stray "<h2"/"<h3" logged above.`
+  );
+  process.exitCode = 1;
+}
