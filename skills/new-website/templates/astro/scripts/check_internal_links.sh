@@ -18,7 +18,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 0
 # Own production host, derived from `site:` in astro.config.mjs so this stays
 # domain-agnostic. An absolute link to this host counts as internal, same as the tests.
 SITE_HOST=$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
-  | sed -E "s#.*://(www\.)?##; s#/.*##" | head -1)
+  | sed -E "s#.*://(www\.)?##; s#/.*##" | tr 'A-Z' 'a-z' | head -1)
 [ -n "$SITE_HOST" ] || SITE_HOST="__no_site_configured__"
 
 # dist/<name>.html  ->  /<name>   (build.format:'file');  dist/index.html -> /
@@ -38,8 +38,8 @@ normalize() {
   case "$h" in
     //*) return 1 ;;                                   # protocol-relative = external
     http://*|https://*)
-      rest="${h#*://}"; host="${rest%%/*}"; host="${host#www.}"
-      [ "$host" = "$SITE_HOST" ] || return 1
+      rest="${h#*://}"; host=$(printf '%s' "${rest%%/*}" | tr 'A-Z' 'a-z'); host="${host#www.}"
+      [ "$host" = "$SITE_HOST" ] || return 1   # case-insensitive, matching orphans.spec.ts
       case "$rest" in */*) h="/${rest#*/}" ;; *) h="/" ;; esac ;;
     /*) : ;;                                           # root-relative
     *)  return 1 ;;                                    # mailto:/tel:/#frag/relative
@@ -93,8 +93,10 @@ nthin=$(printf '%s' "$thin" | grep -c .)
 # strategy (see the internal-link-audit / site-architecture skills) wants important
 # pages within ~3 clicks of home: a deeper page bleeds crawl priority and PageRank.
 DEEP=$(awk -F'\t' '
-  FNR==NR { e_src[NR]=$2; e_tgt[NR]=$1; ne=NR; next }   # LINKS: source($2) -> target($1)
-  { pages[$0]=1 }
+  # Discriminate by tab, not FNR==NR: an empty LINKS file would make the FNR==NR idiom
+  # misread the first PAGES line as an edge. Edge lines have a tab; PAGES paths never do.
+  /\t/    { e_src[++ne]=$2; e_tgt[ne]=$1; next }        # LINKS: source($2) -> target($1)
+  { pages[$0]=1 }                                       # PAGES line (no tab)
   END {
     for (p in pages) depth[p] = -1
     depth["/"] = 0
