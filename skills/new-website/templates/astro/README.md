@@ -19,10 +19,11 @@ public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
 functions/_middleware.ts      # noindex every *.pages.dev preview (zero config)
 .github/workflows/ci.yml      # astro check + the suite on push/PR
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
+scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin / deep pages (offline; not in CI)
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,images,tone,positioning,email,links}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links}.spec.ts
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -53,7 +54,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
-   a11y/seo/navigation/anchors/images/tone/positioning/email/links out of the box. Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already
@@ -62,6 +63,15 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > (are they still 200? did one rebrand?) is network-dependent and lives in
 > `scripts/check_external_links.sh` + the `outgoing-link-audit` skill — run monthly /
 > pre-launch, never in CI.
+
+> `orphans.spec.ts` is the **internal**-link counterpart: it fails if any page in
+> `PAGES` is unreachable from the home page by following internal links (a page in the
+> sitemap that nothing links to). It's offline and in CI. The richer report — inbound
+> link COUNT per page, "thin" pages with a single nav-only link, "deep" pages >3 clicks
+> from home, and WHERE to add the missing contextual links per the `site-architecture`
+> internal-linking strategy — is `scripts/check_internal_links.sh` + the
+> `internal-link-audit` skill. Deliberately-unlinked pages (a paid-ad landing page) go
+> in `ORPHAN_EXEMPT` with a reason rather than loosening the test.
 
 ## Section anchors
 
@@ -72,8 +82,7 @@ linkable from an external site with no per-page work. The id is the heading's fi
 outcomes we deliver</h2>` → `id="outcomes-deliver"`; a third word is appended only
 to break a clash with another heading on the page, before falling back to a numeric
 suffix. A hyphenated name or domain (e.g. `m-squad`) counts as one word, keeping its
-own hyphen. Change the word count via `ID_WORDS` at the top of the script. The ids
-are written into the **static** HTML (no runtime JS), so crawlers,
+own hyphen. Change the word count via `ID_WORDS` at the top of the script. The ids are written into the **static** HTML (no runtime JS), so crawlers,
 AI answer engines and the browser's on-load scroll all see them. `h1` is skipped —
 one per page, so its fragment would just duplicate the page URL. `anchors.spec.ts`
 proves every internal `#fragment` you write resolves to a real id.
