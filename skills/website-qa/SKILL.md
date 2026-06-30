@@ -2,7 +2,7 @@
 name: website-qa
 description: >
   The pre-launch QA gate for a new site: run the basic tests (a11y light+dark +
-  seo + navigation + anchors + images + tone + positioning + email + links), fix to green, then handle technical SEO /
+  seo + navigation + anchors + orphans + images + tone + positioning + email + links), fix to green, then handle technical SEO /
   performance — ask the user to run a
   Lighthouse / PageSpeed Insights test and act on First Contentful Paint (FCP)
   and Largest Contentful Paint (LCP). Use before launch (steps 7–8 of the
@@ -38,6 +38,13 @@ cosmetics; red → green → commit.
   points at a real element id on its target page — links and shipped-page target ids
   are read from the live DOM. Catches the dead-anchor bug navigation.spec can't see — a link
   that 200s but scrolls nowhere because the id doesn't exist. Offline.
+- `orphans.spec.ts` — the inverse of navigation.spec: every `PAGES` route must be
+  **reachable from the home page** by following internal links. A page can be in the
+  sitemap and pass every other spec yet be linked from nowhere (orphaned — crawlers
+  find it late, humans never do). Crawls the in-site link graph from `/` and fails
+  listing any unreachable page. Deliberately-unlinked pages opt out via `ORPHAN_EXEMPT`.
+  Offline. The judgment-side report (inbound count, thin pages, where to add links) is
+  the `internal-link-audit` skill.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
@@ -78,7 +85,7 @@ apply automatically.
 Feature → the high-value test to add:
 | Feature | Write a test that… |
 |---|---|
-| New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). |
+| New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). Then **link it from a related page** — `orphans.spec.ts` fails if it's reachable from no internal link. |
 | Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. |
 | Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). |
 | Site search | a known query returns the expected result; empty query handled. |
