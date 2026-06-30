@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""
+insights.py — the DEFAULT combined view: Google Search Console + Bing, side by side.
+
+Auto-detects which free sources are connected and acts accordingly:
+  • GSC connected (cached token) + Bing connected (API key) → show BOTH columns.
+  • only one connected → show it, and nudge the user to connect the other (with the
+    benefit + the ~2-min steps).
+  • Serper key absent → suggest one, because the live competitor Top-10 is very useful
+    (but it stays OPT-IN — it spends API quota — so this script never calls it).
+
+Read-only, free. Reuses the pulls in gsc_query.py + bing_query.py (no duplication).
+
+Usage:
+  python insights.py --domain genai-wednesday.de \
+     --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" [--days 90]
+"""
+
+import argparse
+import datetime as dt
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gsc_query   # noqa: E402  — reuse its OAuth + Search Analytics pull
+import bing_query  # noqa: E402  — reuse its API-key query pull
+
+CONFIG = Path.home() / ".config" / "gsc-insights"
+DEFAULT_TOKEN = CONFIG / "token.json"
+DEFAULT_SECRET = CONFIG / "client_secret.json"
+# A source returns None when NOT CONNECTED (no creds) vs FETCH_ERROR when it IS
+# connected but the API call failed — so we never tell a connected user to re-set-up.
+FETCH_ERROR = "__fetch_error__"
+
+
+def eprint(*a):
+    print(*a, file=sys.stderr)
+
+
+def _best(kw_matches, keyfn):
+    """{keyword: {'pos','impr','clicks','query'} | None} from a match_keywords() result."""
+    out = {}
+    for kw, matched in kw_matches:
+        if matched:
+            b = matched[0]
+            out[kw] = {"pos": b["position"], "impr": b["impressions"],
+                       "clicks": b["clicks"], "query": keyfn(b)}
+        else:
+            out[kw] = None
+    return out
+
+
+def gsc_positions(domain, keywords, days, client_secret, token):
+    """Pull GSC positions — only if a cached token exists (never trigger OAuth here)."""
+    if not Path(token).exists():
+        return None  # not connected (or onboarding not finished)
+    try:
+        creds = gsc_query.load_credentials(Path(client_secret), Path(token))
+        svc = gsc_query.build_service(creds)
+        end = dt.date.today() - dt.timedelta(days=2)
+        start = end - dt.timedelta(days=days)
+        rows = gsc_query.query(svc, f"sc-domain:{domain}",
+                               start.isoformat(), end.isoformat(), ["query"])
+        return _best(gsc_query.match_keywords(rows, keywords), lambda r: r["keys"][0])
+    except SystemExit:
+        return None  # missing client_secret/deps → treat as not fully connected
+    except Exception as e:  # noqa: BLE001 — connected, but the call failed
+        eprint(f"GSC pull failed: {e}")
+        return FETCH_ERROR
+
+
+def bing_positions(domain, keywords, key):
+    if not key:
+        return None
+    try:
+        rows = bing_query.get_query_stats(f"https://{domain}", key)
+        return _best(bing_query.match_keywords(rows, keywords), lambda r: r["query"])
+    except Exception as e:  # noqa: BLE001 — connected, but the call failed
+        eprint(f"Bing pull failed: {e}")
+        return FETCH_ERROR
+
+
+def cell(src, kw):
+    if src is None:
+        return "_not connected_"
+    if src is FETCH_ERROR:
+        return "⚠️ fetch failed"
+    v = src.get(kw)
+    return f"{v['pos']:.1f}" if v else "—"
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Combined Google + Bing rankings.")
+    ap.add_argument("--domain", required=True, help="e.g. genai-wednesday.de")
+    ap.add_argument("--keywords", required=True, help="Comma-separated target keywords.")
+    ap.add_argument("--days", type=int, default=90)
+    ap.add_argument("--client-secret", default=str(DEFAULT_SECRET))
+    ap.add_argument("--token", default=str(DEFAULT_TOKEN))
+    args = ap.parse_args()
+
+    keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
+    serper = bool(os.environ.get("SERPER_API_KEY"))
+    bing_key = os.environ.get("BING_API_KEY", "")
+
+    gsc = gsc_positions(args.domain, keywords, args.days, args.client_secret, args.token)
+    bing = bing_positions(args.domain, keywords, bing_key)
+
+    print(f"# Rankings across Google & Bing — {args.domain}\n")
+    if gsc is None and bing is None:
+        print("> ⚠️ **Neither source is connected.** Connect Google Search Console first "
+              "(the primary, free source) — ask me to *onboard Search Console*. Bing is an "
+              "optional 2-minute add-on after that.")
+        return
+
+    print("| Keyword | Google (pos) | Bing (pos) |")
+    print("|---|---|---|")
+    for kw in keywords:
+        print(f"| {kw} | {cell(gsc, kw)} | {cell(bing, kw)} |")
+    print("\n_Lower position = better. “—” = connected but no impressions yet; "
+          "“not connected” = that source isn’t set up._")
+
+    # Cross-engine takeaways — where one engine ranks you Top-10 and the other doesn't.
+    notes = []
+    for kw in keywords:
+        g = gsc.get(kw) if isinstance(gsc, dict) else None
+        b = bing.get(kw) if isinstance(bing, dict) else None
+        if g and b:
+            if b["pos"] <= 10 < g["pos"]:
+                notes.append(f"- **{kw}**: strong on **Bing** (#{b['pos']:.0f}) but weak on "
+                             f"Google (#{g['pos']:.0f}) — good Copilot/ChatGPT visibility already.")
+            elif g["pos"] <= 10 < b["pos"]:
+                notes.append(f"- **{kw}**: strong on **Google** (#{g['pos']:.0f}) but weak on Bing.")
+    if notes:
+        print("\n**Where the engines disagree:**")
+        print("\n".join(notes))
+
+    # Suggest connecting whatever's missing (all free).
+    sugg = []
+    if gsc is None:
+        sugg.append("- ⚠️ **Google Search Console not connected** — the primary source. "
+                    "Ask me to *onboard Search Console* (~10 min, I do most of it).")
+    if bing is None:
+        sugg.append("- 💡 **Bing not connected** — a ~2-minute API key (Bing Webmaster Tools → "
+                    "Settings → API Access). It's a Copilot/ChatGPT-visibility proxy and you "
+                    "often rank *better* on Bing than Google. Add `BING_API_KEY` to "
+                    "`~/.config/gsc-insights/.env`.")
+    if not serper:
+        sugg.append("- 💡 **No SERP key** — add a SERP API key (Serper is the default: "
+                    "https://serper.dev, ~2,500 free/mo; SerpApi etc. also work) to see the live "
+                    "**Top-10 competitors** for a keyword — who's beating you and what format wins, "
+                    "not just your own data. Add `SERPER_API_KEY` to the `.env`, then run "
+                    "`serp_check.py`. (Free tiers change — any SERP API works; see SKILL.md.)")
+    if sugg:
+        print("\n## Connect more (all free, read-only)\n")
+        print("\n".join(sugg))
+    elif isinstance(gsc, dict) and isinstance(bing, dict) and serper:
+        print("\n✅ All three sources connected (Google, Bing, Serper). For competitors, "
+              "run `serp_check.py` (opt-in — it spends Serper quota).")
+
+
+if __name__ == "__main__":
+    main()

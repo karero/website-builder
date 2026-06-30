@@ -1,0 +1,8 @@
+# search-console-insights — local-only, one-time install (not a site runtime dep).
+#   pip install -r requirements.txt
+#
+# Phase 1 (gsc_query.py) — Google Search Console API + OAuth desktop flow:
+google-api-python-client>=2.0
+google-auth-oauthlib>=1.0
+# Phase 2/3 (serp_check.py) — Serper / SerpApi HTTP calls:
+requests>=2.28

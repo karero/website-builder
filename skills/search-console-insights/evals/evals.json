@@ -1,0 +1,71 @@
+{
+  "skill_name": "search-console-insights",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want to connect my Google Search Console so I can see how my site does in search. I'm not technical.",
+      "expected_output": "Should run the onboarding wizard, not dump commands. Must explain the BENEFIT first (real queries, positions, free, read-only) and ask 'want to connect now?' before any setup. Must check what's already done (token/creds/venv) and only ask for what's missing. Must clearly flag the human-only Google-console steps (enable API, Google Auth Platform → Audience → Test user, create Desktop OAuth client, download JSON) as 'you do this', one at a time, and the agent-side steps (move JSON, build venv, first run) as 'I do this'. Must use a venv (not bare pip) and confirm the connection in plain words once done, then teach how to use it.",
+      "assertions": [
+        "Explains the benefit BEFORE asking for setup steps",
+        "Asks for confirmation before starting setup",
+        "Checks existing token/creds/venv and skips already-done steps",
+        "Flags the human-only Google-console clicks separately from agent steps",
+        "References Google Auth Platform → Audience → Test users (not the old 'OAuth consent screen' path)",
+        "Uses a virtualenv, not a bare 'pip install'",
+        "Confirms connection in plain language and then explains how to use it"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Where do I rank for 'AI events in Munich'? And what are my quickest SEO wins?",
+      "expected_output": "Should run gsc_query.py (via the venv) for the verified property with the keyword, and report the keyword's current average position plus the striking-distance queries (avg position ~8-20) as the fastest Top-10 wins. Should also surface high-impression/low-CTR pages as title/meta targets. Should honestly state if the property is too new / near-empty rather than inventing data.",
+      "assertions": [
+        "Runs gsc_query.py through the venv python",
+        "Reports the target keyword's average position",
+        "Surfaces striking-distance queries (pos ~8-20) as quick wins",
+        "Flags high-impression / low-CTR pages as title/meta targets",
+        "Honestly reports a near-empty property instead of fabricating data"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "How do I rank on Bing, and is my site visible to Copilot/ChatGPT?",
+      "expected_output": "Should run bing_query.py (which uses the simple BING_API_KEY, not OAuth) and report Bing positions for the target keywords, framing Bing as a proxy for Copilot/ChatGPT visibility. Should note Bing volume is much smaller than Google. If no BING_API_KEY is set, should explain the ~2-minute API-key setup (Bing Webmaster Tools → Settings → API Access) and that one key covers all sites, without blocking the Google data.",
+      "assertions": [
+        "Runs bing_query.py (API key, not OAuth)",
+        "Reports Bing keyword positions",
+        "Frames Bing as a Copilot/ChatGPT visibility proxy",
+        "Notes Bing volume is smaller than Google",
+        "If no key: explains the API-key setup and that it's account-wide, without blocking GSC"
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "My site gets very little traffic. How should I actually use this data to improve?",
+      "expected_output": "Should apply the low-volume playbook: track POSITION and impressions rather than clicks (clicks are noisy at low volume); convert striking-distance queries one at a time; fix titles for queries that rank but don't get clicked; mine the unexpected queries the site already appears for; and use the SERP + Bing layers to find weak-competition / long-tail / other-language terms. Should recommend re-measuring every 1-2 weeks, not daily, and comparing windows.",
+      "assertions": [
+        "Says to track position/impressions, not clicks, at low volume",
+        "Recommends converting striking-distance queries one at a time",
+        "Recommends fixing titles for ranked-but-unclicked queries",
+        "Suggests mining unexpected/long-tail queries the site already appears for",
+        "Recommends a weekly/biweekly cadence rather than daily"
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Is my position for these keywords improving over time? Set me up to watch it.",
+      "expected_output": "Should use track.sh (or gsc_query.py/bing_query.py with --csv) to append the run to the history CSV and print the week-over-week position trend via _history.py, explaining that lower position is better and a drop in the number is an improvement (shown as ▲). On the first run it should say there's no prior data yet and to re-run in 1-2 weeks. Should NOT claim a trend exists from a single data point.",
+      "assertions": [
+        "Uses track.sh or the --csv flag to record history",
+        "Prints/explains a week-over-week position trend",
+        "Explains lower position = better (improvement is a drop in the number)",
+        "On first run, states there is no prior data yet rather than inventing a trend"
+      ],
+      "files": []
+    }
+  ]
+}
