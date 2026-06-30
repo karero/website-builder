@@ -24,9 +24,14 @@ echo "▶ Google Search Console …"
   --keywords "$KEYWORDS" --csv "$CSV" >/dev/null
 
 echo "▶ Bing Webmaster …"
+rc=0
 "$PY" "$DIR/bing_query.py" --site "https://$DOMAIN" \
-  --keywords "$KEYWORDS" --csv "$CSV" >/dev/null \
-  || echo "  (Bing skipped — set BING_API_KEY in $ENV to include it)"
+  --keywords "$KEYWORDS" --csv "$CSV" >/dev/null || rc=$?
+if [ "$rc" = 3 ]; then
+  echo "  (Bing skipped — set BING_API_KEY in $ENV to include it)"
+elif [ "$rc" != 0 ]; then
+  echo "  ✗ Bing API error (exit $rc) — run bing_query.py directly to see why"
+fi
 
 echo
 echo "═══ Position trend — lower is better; ▲ = improved since last run ═══"

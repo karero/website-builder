@@ -295,7 +295,7 @@ only on an explicit yes.
 
 ```bash
 bash scripts/schedule_tracking.sh install genai-wednesday.de \
-  "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:00 (weekday 1-7, hour 0-23)
+  "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:00 (weekday: 1=Mon…6=Sat, 0/7=Sun; hour 0-23)
 bash scripts/schedule_tracking.sh list                  # what's scheduled
 bash scripts/schedule_tracking.sh remove genai-wednesday.de
 ```
