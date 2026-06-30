@@ -50,6 +50,14 @@ function idWords(text) {
     .replace(/[\u0300-\u036f]/g, '') // strip accents (e.g. accented -> plain)
     .replace(/[^a-z0-9-]+/g, ' ') // separators -> space, but KEEP hyphens
     .split(/\s+/)
+    // A number glued to the START of a word (collapsed markup, "1Understand") splits
+    // into "1","understand". Requires a leading digit-run + 3+ trailing letters, so a
+    // digit inside a term ("b2b", "web3d"), a number+unit ("3d", "4k", "10x"), an
+    // ordinal ("1st", "21st") and short acronyms ("2fa", "4wd") are all left intact.
+    .flatMap((w) => {
+      const m = w.match(/^(\d+)([a-z]{3,}.*)$/);
+      return m ? [m[1], m[2]] : [w];
+    })
     .map((w) => w.split('-').filter(Boolean).slice(0, 3).join('-')) // <= 2 hyphens / name
     .filter(Boolean);
   const meaningful = words.filter((w) => !STOP.has(w));
