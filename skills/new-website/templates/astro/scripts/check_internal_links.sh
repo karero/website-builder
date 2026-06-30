@@ -45,6 +45,13 @@ file_to_path() {
 
 # href -> in-site page path, or non-zero for an external / non-page link. Drops the
 # query + fragment (a link to /x?a#b still reaches page /x) and the trailing slash.
+#
+# Resolves ROOT-RELATIVE (/about) and ABSOLUTE-on-host (https://site/about) links — the
+# kit's link convention. It does NOT resolve PAGE-RELATIVE hrefs (about, ./team,
+# ../pricing): those are dropped, so a page reachable ONLY via a page-relative link is
+# over-reported here as ORPHAN/THIN. The hard gate `tests/orphans.spec.ts` DOES resolve
+# them (via `new URL`) and is authoritative; this advisory script intentionally stays
+# simple. Prefer root-relative links (the convention) and this divergence never bites.
 normalize() {
   local h="$1" rest host
   case "$h" in
@@ -54,7 +61,7 @@ normalize() {
       [ "$host" = "$SITE_HOST" ] || return 1   # case-insensitive, matching orphans.spec.ts
       case "$rest" in */*) h="/${rest#*/}" ;; *) h="/" ;; esac ;;
     /*) : ;;                                           # root-relative
-    *)  return 1 ;;                                    # mailto:/tel:/#frag/relative
+    *)  return 1 ;;                                    # mailto:/tel:/#frag/PAGE-relative (see header)
   esac
   h="${h%%[?#]*}"; h="${h%/}"; [ -z "$h" ] && h="/"
   echo "$h"

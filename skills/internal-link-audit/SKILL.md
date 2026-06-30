@@ -163,3 +163,9 @@ For each finding, after the user confirms:
 - The hard gate (`tests/orphans.spec.ts`) only knows pass/fail on reachability-from-
   home; this skill is the richer report (inbound COUNT per page, THIN pages, link
   suggestions) you act on to keep it green.
+- **Page-relative links:** `scripts/check_internal_links.sh` resolves only root-relative
+  (`/about`) and absolute-on-host links — the kit's convention. It does **not** resolve
+  page-relative hrefs (`about`, `./team`, `../pricing`), so a page reachable only via one
+  is over-reported as ORPHAN/THIN by the script. The gate `tests/orphans.spec.ts` *does*
+  resolve them and is authoritative — trust the gate over the script for those, and prefer
+  root-relative links so the two never diverge.
