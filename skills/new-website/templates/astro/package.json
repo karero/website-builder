@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node scripts/anchor-ids.mjs",
     "preview": "astro preview",
     "og": "node scripts/run_og.mjs",
     "ship": "bash scripts/ship.sh",
@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.0",
-    "astro": "^6.0.0"
+    "astro": "^6.0.0",
+    "node-html-parser": "^8.0.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",

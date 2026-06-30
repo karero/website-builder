@@ -21,6 +21,7 @@ functions/_middleware.ts      # noindex every *.pages.dev preview (zero config)
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
+scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,images,tone,positioning,email,links}.spec.ts
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
@@ -35,7 +36,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 3. Copy this overlay over the scaffold (the files above) + `tests/`, then:
    ```bash
    npm i -D @playwright/test @axe-core/playwright @astrojs/check typescript @types/node
-   npm i @astrojs/sitemap
+   npm i @astrojs/sitemap node-html-parser
    npx playwright install chromium
    ```
    (Or copy this `package.json` and run `npm install`.) **Commit the
@@ -61,6 +62,32 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > (are they still 200? did one rebrand?) is network-dependent and lives in
 > `scripts/check_external_links.sh` + the `outgoing-link-audit` skill — run monthly /
 > pre-launch, never in CI.
+
+## Section anchors
+
+`scripts/anchor-ids.mjs` runs as the second half of `npm run build`: it walks the
+built `dist/` HTML and gives every `h2`/`h3` a short slug `id`, so any section is
+linkable from an external site with no per-page work. The id is the heading's first
+**two meaningful words** (filler words like "the/with/how" dropped), e.g. `<h2>The
+outcomes we deliver</h2>` → `id="outcomes-deliver"`; a third word is appended only
+to break a clash with another heading on the page, before falling back to a numeric
+suffix. A hyphenated name or domain (e.g. `m-squad`) counts as one word, keeping its
+own hyphen. Change the word count via `ID_WORDS` at the top of the script. The ids
+are written into the **static** HTML (no runtime JS), so crawlers,
+AI answer engines and the browser's on-load scroll all see them. `h1` is skipped —
+one per page, so its fragment would just duplicate the page URL. `anchors.spec.ts`
+proves every internal `#fragment` you write resolves to a real id.
+
+Two kinds of heading are **left alone** (never auto-id'd), so a generated id can
+never collide with or fragment a hand-curated one:
+- a heading that already has an explicit `id` (`<h2 id="pricing">`) — curated wins;
+- a heading inside a `<section>`/`<article>` that has an `id` — that wrapper is
+  already the section's anchor (e.g. `<section id="pricing"><h2>…`).
+
+Caveat for links you publish elsewhere: an auto-slug tracks the heading text, so
+rewording the heading changes its id and breaks the old link. For any anchor you
+hand out externally, **set an explicit `id`** (on the heading or its section) — it
+wins over the auto-slug and never drifts.
 
 Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
 project settings set the **production branch to `production`** (must equal
