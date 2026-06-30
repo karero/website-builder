@@ -70,6 +70,11 @@ a { color: var(--link); }
 
 .wrap { max-width: var(--maxw); margin-inline: auto; padding: 2rem 1.25rem; }
 
+/* Section anchors — scripts/anchor-ids.mjs gives every h2/h3 a slug id at build
+   time (see README). scroll-margin keeps a deep-linked heading clear of the
+   viewport top; raise it if you add a sticky header (then mirror it onto h3). */
+h2, h3 { scroll-margin-top: 1.5rem; }
+
 .site-footer {
   max-width: var(--maxw); margin-inline: auto; padding: 1.5rem 1.25rem;
   border-top: 1px solid var(--line); font-size: 0.9rem;
