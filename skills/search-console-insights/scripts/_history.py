@@ -48,12 +48,15 @@ def print_trend(csv_path):
         rows = list(csv.DictReader(f))
     groups = collections.defaultdict(list)
     for r in rows:
-        groups[(r["source"], r["keyword"])].append(r)
+        src, kw = r.get("source"), r.get("keyword")
+        if not src or not kw:
+            continue  # skip a malformed/partial row instead of crashing the whole trend
+        groups[(src, kw)].append(r)
 
     print(f"{'source':5}  {'keyword':30}  {'prev':>5}  {'now':>5}  move")
     print(f"{'-'*5}  {'-'*30}  {'-'*5}  {'-'*5}  {'-'*10}")
     for (src, kw), rs in sorted(groups.items()):
-        rs.sort(key=lambda r: r["date"])
+        rs.sort(key=lambda r: r.get("date", ""))
         now, prev = rs[-1], (rs[-2] if len(rs) > 1 else None)
         n, p = _pos(now), (_pos(prev) if prev else None)
         nf = f"{n:.1f}" if n is not None else "—"

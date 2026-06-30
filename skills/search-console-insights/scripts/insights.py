@@ -56,7 +56,7 @@ def gsc_positions(domain, keywords, days, client_secret, token):
     if not Path(token).exists():
         return None  # not connected (or onboarding not finished)
     try:
-        creds = gsc_query.load_credentials(Path(client_secret), Path(token))
+        creds = gsc_query.load_credentials(Path(client_secret), Path(token), interactive=False)
         svc = gsc_query.build_service(creds)
         end = dt.date.today() - dt.timedelta(days=2)
         start = end - dt.timedelta(days=days)

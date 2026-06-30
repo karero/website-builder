@@ -68,12 +68,14 @@ def get_query_stats(site, key):
     out = []
     for a in agg.values():
         impr = a["impressions"]
+        if impr <= 0:
+            continue  # 0 impressions → a 0/0 "position 0.0" would read as better-than-#1
         out.append({
             "query": a["query"],
             "impressions": impr,
             "clicks": a["clicks"],
-            "position": (a["_pw"] / impr) if impr else 0.0,
-            "ctr": (a["clicks"] / impr) if impr else 0.0,
+            "position": a["_pw"] / impr,
+            "ctr": a["clicks"] / impr,
         })
     return out
 
@@ -106,9 +108,11 @@ def get_page_stats(site, key):
     out = []
     for a in agg.values():
         impr = a["impressions"]
+        if impr <= 0:
+            continue  # skip 0-impression pages (phantom position 0.0)
         out.append({"page": a["page"], "impressions": impr, "clicks": a["clicks"],
-                    "position": (a["_pw"] / impr) if impr else 0.0,
-                    "ctr": (a["clicks"] / impr) if impr else 0.0})
+                    "position": a["_pw"] / impr,
+                    "ctr": a["clicks"] / impr})
     return out
 
 

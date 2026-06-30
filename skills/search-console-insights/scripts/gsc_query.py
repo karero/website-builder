@@ -49,8 +49,12 @@ def eprint(*a):
     print(*a, file=sys.stderr)
 
 
-def load_credentials(client_secret: Path, token_path: Path):
-    """OAuth installed-app flow with a cached, auto-refreshed token."""
+def load_credentials(client_secret: Path, token_path: Path, interactive: bool = True):
+    """OAuth installed-app flow with a cached, auto-refreshed token.
+
+    interactive=False NEVER opens a browser: if the token is missing/expired and a
+    silent refresh isn't possible, it raises instead of launching a consent flow —
+    so non-interactive callers (insights.py's combined view) can't hang on a browser."""
     try:
         from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
@@ -70,6 +74,10 @@ def load_credentials(client_secret: Path, token_path: Path):
         return creds
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
+    elif not interactive:
+        raise RuntimeError(
+            "GSC token missing or expired and a silent refresh isn't possible — "
+            "re-run the connect/onboarding step to re-consent.")
     else:
         if not client_secret.exists():
             eprint(

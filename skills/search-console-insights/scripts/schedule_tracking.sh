@@ -9,7 +9,8 @@
 # any independently. macOS uses launchd (NOT cron, by project policy). On Linux, run
 # the same track.sh from a systemd user timer or cron instead.
 #
-#   bash schedule_tracking.sh install <domain> "<comma,keywords>" [weekday 1-7=Mon-Sun] [hour 0-23]
+#   bash schedule_tracking.sh install <domain> "<comma,keywords>" [weekday 0-7] [hour 0-23]
+#     weekday: launchd values — 1=Mon … 6=Sat, and BOTH 0 and 7 = Sunday (default 1=Mon).
 #   bash schedule_tracking.sh remove  <domain>
 #   bash schedule_tracking.sh list
 set -euo pipefail
