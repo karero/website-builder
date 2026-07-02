@@ -114,7 +114,7 @@ claude.ai paste tier fits plans and small diffs at best).
    **manual round of their own**; a human review round is a first-class
    reviewer seat and goes in the trail like any other (reviewer: owner,
    findings, dispositions). Never let rounds run silently back-to-back.
-9. Write the trail: `REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
+9. Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
    and for each external reviewer its CLI version, model, and sandbox mode
    (for a human round: who, and what they reviewed).
 
@@ -131,9 +131,12 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    behalf — clearly labeled with tool, version, model, and sandbox mode.
 2. **Consolidated** (actionable): the clerk's dedup + dispositions across all
    reviewers, posted as the main PR comment.
-3. **Trail** (permanent): `REVIEW-*.md` committed on the branch — dispositions,
-   rejected-with-reason findings, pending waivers, reviewer versions. This is
-   the record that survives PR-comment archaeology.
+3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch —
+   dispositions, rejected-with-reason findings, pending waivers, reviewer
+   versions. This is the record that survives PR-comment archaeology. Trails
+   (and other internal working notes, e.g. plans) go under `docs/reviews/`,
+   never at the repo root — they must not clutter the project's GitHub
+   frontpage.
 
 Capture reviewer output by **streaming to a file**, never by buffering it in a
 shell variable — a session teardown mid-run must leave the partial review on
