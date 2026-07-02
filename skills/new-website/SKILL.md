@@ -376,8 +376,11 @@ URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatic
 - Until the production deployment shows **Active**, verify new pages ONLY on the hash
   deployment URL (`<hash>.<project>.pages.dev`) — pre-Active the live domain still serves
   the *previous* deployment, so a brand-new path 404s there no matter how you request it.
-  Once Active, check the live domain with a `?cb=<anything>` cache-bust first (a distinct
-  cache key, so it cannot poison the bare URL).
+  Check Active status without touching the live domain: `wrangler pages deployment list`,
+  the `<project>.pages.dev` alias (Cloudflare's own domain, outside the zone cache), or
+  ask the owner — NEVER poll the live custom domain to see whether the build is done.
+  Once Active, check the live domain with a `?cb=<anything>` cache-bust first (under
+  default cache settings that is a distinct cache key, so it cannot poison the bare URL).
 - Touch the **bare canonical URL last**, after Active — and only then tell the owner the
   link is safe to open. Announcing a URL before Active invites the owner to click it —
   and that first request makes the edge cache the 404 for everyone.
