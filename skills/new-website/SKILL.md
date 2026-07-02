@@ -314,8 +314,9 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       home). For a multi-page site, run `internal-link-audit` and resolve orphans + thin
       pages; deliberately-unlinked pages listed in `ORPHAN_EXEMPT` with a reason.
 - [ ] `sitemap-index.xml` present; `robots.txt` + `llms.txt` accurate. (llms.txt
-      *coverage* — every `PAGES` route listed — is enforced by
-      `tests/llms-coverage.spec.ts`; wording accuracy stays a human check.)
+      *coverage* — every `PAGES` route listed, no stale entry for a removed or
+      renamed page — is enforced both ways by `tests/llms-coverage.spec.ts`;
+      wording accuracy stays a human check.)
 - [ ] Required schema validates (Rich Results / schema.org validator).
 - [ ] **OG share cards** generated (`npm run og`, the `og-images` skill): a 1200×630
       JPEG **≤300 KB** per page (`public/images/og/`), each page wiring `image=` (or the

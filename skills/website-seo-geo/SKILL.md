@@ -65,9 +65,13 @@ from** `og:description`; one does not replace the other — ship both, in sync.
 
 - Ship `/llms.txt` (template in the starters): a curated, accurate index of key
   pages + facts for AI answer engines. Keep it in sync with the site — route
-  *coverage* is enforced: `tests/llms-coverage.spec.ts` fails if any `PAGES`
-  route is missing from it (add the page's `- [Title](URL): description` line in
-  the same commit as the page).
+  *coverage* is enforced both ways in the new-website starter suite:
+  `tests/llms-coverage.spec.ts` fails if any `PAGES` route is missing from it,
+  or if a same-site entry goes stale (page removed/renamed). Add the page's
+  `- [Title](URL): description` line in the same commit as the page;
+  deliberately-hidden pages (paid-ad landers) go in its `LLMS_EXEMPT` with a
+  reason. On a site that predates the guard, copy the spec in from the starter
+  before relying on it.
 - For deeper GEO/AEO (being cited by ChatGPT/Perplexity/AI Overviews, answer
   formatting, entity coverage), run **`ai-seo`** — do not duplicate it here.
 

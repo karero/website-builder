@@ -73,11 +73,14 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > `internal-link-audit` skill. Deliberately-unlinked pages (a paid-ad landing page) go
 > in `ORPHAN_EXEMPT` with a reason rather than loosening the test.
 
-> `llms-coverage.spec.ts` keeps `public/llms.txt` (the curated GEO page map) complete:
-> every route in `PAGES` must appear in it as its full production URL. The file is
-> hand-maintained, so it drifts silently when a page is added — this test pins the
-> mechanical half (missing entries); whether an entry's *wording* still matches the
-> page stays a `website-review` / `website-seo-geo` judgment item.
+> `llms-coverage.spec.ts` keeps `public/llms.txt` (the curated GEO page map) in sync
+> both ways: every route in `PAGES` must appear in it as a markdown link to its full
+> production URL, and every same-site page link in it must map back to a `PAGES`
+> route (no stale entry after a page is removed or renamed). The file is
+> hand-maintained, so it drifts silently otherwise. Deliberately-hidden pages (a
+> paid-ad landing page — llms.txt is public, listing one would expose it to AI
+> engines) go in `LLMS_EXEMPT` with a reason. Whether an entry's *wording* still
+> matches the page stays a `website-review` / `website-seo-geo` judgment item.
 
 ## Section anchors
 
