@@ -96,8 +96,27 @@ claude.ai paste tier fits plans and small diffs at best).
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Deferring verification is legitimate; deferring a fix or a waiver never is.
-7. Write the trail: `REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
-   and for each external reviewer its CLI version, model, and sandbox mode.
+7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
+   while quality demonstrably rises each round. After every round, check three
+   signals: (a) the finding count is falling; (b) new findings target code
+   *added by the previous round's fixes*, not ground already ruled clean;
+   (c) no oscillation — a fix that re-breaks something an earlier round fixed,
+   or reviewers re-raising a finding already dispositioned, means you are
+   running in circles. If (b) or (c) fails, or the count plateaus for two
+   rounds: STOP patching. Step back and redesign the component (patch-churn on
+   a wrong design converges never), or take the open items to the owner as a
+   decision. Say so plainly in the trail — "stopped: not converging" is a
+   legitimate, documented outcome; silent round 7 is not.
+8. **Keep the human in the loop — narration is part of the gate.** Between
+   rounds, tell the owner: what was found, what was fixed, what is pending,
+   the convergence trend (e.g. 19 → 9 → 6), and roughly what each round
+   costs. The owner steers — they can stop, waive, redirect, or run a
+   **manual round of their own**; a human review round is a first-class
+   reviewer seat and goes in the trail like any other (reviewer: owner,
+   findings, dispositions). Never let rounds run silently back-to-back.
+9. Write the trail: `REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
+   and for each external reviewer its CLI version, model, and sandbox mode
+   (for a human round: who, and what they reviewed).
 
 ## The clerk procedure — who posts what (explain this to the user)
 
