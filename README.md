@@ -150,8 +150,10 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > don't update with the suite. Each carries a `SUITE-VERSION` stamp recording the suite
 > commit it was scaffolded from; `make whats-new PROJECT=<site-dir>` (needs the git
 > clone) lists which of its bundled skills changed upstream since, and
-> `./scripts/whats-new.sh --refresh <site-dir>` re-copies exactly those and re-stamps.
-> Plain `make whats-new` shows the suite's recent skill changes.
+> `./scripts/whats-new.sh --refresh <site-dir>` re-copies exactly those and re-stamps —
+> note it **overwrites local edits** to those copies (it refuses while the site has
+> uncommitted skill changes, so an overwrite stays recoverable via the site's git
+> history). Plain `make whats-new` shows the suite's recent skill changes.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell

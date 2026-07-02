@@ -269,13 +269,23 @@ Assemble the project at `<site>/` so it travels without any global setup:
 
    **Stamp the copies** (always, after ALL skills are copied) — records which suite
    state they came from, so `make whats-new PROJECT=<site>` in the suite repo can later
-   report which bundled skills have upstream updates. Writes `unknown` when the suite
-   was installed without git history (zip); the report is then unavailable for this project:
+   report which bundled skills have upstream updates:
    ```bash
+   # The suite's scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve
+   # the suite clone via the symlink and verify it really is the suite — a copied
+   # (non-symlink) install sitting inside some other git repo must NOT stamp that
+   # repo's HEAD.
    SUITE_SRC="$(readlink "$SKILLS_ROOT/new-website" 2>/dev/null || echo "$SKILLS_ROOT/new-website")"
-   printf 'suite_commit: %s\ncopied: %s\n' \
-     "$(git -C "$SUITE_SRC" rev-parse HEAD 2>/dev/null || echo unknown)" \
-     "$(date +%Y-%m-%d)" > "$PROJECT_SKILLS_DIR"/SUITE-VERSION
+   SUITE_REPO="$(git -C "$SUITE_SRC" rev-parse --show-toplevel 2>/dev/null || true)"
+   if [ -n "$SUITE_REPO" ] && [ -f "$SUITE_REPO/scripts/whats-new.sh" ] \
+      && [ -d "$SUITE_REPO/skills/new-website" ]; then
+     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp "$PROJECT_SKILLS_DIR"
+   else
+     # No usable suite clone (zip/copy install): record that the baseline is unknown.
+     # whats-new can't report for this project until re-stamped from a real clone.
+     printf 'suite_commit: unknown\ncopied: %s\n' "$(date +%Y-%m-%d)" \
+       > "$PROJECT_SKILLS_DIR"/SUITE-VERSION
+   fi
    ```
 4. **Docs** — copy `templates/positioning.md` → `POSITIONING.md`,
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
