@@ -26,17 +26,39 @@ const LLMS_EXEMPT = new Set<string>([
 
 // SITE.url ships without a trailing slash by convention (src/config.ts), but
 // normalize anyway — a config edit must not turn every expected URL into a
-// double-slash mismatch.
+// double-slash mismatch. PAGES paths are slash-less too (trailingSlash: 'never').
 const base = SITE.url.replace(/\/+$/, '');
-const llmsTxt = () => readFileSync(join(process.cwd(), 'public', 'llms.txt'), 'utf8');
-const toUrl = (route: string) => (route === '/' ? `${base}/` : `${base}${route}`);
+
+// ONE parse all three tests share: every same-site markdown link TARGET in
+// llms.txt, normalized to a PAGES-style path. `](` pins a link target (a bare
+// URL in prose does not count); the fragment/query is stripped — a link to
+// /pricing#plans still lists the /pricing page; trailing slash dropped; the
+// bare origin maps to '/'. Two tests parsing the same file two different ways
+// is exactly how false positives creep in — so they don't.
+function linkedPaths(): string[] {
+  const txt = readFileSync(join(process.cwd(), 'public', 'llms.txt'), 'utf8');
+  return [
+    ...new Set(
+      [...txt.matchAll(/\]\((https?:\/\/[^)\s]+)/g)]
+        .map((m) => m[1].split(/[?#]/)[0])
+        .filter((u) => u === base || u.startsWith(`${base}/`))
+        .map((u) => {
+          const path = u.slice(base.length).replace(/\/$/, '');
+          return path === '' ? '/' : path;
+        }),
+    ),
+  ];
+}
+
+// Hosted-asset links (a /whitepaper.pdf, an /og-image.png) are not pages. Known
+// extensions only — a dotted ROUTE like /guides/v2.0 is still a page and must
+// not silently escape the stale guard.
+const ASSET =
+  /\.(pdf|png|jpe?g|svg|gif|webp|avif|ico|css|js|mjs|json|xml|txt|webmanifest|mp4|webm|zip)$/i;
 
 test('every PAGES route is listed in public/llms.txt', () => {
-  const txt = llmsTxt();
-  // `](URL)` pins a markdown link TARGET — a bare URL in prose does not count.
-  const missing = PAGES.filter(
-    (route) => !LLMS_EXEMPT.has(route) && !txt.includes(`](${toUrl(route)})`),
-  );
+  const listed = new Set(linkedPaths());
+  const missing = PAGES.filter((route) => !LLMS_EXEMPT.has(route) && !listed.has(route));
   expect(
     missing,
     `routes missing from public/llms.txt (add a "- [Title](URL): description" line):\n  ` +
@@ -46,26 +68,26 @@ test('every PAGES route is listed in public/llms.txt', () => {
 
 // The reverse guard: every same-site page link in llms.txt must map back to a
 // PAGES route, so a removed or renamed page cannot linger as a stale entry (the
-// missing-entry check above structurally cannot see that half). Links to hosted
-// assets (/whitepaper.pdf) are not pages and are skipped.
+// missing-entry check above structurally cannot see that half).
 test('no stale llms.txt entry — every same-site page link is a PAGES route', () => {
   const known = new Set<string>(PAGES);
-  const linked = [...llmsTxt().matchAll(/\]\((https?:\/\/[^)#\s]+)/g)].map((m) => m[1]);
-  const stale = [
-    ...new Set(
-      linked
-        .filter((u) => u === base || u.startsWith(`${base}/`))
-        .map((u) => {
-          const path = u.slice(base.length).replace(/\/$/, '');
-          return path === '' ? '/' : path;
-        })
-        .filter((p) => !/\.[a-z0-9]+$/i.test(p)) // asset link (.pdf, .png), not a page
-        .filter((p) => !known.has(p)),
-    ),
-  ];
+  const stale = linkedPaths().filter((p) => !ASSET.test(p) && !known.has(p));
   expect(
     stale,
     `stale llms.txt entries — same-site links to routes not in PAGES (page removed or renamed?):\n  ` +
       stale.join('\n  '),
+  ).toEqual([]);
+});
+
+// The exemption must actually exempt: a route in LLMS_EXEMPT is hidden ON
+// PURPOSE, so it appearing in the public llms.txt is the leak the exemption
+// exists to prevent — not a pass.
+test('LLMS_EXEMPT routes stay out of public llms.txt', () => {
+  const listed = new Set(linkedPaths());
+  const exposed = [...LLMS_EXEMPT].filter((route) => listed.has(route));
+  expect(
+    exposed,
+    `deliberately-hidden routes listed in the public AI index (remove the line or the exemption):\n  ` +
+      exposed.join('\n  '),
   ).toEqual([]);
 });
