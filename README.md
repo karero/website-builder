@@ -139,13 +139,44 @@ allowlist), then sequences the sibling skills through **positioning → content 
 → design → QA → review → launch**. It also walks you through the one-time build tools
 (Node, git, `gh`, `wrangler`, image tools) the first time you actually build.
 
-> **Updating later:** if you cloned, `git pull` updates every skill at once — the global
-> copies are symlinks, not copies, so there's nothing to re-install. From a zip, re-run
+> **Updating later:** git is the version — tagged [releases](https://github.com/karero/website-builder/releases)
+> mark the human-readable milestones on top (see *Releases & versioning* below).
+> Skills are changed only in this repo (branch → edit → review → merge; never edit
+> `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
+> `git pull` therefore updates every installed skill at once — nothing to re-install;
+> to undo an update, `git revert` is equally live. From a zip, re-run
 > `./scripts/install.sh` in a newer unzipped copy.
+>
+> Sites already scaffolded by `new-website` hold frozen **copies** of the skills and
+> don't update with the suite. Each carries a `SUITE-VERSION` stamp recording the suite
+> commit it was scaffolded from; `make whats-new PROJECT=<site-dir>` (needs the git
+> clone) lists which of its bundled skills changed upstream since, and
+> `./scripts/whats-new.sh --refresh <site-dir>` re-copies exactly those and re-stamps —
+> note it **overwrites local edits** to those copies (it refuses while the site has
+> uncommitted skill changes, so an overwrite stays recoverable via the site's git
+> history). Plain `make whats-new` shows the suite's recent skill changes.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
 > (`Copy-Item -Recurse -Force .\skills\* "$env:USERPROFILE\.claude\skills\"`).
+
+### Releases & versioning
+
+Every version is a git tag + a [GitHub Release](https://github.com/karero/website-builder/releases)
+whose notes are the human-readable "what's new", with the handoff zip attached as the
+download asset. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
+stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
+(0.1 → 0.11 → 0.12 → …). To cut one:
+
+```bash
+make smoke                        # clean-check + build + verify dist/website-builder.zip
+git tag -a v0.11 -m "website-builder 0.11" && git push origin v0.11
+gh release create v0.11 dist/website-builder.zip --title "0.11" --latest \
+  --generate-notes                # or write the notes by hand
+```
+
+Zip users download the newest release from the Releases page; clone users keep using
+`git pull` and don't need to care about tags.
 
 ### Using with Google Antigravity
 
