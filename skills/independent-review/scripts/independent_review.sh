@@ -36,7 +36,8 @@ for a in "$@"; do
     -)       FILE="-" ;;
     -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
              echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success]" >&2; exit 2 ;;
-    *)       [ -z "$FILE" ] && FILE="$a" ;;
+    *)       if [ -z "$FILE" ]; then FILE="$a"; else   # a silently dropped 2nd file = unreviewed artifact
+               echo "extra argument: $a (one artifact per run)" >&2; exit 2; fi ;;
   esac
 done
 [ -n "$FILE" ] || { echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success]" >&2; exit 2; }
@@ -44,10 +45,11 @@ CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: 
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
 fi
-# argv ceiling: the whole artifact rides inside one -p argument; past ~512 KB you
-# risk E2BIG (and reviews degrade anyway). Fail LOUD — split the diff, don't truncate.
-if [ "${#CONTENT}" -gt 524288 ]; then
-  echo "artifact is $(( ${#CONTENT} / 1024 )) KB — too large to pass as a CLI arg (E2BIG risk)." >&2
+# argv ceiling: the whole artifact rides inside ONE -p argument. Linux caps a single
+# argv string at 128 KB (MAX_ARG_STRLEN=131072 — hard kernel limit; macOS is laxer,
+# ~1 MB total, verified). Stay under the strictest host. Fail LOUD — split, don't truncate.
+if [ "${#CONTENT}" -gt 120000 ]; then
+  echo "artifact is $(( ${#CONTENT} / 1024 )) KB — over the 117 KB single-argument limit (Linux E2BIG)." >&2
   echo "Split it (per-directory diffs, or plan sections) and review the pieces." >&2
   exit 2
 fi
@@ -65,9 +67,17 @@ ${CONTENT}
 --- END ${TYPE} ---"
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
-# (auth error, rate-limit notice, refusal) must not satisfy the gate.
+# (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
+# list/heading formatting: a refusal SENTENCE that merely mentions "BUG, RISK, or
+# NIT" ("I cannot return a ranked list of BUG...") must not match.
 looks_like_review() {
-  printf '%s' "$1" | grep -qiE '\b(BUG|RISK|NIT|no findings|clean)\b'
+  # structured findings (list/heading-anchored severity) always count
+  printf '%s\n' "$1" | grep -qiE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b' && return 0
+  # a "no findings" that is really a refusal ("no findings because I cannot access
+  # the artifact") must NOT count. NB: match refusals about the reviewing act only —
+  # real findings legitimately contain "cannot" ("a guard that cannot fire").
+  printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|unable to|not able to) (access|read|open|review|return|provide|complete)\b|\bI (cannot|can't|refuse|am unable)\b" && return 1
+  printf '%s\n' "$1" | grep -qiE '\bno findings\b|\bcame back clean\b|\ball clean\b'
 }
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/

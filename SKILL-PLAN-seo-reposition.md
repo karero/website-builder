@@ -47,7 +47,7 @@ This is the answer to "how do we implement the CODEX review as a skill step."
   passing while the thing it protects regressed (e.g. bare "trip overlap" moved into a title
   slot; a homepage trust card blurring two product concepts; stale related-card anchors).
 
-### Reviewer stack — in order (codex first; drop through on unavailable/failed)
+### Reviewer stack — in order *(historical: drop-through was the draft design; the shipped script runs ALL available by default, `--first-success` = opt-in drop-through)*
 1. **`codex` — OpenAI Codex CLI (gpt-5.5 / xhigh).** The strong, independent cross-model seat,
    run **DIRECTLY — no Cursor**. Reads `~/.codex/config.toml` (model + reasoning effort) +
    `auth.json` (already logged in); **`codex exec -s read-only` is a GENUINE read-only sandbox**,
@@ -80,8 +80,9 @@ This is the answer to "how do we implement the CODEX review as a skill step."
 6. **Any model, copy & paste** — the script emits the strict prompt + artifact; paste into
    whatever you have, feed the findings back.
 
-The external-model half (tiers 1, 2, 4, 5, 6) ships as **`independent_review.sh`** — it resolves
-codex → gemini → ollama → paste and **exits non-zero (= gate FAIL) if none succeed** (never
+The external-model half (tiers 1, 2, 4, 5, 6) ships as **`independent_review.sh`** — *(shipped
+contract: runs ALL available reviewers by default; codex → agy → ollama → paste is the
+`--first-success` order)* — and **exits non-zero (= gate FAIL) if none succeed** (never
 silent-clean). Tier 3 (Claude Double-Knuth) is run by the orchestrating skill. *(cursor-agent
 dropped: codex is the direct path with a real read-only sandbox.)*
 
@@ -116,7 +117,9 @@ Prereq: `search-console-insights` connected (GSC data) + a SERP key (Serper) for
 Reuse the exact structure both sites converged on:
 - **GSC pull** (`search-console-insights`): brand vs non-brand demand, per-page impressions.
 - **SERP trap-test** (the core technique): for each candidate phrase, search US Google
-  (`serp_check.py`, `gl=us hl=en`) and **read the top-10 by *intent*, not keyword overlap**.
+  (`serp_check.py`, explicit `gl`/`hl` for the site's target market — `gl=us hl=en` was
+  right for these two engagements, never a default) and **read the top-10 by *intent*, not
+  keyword overlap**.
   Classify each: **✅ wedge** (on-intent, no entrenched incumbent) · **🟠 crowded** (right
   category, owned) · **🚫 trap** (resolves to a *different* concept — lenses, miles, LinkedIn,
   board meetings, ETF tools, meet-strangers apps).
@@ -175,7 +178,7 @@ trails · a scheduled grading task.
 - `scripts/gen_guards.mjs` — auto-generates **trap-guard** (mechanical: grep the blacklist in
   built HTML/llms.txt/OG). **slot-guard + two-label are templated but hand-finished per site**
   (they need per-route slot parsing / product-concept knowledge a generator can't infer).
-- `independent_review.sh` — **already written in this repo**; detects the best reviewer, runs the
+- `independent_review.sh` — **shipped** in `skills/independent-review/scripts/`; runs ALL available reviewers (default), the
   strict prompt, and **exits non-zero (= gate FAIL) if none succeed** — never a silent "clean".
 - `templates/` — SEO-FINDINGS, rewording-plan, WORDING-GUIDE, SEO-CHANGELOG.
 

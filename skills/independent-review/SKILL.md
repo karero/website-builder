@@ -52,9 +52,10 @@ cross-model independence. **The gate is satisfied only when at least one
 successful reviewer is cross-model (a different family than the host)**; if
 only same-family reviewers ran, the gate is degraded and needs an explicit
 owner waiver — codex reviewing codex-authored work shares the blind spots this
-gate exists to catch. Under Claude Code: the Claude pass = fresh-eyes, Codex +
-Gemini = the cross-model seats. Under a Codex or Antigravity host it flips:
-Codex = fresh-eyes, and the Anthropic cross-model seat is free via the
+gate exists to catch. Per host: **Claude Code** — fresh-eyes = the Claude pass,
+cross-model = Codex + Gemini. **Codex** — fresh-eyes = Codex, cross-model =
+Gemini + Claude. **Antigravity/Gemini** — fresh-eyes = Gemini, cross-model =
+Codex + Claude. On any non-Claude host the Anthropic seat is free via the
 Antigravity CLI — `AGY_MODEL="Claude Opus 4.6 (Thinking)"` (verified headless
 2026-07-02; Claude Code itself has no free tier — Pro/API only — and the free
 claude.ai paste tier fits plans and small diffs at best).
@@ -64,7 +65,9 @@ claude.ai paste tier fits plans and small diffs at best).
 1. **Data check before anything leaves the machine.** External reviewers are
    third-party services: grep the artifact for secrets (keys, tokens, passwords,
    customer data) and get the owner's OK the first time a given repo's content
-   is sent out. If the content must stay local, use only tiers 3/5/6.
+   is sent out. If the content must stay local, use ONLY tiers 3 (host
+   fresh-eyes) and 5 (local ollama) — tier 6 (paste into any model) is just as
+   external as the CLIs and is excluded from local-only mode.
 2. Run the external half (path relative to THIS skill's directory — after an
    install that is `<skills-root>/independent-review/scripts/…`):
    `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
@@ -77,11 +80,42 @@ claude.ai paste tier fits plans and small diffs at best).
    (open/fixed/waived + waiver reason and owner).
 5. **Enforce the verdict** (this is the skill's job — never the script's exit
    code): every BUG must be fixed, no exceptions; RISK/NIT may be waived only
-   with a named reason from the human owner — no blanket waivers. Re-run after
-   fixes. Cap at 3 rounds; any BUG/RISK still open at the cap is a hard
-   gate-FAIL — surface and block, don't pass-with-notes.
-6. Write the trail: `REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
+   with a named reason from the human owner — no blanket waivers.
+6. **Iterate — fix, then re-review.** Send the updated artifact back through
+   the reviewers as a *verification round*: give them the prior round's BUG
+   list, ask them to confirm each fix landed AND that the fixes introduced
+   nothing new — and tell them the author expects clean **and that they must
+   not oblige out of politeness** (expectation of cleanliness is exactly the
+   bias that turns round 2 into a rubber stamp). Repeat until essentially
+   clean. Stop conditions: (a) clean — done; (b) 3 rounds with BUG/RISK still
+   open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
+   — you may proceed once all known BUGs are *fixed*, deferring only the
+   external re-verification of those fixes; record "last round not
+   re-verified" in the trail and run a later round when resources allow.
+   Deferring verification is legitimate; deferring a BUG fix never is.
+7. Write the trail: `REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
    and for each external reviewer its CLI version, model, and sandbox mode.
+
+## The clerk procedure — who posts what (explain this to the user)
+
+The external reviewers **structurally cannot** comment on a PR: they run in
+read-only sandboxes (codex) or sandboxed throwaway dirs (agy) and hold no
+GitHub/GitLab credentials — deliberately, because they are *untrusted*; giving
+a third-party model write access to your PR would undo the security posture.
+The HOST agent is the clerk, and each artifact has a distinct job:
+
+1. **Raw** (authentic): each reviewer's verbatim notes, captured to disk at run
+   time, posted as a collapsed (`<details>`) PR comment on the reviewer's
+   behalf — clearly labeled with tool, version, model, and sandbox mode.
+2. **Consolidated** (actionable): the clerk's dedup + dispositions across all
+   reviewers, posted as the main PR comment.
+3. **Trail** (permanent): `REVIEW-*.md` committed on the branch — dispositions,
+   rejected-with-reason findings, pending waivers, reviewer versions. This is
+   the record that survives PR-comment archaeology.
+
+Capture reviewer output by **streaming to a file**, never by buffering it in a
+shell variable — a session teardown mid-run must leave the partial review on
+disk, not vaporize it.
 
 ## The strict review prompt (both gates)
 
