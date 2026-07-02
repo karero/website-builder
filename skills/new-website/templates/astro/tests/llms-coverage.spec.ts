@@ -39,7 +39,7 @@ function linkedPaths(): string[] {
   const txt = readFileSync(join(process.cwd(), 'public', 'llms.txt'), 'utf8');
   return [
     ...new Set(
-      [...txt.matchAll(/\]\((https?:\/\/[^)\s]+)/g)]
+      [...txt.matchAll(/\]\(\s*(https?:\/\/[^)\s]+)/g)]
         .map((m) => m[1].split(/[?#]/)[0])
         .filter((u) => u === base || u.startsWith(`${base}/`))
         .map((u) => {
@@ -71,6 +71,12 @@ test('every PAGES route is listed in public/llms.txt', () => {
 // missing-entry check above structurally cannot see that half).
 test('no stale llms.txt entry — every same-site page link is a PAGES route', () => {
   const known = new Set<string>(PAGES);
+  // the asset skip assumes no real PAGE route ends like an asset — fail loud if
+  // that ever changes, instead of silently exempting the route from this guard
+  expect(
+    PAGES.filter((p) => ASSET.test(p)),
+    'PAGES routes ending in an asset extension would silently escape the stale guard',
+  ).toEqual([]);
   const stale = linkedPaths().filter((p) => !ASSET.test(p) && !known.has(p));
   expect(
     stale,
@@ -89,5 +95,16 @@ test('LLMS_EXEMPT routes stay out of public llms.txt', () => {
     exposed,
     `deliberately-hidden routes listed in the public AI index (remove the line or the exemption):\n  ` +
       exposed.join('\n  '),
+  ).toEqual([]);
+});
+
+// An exemption for a page that no longer exists is dead config — prune it, or
+// it shields a future route of the same name without anyone deciding that.
+test('LLMS_EXEMPT contains only live PAGES routes', () => {
+  const known = new Set<string>(PAGES);
+  const dead = [...LLMS_EXEMPT].filter((route) => !known.has(route));
+  expect(
+    dead,
+    `stale exemptions — routes no longer in PAGES:\n  ` + dead.join('\n  '),
   ).toEqual([]);
 });
