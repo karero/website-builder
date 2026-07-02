@@ -1,5 +1,7 @@
 # website-builder
 
+[![Latest release](https://img.shields.io/github/v/release/karero/website-builder?label=latest%20release&color=2ea44f)](https://github.com/karero/website-builder/releases/latest)
+
 **Build a fast, mobile-friendly, SEO-ready website with help from an AI coding assistant.**
 
 website-builder is an open-source skill suite for **Claude Code**, **OpenAI Codex**, and
@@ -61,6 +63,10 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
 below.)
+
+> 📦 **Prefer a download?** Grab the newest `website-builder.zip` from the
+> [Releases page](https://github.com/karero/website-builder/releases/latest) — each release
+> also tells you, in plain language, what's new.
 
 ## What you need
 
