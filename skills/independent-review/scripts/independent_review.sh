@@ -73,6 +73,26 @@ ${CONTENT}
 # Raw reviewer outputs STREAM to files (never shell-variable-only: a teardown
 # mid-review must leave partials on disk — the clerk procedure depends on them).
 RAW_DIR="${REVIEW_RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/independent-review.XXXXXX")}"
+# A caller-supplied REVIEW_RAW_DIR may not exist yet — without it every tier's
+# output redirect fails and the run misreports as "no reviewer available" (exit 4).
+# `mkdir -p` alone is not enough: it exits 0 on an EXISTING unwritable dir, which
+# would resurrect the same misreport — so prove writability too. Exit 2 = caller/
+# environment error, distinct from the exit-4 "no reviewer" gate failure.
+mkdir -p -- "$RAW_DIR" || { printf 'cannot create RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
+# Raw outputs hold the reviewed diff + reviewer stderr — keep the dir owner-only,
+# matching mktemp's default, so a caller-supplied dir is never world-readable.
+# (no `--`: BSD/macOS chmod rejects it after the mode; option parsing already
+# stopped at the mode operand, so a dash-leading path is safe regardless)
+chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" >&2; exit 2; }
+# [ -w ] is not proof redirects will work (a writable-but-unsearchable dir still
+# fails them) — probe the actual operation: create a file, then remove it.
+: >"$RAW_DIR/.write-probe" && rm -f -- "$RAW_DIR/.write-probe" || { printf 'RAW_DIR not writable: %s\n' "$RAW_DIR" >&2; exit 2; }
+# A REUSED caller-supplied RAW_DIR must not serve a previous run's partials to the
+# clerk. Cleared once, centrally: a tier can be skipped INSIDE its function or at
+# the dispatcher (`command -v ollama && …`), and a per-function rm misses the
+# latter. Checked: stale files surviving silently would defeat the point.
+rm -f -- "$RAW_DIR/codex.out" "$RAW_DIR/codex.err" "$RAW_DIR/agy.out" "$RAW_DIR/agy.err" "$RAW_DIR/ollama.out" "$RAW_DIR/ollama.err" \
+  || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
@@ -103,10 +123,10 @@ codex_bin() {
 run_codex() {
   local bin; bin="$(codex_bin)"
   [ -n "$bin" ] && [ -x "$bin" ] && [ -f "$HOME/.codex/auth.json" ] || return 3
-  local out
-  "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>/dev/null; local rc=$?
+  "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"; local rc=$?
+  { [ $rc -eq 0 ] && [ -s "$RAW_DIR/codex.out" ]; } || return 1
   local out; out="$(cat "$RAW_DIR/codex.out")"
-  { [ $rc -eq 0 ] && looks_like_review "$out"; } || return 1
+  looks_like_review "$out" || return 1
   local cfg; cfg="$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')"
   printf '## Independent review — codex (~/.codex config: %s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
 }
@@ -123,10 +143,11 @@ run_agy() {
   sbox="$(mktemp -d)"
   # </dev/null: if the CLI ever prompts (tool-approval y/n) inside the captured
   # subshell it would hang invisibly — an empty stdin makes it abort instead.
-  ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT" </dev/null 2>/dev/null ) >"$RAW_DIR/agy.out"; rc=$?
+  ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
   rm -rf "$sbox"
+  { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || return 1
   out="$(cat "$RAW_DIR/agy.out")"
-  { [ $rc -eq 0 ] && looks_like_review "$out"; } || return 1
+  looks_like_review "$out" || return 1
   printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "$model" "$out"
 }
 run_ollama() {
@@ -138,7 +159,7 @@ run_ollama() {
     *) is_local=1 ;;
   esac
   local tmp="$RAW_DIR/ollama.out" rc
-  ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" </dev/null 2>/dev/null; rc=$?
+  ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || return 1
   printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
   perl -pe 's/\e\[[0-9;?]*[A-Za-z]//g' "$tmp"
@@ -187,5 +208,8 @@ cat >&2 <<'EOF'
 #   OLLAMA_MODEL=glm-5.2:cloud …    # a named ollama cloud model (strong, private-ish)
 # Or paste the prompt below into any strong model and feed the findings back:
 EOF
+# skipped tiers (missing CLI/auth) return before writing anything — only ATTEMPTED
+# reviewers leave .out/.err files here.
+printf 'per-tier stderr for attempted reviewers (auth error vs I/O failure): %s\n' "$RAW_DIR" >&2
 printf '%s\n' "$PROMPT"
 exit 4
