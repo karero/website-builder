@@ -79,6 +79,11 @@ RAW_DIR="${REVIEW_RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/independent-review.XXXXX
 # would resurrect the same misreport — so prove writability too. Exit 2 = caller/
 # environment error, distinct from the exit-4 "no reviewer" gate failure.
 mkdir -p -- "$RAW_DIR" || { printf 'cannot create RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
+# Raw outputs hold the reviewed diff + reviewer stderr — keep the dir owner-only,
+# matching mktemp's default, so a caller-supplied dir is never world-readable.
+# (no `--`: BSD/macOS chmod rejects it after the mode; option parsing already
+# stopped at the mode operand, so a dash-leading path is safe regardless)
+chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" >&2; exit 2; }
 # [ -w ] is not proof redirects will work (a writable-but-unsearchable dir still
 # fails them) — probe the actual operation: create a file, then remove it.
 : >"$RAW_DIR/.write-probe" && rm -f -- "$RAW_DIR/.write-probe" || { printf 'RAW_DIR not writable: %s\n' "$RAW_DIR" >&2; exit 2; }

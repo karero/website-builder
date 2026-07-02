@@ -38,13 +38,18 @@ through the fixed script itself with a deliberately non-existent `REVIEW_RAW_DIR
 - **r1 codex N1 / gemini N1+N2** — `mkdir --`, `printf` instead of `echo`,
   duplicate `local out` removed. Confirmed clean.
 
-### Waiver PENDING OWNER SIGN-OFF
+### Fixed (superseding the proposed waiver — safe default chosen over waiver)
 - **r1 codex R2 + r2 codex R3 (scope extension)** — a caller-created RAW_DIR
-  inherits ambient umask; `.out`/`.err` files may be world-readable, and `.err`
-  may carry local paths/auth traces beyond "content already sent to the provider".
-  Proposed waiver: single-user dev machine; default RAW_DIR is `mktemp -d` (0700);
-  matches the argv-visibility waiver precedent (REVIEW-diff-2026-07-02-r1.md).
-  Alternative if declined: `umask 077` around RAW_DIR creation.
+  inherits ambient umask; `.out`/`.err` files could be world-readable, and `.err`
+  may carry local paths beyond "content already sent to the provider". Fixed:
+  `chmod 700 "$RAW_DIR"` right after creation (checked; exit 2 on failure) — a
+  safe default with no downside beats both a waiver and asking the user.
+  Portability note: no `--` after the mode — BSD/macOS chmod rejects it there
+  (found by negative test; option parsing already stops at the mode operand).
+  Intended side effect: an owner-owned read-only RAW_DIR is now REPAIRED to 0700
+  and the run proceeds; exit 2 remains for dirs chmod cannot fix (foreign owner).
+  Tested: 755 caller dir → drwx------ after run; fresh dir → drwx------;
+  555 owner-owned dir → repaired, run proceeds.
 
 ### Rejected, with reason
 - **r2 gemini N1** (`local rc=$?` masking) — pre-existing script-wide pattern,
