@@ -41,6 +41,12 @@ echo "✓ Pushed. Cloudflare is building the live site now."
 # cache can't show us a stale answer.
 sha="$(git rev-parse main)"
 site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
+# Strip a trailing slash: a misconfigured SITE.url ('https://x.com/') would build
+# 'https://x.com//build.txt' — NOT reliably safe (varies by host; genai-wednesday.de
+# 307-redirects a double slash, and curl -sf without -L doesn't follow it, so the
+# verification would silently read an empty body and report a false failure). Same
+# normalization the llms-coverage guard already uses on SITE.url for the same reason.
+site="${site%/}"
 if [ -z "$site" ]; then
   echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
   echo "  Check it yourself in ~2 min: your live URL should show the change."
