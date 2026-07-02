@@ -165,12 +165,13 @@ allowlist), then sequences the sibling skills through **positioning → content 
 Every version is a git tag + a [GitHub Release](https://github.com/karero/website-builder/releases)
 whose notes are the human-readable "what's new", with the handoff zip attached as the
 download asset. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
-stamps, `whats-new`) — a release just names a milestone. To cut one:
+stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
+(0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
 make smoke                        # clean-check + build + verify dist/website-builder.zip
-git tag -a v0.2 -m "website-builder 0.2" && git push origin v0.2
-gh release create v0.2 dist/website-builder.zip --title "0.2" --latest \
+git tag -a v0.11 -m "website-builder 0.11" && git push origin v0.11
+gh release create v0.11 dist/website-builder.zip --title "0.11" --latest \
   --generate-notes                # or write the notes by hand
 ```
 
