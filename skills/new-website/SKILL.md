@@ -364,6 +364,25 @@ build is up. Whichever you quote, **open it and confirm it loads** rather than r
 blind — and note it for the project. (A `pages.dev` URL is also the signal you deployed to
 **Pages**, not a Worker — see `references/CLOUDFLARE_FIRST_DEPLOY.md`.)
 
+### Never request a page on the live domain before its build is Active
+The edge caches whatever it first sees. If anyone — you, the owner's browser, a link
+checker — requests a brand-new path on the live domain while the production build is still
+running, a zone cache rule (Cache Everything on HTML) will cache the **404**, and a cached
+404 does not reliably self-heal: observed surviving `cf-cache-status: HIT` more than 90
+minutes past a 30-minute `max-age`, immune to plain re-requests. Only a **manual dashboard
+purge** clears it (Cloudflare dashboard → the zone → Caching → Purge Cache → custom purge by
+URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatically). So:
+
+- Until the production deployment shows **Active**, verify new pages ONLY on the hash
+  deployment URL (`<hash>.<project>.pages.dev`) or with a `?cb=<anything>` cache-bust on
+  the live domain (a distinct cache key, so it cannot poison the bare URL).
+- Touch the **bare canonical URL last**, after Active — and only then tell the owner the
+  link is safe to open. Announcing a URL before Active invites the owner's browser to cache
+  the 404 for everyone.
+- The same applies to GSC **Request Indexing**: Googlebot is served the same edge cache, so
+  requesting indexing while a stale 404 is cached shows Google exactly the wrong thing.
+- If a 404 does get cached anyway: single-URL purge in the dashboard, then re-verify.
+
 ## Notes
 
 - Do not rebuild what existing skills cover — GEO depth → `ai-seo`; technical-SEO/
