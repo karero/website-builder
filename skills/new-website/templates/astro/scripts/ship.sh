@@ -43,9 +43,8 @@ sha="$(git rev-parse main)"
 site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
 # Strip a trailing slash: a misconfigured SITE.url ('https://x.com/') would build
 # 'https://x.com//build.txt' — NOT reliably safe (varies by host; genai-wednesday.de
-# 307-redirects a double slash, and curl -sf without -L doesn't follow it, so the
-# verification would silently read an empty body and report a false failure). Same
-# normalization the llms-coverage guard already uses on SITE.url for the same reason.
+# 307-redirects a double slash). curl -L below now follows such redirects, but keep
+# the normalization: same as the llms-coverage guard applies to SITE.url.
 site="${site%/}"
 if [ -z "$site" ]; then
   echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
@@ -55,7 +54,9 @@ fi
 echo "→ Verifying the live site serves this exact build (up to 4 min)…"
 for i in $(seq 1 24); do
   sleep 10
-  live="$(curl -sf -m 8 "$site/build.txt?cb=$RANDOM$i" 2>/dev/null | tr -d '[:space:]')" || true
+  # -L: follow 3xx so a domain-level redirect (naked → www) can't yield an empty
+  # body and a false "old build" verdict; the exact-SHA match keeps the check honest.
+  live="$(curl -sfL -m 8 "$site/build.txt?cb=$RANDOM$i" 2>/dev/null | tr -d '[:space:]')" || true
   if [ "$live" = "$sha" ]; then
     echo "✓ LIVE — verified: $site is serving build ${sha:0:12} (after $((i*10))s)."
     exit 0
