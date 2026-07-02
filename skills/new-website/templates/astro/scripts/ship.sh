@@ -42,8 +42,8 @@ echo "✓ Pushed. Cloudflare is building the live site now."
 sha="$(git rev-parse main)"
 site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
 # Strip a trailing slash: a misconfigured SITE.url ('https://x.com/') would build
-# 'https://x.com//build.txt' — NOT reliably safe (varies by host; genai-wednesday.de
-# 307-redirects a double slash). curl -L below now follows such redirects, but keep
+# 'https://x.com//build.txt' — NOT reliably safe (varies by host; some hosts
+# 307-redirect a double slash). curl -L below now follows such redirects, but keep
 # the normalization: same as the llms-coverage guard applies to SITE.url.
 site="${site%/}"
 if [ -z "$site" ]; then
