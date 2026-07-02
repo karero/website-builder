@@ -266,6 +266,17 @@ Assemble the project at `<site>/` so it travels without any global setup:
    # If Q4 = "2+ languages at launch":
    cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
    ```
+
+   **Stamp the copies** (always, after ALL skills are copied) — records which suite
+   state they came from, so `make whats-new PROJECT=<site>` in the suite repo can later
+   report which bundled skills have upstream updates. Writes `unknown` when the suite
+   was installed without git history (zip); the report is then unavailable for this project:
+   ```bash
+   SUITE_SRC="$(readlink "$SKILLS_ROOT/new-website" 2>/dev/null || echo "$SKILLS_ROOT/new-website")"
+   printf 'suite_commit: %s\ncopied: %s\n' \
+     "$(git -C "$SUITE_SRC" rev-parse HEAD 2>/dev/null || echo unknown)" \
+     "$(date +%Y-%m-%d)" > "$PROJECT_SKILLS_DIR"/SUITE-VERSION
+   ```
 4. **Docs** — copy `templates/positioning.md` → `POSITIONING.md`,
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.

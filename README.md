@@ -139,9 +139,19 @@ allowlist), then sequences the sibling skills through **positioning → content 
 → design → QA → review → launch**. It also walks you through the one-time build tools
 (Node, git, `gh`, `wrangler`, image tools) the first time you actually build.
 
-> **Updating later:** if you cloned, `git pull` updates every skill at once — the global
-> copies are symlinks, not copies, so there's nothing to re-install. From a zip, re-run
+> **Updating later:** the suite has no version numbers to track — git is the version.
+> Skills are changed only in this repo (branch → edit → review → merge; never edit
+> `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
+> `git pull` therefore updates every installed skill at once — nothing to re-install;
+> to undo an update, `git revert` is equally live. From a zip, re-run
 > `./scripts/install.sh` in a newer unzipped copy.
+>
+> Sites already scaffolded by `new-website` hold frozen **copies** of the skills and
+> don't update with the suite. Each carries a `SUITE-VERSION` stamp recording the suite
+> commit it was scaffolded from; `make whats-new PROJECT=<site-dir>` (needs the git
+> clone) lists which of its bundled skills changed upstream since, and
+> `./scripts/whats-new.sh --refresh <site-dir>` re-copies exactly those and re-stamps.
+> Plain `make whats-new` shows the suite's recent skill changes.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
