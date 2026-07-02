@@ -13,11 +13,12 @@ cd "$REPO_DIR"
 # Explicit file list (not the scripts/ dir) so the gitignored scripts/.clean-denylist
 # can never leak into the handoff. LICENSE + THIRD-PARTY-LICENSES.md ship the notices the
 # README points to; Makefile makes `make install` work for a zip recipient.
+# docs/reviews/ holds internal review trails + plan artifacts — never handoff material.
 zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh \
-  -x '*.DS_Store' '*/dist/*' >/dev/null
+  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
@@ -50,4 +51,10 @@ if [ "$missing" -ne 0 ]; then
   echo "FAIL — handoff zip is incomplete (see ✗ above)."
   exit 1
 fi
-echo "zip integrity OK — all critical files present"
+
+# Internal artifacts must never ship: fail loud if any slip past the exclusions.
+if grep -E '^docs/reviews/|^REVIEW-|^SKILL-PLAN-' <<<"$zipfiles" | head -5 | grep .; then
+  echo "FAIL — internal review/plan artifacts leaked into the handoff zip (see above)."
+  exit 1
+fi
+echo "zip integrity OK — all critical files present, no internal artifacts"
