@@ -40,7 +40,7 @@ const STOP = new Set(
 
 // The ordered MEANINGFUL words of a heading, for building its id. Lowercased and
 // accent-stripped, split on whitespace/punctuation -- but an intra-name hyphen is
-// PRESERVED, so a hyphenated name or domain like "m-squad" stays ONE word (up to
+// PRESERVED, so a hyphenated name or domain like "acme-corp" stays ONE word (up to
 // two hyphens kept, domain-style). Filler words are dropped. The id uses the
 // first ID_WORDS; more are appended only to break a collision.
 function idWords(text) {

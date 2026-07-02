@@ -177,7 +177,7 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
 
 ```bash
 ~/.config/gsc-insights/venv/bin/python scripts/gsc_query.py \
-  --site sc-domain:genai-wednesday.de \
+  --site sc-domain:example.com \
   --days 90 \
   --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
   --client-secret ~/.config/gsc-insights/client_secret.json \
@@ -216,7 +216,7 @@ It turns owned data ("where am I?") into strategy ("where's the gap, and what be
 set -a; . ~/.config/gsc-insights/.env; set +a    # loads the SERP key (keep it out of shell history)
 ~/.config/gsc-insights/venv/bin/python scripts/serp_check.py \
   --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
-  --domain genai-wednesday.de            # --provider serper (default) | serpapi
+  --domain example.com            # --provider serper (default) | serpapi
 ```
 
 Prints the live Top-10 per keyword, flags your own position (or absence), and logs how many
@@ -261,7 +261,7 @@ Console".)
 ```bash
 set -a; . ~/.config/gsc-insights/.env; set +a    # loads BING_API_KEY
 ~/.config/gsc-insights/venv/bin/python scripts/bing_query.py \
-  --site https://genai-wednesday.de \
+  --site https://example.com \
   --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" --out bing.md
 ```
 
@@ -278,7 +278,7 @@ your keywords, appends each run to a history CSV, and prints the movement since 
 
 ```bash
 set -a; . ~/.config/gsc-insights/.env; set +a
-bash scripts/track.sh genai-wednesday.de "AI Events Munich,AI Meetups Munich,AI Treffen München"
+bash scripts/track.sh example.com "AI Events Munich,AI Meetups Munich,AI Treffen München"
 ```
 
 Output is a per-keyword trend (**lower position = better; ▲ = improved**). The first run
@@ -294,10 +294,10 @@ forgotten). Let the user choose **which sites** and a day/time — **never auto-
 only on an explicit yes.
 
 ```bash
-bash scripts/schedule_tracking.sh install genai-wednesday.de \
+bash scripts/schedule_tracking.sh install example.com \
   "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:00 (weekday: 1=Mon…6=Sat, 0/7=Sun; hour 0-23)
 bash scripts/schedule_tracking.sh list                  # what's scheduled
-bash scripts/schedule_tracking.sh remove genai-wednesday.de
+bash scripts/schedule_tracking.sh remove example.com
 ```
 
 Each job runs `track.sh` weekly (GSC + Bing → the shared history CSV → trend), logging to
@@ -316,9 +316,8 @@ answers from real data instead of a single snapshot.
   50–60 / 140–160 char limits and the og/canonical contract).
 - **Striking-distance terms with no dedicated page** → a new page via the content
   skills (`website-content-guide`, `programmatic-seo` for many similar pages); for
-  genai-wednesday the `/ai-events-munich` guide + `Event` JSON-LD is the natural home.
-- **Event rich results** → `schema-markup` (the `Event` type; genai-wednesday already
-  emits it on event detail pages).
+  an events site, a city events guide + `Event` JSON-LD is the natural home.
+- **Event rich results** → `schema-markup` (the `Event` type on event detail pages).
 - **Bigger technical issues surfaced by coverage** → `seo-audit`.
 
 ## Low-volume playbook — 5 ways to use this when traffic is thin

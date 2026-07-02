@@ -4,7 +4,7 @@
 # Run it every 1–2 weeks (not daily — daily is noise at low volume).
 #
 #   bash track.sh [domain] [comma,separated,keywords]
-#   bash track.sh genai-wednesday.de "AI Events Munich,AI Meetups Munich,AI Treffen München"
+#   bash track.sh example.com "AI Events Munich,AI Meetups Munich,AI Treffen München"
 #
 # Reads keys from ~/.config/gsc-insights/.env (SERPER not needed here; Bing optional).
 set -euo pipefail
@@ -13,7 +13,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV="$HOME/.config/gsc-insights/.env"
 PY="$HOME/.config/gsc-insights/venv/bin/python"
 CSV="${GSC_HISTORY_CSV:-$HOME/.config/gsc-insights/history.csv}"
-DOMAIN="${1:-genai-wednesday.de}"
+DOMAIN="${1:?domain required (e.g. example.com)}"
 KEYWORDS="${2:-AI Events Munich,AI Meetups Munich,AI Treffen München}"
 
 [ -x "$PY" ] || { echo "✗ venv missing at $PY — see SKILL.md setup"; exit 1; }

@@ -12,7 +12,7 @@ Auto-detects which free sources are connected and acts accordingly:
 Read-only, free. Reuses the pulls in gsc_query.py + bing_query.py (no duplication).
 
 Usage:
-  python insights.py --domain genai-wednesday.de \
+  python insights.py --domain example.com \
      --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" [--days 90]
 """
 
@@ -92,7 +92,7 @@ def cell(src, kw):
 
 def main():
     ap = argparse.ArgumentParser(description="Combined Google + Bing rankings.")
-    ap.add_argument("--domain", required=True, help="e.g. genai-wednesday.de")
+    ap.add_argument("--domain", required=True, help="e.g. example.com")
     ap.add_argument("--keywords", required=True, help="Comma-separated target keywords.")
     ap.add_argument("--days", type=int, default=90)
     ap.add_argument("--client-secret", default=str(DEFAULT_SECRET))

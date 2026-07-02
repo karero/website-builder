@@ -16,7 +16,7 @@ Endpoint: GetQueryStats returns ONE aggregate row per query over Bing's last
 
 Usage:
   export BING_API_KEY=...
-  python bing_query.py --site https://genai-wednesday.de \
+  python bing_query.py --site https://example.com \
      --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" --out bing.md
 
 Dependencies: requests (see ../requirements.txt)
@@ -183,7 +183,7 @@ def build_report(site, rows, kw_matches, page_rows=None):
 def main():
     ap = argparse.ArgumentParser(description="Pull Bing Webmaster query stats into a report.")
     ap.add_argument("--site", required=True,
-                    help="Verified Bing site URL, e.g. https://genai-wednesday.de")
+                    help="Verified Bing site URL, e.g. https://example.com")
     ap.add_argument("--keywords", default="", help="Comma-separated target keywords.")
     ap.add_argument("--out", default="", help="Write the Markdown report to this file.")
     ap.add_argument("--api-key", default=os.environ.get("BING_API_KEY", ""))

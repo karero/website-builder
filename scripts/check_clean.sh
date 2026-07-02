@@ -19,11 +19,24 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # denylist stays on $SCAN only: LICENSE legitimately carries the owner name + clone URLs.
 SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE Makefile docs"
 fail=0
+# Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
+# drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
+filter_ignored() { # stdin: grep output → stdout minus gitignored files
+  while IFS= read -r line; do
+    case "$line" in
+      "Binary file "*" matches") f="${line#Binary file }"; f="${f% matches}" ;;
+      *) f="${line%%:*}" ;;
+    esac
+    git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"
+  done
+}
 report() { # <label> <grep-output>
-  [ -z "$2" ] && return 0
+  local hits
+  hits="$(printf '%s\n' "$2" | filter_ignored)"
+  [ -z "$hits" ] && return 0
   fail=1
   echo "✗ $1:"
-  echo "$2" | sed 's/^/    /'
+  echo "$hits" | sed 's/^/    /'
 }
 
 # 1. Personal / site / org identifiers (denylist, word-boundaried). Patterns live in a

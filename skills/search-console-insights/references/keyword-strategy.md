@@ -1,7 +1,7 @@
 # Acting on the data — keyword strategy
 
 How to turn the two reports into ranking moves. The worked example is
-genai-wednesday.de targeting **"AI Events in Munich"**, **"AI Meetups in Munich"**,
+example.com targeting **"AI Events in Munich"**, **"AI Meetups in Munich"**,
 and the German **"AI Treffen in München"**, but the playbook is general.
 
 ## The loop
@@ -30,15 +30,15 @@ The Top 10's *shape* tells you the format Google rewards for a query:
 - **Event aggregators dominate** (Meetup, Eventbrite, Luma, meetup-style hubs)
   → Google reads the query as "show me upcoming events". Win with a **current,
   structured listing**: real upcoming events, dates, `Event` JSON-LD, kept fresh.
-  genai-wednesday already emits `Event` schema on event pages — make sure the
-  Munich hub page links them and stays up to date.
+  If the site already emits `Event` schema on event pages, make sure the
+  hub page links them and stays up to date.
 - **Listicle guides dominate** ("Top AI meetups in Munich", city guides)
   → Win with a **better guide page**: comprehensive, genuinely useful, updated,
   linking out to the real communities (including ours).
 - **We're absent entirely** → it's a content gap, not a tuning problem. Build the page
   that matches the dominant format above.
 
-For genai-wednesday the natural home is the existing **`/ai-events-munich`** guide plus
+In the worked example the natural home is the existing **`/ai-events-munich`** guide plus
 the event detail pages — strengthen those rather than spinning up new thin pages.
 
 ## German vs. English
@@ -74,7 +74,7 @@ plus a keyword-data call for volumes. Out of scope until the free tier is outgro
   clicks, convert striking-distance one at a time, fix titles before chasing rankings,
   mine unexpected queries, use SERP+Bing for weak-competition terms).
 - **Bing Webmaster Tools** — a second free source and a Copilot/ChatGPT-visibility
-  proxy; often you rank far better on Bing than Google (verified on genai-wednesday:
+  proxy; often you rank far better on Bing than Google (verified on the worked example:
   pos ~2–3 on Bing vs ~6+/absent on Google).
 - **Track positions over time** — `track.sh` + the `--csv` history make "is my position
   improving?" a single command instead of comparing reports by eye.

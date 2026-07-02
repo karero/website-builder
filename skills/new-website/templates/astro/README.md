@@ -90,7 +90,7 @@ linkable from an external site with no per-page work. The id is the heading's fi
 **two meaningful words** (filler words like "the/with/how" dropped), e.g. `<h2>The
 outcomes we deliver</h2>` → `id="outcomes-deliver"`; a third word is appended only
 to break a clash with another heading on the page, before falling back to a numeric
-suffix. A hyphenated name or domain (e.g. `m-squad`) counts as one word, keeping its
+suffix. A hyphenated name or domain (e.g. `acme-corp`) counts as one word, keeping its
 own hyphen. Change the word count via `ID_WORDS` at the top of the script. The ids are written into the **static** HTML (no runtime JS), so crawlers,
 AI answer engines and the browser's on-load scroll all see them. `h1` is skipped —
 one per page, so its fragment would just duplicate the page URL. `anchors.spec.ts`

@@ -21,7 +21,7 @@ so the rest of the skill (free Phase-1 GSC data) still works without it.
 Usage:
   python serp_check.py \
       --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
-      --domain genai-wednesday.de
+      --domain example.com
 
 German terms (containing 'treffen'/'münchen'/'veranstaltung') are queried with
 hl=de automatically; everything else with hl=en. gl defaults to 'de' (Munich).
@@ -93,8 +93,8 @@ PROVIDERS = {
 def main():
     ap = argparse.ArgumentParser(description="Live Google Top-10 per keyword.")
     ap.add_argument("--keywords", required=True, help="Comma-separated keywords.")
-    ap.add_argument("--domain", default="genai-wednesday.de",
-                    help="Your domain — flagged in results if present.")
+    ap.add_argument("--domain", required=True,
+                    help="Your domain, e.g. example.com — flagged in results if present.")
     ap.add_argument("--provider", choices=PROVIDERS.keys(), default="serper")
     ap.add_argument("--gl", default="de", help="Country (default de = Germany).")
     ap.add_argument("--hl", default="", help="Language; default auto per keyword.")
