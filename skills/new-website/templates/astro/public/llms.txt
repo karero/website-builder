@@ -8,6 +8,7 @@
 - [Home](https://example.com/): positioning, primary action.
 - [About](https://example.com/about): who we are, the entity, leadership.
 - [How it works](https://example.com/how-it-works): the core explanation.
+- [Privacy](https://example.com/privacy): privacy policy (GDPR).
 
 ## Facts
 - Legal entity: Example GmbH
