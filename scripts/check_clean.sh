@@ -12,6 +12,7 @@
 # A real false positive should be fixed by narrowing the pattern here, never by
 # loosening it to "match nothing".
 set -uo pipefail
+export LC_ALL=C   # unlocalized grep output — filter_ignored parses "Binary file … matches"
 cd "$(dirname "$0")/.."
 SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
@@ -31,12 +32,13 @@ filter_ignored() { # stdin: grep output → stdout minus gitignored files
   done
 }
 report() { # <label> <grep-output>
+  [ -z "$2" ] && return 0
   local hits
   hits="$(printf '%s\n' "$2" | filter_ignored)"
   [ -z "$hits" ] && return 0
   fail=1
   echo "✗ $1:"
-  echo "$hits" | sed 's/^/    /'
+  printf '%s\n' "$hits" | sed 's/^/    /'
 }
 
 # 1. Personal / site / org identifiers (denylist, word-boundaried). Patterns live in a
