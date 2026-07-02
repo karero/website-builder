@@ -139,7 +139,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 → design → QA → review → launch**. It also walks you through the one-time build tools
 (Node, git, `gh`, `wrangler`, image tools) the first time you actually build.
 
-> **Updating later:** the suite has no version numbers to track — git is the version.
+> **Updating later:** git is the version — tagged [releases](https://github.com/karero/website-builder/releases)
+> mark the human-readable milestones on top (see *Releases & versioning* below).
 > Skills are changed only in this repo (branch → edit → review → merge; never edit
 > `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
 > `git pull` therefore updates every installed skill at once — nothing to re-install;
@@ -158,6 +159,23 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
 > (`Copy-Item -Recurse -Force .\skills\* "$env:USERPROFILE\.claude\skills\"`).
+
+### Releases & versioning
+
+Every version is a git tag + a [GitHub Release](https://github.com/karero/website-builder/releases)
+whose notes are the human-readable "what's new", with the handoff zip attached as the
+download asset. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
+stamps, `whats-new`) — a release just names a milestone. To cut one:
+
+```bash
+make smoke                        # clean-check + build + verify dist/website-builder.zip
+git tag -a v0.2 -m "website-builder 0.2" && git push origin v0.2
+gh release create v0.2 dist/website-builder.zip --title "0.2" --latest \
+  --generate-notes                # or write the notes by hand
+```
+
+Zip users download the newest release from the Releases page; clone users keep using
+`git pull` and don't need to care about tags.
 
 ### Using with Google Antigravity
 
