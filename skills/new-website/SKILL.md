@@ -5,7 +5,7 @@ description: >
   and handoff-ready. Self-contained: it runs the stack decision interview,
   sequences the website-* skills + existing marketing skills in order, and
   scaffolds the project from its own templates/ (Astro starter overlay +
-  a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links test suite + GDPR privacy page draft +
+  a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage test suite + GDPR privacy page draft +
   setup + permission allowlist),
   copying the website-* skills + the three SEO-depth skills (ai-seo,
   schema-markup, seo-audit) + site-architecture + the marketing skills it
@@ -270,7 +270,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links suite out of the box). Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
@@ -313,7 +313,10 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 - [ ] **No orphaned pages** — `tests/orphans.spec.ts` green (every page reachable from
       home). For a multi-page site, run `internal-link-audit` and resolve orphans + thin
       pages; deliberately-unlinked pages listed in `ORPHAN_EXEMPT` with a reason.
-- [ ] `sitemap-index.xml` present; `robots.txt` + `llms.txt` accurate.
+- [ ] `sitemap-index.xml` present; `robots.txt` + `llms.txt` accurate. (llms.txt
+      *coverage* — every `PAGES` route listed, no stale entry for a removed or
+      renamed page — is enforced both ways by `tests/llms-coverage.spec.ts`;
+      wording accuracy stays a human check.)
 - [ ] Required schema validates (Rich Results / schema.org validator).
 - [ ] **OG share cards** generated (`npm run og`, the `og-images` skill): a 1200×630
       JPEG **≤300 KB** per page (`public/images/og/`), each page wiring `image=` (or the

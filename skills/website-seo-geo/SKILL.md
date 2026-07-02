@@ -64,7 +64,14 @@ from** `og:description`; one does not replace the other — ship both, in sync.
 ## GEO (generative engine optimization)
 
 - Ship `/llms.txt` (template in the starters): a curated, accurate index of key
-  pages + facts for AI answer engines. Keep it in sync with the site.
+  pages + facts for AI answer engines. Keep it in sync with the site — route
+  *coverage* is enforced both ways in the new-website starter suite:
+  `tests/llms-coverage.spec.ts` fails if any `PAGES` route is missing from it,
+  or if a same-site entry goes stale (page removed/renamed). Add the page's
+  `- [Title](URL): description` line in the same commit as the page;
+  deliberately-hidden pages (paid-ad landers) go in its `LLMS_EXEMPT` with a
+  reason. On a site that predates the guard, copy the spec in from the starter
+  before relying on it.
 - For deeper GEO/AEO (being cited by ChatGPT/Perplexity/AI Overviews, answer
   formatting, entity coverage), run **`ai-seo`** — do not duplicate it here.
 
@@ -106,7 +113,9 @@ model only where code can't answer):
 - **Description earns the click** — answers the query, not keyword-stuffed.
 - **Schema is semantically right** — correct `@type` and real relationships, not
   merely valid JSON (a valid-but-wrong `@type` still passes the test).
-- **`llms.txt` is accurate vs the live site** — facts and links current, no drift.
+- **`llms.txt` is accurate vs the live site** — facts and wording current, no
+  drift (route *coverage* is the mechanical half, pinned by
+  `tests/llms-coverage.spec.ts`; this read is about the wording half).
 - **EEAT signals resolve** — `sameAs` / author URLs actually load and corroborate.
 
 Intent and semantics only. Structural correctness is the test's job; cross-file

@@ -23,7 +23,7 @@ scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin 
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links,llms-coverage}.spec.ts
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -54,7 +54,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links out of the box. Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already
@@ -72,6 +72,15 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > internal-linking strategy — is `scripts/check_internal_links.sh` + the
 > `internal-link-audit` skill. Deliberately-unlinked pages (a paid-ad landing page) go
 > in `ORPHAN_EXEMPT` with a reason rather than loosening the test.
+
+> `llms-coverage.spec.ts` keeps `public/llms.txt` (the curated GEO page map) in sync
+> both ways: every route in `PAGES` must appear in it as a markdown link to its full
+> production URL, and every same-site page link in it must map back to a `PAGES`
+> route (no stale entry after a page is removed or renamed). The file is
+> hand-maintained, so it drifts silently otherwise. Deliberately-hidden pages (a
+> paid-ad landing page — llms.txt is public, listing one would expose it to AI
+> engines) go in `LLMS_EXEMPT` with a reason. Whether an entry's *wording* still
+> matches the page stays a `website-review` / `website-seo-geo` judgment item.
 
 ## Section anchors
 
