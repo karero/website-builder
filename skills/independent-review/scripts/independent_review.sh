@@ -34,7 +34,8 @@ for a in "$@"; do
     --diff)  TYPE="diff" ;;
     --first-success) FIRST_SUCCESS=1 ;;   # stop at the first tier that succeeds
     -)       FILE="-" ;;
-    -*)      : ;;                         # ignore unknown flags
+    -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
+             echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success]" >&2; exit 2 ;;
     *)       [ -z "$FILE" ] && FILE="$a" ;;
   esac
 done
@@ -42,6 +43,13 @@ done
 CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: $FILE" >&2; exit 2; }
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
+fi
+# argv ceiling: the whole artifact rides inside one -p argument; past ~512 KB you
+# risk E2BIG (and reviews degrade anyway). Fail LOUD — split the diff, don't truncate.
+if [ "${#CONTENT}" -gt 524288 ]; then
+  echo "artifact is $(( ${#CONTENT} / 1024 )) KB — too large to pass as a CLI arg (E2BIG risk)." >&2
+  echo "Split it (per-directory diffs, or plan sections) and review the pieces." >&2
+  exit 2
 fi
 
 PROMPT="You are an adversarial, independent reviewer of the ${TYPE} below. The author
@@ -56,8 +64,14 @@ not modify files or run commands.
 ${CONTENT}
 --- END ${TYPE} ---"
 
-# --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty)
-#     / 3 (unavailable). Callers fall through on non-zero. ------------------------
+# A reviewer only counts if its output LOOKS like a review — any non-empty stdout
+# (auth error, rate-limit notice, refusal) must not satisfy the gate.
+looks_like_review() {
+  printf '%s' "$1" | grep -qiE '\b(BUG|RISK|NIT|no findings|clean)\b'
+}
+
+# --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
+#     non-review output) / 3 (unavailable). Callers fall through on non-zero. ------
 # PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort — e.g.
 # gpt-5.5 / xhigh) and ~/.codex/auth.json; `exec -s read-only` gives a GENUINE read-only
 # sandbox — its shell commands can't touch your repo. The binary may not be on PATH (it ships inside the
@@ -70,10 +84,10 @@ run_codex() {
   local bin; bin="$(codex_bin)"
   [ -n "$bin" ] && [ -x "$bin" ] && [ -f "$HOME/.codex/auth.json" ] || return 3
   local out
-  out="$("$bin" exec -s read-only "$PROMPT" 2>/dev/null)"; local rc=$?
-  { [ $rc -eq 0 ] && [ -n "$out" ]; } || return 1
-  printf '## Independent review — codex (~/.codex config: %s, read-only)\n\n%s\n' \
-    "$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')" "$out"
+  out="$("$bin" exec -s read-only "$PROMPT" </dev/null 2>/dev/null)"; local rc=$?
+  { [ $rc -eq 0 ] && looks_like_review "$out"; } || return 1
+  local cfg; cfg="$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')"
+  printf '## Independent review — codex (~/.codex config: %s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
 }
 # 2. Google Gemini — via the Antigravity CLI `agy` (brew: antigravity-cli). FREE tier via the
 #    Antigravity Google login (shared with the IDE — no separate auth, no API key), and it
@@ -86,9 +100,11 @@ run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-Gemini 3.1 Pro (High)}"
   sbox="$(mktemp -d)"
-  out="$(cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT" 2>/dev/null)"; rc=$?
+  # </dev/null: if the CLI ever prompts (tool-approval y/n) inside the captured
+  # subshell it would hang invisibly — an empty stdin makes it abort instead.
+  out="$(cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT" </dev/null 2>/dev/null)"; rc=$?
   rm -rf "$sbox"
-  { [ $rc -eq 0 ] && [ -n "$out" ]; } || return 1
+  { [ $rc -eq 0 ] && looks_like_review "$out"; } || return 1
   printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "$model" "$out"
 }
 run_ollama() {
@@ -101,8 +117,8 @@ run_ollama() {
   esac
   local tmp rc
   tmp="$(mktemp)"
-  ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" 2>/dev/null; rc=$?
-  { [ $rc -eq 0 ] && [ -s "$tmp" ]; } || { rm -f "$tmp"; return 1; }
+  ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" </dev/null 2>/dev/null; rc=$?
+  { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || { rm -f "$tmp"; return 1; }
   printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
   perl -pe 's/\e\[[0-9;?]*[A-Za-z]//g' "$tmp"; rm -f "$tmp"
   # tier 5 (local) = sanity pass, NEVER the sole gate: print the findings but return

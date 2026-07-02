@@ -24,13 +24,16 @@ Read-only: report findings; fix only when asked.
 
 ## Pass 1 — correctness (the change itself)
 
-- **In a git repo with a diff:** run `/code-review` (effort `high` after a fix
-  wave or for new analytics; `medium` for routine edits). It covers correctness
-  bugs + reuse/simplification on the diff.
-- **No repo / no diff:** spawn a read-only agent over the changed files asking
-  the two killer questions per guard/test/check: *"can this pass while the thing
-  it protects is broken?"* (Rule 9) and *"does anything skip silently?"*
-  (Rule 12) — hunt latent bugs that green tests cannot see.
+- **In a git repo with a diff:** run the host's diff-review command if it has
+  one (Claude Code: `/code-review`, effort `high` after a fix wave or for new
+  analytics, `medium` for routine edits); on hosts without one (e.g. Codex),
+  review the diff yourself in a fresh context with the adversarial BUG/RISK/NIT
+  prompt. Either way it covers correctness bugs + reuse/simplification.
+- **No repo / no diff:** spawn a read-only agent over the changed files (or, if
+  the host has no sub-agent primitive, review them in a separate fresh session)
+  asking the two killer questions per guard/test/check: *"can this pass while
+  the thing it protects is broken?"* (Rule 9) and *"does anything skip
+  silently?"* (Rule 12) — hunt latent bugs that green tests cannot see.
 - If the artifact has its own gate (test suite, build, linter), it must be green
   BEFORE Pass 1 — the review is not a substitute for the gate.
 

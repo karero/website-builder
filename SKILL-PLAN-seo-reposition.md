@@ -1,6 +1,11 @@
 # Skill plan — `seo-reposition` + `independent-review`
 
-A proposal (not built yet) distilling the apreet.com + m-squad.com engagements into
+> **Status 2026-07-02: BUILT** — shipped as `skills/independent-review/`,
+> `skills/seo-reposition/`, and the vendored `skills/double-knuth/` (PR #18).
+> This document is the design record + review trail, not a live proposal;
+> where it and the shipped skills disagree, the skills win.
+
+A design distilling the apreet.com + m-squad.com engagements into
 website-builder skills. Two things were proven twice and aren't captured anywhere:
 
 1. **A repositioning method** — diagnose where a site's own phrasing collides with unrelated
@@ -194,12 +199,11 @@ trails · a scheduled grading task.
   when the primaries are unavailable), not part of the always-run set. **Three model families
   (OpenAI · Google · Anthropic) = maximum blind-spot diversity.** Always use the highest available
   model per tool. cursor-agent dropped entirely.
-  - ⚠ **Contract fix (codex round 2, BUG #3/#5):** the current `independent_review.sh` is
-    codex→gemini→ollama→paste **first-success fallthrough** — that contradicts "run ALL." When
-    built, the orchestrating skill must fan out to all authenticated reviewers and only the
-    `--first-success` flag reverts to fallthrough. And the **gate verdict is enforced by the skill
-    parsing findings** (unaddressed BUG / unwaived RISK = FAIL) — the script's non-zero exit only
-    means "no reviewer ran," never "clean."
+  - ✅ **Contract fix (codex round 2, BUG #3/#5) — SHIPPED:** `independent_review.sh` now
+    defaults to running ALL available reviewers (one output section each); `--first-success`
+    is the opt-in fallthrough mode. The **gate verdict is enforced by the skill parsing
+    findings** (unaddressed BUG / unwaived RISK = FAIL) — the script's exit code only says
+    whether any reviewer produced review-shaped output (exit 4 = none), never "clean."
   - ~~Antigravity/Gemini 3.1 Pro = manual paste-only~~ **SUPERSEDED 2026-07-02:** the
     **Antigravity CLI (`agy`)** runs the literal **Gemini 3.1 Pro (High)** headlessly on the free
     Antigravity login — proven live. The `gemini` CLI tier is deprecated/dropped (free OAuth

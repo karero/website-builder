@@ -23,8 +23,9 @@ mis-filed site; the vocabulary itself must move to winnable ground, and guard
 tests must keep it there.
 
 Prereqs: `search-console-insights` connected (GSC data + `serp_check.py` with a
-Serper key). Inputs to confirm up front: target **market, language, device**
-(the trap-test defaults to `gl=us hl=en` — wrong for a DACH-market site).
+Serper key). Inputs to confirm up front: target **market, language, device** —
+always pass explicit `gl`/`hl` to the SERP fetch, never rely on the helper's
+defaults (a US default is wrong for a DACH-market site and vice versa).
 
 ## Phase 1 — Diagnose → `SEO-FINDINGS.md`
 
@@ -56,9 +57,11 @@ Write failing specs from the WORDING-GUIDE before touching copy; they ratchet
 green as pages land and stay as regression guards forever:
 
 - **trap-guard** — mechanical scan of built HTML + llms.txt + OG source for
-  blacklisted phrases; source of truth = the WORDING-GUIDE blacklist. Normalize
-  per surface (visible text, JSON-LD, anchors, llms.txt) — a flat regex
-  false-positives on scripts and misses entity/casing variants.
+  blacklisted phrases; source of truth = the WORDING-GUIDE blacklist, **filtered
+  to `Scope: everywhere` entries only** — `slots-only` phrases are legal in body
+  copy and belong to slot-guard, so scanning them here would false-fail valid
+  pages. Normalize per surface (visible text, JSON-LD, anchors, llms.txt) — a
+  flat regex false-positives on scripts and misses entity/casing variants.
 - **slot-guard** — bans copy-legal-but-not-a-target phrases from the slots.
   Needs a per-route slot extractor (parse title/H1/JSON-LD/anchors per built
   page); **templated + hand-finished per site** — a generator can't infer the
@@ -94,5 +97,7 @@ green as pages land and stay as regression guards forever:
 
 - Delegates, never reimplements: SERP/GSC → `search-console-insights`; QA →
   `website-qa`; review gates → `independent-review` (+ `website-review` for the
-  site-wide pass). Owns Phases 1–3, orchestrates 4–5.
+  site-wide pass — note it still assumes Claude Code; under a Codex host use
+  the vendored `double-knuth` generic path instead). Owns Phases 1–3,
+  orchestrates 4–5.
 - Never promise ranking outcomes — record predictions and grade them.

@@ -191,8 +191,8 @@ skills/            the suite skills (canonical)
   search-console-setup   (bundled deps)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
-                   scripts/independent_review.sh, two-pass consistency audit,
-                   trap-test → wedge → guard-tests method)
+                   independent-review/scripts/independent_review.sh, two-pass
+                   consistency audit, trap-test → wedge → guard-tests method)
   astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
