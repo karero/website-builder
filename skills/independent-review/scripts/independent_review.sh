@@ -3,8 +3,9 @@
 # independent_review.sh — external-model half of the `independent-review` gate.
 # Runs a plan MD or a diff through ALL available INDEPENDENT models (default) —
 # or the first that succeeds with --first-success — and prints their ranked
-# BUG/RISK/NIT reviews. The skill ALSO runs a fresh-eyes Claude pass and
-# consolidates. Exit 0 only means "≥1 reviewer produced output" — the VERDICT
+# BUG/RISK/NIT reviews. The skill ALSO runs a host fresh-eyes pass (tier 3 —
+# whatever model family the host agent is) and consolidates. Exit 0 only means
+# "≥1 reviewer produced output" — the VERDICT
 # (unaddressed BUG / unwaived RISK = gate FAIL) is enforced by the skill from
 # the findings, never by this exit code. No reviewer at all → exit 4 (FAIL).
 #
@@ -26,21 +27,23 @@
 
 set -uo pipefail
 
-# --- args: one file (or -), optional --plan/--diff/--first-success -----------
-FILE="" ; TYPE="" ; FIRST_SUCCESS=0
+# --- args: one file (or -), optional --plan/--diff/--first-success/--local-only
+FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0
 for a in "$@"; do
   case "$a" in
     --plan)  TYPE="plan" ;;
     --diff)  TYPE="diff" ;;
     --first-success) FIRST_SUCCESS=1 ;;   # stop at the first tier that succeeds
+    --local-only)    LOCAL_ONLY=1 ;;      # nothing leaves the machine: skip codex/agy/paste,
+                                          # local ollama only (explicitly degraded gate)
     -)       FILE="-" ;;
     -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
-             echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success]" >&2; exit 2 ;;
+             echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only]" >&2; exit 2 ;;
     *)       if [ -z "$FILE" ]; then FILE="$a"; else   # a silently dropped 2nd file = unreviewed artifact
                echo "extra argument: $a (one artifact per run)" >&2; exit 2; fi ;;
   esac
 done
-[ -n "$FILE" ] || { echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success]" >&2; exit 2; }
+[ -n "$FILE" ] || { echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only]" >&2; exit 2; }
 CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: $FILE" >&2; exit 2; }
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
@@ -48,8 +51,9 @@ fi
 # argv ceiling: the whole artifact rides inside ONE -p argument. Linux caps a single
 # argv string at 128 KB (MAX_ARG_STRLEN=131072 — hard kernel limit; macOS is laxer,
 # ~1 MB total, verified). Stay under the strictest host. Fail LOUD — split, don't truncate.
-if [ "${#CONTENT}" -gt 120000 ]; then
-  echo "artifact is $(( ${#CONTENT} / 1024 )) KB — over the 117 KB single-argument limit (Linux E2BIG)." >&2
+CONTENT_BYTES="$(printf '%s' "$CONTENT" | wc -c | tr -d ' ')"   # bash ${#} counts CHARS; UTF-8 can be 2-4x more bytes
+if [ "$CONTENT_BYTES" -gt 120000 ]; then
+  echo "artifact is $(( CONTENT_BYTES / 1024 )) KB — over the 117 KB single-argument limit (Linux E2BIG)." >&2
   echo "Split it (per-directory diffs, or plan sections) and review the pieces." >&2
   exit 2
 fi
@@ -66,17 +70,23 @@ not modify files or run commands.
 ${CONTENT}
 --- END ${TYPE} ---"
 
+# Raw reviewer outputs STREAM to files (never shell-variable-only: a teardown
+# mid-review must leave partials on disk — the clerk procedure depends on them).
+RAW_DIR="${REVIEW_RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/independent-review.XXXXXX")}"
+
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
 # list/heading formatting: a refusal SENTENCE that merely mentions "BUG, RISK, or
 # NIT" ("I cannot return a ranked list of BUG...") must not match.
 looks_like_review() {
-  # structured findings (list/heading-anchored severity) always count
+  # 1. refusals about the reviewing act FIRST — a refusal formatted like a finding
+  #    ("- BUG: I cannot review this file...") must not slip past the positive match.
+  #    Verb-anchored so genuine text survives: "a guard that cannot fire" (no act verb)
+  #    and "I cannot find any bugs" ("find" deliberately not in the verb list) both pass.
+  printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
+  # 2. structured findings (list/heading-anchored severity)
   printf '%s\n' "$1" | grep -qiE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b' && return 0
-  # a "no findings" that is really a refusal ("no findings because I cannot access
-  # the artifact") must NOT count. NB: match refusals about the reviewing act only —
-  # real findings legitimately contain "cannot" ("a guard that cannot fire").
-  printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|unable to|not able to) (access|read|open|review|return|provide|complete)\b|\bI (cannot|can't|refuse|am unable)\b" && return 1
+  # 3. genuine clean verdicts
   printf '%s\n' "$1" | grep -qiE '\bno findings\b|\bcame back clean\b|\ball clean\b'
 }
 
@@ -94,7 +104,8 @@ run_codex() {
   local bin; bin="$(codex_bin)"
   [ -n "$bin" ] && [ -x "$bin" ] && [ -f "$HOME/.codex/auth.json" ] || return 3
   local out
-  out="$("$bin" exec -s read-only "$PROMPT" </dev/null 2>/dev/null)"; local rc=$?
+  "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>/dev/null; local rc=$?
+  local out; out="$(cat "$RAW_DIR/codex.out")"
   { [ $rc -eq 0 ] && looks_like_review "$out"; } || return 1
   local cfg; cfg="$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')"
   printf '## Independent review — codex (~/.codex config: %s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
@@ -112,8 +123,9 @@ run_agy() {
   sbox="$(mktemp -d)"
   # </dev/null: if the CLI ever prompts (tool-approval y/n) inside the captured
   # subshell it would hang invisibly — an empty stdin makes it abort instead.
-  out="$(cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT" </dev/null 2>/dev/null)"; rc=$?
+  ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT" </dev/null 2>/dev/null ) >"$RAW_DIR/agy.out"; rc=$?
   rm -rf "$sbox"
+  out="$(cat "$RAW_DIR/agy.out")"
   { [ $rc -eq 0 ] && looks_like_review "$out"; } || return 1
   printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "$model" "$out"
 }
@@ -125,15 +137,14 @@ run_ollama() {
     *cloud*|*:120b|*:405b|*:480b) : ;;            # assume strong/cloud only if named so
     *) is_local=1 ;;
   esac
-  local tmp rc
-  tmp="$(mktemp)"
+  local tmp="$RAW_DIR/ollama.out" rc
   ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" </dev/null 2>/dev/null; rc=$?
-  { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || { rm -f "$tmp"; return 1; }
+  { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || return 1
   printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
-  perl -pe 's/\e\[[0-9;?]*[A-Za-z]//g' "$tmp"; rm -f "$tmp"
-  # tier 5 (local) = sanity pass, NEVER the sole gate: print the findings but return
-  # non-zero so the caller still hits the manual/FAIL path (gate stays unsatisfied).
-  if [ $is_local -eq 1 ]; then
+  perl -pe 's/\e\[[0-9;?]*[A-Za-z]//g' "$tmp"
+  # tier 5 (local) = sanity pass, NEVER the sole gate — EXCEPT in --local-only mode,
+  # where the owner explicitly traded strength for privacy (mode is marked degraded).
+  if [ $is_local -eq 1 ] && [ "$LOCAL_ONLY" != "1" ]; then
     echo "⚠ '$OLLAMA_MODEL' looks LOCAL — sanity pass only, gate NOT satisfied by this tier. Prefer codex or a named cloud model." >&2
     return 1
   fi
@@ -143,9 +154,19 @@ run_ollama() {
 #     (maximum blind-spot diversity; the caller consolidates). --first-success
 #     stops at the first tier that returns findings (quick mode). Exit 0 iff
 #     at least one reviewer succeeded — the caller still judges the findings.
-# (tier 3 = Claude fresh-eyes pass, run by the orchestrating skill, not this script)
+# (tier 3 = the HOST agent's fresh-eyes pass — whatever family the host is — run by
+#  the orchestrating skill, not this script)
 OK=0
-if [ "$FIRST_SUCCESS" = "1" ]; then
+if [ "$LOCAL_ONLY" = "1" ]; then
+  # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
+  # and the result is an explicitly DEGRADED gate (owner's privacy trade).
+  echo "── LOCAL-ONLY mode: external reviewers skipped; gate is DEGRADED by owner choice ──" >&2
+  command -v ollama >/dev/null && run_ollama && OK=1
+  [ $OK -eq 1 ] && { echo "raw output: $RAW_DIR" >&2; exit 0; }
+  echo "local-only: no local reviewer produced a review (need OLLAMA_MODEL=<local model>)." >&2
+  echo "Run the host fresh-eyes pass; do NOT paste externally in local-only mode." >&2
+  exit 4
+elif [ "$FIRST_SUCCESS" = "1" ]; then
   run_codex && OK=1                                            # 1. OpenAI Codex CLI
   [ $OK -eq 1 ] || { run_agy && OK=1; }                        # 2. Gemini 3.1 Pro via agy
   [ $OK -eq 1 ] || { command -v ollama >/dev/null && run_ollama && OK=1; }  # 4/5. ollama
@@ -154,7 +175,7 @@ else
   run_agy    && OK=1                                           # 2. Gemini 3.1 Pro via agy
   command -v ollama >/dev/null && run_ollama && OK=1           # 4/5. ollama cloud/local
 fi
-[ $OK -eq 1 ] && exit 0
+[ $OK -eq 1 ] && { echo "raw output: $RAW_DIR" >&2; exit 0; }
 
 # No automated reviewer succeeded — DO NOT exit 0. Emit the manual prompt + FAIL (tier 6).
 cat >&2 <<'EOF'

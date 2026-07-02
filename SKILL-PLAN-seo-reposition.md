@@ -70,7 +70,7 @@ This is the answer to "how do we implement the CODEX review as a skill step."
 3. **Claude Code Double-Knuth — the fresh-eyes pass, always runs** (even after the external
    models). A no-shared-context adversarial review via the **`website-review`** skill (or generic
    `double-knuth`). Cross-model (codex, gemini) + fresh-eyes-Claude catch different classes of
-   issue — run all. *(`double-knuth` is a global skill, not vendored here — the skill vendors it
+   issue — run all. *(SUPERSEDED: `double-knuth` IS now vendored — `skills/double-knuth/`. Draft text: the skill vendors it
    into `skills/`, as `new-website` does, or degrades gracefully.)*
 4. **ollama-cloud** (e.g. `glm-5.2:cloud`) — strong + private-ish fallback when the above are
    unavailable. Named explicitly via `OLLAMA_MODEL` (cloud vs local is NOT detectable from

@@ -65,9 +65,11 @@ claude.ai paste tier fits plans and small diffs at best).
 1. **Data check before anything leaves the machine.** External reviewers are
    third-party services: grep the artifact for secrets (keys, tokens, passwords,
    customer data) and get the owner's OK the first time a given repo's content
-   is sent out. If the content must stay local, use ONLY tiers 3 (host
-   fresh-eyes) and 5 (local ollama) — tier 6 (paste into any model) is just as
-   external as the CLIs and is excluded from local-only mode.
+   is sent out. If the content must stay local, run the script with
+   `--local-only` (skips codex/agy/paste entirely; local ollama only) plus the
+   tier-3 host fresh-eyes pass — tier 6 (paste into any model) is just as
+   external as the CLIs and is excluded. A local-only verdict is inherently
+   DEGRADED; record that in the trail.
 2. Run the external half (path relative to THIS skill's directory — after an
    install that is `<skills-root>/independent-review/scripts/…`):
    `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
@@ -89,10 +91,11 @@ claude.ai paste tier fits plans and small diffs at best).
    bias that turns round 2 into a rubber stamp). Repeat until essentially
    clean. Stop conditions: (a) clean — done; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
-   — you may proceed once all known BUGs are *fixed*, deferring only the
-   external re-verification of those fixes; record "last round not
+   — you may proceed once all known BUGs are *fixed* AND every RISK/NIT is
+   fixed or explicitly owner-waived (same bar as the blocking rule), deferring
+   only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
-   Deferring verification is legitimate; deferring a BUG fix never is.
+   Deferring verification is legitimate; deferring a fix or a waiver never is.
 7. Write the trail: `REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
    and for each external reviewer its CLI version, model, and sandbox mode.
 
