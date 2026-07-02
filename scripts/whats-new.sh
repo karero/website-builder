@@ -76,6 +76,9 @@ fi
 
 PROJECT="${TARGET%/}"
 [ -d "$PROJECT" ] || { echo "error: no such directory: $PROJECT" >&2; exit 1; }
+# Absolute physical path: `git -C` re-anchors relative pathspecs to the repo dir,
+# which would silently defeat the dirty guards below for a relative <project_dir>.
+PROJECT="$(cd "$PROJECT" && pwd -P)"
 
 process_dir() {  # $1 = path to a SUITE-VERSION stamp
   local stamp="$1" skills_dir base short_base copied changed stale s missing
@@ -135,7 +138,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     return 1
   fi
   if git -C "$PROJECT" rev-parse --show-toplevel >/dev/null 2>&1; then
-    if [ -n "$(git -C "$PROJECT" status --porcelain -- "$skills_dir" 2>/dev/null)" ]; then
+    if [ -n "$(git -C "$skills_dir" status --porcelain . 2>/dev/null)" ]; then
       echo "error: the site has uncommitted changes under $skills_dir — a refresh would" >&2
       echo "overwrite them irrecoverably. Commit them in the site repo first; then any" >&2
       echo "overwrite stays recoverable via the site's git history." >&2
