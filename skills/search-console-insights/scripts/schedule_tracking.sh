@@ -27,7 +27,7 @@ plist_for() { echo "$LA_DIR/$(label_for "$1").plist"; }
 cmd="${1:-}"; shift || true
 case "$cmd" in
   install)
-    domain="${1:?domain required (e.g. genai-wednesday.de)}"
+    domain="${1:?domain required (e.g. example.com)}"
     keywords="${2:?keywords required (comma-separated)}"
     weekday="${3:-1}"   # 1 = Monday (launchd: 0 & 7 = Sunday)
     hour="${4:-9}"

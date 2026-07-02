@@ -19,7 +19,7 @@ the first run opens a browser for consent and caches a refresh token at
 
 Usage:
   python gsc_query.py \
-      --site sc-domain:genai-wednesday.de \
+      --site sc-domain:example.com \
       --days 90 \
       --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
       --out report.md
@@ -231,8 +231,8 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
 def main():
     ap = argparse.ArgumentParser(description="Pull GSC Search Analytics into a report.")
     ap.add_argument("--site", required=True,
-                    help="Property, e.g. sc-domain:genai-wednesday.de or "
-                         "https://genai-wednesday.de/")
+                    help="Property, e.g. sc-domain:example.com or "
+                         "https://example.com/")
     ap.add_argument("--days", type=int, default=90)
     ap.add_argument("--keywords", default="",
                     help="Comma-separated target keywords.")
