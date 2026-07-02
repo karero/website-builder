@@ -32,4 +32,36 @@ if ! git push origin main:production; then
   echo "  ask for help to reconcile the two branches."
   exit 1
 fi
-echo "✓ Published. Cloudflare is building the live site now (live in ~1 minute)."
+echo "✓ Pushed. Cloudflare is building the live site now."
+
+# Push ≠ live: Cloudflare can silently stop building (webhook auth lapse — seen in
+# production 2026-07-02: two green pushes, no deploy for 40+ min). So VERIFY: the
+# build writes its commit SHA to /build.txt (scripts/build-marker.mjs); poll the
+# live site until it serves the SHA we just pushed. Cache-busted query so the edge
+# cache can't show us a stale answer.
+sha="$(git rev-parse main)"
+site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
+if [ -z "$site" ]; then
+  echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
+  echo "  Check it yourself in ~2 min: your live URL should show the change."
+  exit 0
+fi
+echo "→ Verifying the live site serves this exact build (up to 4 min)…"
+for i in $(seq 1 24); do
+  sleep 10
+  live="$(curl -sf -m 8 "$site/build.txt?cb=$RANDOM$i" 2>/dev/null | tr -d '[:space:]')" || true
+  if [ "$live" = "$sha" ]; then
+    echo "✓ LIVE — verified: $site is serving build ${sha:0:12} (after $((i*10))s)."
+    exit 0
+  fi
+done
+echo ""
+echo "⚠ Pushed OK, but after 4 minutes the live site still serves an OLD build."
+echo "  This usually means Cloudflare didn't build (it can stop silently). Check:"
+echo "  Cloudflare dashboard → Workers & Pages → your project → Deployments."
+echo "    • A failed deployment for ${sha:0:12} → open its log, then 'Retry deployment'."
+echo "    • NO deployment for it → Settings → Builds: unpause / re-connect the GitHub"
+echo "      integration, then 'Create deployment' from 'production'."
+echo "  (Brand-new site whose domain isn't connected yet? Then this is expected —"
+echo "  verify via the project's *.pages.dev URL instead.)"
+exit 1

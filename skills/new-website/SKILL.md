@@ -304,6 +304,10 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 ## 4. Launch & handoff checklist
 
 - [ ] All QA green: `npm test`.
+- [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
+      is empty — merged-but-unpromoted work is invisibly unshipped. If not empty and it
+      should ship: `npm run ship` (which also VERIFIES the live site serves the new build
+      via `/build.txt` — push alone is not proof of live).
 - [ ] **Double-Knuth review clean** (`website-review`): both passes — run it as the final
       gate AND after adding the last page.
 - [ ] Lighthouse / PageSpeed run; FCP & LCP within target (see `website-qa`).

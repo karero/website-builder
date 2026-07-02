@@ -55,7 +55,10 @@ npm run ship
 ```
 
 `npm run ship` uploads `main` to the live (`production`) branch for you — you never run the
-branch commands by hand. A few seconds after it finishes, Cloudflare builds the live site.
+branch commands by hand. Then it **waits and verifies** that the live site really serves the
+new version (every build stamps its id into `/build.txt`; ship polls for it, up to 4 min).
+"✓ LIVE — verified" means it's truly online; a warning means Cloudflare didn't build — the
+message tells you exactly what to click. Never assume a push went live without that check.
 
 > **Each upload may run a quick self-check** (it builds the site and runs the tests before
 > uploading — so does `npm run ship`, which uploads too). It can take a minute, and **if
@@ -71,6 +74,12 @@ branch commands by hand. A few seconds after it finishes, Cloudflare builds the 
 
 One branch, `main`, and it **is** the live site. There's no preview — every upload goes
 straight online. Simple, but there's no safety net, so check locally first (`npm run dev`).
+
+> **"Push = live" is a promise, not a fact.** Cloudflare can silently stop building (it
+> happened in production: green pushes, no deploy). After an important upload, confirm the
+> change is really online — `curl https://your-site/build.txt` shows which build is serving
+> (compare with `git rev-parse HEAD`). If it's stale: Cloudflare dashboard → your project →
+> Deployments (retry the failed build, or re-connect GitHub under Settings → Builds).
 
 > **You need a custom domain for Google to see the site.** A bare Cloudflare
 > `*.pages.dev` URL is **noindexed by design** (so stray preview URLs never get indexed).
