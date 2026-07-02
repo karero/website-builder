@@ -374,14 +374,18 @@ purge** clears it (Cloudflare dashboard → the zone → Caching → Purge Cache
 URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatically). So:
 
 - Until the production deployment shows **Active**, verify new pages ONLY on the hash
-  deployment URL (`<hash>.<project>.pages.dev`) or with a `?cb=<anything>` cache-bust on
-  the live domain (a distinct cache key, so it cannot poison the bare URL).
+  deployment URL (`<hash>.<project>.pages.dev`) — pre-Active the live domain still serves
+  the *previous* deployment, so a brand-new path 404s there no matter how you request it.
+  Once Active, check the live domain with a `?cb=<anything>` cache-bust first (a distinct
+  cache key, so it cannot poison the bare URL).
 - Touch the **bare canonical URL last**, after Active — and only then tell the owner the
-  link is safe to open. Announcing a URL before Active invites the owner's browser to cache
-  the 404 for everyone.
+  link is safe to open. Announcing a URL before Active invites the owner to click it —
+  and that first request makes the edge cache the 404 for everyone.
 - The same applies to GSC **Request Indexing**: Googlebot is served the same edge cache, so
   requesting indexing while a stale 404 is cached shows Google exactly the wrong thing.
-- If a 404 does get cached anyway: single-URL purge in the dashboard, then re-verify.
+- If a 404 does get cached anyway: ask the owner to run the single-URL purge in the
+  Cloudflare dashboard (a human-only step — the agent has no dashboard access; path above),
+  then re-verify.
 
 ## Notes
 
