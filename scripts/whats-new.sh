@@ -117,7 +117,9 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   # Skills pinned by the site (deliberate local forks): REFRESH-KEEP next to the
   # stamp, one skill name per line, '#' comments allowed. --refresh leaves them
-  # untouched; the report still shows their upstream changes, marked (pinned).
+  # untouched; the report shows their upstream changes SINCE THE STAMP, marked
+  # (pinned). Note a refresh advances the stamp past skipped changes too — each
+  # pinned change is reported until the next refresh, not forever.
   keep=""
   [ -f "$skills_dir/REFRESH-KEEP" ] && keep="$(sed 's/#.*//' "$skills_dir/REFRESH-KEEP")"
 
@@ -129,7 +131,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
-    if [ -n "$keep" ] && printf '%s\n' $keep | grep -qx "$s"; then
+    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
     else
       echo "  $s"
@@ -167,7 +169,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   missing=0
   for s in $stale; do
-    if [ -n "$keep" ] && printf '%s\n' $keep | grep -qx "$s"; then
+    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
