@@ -9,6 +9,10 @@
 #                                                 # Overwrites local edits to those copies;
 #                                                 # refuses while either the suite clone or
 #                                                 # the site has uncommitted skill changes.
+#                                                 # Skills listed in <skills_dir>/REFRESH-KEEP
+#                                                 # (one name per line, # comments) are
+#                                                 # deliberate local forks: never overwritten,
+#                                                 # reported as "(pinned)".
 #   scripts/whats-new.sh --stamp <skills_dir>     # write the SUITE-VERSION stamp. This is
 #                                                 # the ONLY writer of the stamp format —
 #                                                 # new-website's scaffold step calls it too.
@@ -81,7 +85,7 @@ PROJECT="${TARGET%/}"
 PROJECT="$(cd "$PROJECT" && pwd -P)"
 
 process_dir() {  # $1 = path to a SUITE-VERSION stamp
-  local stamp="$1" skills_dir base short_base copied changed stale s missing
+  local stamp="$1" skills_dir base short_base copied changed stale s missing keep
   skills_dir="$(dirname "$stamp")"
   base="$(sed -n 's/^suite_commit: //p' "$stamp")"
   copied="$(sed -n 's/^copied: //p' "$stamp")"
@@ -111,6 +115,14 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     [ -d "$skills_dir/$s" ] && stale="$stale $s"
   done
 
+  # Skills pinned by the site (deliberate local forks): REFRESH-KEEP next to the
+  # stamp, one skill name per line, '#' comments allowed. --refresh leaves them
+  # untouched; the report shows their upstream changes SINCE THE STAMP, marked
+  # (pinned). Note a refresh advances the stamp past skipped changes too — each
+  # pinned change is reported until the next refresh, not forever.
+  keep=""
+  [ -f "$skills_dir/REFRESH-KEEP" ] && keep="$(sed 's/#.*//' "$skills_dir/REFRESH-KEEP")"
+
   if [ -z "$stale" ]; then
     echo "Up to date — none of this dir's bundled skills changed upstream since then."
     return 0
@@ -119,7 +131,11 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
-    echo "  $s"
+    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
+      echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
+    else
+      echo "  $s"
+    fi
     git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "skills/$s" | sed 's/^/    /'
   done
   echo
@@ -153,6 +169,10 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   missing=0
   for s in $stale; do
+    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
+      echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
+      continue
+    fi
     if [ -d "$REPO_DIR/skills/$s" ]; then
       rm -rf "${skills_dir:?}/$s"
       cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
