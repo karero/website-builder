@@ -160,7 +160,10 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `./scripts/whats-new.sh --refresh <site-dir>` re-copies exactly those and re-stamps —
 > note it **overwrites local edits** to those copies (it refuses while the site has
 > uncommitted skill changes, so an overwrite stays recoverable via the site's git
-> history). Plain `make whats-new` shows the suite's recent skill changes.
+> history). A skill deliberately forked for one site (e.g. localized copy) can be
+> pinned: list its name in `<skills_dir>/REFRESH-KEEP` (one per line, `#` comments)
+> and `--refresh` will never touch it — reports mark it "(pinned)". Plain
+> `make whats-new` shows the suite's recent skill changes.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
