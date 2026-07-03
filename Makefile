@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check smoke whats-new
+.PHONY: install install-codex package check smoke whats-new refresh
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -8,6 +8,9 @@ install-codex:   ## symlink every skill into ~/.agents/skills/ (OpenAI Codex)
 
 whats-new: ## skill changes since a project was scaffolded: make whats-new PROJECT=<dir> (no PROJECT = recent suite changes)
 	@bash scripts/whats-new.sh $(if $(PROJECT),"$(PROJECT)")
+
+refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites local edits): make refresh PROJECT=<dir>
+	@bash scripts/whats-new.sh --refresh $(if $(PROJECT),"$(PROJECT)")
 
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
