@@ -98,6 +98,7 @@ green as pages land and stay as regression guards forever:
 - Delegates, never reimplements: SERP/GSC → `search-console-insights`; QA →
   `website-qa`; review gates → `independent-review` (+ `website-review` for the
   site-wide pass — note it still assumes Claude Code; under a Codex host use
-  the vendored `double-knuth` generic path instead). Owns Phases 1–3,
-  orchestrates 4–5.
+  the generic `double-knuth` path instead). `independent-review` and
+  `double-knuth` are external skills in the host's global skills dir, not
+  bundled in this kit. Owns Phases 1–3, orchestrates 4–5.
 - Never promise ranking outcomes — record predictions and grade them.
