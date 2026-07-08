@@ -75,10 +75,14 @@ for (const path of PAGES) {
       };
     });
 
-    const langLower = lang.toLowerCase();
-    const rules = langLower.startsWith('en')
+    // Primary subtag only (not startsWith) -- startsWith('de') happens to be correct for every
+    // real BCP-47 German tag (de, de-DE, de-AT, de-CH all start with "de"), but primary-subtag
+    // comparison is the precise form and can't be fooled by a malformed/non-German tag that
+    // merely begins with those two letters.
+    const primaryLang = lang.toLowerCase().split('-')[0];
+    const rules = primaryLang === 'en'
       ? [...UNIVERSAL_RULES, ...ENGLISH_RULES]
-      : langLower.startsWith('de')
+      : primaryLang === 'de'
         ? [...UNIVERSAL_RULES, ...GERMAN_RULES]
         : UNIVERSAL_RULES;
 

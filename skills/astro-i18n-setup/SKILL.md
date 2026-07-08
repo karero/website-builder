@@ -170,13 +170,18 @@ body are different failure modes — one check can't catch both):
 - **Stub/thin translation**: for every non-default-locale page it follows its own
   default-locale hreflang alternate back to the original, counts words in both via
   `document.body.innerText`, and fails if the translated page has under 40% as many words —
-  catching a dramatically shorter placeholder page.
+  catching a dramatically shorter placeholder page. Word-splitting assumes a whitespace-
+  delimited language (this skill's documented use case, DE+EN) — it does not work for
+  scripts without whitespace word boundaries (Japanese, Chinese, Thai, …); see the code
+  comment in `i18n.spec.ts` if you need one of those.
 - **Wrong-language body** (German only): word count can't tell a same-length body that's
   still in the original language from a real translation — nav/footer translated, body left
   untranslated, and the ratio check above passes clean since nothing got shorter. For pages
-  whose locale is literally `de`, a second check counts common German function words
-  (der/die/das/und/ist/…) and fails if their density is near zero — real German prose runs
-  ~15–20%, a non-German body runs ~0%.
+  whose locale's PRIMARY subtag is `de` (`de`, `de-DE`, `de-AT`, `de-CH`, …), a second check
+  strips `nav`/`header`/`footer` first (their own translated chrome can otherwise mask an
+  untranslated body on a short page — verified empirically) and counts common German
+  function words (der/die/das/und/ist/…) in what's left, failing if their density is near
+  zero — real German body prose runs ~15–20%, a non-German body runs ~0%.
 
 Both self-skip on a single-locale site (the loop has nothing to iterate). The matching
 `<xhtml:link>` sitemap alternates come from the `sitemap({ i18n })` config above — confirm
