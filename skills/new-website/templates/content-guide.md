@@ -22,15 +22,33 @@ page-level content that hangs off that positioning.
 ## Tone of voice
 
 Write like [persona, e.g. "a senior practitioner talking to a smart peer"]:
-[3–5 adjectives]. Proof over claims. Active voice. Speak to the reader as "you".
+[3–5 adjectives]. Proof over claims. Active voice.
 
-**Hard rules (enforced by the tone test — run after every copy change):**
+**Content language:** [English / German / other] — the hard rules below are
+lexical (specific words/mechanisms) and differ by language; fill in only the
+subsection that matches, delete the other.
+
+**Shared rules (enforced by the tone test — run after every copy change):**
 - **No em dashes (—).** Use a comma, period, or colon.
+- Genuine quoted customer/human voice is exempt: wrap in `<blockquote>`, `<q>`,
+  or add `data-tov-exempt`.
+
+**If English:**
+- Speak to the reader as "you".
 - **No contractions.** Long form: "cannot", "it is", "you are", "we are".
 - **No buzzwords:** supercharge, world-class, leverage, unlock, seamless, robust,
   cutting-edge, empower, holistic, revolutionary, synergy, next-level. [trim/add]
-- Genuine quoted customer/human voice is exempt: wrap in `<blockquote>`, `<q>`,
-  or add `data-tov-exempt`.
+
+**If German:** no direct equivalent to "no contractions" — the real formality
+lever is register, not contraction.
+- **Register:** [du / Sie] — pick one per brand and hold it for the whole
+  site; mixing du/Sie mid-page reads as a translation error, not a style
+  choice. This settles "speak to the reader as you" for German copy.
+- **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
+  bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
+  maßgeschneidert (Swiss "massgeschneidert" also caught — the enforced test
+  doesn't fold ß↔ss), zukunftsweisend, transformativ, unschlagbar,
+  entfesseln/entfesselt, Spitzenreiter. [trim/add]
 
 **Do / don't examples**
 - Do: "[on-brand sentence]"
