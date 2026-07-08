@@ -162,7 +162,24 @@ run_ollama() {
   ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || return 1
   printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
-  perl -pe 's/\e\[[0-9;?]*[A-Za-z]//g' "$tmp"
+  # Plain ANSI-stripping is not enough: ollama's own word-wrap redraw ("cursor
+  # back N" + "erase to end of line", emitted even when stdout is a file, not
+  # a tty) only ERASES on a real terminal — a dumb strip leaves the erased
+  # fragment's characters behind as garbled text (e.g. "resc" then "rescue").
+  # Emulate the erase: drop the last N chars of the current line for that pair,
+  # clamped so it can never reach back past the preceding newline.
+  perl -0777 -ne '
+    my $s = $_; my $out = "";
+    while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[0-9;?]*[A-Za-z])/gc) {
+      if (defined $1) { $out .= $1; next; }
+      next unless defined $2;
+      my $n = $2;
+      my $line_len = length($out) - rindex($out, "\n") - 1;
+      $n = $line_len if $n > $line_len;
+      substr($out, length($out) - $n, $n, "") if $n > 0;
+    }
+    print $out;
+  ' "$tmp"
   # tier 5 (local) = sanity pass, NEVER the sole gate — EXCEPT in --local-only mode,
   # where the owner explicitly traded strength for privacy (mode is marked degraded).
   if [ $is_local -eq 1 ] && [ "$LOCAL_ONLY" != "1" ]; then
