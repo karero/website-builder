@@ -21,6 +21,7 @@ for (const path of PAGES) {
         const img = el as HTMLImageElement;
         const sources = Array.from(img.closest('picture')?.querySelectorAll('source') ?? [])
           .map((s) => s.getAttribute('srcset') ?? '');
+        const rect = img.getBoundingClientRect();
         return {
           src: img.getAttribute('src') ?? '',
           srcset: img.getAttribute('srcset') ?? '',
@@ -29,6 +30,9 @@ for (const path of PAGES) {
           hasAlt: img.hasAttribute('alt'),                 // alt="" is allowed (decorative)
           w: img.getAttribute('width'),
           h: img.getAttribute('height'),
+          renderedWidth: rect.width,
+          renderedHeight: rect.height,
+          objectFit: getComputedStyle(img).objectFit,
         };
       }));
 
@@ -48,6 +52,18 @@ for (const path of PAGES) {
       const loading = i.loading?.toLowerCase();
       if (loading !== 'lazy' && loading !== 'eager') {
         problems.push(`<img src="${i.src}"> has no loading attribute — "lazy" below the fold, "eager" only for the LCP image`);
+      }
+      // Catches a real regression: when CSS sets only one of width/height (no
+      // object-fit), the browser can't auto-preserve the ratio from the width/height
+      // attributes and stretches/squishes the image instead. object-fit: cover/contain/
+      // none intentionally crop or letterbox, so they're exempt.
+      const fit = i.objectFit;
+      if (i.w && i.h && i.renderedWidth > 0 && i.renderedHeight > 0 && fit !== 'cover' && fit !== 'contain' && fit !== 'none') {
+        const attrRatio = Number(i.w) / Number(i.h);
+        const renderedRatio = i.renderedWidth / i.renderedHeight;
+        if (Math.abs(renderedRatio - attrRatio) / attrRatio > 0.02) {
+          problems.push(`<img src="${i.src}"> renders at ${i.renderedWidth.toFixed(0)}x${i.renderedHeight.toFixed(0)} (ratio ${renderedRatio.toFixed(2)}) but its width/height attributes (${i.w}x${i.h}) imply ratio ${attrRatio.toFixed(2)} — CSS is stretching/squishing it (set both width and height, or neither)`);
+        }
       }
     }
     expect(problems, `image issues on ${path}:\n${problems.map((p) => '  • ' + p).join('\n')}`).toEqual([]);
