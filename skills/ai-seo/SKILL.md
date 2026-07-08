@@ -53,6 +53,12 @@ Gather this context (ask if not provided):
 
 For a deep dive on how each platform selects sources and what to optimize per platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).
 
+### Non-English Content
+
+This skill's platform-ranking-factors data and citation-share statistics (Wikipedia/Reddit citation shares, the Princeton GEO study, content-type citation shares, etc., cited throughout this skill and in references/platform-ranking-factors.md) are sourced from English-language, US-centric research. Treat those specific numbers as directional, not literal, for German-market (or other non-English) content — platform market share, the citation-source ecosystem, and query phrasing all differ by language and market, not just vocabulary.
+
+The worked content-pattern examples in [references/content-patterns.md](references/content-patterns.md) (Definition Block, Step-by-Step Block, Statistic/Expert Quote/Authoritative Claim blocks, etc.) are structural templates, and the structure does generalize across languages — only the example wording shown is English. Don't read the English wording as meaning the patterns themselves are English-only.
+
 ### Key Difference from Traditional SEO
 
 Traditional SEO gets you ranked. AI SEO gets you **cited**.

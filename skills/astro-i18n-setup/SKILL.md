@@ -164,16 +164,22 @@ Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `test
 For every page in PAGES it asserts: exactly one `<link hreflang>` per locale in `LOCALES`
 **plus** `x-default`; every href is the absolute production URL; the page's canonical
 equals its OWN-locale alternate; `x-default` → the default-locale variant; and cross-page
-**reciprocity** (A→B implies B→A — the #1 hreflang mistake). It self-skips on a
-single-locale site. The matching `<xhtml:link>` sitemap alternates come from the
-`sitemap({ i18n })` config above — confirm them by inspecting `dist/sitemap-0.xml`.
+**reciprocity** (A→B implies B→A — the #1 hreflang mistake). It also machine-checks the
+"translate the whole page" rule below: for every non-default-locale page it follows its
+own default-locale hreflang alternate back to the original, counts words in both via
+`document.body.innerText`, and fails if the translated page has under 40% as many words —
+catching a chrome-only translation (nav/footer swapped, body left untranslated) that would
+otherwise stay green. It self-skips on a single-locale site. The matching `<xhtml:link>`
+sitemap alternates come from the `sitemap({ i18n })` config above — confirm them by
+inspecting `dist/sitemap-0.xml`.
 
 ### `tests/positioning.spec.ts` — key per locale
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
 positioning term is translated, so each locale owns its own phrase.
 
-`tests/tone.spec.ts` already branches on `<html lang>` (English rules only fire for
-`lang` starting `en`) — no change needed.
+`tests/tone.spec.ts` already branches on `<html lang>`: English rules fire for `lang`
+starting `en`, German rules fire for `lang` starting `de`, and universal (em-dash) rules
+fire otherwise — no change needed.
 
 ## Wiring (done once in the suite)
 - `new-website/SKILL.md` §1 Q4 → "if 2+ languages: run `astro-i18n-setup`"; add the

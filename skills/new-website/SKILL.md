@@ -101,6 +101,14 @@ non-expert can answer, and record the answers in the project `README.md`.
      future second locale additive. **The only costly change is later moving the default
      off `/`** (e.g. `/` → `/en/`).
 
+4a. **What language should the content actually be written in?**
+    *Decides: the copy language — a separate decision from Q4's routing question above.*
+    Answering "one language" in Q4 does **not** mean English. The starter defaults to
+    English (`templates/astro/src/config.ts` ships `locale: 'en'`, and the placeholder
+    homepage copy is English prose) — say so explicitly if you want German, or another
+    language, instead. **German-only is a completely valid, common answer** here, not
+    just "English, obviously, unless multilingual."
+
 5. **Analytics — will anyone act on the numbers? (optional)**
    - Just "is anyone visiting?" → **Google Search Console** alone (free, no
      script, no consent banner) is enough for search & referral traffic.
@@ -206,7 +214,11 @@ Assemble the project at `<site>/` so it travels without any global setup:
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
    `scripts/`, `.github/`, `.nvmrc`, root configs — see `templates/astro/README.md`
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
-   and `src/config.ts`. **Astro 6 needs Node ≥22.12** — the overlay's `.nvmrc` pins
+   and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
+   Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
+   `astro-i18n-setup`) — the overlay ships `locale: 'en'`, and leaving that default in
+   place for a German-content (or other non-English) site is exactly the silent-default
+   bug Q4a exists to catch. **Astro 6 needs Node ≥22.12** — the overlay's `.nvmrc` pins
    22 for local + Cloudflare Pages builds.
 2. **Permissions.** Copy the setup guide into the project (all tools), then — **Claude Code
    only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't

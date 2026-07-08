@@ -84,4 +84,48 @@ test.describe('i18n — hreflang contract', () => {
       }
     }
   });
+
+  test('translated pages are not thin — body content roughly matches the default-locale original', async ({ page }) => {
+    // Reverse lookup: production URL -> PAGES path (mirrors the reciprocity check's urlToPath
+    // above), so a page's own default-locale hreflang href can be resolved back to a page we
+    // can navigate to and compare against.
+    const urlToPath = new Map(PAGES.map((p) => [urlFor(p), p]));
+
+    const countWords = async () =>
+      page
+        .evaluate(() => document.body.innerText)
+        .then((text) => text.trim().split(/\s+/).filter(Boolean).length);
+
+    for (const path of PAGES) {
+      if (localeOf(path) === DEFAULT_LOCALE) continue;
+
+      await page.goto(path);
+      const defaultHref = await page
+        .locator(`link[rel="alternate"][hreflang="${DEFAULT_LOCALE}"]`)
+        .getAttribute('href');
+      const originalPath = defaultHref ? urlToPath.get(defaultHref) : undefined;
+      expect(
+        originalPath,
+        `${path}: default-locale ("${DEFAULT_LOCALE}") alternate href "${defaultHref}" has no matching page in PAGES`,
+      ).toBeDefined();
+
+      const translatedWords = await countWords();
+
+      await page.goto(originalPath!);
+      const originalWords = await countWords();
+
+      // Divide-by-zero guard: an empty original has nothing to be "thinner" than.
+      const ratio = originalWords === 0 ? 1 : translatedWords / originalWords;
+
+      expect(
+        ratio,
+        `${path} (${translatedWords} words) looks like a partial translation of its default-locale ` +
+          `original ${originalPath} (${originalWords} words) — only ${(ratio * 100).toFixed(0)}% as much ` +
+          `content. Translate the whole page, not just the chrome: partial translation reads as thin/duplicate ` +
+          `content. Google's own guidance: "Translating only the boilerplate text of your pages while keeping ` +
+          `the bulk of your content in a single language...can create a bad user experience" ` +
+          `(seo-audit/references/international-seo.md, "Partial Translation").`,
+      ).toBeGreaterThanOrEqual(0.4);
+    }
+  });
 });

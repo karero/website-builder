@@ -25,6 +25,7 @@ Adapted from: University of Manchester Academic Phrasebank (2023), Plain English
 - Hedging Language
 - Best Practice Guidelines
 - Transitions to Avoid (AI Tells)
+- Transitions to Avoid (AI Tells) — German
 
 ## Previewing Content Structure
 
@@ -270,3 +271,18 @@ These phrases are overused in AI-generated content:
 - "Let's delve into..."
 
 See the seo-audit skill's `references/ai-writing-detection.md` for a complete list of AI writing tells.
+
+---
+
+## Transitions to Avoid (AI Tells) — German
+
+The list above is a lookup list, not a generalizable detection method — it
+flags specific overused phrases rather than "AI-sounding" as an abstract
+quality, and that limitation carries over to German too; there's no
+language-agnostic shortcut. These are the phrases enforced (with identical
+wording) by `tone.spec.ts`'s `GERMAN_RULES`:
+
+- "In der heutigen schnelllebigen/digitalen Welt,..."
+- "Es ist wichtig zu betonen/beachten/erwähnen, dass..."
+- "Zusammenfassend lässt sich sagen,..."
+- "Lassen Sie uns eintauchen/einen Blick werfen..."
