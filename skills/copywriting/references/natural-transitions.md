@@ -280,7 +280,8 @@ The list above is a lookup list, not a generalizable detection method — it
 flags specific overused phrases rather than "AI-sounding" as an abstract
 quality, and that limitation carries over to German too; there's no
 language-agnostic shortcut. These are the phrases enforced (with identical
-wording) by `tone.spec.ts`'s `GERMAN_RULES`:
+wording) by the `new-website` skill's scaffolded
+`templates/astro/tests/tone.spec.ts`'s `GERMAN_RULES`:
 
 - "In der heutigen schnelllebigen/digitalen Welt,..."
 - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."

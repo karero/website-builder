@@ -114,8 +114,15 @@ test.describe('i18n — hreflang contract', () => {
       await page.goto(originalPath!);
       const originalWords = await countWords();
 
-      // Divide-by-zero guard: an empty original has nothing to be "thinner" than.
-      const ratio = originalWords === 0 ? 1 : translatedWords / originalWords;
+      // An empty original isn't a valid baseline — fail loud rather than let ratio=1
+      // silently wave the translation through (that would hide a broken original page,
+      // not just a thin translation of a real one).
+      expect(
+        originalWords,
+        `${originalPath} (the default-locale original for ${path}) has 0 words — fix the original ` +
+          `page before this check can validate its translation`,
+      ).toBeGreaterThan(0);
+      const ratio = translatedWords / originalWords;
 
       expect(
         ratio,
