@@ -126,13 +126,47 @@ test.describe('i18n — hreflang contract', () => {
 
       expect(
         ratio,
-        `${path} (${translatedWords} words) looks like a partial translation of its default-locale ` +
+        `${path} (${translatedWords} words) looks like a STUB/THIN translation of its default-locale ` +
           `original ${originalPath} (${originalWords} words) — only ${(ratio * 100).toFixed(0)}% as much ` +
-          `content. Translate the whole page, not just the chrome: partial translation reads as thin/duplicate ` +
-          `content. Google's own guidance: "Translating only the boilerplate text of your pages while keeping ` +
-          `the bulk of your content in a single language...can create a bad user experience" ` +
+          `content. This catches a dramatically shorter body (a placeholder page); it can NOT tell a ` +
+          `same-length body that's still in the wrong language — see the German-specific check below for ` +
+          `that failure mode. Google's own guidance: "Translating only the boilerplate text of your pages ` +
+          `while keeping the bulk of your content in a single language...can create a bad user experience" ` +
           `(seo-audit/references/international-seo.md, "Partial Translation").`,
       ).toBeGreaterThanOrEqual(0.4);
+    }
+  });
+
+  test('German-locale pages actually read as German, not the original language left in place', async ({ page }) => {
+    // The word-count check above only catches a STUB/THIN translation. It can NOT catch the
+    // sibling failure mode Google's guidance also warns about: nav/footer got translated, but
+    // the body itself was left in the original (single) language -- same word count either
+    // way, so the ratio check passes clean while the page reads as e.g. English under a German
+    // <html lang>. Word count can't distinguish "German body" from "English body under a German
+    // nav", so check for a minimum density of common German function words instead -- real
+    // German prose runs at roughly 15-20% (verified against a real shipped page); an English
+    // (or any non-German) body scores ~0%, since these exact words essentially don't occur in
+    // other languages. This heuristic is deliberately German-specific -- it does not generalize
+    // to whatever other locale LOCALES might contain, so it only runs for pages whose locale is
+    // literally 'de'.
+    const GERMAN_FUNCTION_WORDS = /\b(der|die|das|und|ist|nicht|mit|für|von|auf|dass|sich|eine?|den|dem|des|sind|wird|werden|können|kann|auch|oder)\b/gi;
+    const MIN_DENSITY = 0.03; // real German prose: ~15-20%; wrong-language body: ~0% -- huge margin
+
+    for (const path of PAGES) {
+      if (localeOf(path) !== 'de') continue; // no-op unless a 'de' locale is actually configured
+
+      await page.goto(path);
+      const text = await page.evaluate(() => document.body.innerText);
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      const hits = (text.match(GERMAN_FUNCTION_WORDS) || []).length;
+      const density = words === 0 ? 0 : hits / words;
+
+      expect(
+        density,
+        `${path} (lang="de"): body reads as non-German — only ${hits} common German function word(s) ` +
+          `in ${words} total words (${(density * 100).toFixed(1)}%, expected >=${MIN_DENSITY * 100}%). The ` +
+          `nav/footer may be translated while the body content itself was left in the original language.`,
+      ).toBeGreaterThanOrEqual(MIN_DENSITY);
     }
   });
 });

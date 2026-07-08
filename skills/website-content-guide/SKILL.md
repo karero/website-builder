@@ -81,10 +81,12 @@ translation error.
 - This *is* the German answer to "speak to the reader as 'you'" — the du/Sie
   choice above settles it; don't treat "you" as a separate, unresolved
   question for German copy.
-- **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e),
+- **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
   bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
-  maßgeschneidert, zukunftsweisend, transformativ, unschlagbar,
-  entfesseln/entfesselt, Spitzenreiter (trim/extend per brand).
+  maßgeschneidert (Swiss spelling "massgeschneidert" is caught too — the
+  enforced test doesn't fold ß↔ss, so both spellings are listed explicitly),
+  zukunftsweisend, transformativ, unschlagbar, entfesseln/entfesselt,
+  Spitzenreiter (trim/extend per brand).
 - **AI-tell phrases to avoid:**
   - "In der heutigen schnelllebigen/digitalen Welt,..."
   - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."

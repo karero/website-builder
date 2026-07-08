@@ -41,7 +41,7 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
     // "massgeschneidert" alongside "maßgeschneidert": Swiss German writes ß as ss, and
     // the /i flag does not fold ß↔ss for us. entfesselt gets the same (?:e|er|es|en)?
     // adjective-ending coverage as every other entry (was previously (?:e)? only).
-    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en)?|nahtlos(?:e|er|es|en)?|synergien?|synergieeffekte?|bahnbrechend(?:e|er|es|en)?|revolutionär(?:e|er|es|en)?|wegweisend(?:e|er|es|en)?|erstklassig(?:e|er|es|en)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en)?|hochmodern(?:e|er|es|en)?|zukunftsweisend(?:e|er|es|en)?|transformativ(?:e|er|es|en)?|unschlagbar(?:e|er|es|en)?|entfesseln|entfesselt(?:e|er|es|en)?|spitzenreiter)(?!\p{L})/gui,
+    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en)?|nahtlos(?:e|er|es|en)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en)?|revolutionär(?:e|er|es|en)?|wegweisend(?:e|er|es|en)?|erstklassig(?:e|er|es|en)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en)?|hochmodern(?:e|er|es|en)?|zukunftsweisend(?:e|er|es|en)?|transformativ(?:e|er|es|en)?|unschlagbar(?:e|er|es|en)?|entfesseln|entfesselt(?:e|er|es|en)?|spitzenreiter)(?!\p{L})/gui,
   },
   // Multi-word AI-tell phrases — own rule/label (not merged into the buzzword
   // list above). \s+ tolerates whitespace variation between words; same
