@@ -126,6 +126,7 @@ Choose sources based on your ICP type — then read `references/source-guides.md
 | Developer / DevOps | r/devops, r/programming, Hacker News, Stack Overflow, Discord servers |
 | B2C / consumer | App store reviews (1-3 star), Reddit hobby/lifestyle subs, YouTube comments, TikTok/Instagram comments |
 | Enterprise | LinkedIn, industry analyst reports, G2 Enterprise filter, job postings, SparkToro |
+| DACH / German-speaking | Reddit (r/de, r/Finanzen, industry-specific German subs), Gutefrage.net, OMR Forum (onlinemarketing rockstars), XING, Kununu (employer/B2B reviews), Trusted Shops (ecommerce trust reviews) |
 
 **Quick decision guide:**
 - Have a product category? → Start with G2/Capterra reviews (yours + competitors)
@@ -133,6 +134,7 @@ Choose sources based on your ICP type — then read `references/source-guides.md
 - Need raw language? → Reddit and YouTube comments
 - Need trigger events? → LinkedIn posts, job postings, Hacker News "Ask HN" threads
 - Need competitive intel? → Competitor 4-star reviews on G2; Product Hunt discussions; SparkToro competitor audience analysis
+- Researching a German-speaking ICP? → SparkToro skews English-language and US-centric (see `references/source-guides.md`), so it under-represents this audience — weight the DACH row's sources more heavily and treat SparkToro's output as directional only
 
 ### What to Extract from Each Source
 
@@ -252,8 +254,9 @@ If context is unclear:
 3. **Who is the target segment?** (all customers, a specific tier, churned users, prospects who didn't buy)
 4. **What's your product?** (if not in the product marketing context file)
 5. **What do you want delivered?** (synthesis report, persona, quote bank, competitive intel)
+6. **What language/market is the audience?** (affects which sources in "Where to Look" apply — e.g. German-speaking ICP needs DACH-specific sources, not just the English-default list)
 
-Don't ask all five at once — lead with #1 and #2, then follow up as needed.
+Don't ask all six at once — lead with #1 and #2, then follow up with the rest as needed (#6 matters most when the target segment in #3 isn't obviously English-speaking).
 
 ---
 

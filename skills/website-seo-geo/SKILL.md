@@ -33,6 +33,36 @@ The test counts characters (em-dash, en-dash, curly apostrophe each = 1 char but
 render wider — stay clear of the cap). `<meta name="description">` is **separate
 from** `og:description`; one does not replace the other — ship both, in sync.
 
+### German (and other compounding languages) eat the budget faster
+
+The limits above are pixel-render caps, not word counts — they don't change per
+language, and the numbers in the table stay exactly as specified. But German
+compound nouns (`Suchmaschinenoptimierung`, `Barrierefreiheit`,
+`Barrierefreiheitsprüfung`) pack far more meaning per character into a single
+unbroken word than English does, so the same 50–60 / 140–160 char cap holds
+noticeably less content once translated. Write for it deliberately:
+
+- **Front-load the key term.** German syntax tends to push the important noun
+  toward the end of a compound or clause; if you translate an English title
+  1:1 the keyword can land past where truncation cuts. Put the primary
+  keyword/term first, then qualify it, rather than burying it in a trailing
+  compound.
+- **When one natural compound blows the budget, don't force it — restructure.**
+  If `Barrierefreiheitsprüfung` (24 chars alone) doesn't leave room for
+  anything else, reach for a shorter near-synonym or split brand/category from
+  descriptor with a colon or dash: `Website-Builder: barrierefrei &
+  SEO-optimiert` reads better and fits, where one giant compound noun forces
+  an awkward truncation or abbreviation.
+- **Budget for ~10–15% fewer effective words of meaning** than an English
+  title/description of the same character count. Plan the German copy's
+  content around that from the start — don't write the English version, translate
+  it, and then trim words until the character count fits; that's how you end
+  up with a mangled abbreviation instead of a deliberate, readable title.
+
+This is a **writing tactic**, not a test change: `seo.spec.ts` enforces the same
+character counts regardless of language, and it should — the fix here is how you
+write within that budget, not the budget itself.
+
 ## Consistency rules
 
 - One pair of inputs `(title, description)` drives `<title>`, OG, Twitter,

@@ -277,6 +277,14 @@ Voice queries are conversational and question-based. Optimize for these patterns
 - "When should I..."
 - "Who is..."
 
+**German (Deutsch):**
+- "Was ist..." (What is...)
+- "Wie..." (How...)
+- "Wo (finde ich)..." (Where can I find...)
+- "Warum..." (Why...)
+- "Wann..." (When...)
+- "Wer..." (Who...)
+
 ### Voice-Optimized Answer Structure
 - Lead with direct answer (under 30 words ideal)
 - Use natural, conversational language

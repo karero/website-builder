@@ -164,16 +164,37 @@ Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `test
 For every page in PAGES it asserts: exactly one `<link hreflang>` per locale in `LOCALES`
 **plus** `x-default`; every href is the absolute production URL; the page's canonical
 equals its OWN-locale alternate; `x-default` → the default-locale variant; and cross-page
-**reciprocity** (A→B implies B→A — the #1 hreflang mistake). It self-skips on a
-single-locale site. The matching `<xhtml:link>` sitemap alternates come from the
-`sitemap({ i18n })` config above — confirm them by inspecting `dist/sitemap-0.xml`.
+**reciprocity** (A→B implies B→A — the #1 hreflang mistake). It also machine-checks the
+"translate the whole page" rule below, in two parts (word-count thinness and wrong-language
+body are different failure modes — one check can't catch both):
+- **Stub/thin translation**: for every non-default-locale page it follows its own
+  default-locale hreflang alternate back to the original, counts words in both via
+  `document.body.innerText`, and fails if the translated page has under 40% as many words —
+  catching a dramatically shorter placeholder page. Word-splitting assumes a whitespace-
+  delimited language (this skill's documented use case, DE+EN) — it does not work for
+  scripts without whitespace word boundaries (Japanese, Chinese, Thai, …); see the code
+  comment in `i18n.spec.ts` if you need one of those.
+- **Wrong-language body** (German only): word count can't tell a same-length body that's
+  still in the original language from a real translation — nav/footer translated, body left
+  untranslated, and the ratio check above passes clean since nothing got shorter. For pages
+  whose locale's PRIMARY subtag is `de` (`de`, `de-DE`, `de-AT`, `de-CH`, …), a second check
+  strips `nav`/`header`/`footer` first (their own translated chrome can otherwise mask an
+  untranslated body on a short page — verified empirically) and counts common German
+  function words (der/die/das/und/ist/…) in what's left, failing if their density is near
+  zero — real German body prose runs ~15–20%, a non-German body runs ~0%.
+
+Both self-skip on a single-locale site (the loop has nothing to iterate). The matching
+`<xhtml:link>` sitemap alternates come from the `sitemap({ i18n })` config above — confirm
+them by inspecting `dist/sitemap-0.xml`.
 
 ### `tests/positioning.spec.ts` — key per locale
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
 positioning term is translated, so each locale owns its own phrase.
 
-`tests/tone.spec.ts` already branches on `<html lang>` (English rules only fire for
-`lang` starting `en`) — no change needed.
+`tests/tone.spec.ts` already branches on `<html lang>`: universal rules (the em-dash ban)
+always apply, and English-specific rules layer on top for `lang` starting `en`, German-
+specific rules layer on top for `lang` starting `de` — other languages get only the
+universal rules. No change needed.
 
 ## Wiring (done once in the suite)
 - `new-website/SKILL.md` §1 Q4 → "if 2+ languages: run `astro-i18n-setup`"; add the

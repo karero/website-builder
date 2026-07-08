@@ -69,6 +69,17 @@ Each section should advance one argument. Build a logical flow down the page.
 5. **Show over tell** — Describe the outcome instead of using adverbs
 6. **Honest over sensational** — Fabricated statistics or testimonials erode trust and create legal liability
 
+**Language note:** The word-pairs above ("utilize" → "use", "almost/very/really",
+etc.) are English-specific lexical rules — they don't have a clean German
+translation, so don't try to map them word-for-word. For German copy, the
+operative voice rules live in `website-content-guide`'s "Tone of voice"
+section, not here: (a) register consistency — pick du or Sie and hold it for
+the whole page, and (b) the German buzzword/AI-tell list. What *does*
+generalize, because it's conceptual rather than lexical, is the idea behind
+rules 1 and 2 — **simple over complex** and **specific over vague** apply to
+German copy exactly as they do to English, even though the specific English
+word-swaps above don't carry over.
+
 ### Quick Quality Check
 
 - Jargon that could confuse outsiders?

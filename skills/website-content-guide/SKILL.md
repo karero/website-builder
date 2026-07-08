@@ -46,15 +46,52 @@ consistent with it — it does not redefine it.
 
 These mirror the tone guards proven on earlier production sites. The test is the source of
 truth; the guide explains the *why*.
+
 - **No em dashes (—).** Comma, period, or colon instead.
+- Active voice; proof over claims.
+- **Exempt:** genuinely quoted customer/human voice — wrap in `<blockquote>`,
+  `<q>`, or add `data-tov-exempt`. Do not use this to smuggle brand copy past the
+  rules.
+
+The rules below are lexical (specific words/mechanisms to avoid) and differ by
+language — apply the subsection that matches the site's content language.
+
+### English content
 - **No contractions.** Long form: "cannot", "it is", "you are", "we are".
 - **No buzzwords:** supercharge, world-class, leverage, unlock, seamless, robust,
   cutting-edge, empower, holistic, revolutionary, synergy, next-level (trim/extend
   per brand).
-- Active voice; speak to the reader as "you"; proof over claims.
-- **Exempt:** genuinely quoted customer/human voice — wrap in `<blockquote>`,
-  `<q>`, or add `data-tov-exempt`. Do not use this to smuggle brand copy past the
-  rules.
+- Speak to the reader as "you".
+
+### German content
+English's "no contractions" rule has no German equivalent — German doesn't
+contract "cannot" into "can't" the way English does, so there's no parallel
+mechanism to enforce. The real formality lever in German is **register:
+informal "du" vs. formal "Sie"** — and, more important than which one you
+pick, staying **consistent** with that choice for the entire page. Mixing
+"du" and "Sie" mid-page doesn't read as a stylistic choice; it reads as a
+translation error.
+
+- **Pick du or Sie per brand, then hold it for the whole page.** This is a
+  per-brand decision, not a universal rule — record the choice explicitly in
+  `BRAND.md`/`CONTENT_GUIDE.md` so every page follows the same one. A
+  community/consumer brand aiming for approachable and informal typically
+  picks "du" throughout; a B2B/enterprise or public-sector brand more often
+  picks "Sie" — either is fine as long as it's consistent.
+- This *is* the German answer to "speak to the reader as 'you'" — the du/Sie
+  choice above settles it; don't treat "you" as a separate, unresolved
+  question for German copy.
+- **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
+  bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
+  maßgeschneidert (Swiss spelling "massgeschneidert" is caught too — the
+  enforced test doesn't fold ß↔ss, so both spellings are listed explicitly),
+  zukunftsweisend, transformativ, unschlagbar, entfesseln/entfesselt,
+  Spitzenreiter (trim/extend per brand).
+- **AI-tell phrases to avoid:**
+  - "In der heutigen schnelllebigen/digitalen Welt,..."
+  - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."
+  - "Zusammenfassend lässt sich sagen,..."
+  - "Lassen Sie uns eintauchen/einen Blick werfen..."
 
 ## EEAT — build it in from the start
 

@@ -84,4 +84,109 @@ test.describe('i18n — hreflang contract', () => {
       }
     }
   });
+
+  test('translated pages are not thin — body content roughly matches the default-locale original', async ({ page }) => {
+    // KNOWN LIMITATION: word-splitting on \s+ assumes a whitespace-delimited language (this
+    // suite's documented use case is DE+EN). It does NOT work for scripts without whitespace
+    // word boundaries (Japanese, Chinese, Thai, ...) -- a fully-translated page in one of those
+    // scripts can come back as a handful of "words" and fail this check even though nothing is
+    // actually thin. If you add a non-whitespace-delimited locale, either skip this check for it
+    // or switch to Intl.Segmenter(locale, { granularity: 'word' }) instead of split(/\s+/).
+    //
+    // Reverse lookup: production URL -> PAGES path (mirrors the reciprocity check's urlToPath
+    // above), so a page's own default-locale hreflang href can be resolved back to a page we
+    // can navigate to and compare against.
+    const urlToPath = new Map(PAGES.map((p) => [urlFor(p), p]));
+
+    const countWords = async () =>
+      page
+        .evaluate(() => document.body.innerText)
+        .then((text) => text.trim().split(/\s+/).filter(Boolean).length);
+
+    for (const path of PAGES) {
+      if (localeOf(path) === DEFAULT_LOCALE) continue;
+
+      await page.goto(path);
+      const defaultHref = await page
+        .locator(`link[rel="alternate"][hreflang="${DEFAULT_LOCALE}"]`)
+        .getAttribute('href');
+      const originalPath = defaultHref ? urlToPath.get(defaultHref) : undefined;
+      expect(
+        originalPath,
+        `${path}: default-locale ("${DEFAULT_LOCALE}") alternate href "${defaultHref}" has no matching page in PAGES`,
+      ).toBeDefined();
+
+      const translatedWords = await countWords();
+
+      await page.goto(originalPath!);
+      const originalWords = await countWords();
+
+      // An empty original isn't a valid baseline — fail loud rather than let ratio=1
+      // silently wave the translation through (that would hide a broken original page,
+      // not just a thin translation of a real one).
+      expect(
+        originalWords,
+        `${originalPath} (the default-locale original for ${path}) has 0 words — fix the original ` +
+          `page before this check can validate its translation`,
+      ).toBeGreaterThan(0);
+      const ratio = translatedWords / originalWords;
+
+      expect(
+        ratio,
+        `${path} (${translatedWords} words) looks like a STUB/THIN translation of its default-locale ` +
+          `original ${originalPath} (${originalWords} words) — only ${(ratio * 100).toFixed(0)}% as much ` +
+          `content. This catches a dramatically shorter body (a placeholder page); it can NOT tell a ` +
+          `same-length body that's still in the wrong language — see the German-specific check below for ` +
+          `that failure mode. Google's own guidance: "Translating only the boilerplate text of your pages ` +
+          `while keeping the bulk of your content in a single language...can create a bad user experience" ` +
+          `(seo-audit/references/international-seo.md, "Partial Translation").`,
+      ).toBeGreaterThanOrEqual(0.4);
+    }
+  });
+
+  test('German-locale pages actually read as German, not the original language left in place', async ({ page }) => {
+    // The word-count check above only catches a STUB/THIN translation. It can NOT catch the
+    // sibling failure mode Google's guidance also warns about: nav/footer got translated, but
+    // the body itself was left in the original (single) language -- same word count either
+    // way, so the ratio check passes clean while the page reads as e.g. English under a German
+    // <html lang>. Word count can't distinguish "German body" from "English body under a German
+    // nav", so check for a minimum density of common German function words instead -- real
+    // German prose runs at roughly 15-20% (verified against a real shipped page); an English
+    // (or any non-German) body scores ~0%, since these exact words essentially don't occur in
+    // other languages. This heuristic is deliberately German-specific -- it does not generalize
+    // to whatever other locale LOCALES might contain, so it only runs for pages whose PRIMARY
+    // language subtag is 'de' -- matched on the primary subtag (not exact-equality against the
+    // literal string 'de'), so 'de-DE'/'de-AT'/'de-CH' are covered too, not silently skipped.
+    //
+    // Scope: nav/header/footer are stripped before counting. Chrome legitimately CONTAINS German
+    // function words once translated (e.g. a German legal footer: "Alle Rechte vorbehalten..."),
+    // and on a short page that chrome can be a large enough fraction of the total text to push
+    // whole-body density above the threshold even when the actual body content is still 100%
+    // untranslated -- verified empirically: a realistic German footer (~40 words of real prose)
+    // plus a fully-English ~30-word body scores ~19% density on document.body (a false pass),
+    // vs. 0% once nav/header/footer are excluded first.
+    const GERMAN_FUNCTION_WORDS = /\b(der|die|das|und|ist|nicht|mit|für|von|auf|dass|sich|eine?|den|dem|des|sind|wird|werden|können|kann|auch|oder)\b/gi;
+    const MIN_DENSITY = 0.03; // real German prose: ~15-20%; wrong-language body: ~0% -- huge margin
+
+    for (const path of PAGES) {
+      if (localeOf(path).toLowerCase().split('-')[0] !== 'de') continue; // no-op unless a 'de'-family locale is configured
+
+      await page.goto(path);
+      const text = await page.evaluate(() => {
+        const body = document.body.cloneNode(true) as HTMLElement;
+        body.querySelectorAll('nav, header, footer').forEach((el) => el.remove());
+        return body.innerText;
+      });
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      const hits = (text.match(GERMAN_FUNCTION_WORDS) || []).length;
+      const density = words === 0 ? 0 : hits / words;
+
+      expect(
+        density,
+        `${path} (lang="de"): body reads as non-German — only ${hits} common German function word(s) ` +
+          `in ${words} total words (${(density * 100).toFixed(1)}%, expected >=${MIN_DENSITY * 100}%). The ` +
+          `nav/footer may be translated while the body content itself was left in the original language.`,
+      ).toBeGreaterThanOrEqual(MIN_DENSITY);
+    }
+  });
 });

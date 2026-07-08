@@ -51,6 +51,23 @@ enforces them. For generating image assets, use the `image` skill.
 - **Fonts:** self-host woff2 with `font-display: swap`; preload only the 1–2 used
   above the fold. Avoid layout shift from late font swaps.
 
+### Text-length responsiveness (translated copy)
+
+- **Translated text runs longer.** German (and many other languages) commonly runs
+  20–35% longer than the equivalent English copy. A button, nav link, or card sized
+  to fit English placeholder text will silently overflow, wrap ugly, or truncate the
+  moment real translated copy replaces it.
+- **Prefer flexible widths.** Use `min-width` / flex / grid `auto`/`fr` sizing for any
+  element holding translated text, not a fixed `width` sized to the English string.
+- **Don't rely on `white-space: nowrap` + `text-overflow: ellipsis` alone** as the
+  handling for nav links or button labels — truncating a nav link is usually not
+  acceptable UX (the visitor can no longer tell where it goes). Fine for content
+  where truncation is an accepted tradeoff (e.g. a table cell), not for navigation.
+- **Verify with real translated labels, not English placeholders.** When a site ships
+  `astro-i18n-setup`'s `LanguageSwitcher.astro` or any bilingual/multilingual nav,
+  check layout at 360/768/1280 (preview_resize) using the actual shipped copy in
+  every language — not just the English placeholder.
+
 ## Email obfuscation (hide addresses from crawlers)
 
 Never put a plaintext email or `mailto:your@addr` in the HTML source — scrapers harvest it
@@ -77,3 +94,5 @@ used for links must pass AA on the background in both themes.
 `BRAND.md` filled and consistent with the token block; images are WebP, sized,
 lazy/eager-correct, with alt; the a11y test (light+dark) is green; layout holds
 at 360/768/1280 with no shift. Perf numbers (FCP/LCP) are verified in `website-qa`.
+Layout also holds at 360/768/1280 with **real** (not placeholder) copy in every
+shipped language, not just the default locale.
