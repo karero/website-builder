@@ -16,6 +16,9 @@ let your AI assistant guide you step by step.**
 > 🧭 **Never opened a terminal before?** Start with the gentle walkthrough in
 > [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
 
+> 🇩🇪 **Auch auf Deutsch:** Deine KI spricht Deutsch mit dir — du kannst mit dem Baukasten
+> deutsche Webseiten bauen und dabei super Ergebnisse in Sachen SEO-, GEO- und E-E-A-T erzielen.
+
 ## What it helps you build
 
 Real sites people ship with it:
