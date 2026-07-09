@@ -149,6 +149,17 @@ Mueller recommends: set `/` as x-default, put each language in its own prefix. W
 - [Google Blog: x-default](https://developers.google.com/search/blog/2023/05/x-default)
 - [Google Blog: Creating the Right Homepage](https://developers.google.com/search/blog/2014/05/creating-right-homepage-for-your)
 
+### Localized Slugs
+
+A translated page may use a translated slug (`/ai-treffen-muenchen` alongside
+`/ai-events-munich`) instead of a locale-prefixed path (`/de/ai-events-munich`) — Google
+supports either; hreflang pairs the variants regardless of how their URLs are shaped.
+Localized slugs often match what users in that language actually search for. Two rules:
+keep slugs ASCII (transliterate umlauts: ae/oe/ue/ss — percent-encoded non-ASCII paths
+invite tooling and canonical-mismatch bugs), and declare the hreflang cluster on BOTH
+variants (reciprocity, above) — with per-page slugs there is no URL pattern a crawler
+could infer the pairing from, so the annotations are the only signal.
+
 ### Content Negotiation / IP Redirects
 
 Google strongly advises against locale-adaptive pages. Googlebot crawls from US IPs and does not send Accept-Language headers. Separate URLs + hreflang are required.

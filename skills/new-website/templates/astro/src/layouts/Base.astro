@@ -20,6 +20,14 @@ interface Props {
   lang?: string;
   noindex?: boolean;
   schemas?: Record<string, unknown>[];
+  // hreflang alternates for a translated "twin pages" cluster — the LIGHT i18n
+  // path for a handful of translated pages with their own slugs (e.g.
+  // /ai-events-munich ↔ /ai-treffen-muenchen), no locale-prefix routing needed.
+  // Pass the FULL cluster incl. a self-referencing entry and 'x-default'; hrefs
+  // may be site-relative paths. Both twins must declare the cluster —
+  // tests/seo.spec.ts enforces reciprocity. Full multi-locale routing instead?
+  // Use the astro-i18n-setup skill (heavy path), not this prop.
+  alternates?: { hreflang: string; href: string }[];
 }
 
 const {
@@ -29,6 +37,7 @@ const {
   lang = SITE.locale,
   noindex = false,
   schemas = [],
+  alternates = [],
 } = Astro.props;
 
 const site = Astro.site ?? new URL(SITE.url);
@@ -36,6 +45,15 @@ const site = Astro.site ?? new URL(SITE.url);
 // but Cloudflare serves the clean URL (/privacy) — canonicalize to the clean form.
 const cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
 const canonical = new URL(cleanPath, site).href;
+// Resolve an `alternates` href with the SAME normalization as `canonical`, so a
+// correctly-written self-referencing entry is byte-identical to the canonical —
+// tests/seo.spec.ts's twin-page check relies on that equality.
+const altHref = (href: string) => {
+  const u = new URL(href, site);
+  const p = u.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+  // Rebase onto u (not site): a cross-domain alternate keeps its own origin.
+  return new URL(p, u).href;
+};
 const ogImage = new URL(image, site).href;
 const fullTitle = title === SITE.name ? SITE.titleHome : `${title} | ${SITE.name}`;
 const orgId = `${site.origin}/#organization`;
@@ -107,6 +125,7 @@ const ogLocale = langRegion && langRegion.length === 2
     <meta name="description" content={description} />
     <meta name="robots" content={robots} />
     <link rel="canonical" href={canonical} />
+    {alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={altHref(a.href)} />)}
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
