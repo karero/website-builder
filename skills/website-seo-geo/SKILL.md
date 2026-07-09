@@ -82,6 +82,10 @@ write within that budget, not the budget itself.
   without a trailing slash. `navigation.spec.ts` flags any `/about/` link (404/redirect hop)
   and `seo.spec.ts` pins `canonical == SITE.url + path`, so the whole site stays consistent.
 - Exactly one `<h1>` per page (its text MAY differ from the keyword-tuned title).
+- **ASCII slugs only:** transliterate German umlauts/ß to digraphs (`/ueber-uns`,
+  not `/über-uns`) — machine-serialized URLs (canonical, sitemap) percent-encode
+  non-ASCII while hand-written strings (PAGES, llms.txt, authored links) stay
+  raw, a mismatch factory (site-architecture has the full rule).
 - **og:locale derives from `<html lang>`** (de → de_DE; regioned tags → base+region;
   one shared `ogLocaleFor()` in `src/config.ts`, emitted by Base.astro, asserted
   by `seo.spec.ts` whenever a value derives — mapped bases and all regioned
