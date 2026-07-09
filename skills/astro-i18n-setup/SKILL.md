@@ -293,12 +293,13 @@ optionally add `og:locale:alternate` for the non-current locales. `inLanguage` i
 WebPage/WebSite schema should use `currentLocale`.
 
 ### 4. `src/components/LanguageSwitcher.astro` (new)
-A small nav control that links the **current page** in each locale the route exists
-in — iterate `routeLocales(neutral)` (§2), NOT `LOCALES`, or a sparse route's
-switcher links a never-built variant (navigation.spec catches the 404, but build it
-right the first time). Uses the same `getRelativeLocaleUrl(loc, localePath)` it
-computes from `Astro.url`/`Astro.currentLocale`, labelled from `LOCALE_LABELS`,
-marking the active one `aria-current="true"`.
+Copy the ready component from `references/LanguageSwitcher.astro` into
+`src/components/` and render it in the site's nav/header on every page. It links
+the **current page** in each locale the route exists in — `routeLocales(neutral)`
+(§2), NOT `LOCALES`, so a sparse route's switcher never links a never-built
+variant — labelled from `LOCALE_LABELS`, active locale `aria-current="true"`.
+`tests/i18n.spec.ts` asserts every multi-locale page carries it and that its
+links match the route's real siblings exactly.
 
 ### 5. Page/content structure
 - Default-locale pages stay at `src/pages/*` (e.g. `src/pages/about.astro` → `/about`).
@@ -366,9 +367,10 @@ body are different failure modes — one check can't catch both):
   function words (der/die/das/und/ist/…) in what's left, failing if their density is near
   zero — real German body prose runs ~15–20%, a non-German body runs ~0%.
 
-Both self-skip on a single-locale site (the loop has nothing to iterate). The matching
-`<xhtml:link>` sitemap alternates come from the `sitemap({ i18n })` config above — confirm
-them by inspecting `dist/sitemap-0.xml`.
+All checks self-skip on a single-locale site (the loop has nothing to iterate). The
+matching `<xhtml:link>` sitemap alternates come from the `sitemap({ i18n })` config
+above — `i18n.spec.ts` machine-checks them against `routeLocales()` per entry (no
+manual dist/sitemap-0.xml grep needed).
 
 ### `tests/positioning.spec.ts` — key per locale
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
@@ -378,6 +380,31 @@ positioning term is translated, so each locale owns its own phrase.
 always apply, and English-specific rules layer on top for `lang` starting `en`, German-
 specific rules layer on top for `lang` starting `de` — other languages get only the
 universal rules. No change needed.
+
+## Regional German (DACH)
+
+Default to bare **`de`** for one German variant — it targets every German-speaking
+market at once, and `de-DE`/`de-AT`/`de-CH` variants whose content barely differs
+are a near-duplicate risk, not a win (international-seo.md, "Near-Duplicate
+Regional Variants"). Go regional only when content genuinely differs per market
+(prices in CHF, different legal entities, Swiss ß→ss spelling).
+
+For real multi-region German, do NOT write `LOCALES = ['de-DE', 'de-CH']` with the
+plain string routing — that yields ugly `/de-DE/…` URL prefixes. Use Astro's
+`{ path, codes }` locale objects instead:
+
+```js
+// astro.config.mjs
+i18n: {
+  defaultLocale: 'de',
+  locales: [{ path: 'de', codes: ['de', 'de-DE'] }, { path: 'ch', codes: ['de-CH'] }],
+  routing: { prefixDefaultLocale: false },
+}
+```
+
+and map both in `sitemap({ i18n })` so hreflang carries the regioned codes while
+URLs stay clean (`/ch/…`). The suite's German checks key on the PRIMARY subtag,
+so `de-AT`/`de-CH` pages get the German tone/density rules automatically.
 
 ## Wiring (done once in the suite)
 - `new-website/SKILL.md` §1 Q4 → "if 2+ languages: run `astro-i18n-setup`"; add the

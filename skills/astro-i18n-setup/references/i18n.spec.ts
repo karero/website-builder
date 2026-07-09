@@ -111,6 +111,51 @@ test.describe('i18n — hreflang contract', () => {
     }
   });
 
+  test('every multi-locale page carries a language switcher matching its real locale siblings', async ({ page }) => {
+    for (const path of PAGES) {
+      const locs = routeLocales(neutralPath(path, localeOf(path)));
+      if (locs.length < 2) continue; // sparse single-locale route: no switcher required
+      await page.goto(path);
+      const links = await page.$$eval('nav.lang-switcher a[hreflang], nav.lang-switcher [aria-current="true"]', (els) =>
+        els.map((e) => e.getAttribute('hreflang') ?? '(current)'),
+      );
+      expect(
+        links.length,
+        `${path}: no language switcher found — copy references/LanguageSwitcher.astro into the nav (SKILL.md §4); ` +
+          `hreflang <link> tags only talk to crawlers, visitors need a visible way to switch`,
+      ).toBeGreaterThan(0);
+      const offered = links.filter((l) => l !== '(current)').sort();
+      const expected = locs.filter((l) => l !== localeOf(path)).sort();
+      expect(
+        offered,
+        `${path}: switcher must offer exactly the route's OTHER locales (routeLocales minus self)`,
+      ).toEqual(expected);
+    }
+  });
+
+  test('sitemap <xhtml:link> alternates agree with the head hreflang sets', async ({ request, baseURL }) => {
+    // Replaces the SKILL.md "manual grep of dist/sitemap-0.xml" instruction with
+    // a real check: for each sitemap entry carrying alternates, the linked
+    // locale set must match the route's routeLocales() (the serialize hook's
+    // contract) — head/sitemap hreflang disagreement makes Google drop the
+    // cluster (international-seo.md).
+    const res = await request.get(new URL('/sitemap-0.xml', baseURL!).href);
+    expect(res.status(), 'sitemap-0.xml should exist').toBe(200);
+    const xml = await res.text();
+    for (const entry of xml.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
+      const loc = entry[1].match(/<loc>([^<]+)<\/loc>/)?.[1];
+      if (!loc) continue;
+      const path = decodeURI(new URL(loc).pathname).replace(/\/$/, '') || '/';
+      const langs = [...entry[1].matchAll(/hreflang="([^"]+)"/g)].map((m) => m[1]).filter((l) => l !== 'x-default').sort();
+      if (!langs.length) continue; // singleton clusters are dropped by the serialize hook (documented)
+      const expected = [...routeLocales(neutralPath(path, localeOf(path)))].sort();
+      expect(
+        langs,
+        `${loc}: sitemap alternates must match the route's locales (serialize hook contract)`,
+      ).toEqual(expected);
+    }
+  });
+
   test('translated pages are not thin — body content roughly matches the default-locale original', async ({ page }) => {
     // KNOWN LIMITATION: word-splitting on \s+ assumes a whitespace-delimited language (this
     // suite's documented use case is DE+EN). It does NOT work for scripts without whitespace
