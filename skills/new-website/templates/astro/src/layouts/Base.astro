@@ -51,7 +51,8 @@ const canonical = new URL(cleanPath, site).href;
 const altHref = (href: string) => {
   const u = new URL(href, site);
   const p = u.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
-  return new URL(p, site).href;
+  // Rebase onto u (not site): a cross-domain alternate keeps its own origin.
+  return new URL(p, u).href;
 };
 const ogImage = new URL(image, site).href;
 const fullTitle = title === SITE.name ? SITE.titleHome : `${title} | ${SITE.name}`;

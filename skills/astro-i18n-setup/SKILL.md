@@ -77,9 +77,10 @@ expected to exist), Base.astro's head hreflang (the route emits one `de` alterna
 a self-referencing `x-default` — never a link to a never-built page), the sitemap
 `serialize` hook (§1 — no advertised-but-missing alternate), and
 `tests/i18n.spec.ts`'s completeness/x-default/reciprocity/thin-translation checks
-(all per-route via `routeLocales()`). Google's guidance is explicit that hreflang
-belongs only on pages that actually have variants (international-seo.md) — this is
-that rule, made enforceable.
+(all per-route via `routeLocales()`; a route without a default-locale variant gets a
+deterministic x-default — its first listed locale — on every variant). Google's
+guidance is explicit that hreflang belongs only on pages that actually have variants
+(international-seo.md) — this is that rule, made enforceable.
 
 ## Light path: twin pages (no prefixed routing)
 
@@ -120,7 +121,10 @@ nav/footer: `alternates` only talks to crawlers, not visitors.
 
 Pick the heavy path (everything above this section) when most of the site is
 translated and you want prefixed routing + a language switcher; pick this light
-path for a few one-off translated pages. Don't mix both on the same page.
+path for a few one-off translated pages. Don't mix both on the same SITE: a
+localized-slug twin can't be expressed in ROUTES (non-default locales map to
+`/prefix` paths there), so on a heavy site a light-path page fails i18n.spec's
+completeness check by design.
 
 ## What it changes
 
@@ -154,7 +158,10 @@ export default defineConfig({
           item.links = item.links.filter((l) =>
             l.lang === 'x-default' ? locs.includes(DEFAULT_LOCALE) : locs.includes(l.lang),
           );
-          if (item.links.length < 2) delete item.links; // a cluster of one says nothing
+          // A cluster of one says nothing — drop it (deliberate mild asymmetry
+          // with the head, which keeps the self + x-default pair; absence in one
+          // channel is fine, contradiction between channels is not).
+          if (item.links.length < 2) delete item.links;
         }
         return item;
       },
@@ -189,6 +196,17 @@ export const ROUTES: readonly RouteSpec[] = [
   // { path: '/blog/some-post', locales: ['de'] },   // German-only page, no EN twin
 ];
 
+// Fail loud at import time on registry typos — a duplicate path yields duplicate
+// PAGES entries (cryptic Playwright collection errors), an unknown or repeated
+// locale yields duplicate/orphan hreflang links the specs then EXPECT.
+for (const r of ROUTES) {
+  if (ROUTES.filter((x) => x.path === r.path).length > 1) throw new Error(`ROUTES: duplicate path ${r.path}`);
+  for (const l of r.locales ?? []) {
+    if (!(LOCALES as readonly string[]).includes(l)) throw new Error(`ROUTES: ${r.path} lists unknown locale "${l}"`);
+  }
+  if (new Set(r.locales ?? []).size !== (r.locales ?? []).length) throw new Error(`ROUTES: ${r.path} lists a locale twice`);
+}
+
 // The locale a (possibly prefixed) path belongs to: the prefix segment if it is
 // a non-default locale, else the default locale (clean-default routing).
 export function pathLocale(path: string): string {
@@ -213,7 +231,7 @@ export function routeLocales(neutral: string): readonly string[] {
 }
 ```
 Remove `SITE.locale` — and the matching `lang = SITE.locale` default prop in
-`Base.astro` (line ~28): the layout derives the locale from `Astro.currentLocale` now
+`Base.astro` (the `lang = SITE.locale` default in the Props destructure): the layout derives the locale from `Astro.currentLocale` now
 (step 3), so leaving that default referencing the deleted export breaks the build.
 Everything reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
 
@@ -244,31 +262,43 @@ if (neutral === '') neutral = '/';
 const localePath = neutral === '/' ? undefined : neutral.replace(/^\//, '');
 // Sparse-aware: only the locales this ROUTE exists in (routeLocales, §2) get an
 // alternate — not every LOCALES entry. Fully-translated routes are unaffected.
+// Named i18nAlternates because the template already has an `alternates` PROP
+// (the twin-pages light path) in this scope — see the note below this snippet.
 const pageLocales = routeLocales(neutral);
-const alternates = pageLocales.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, localePath), site).href }));
+const i18nAlternates = pageLocales.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, localePath), site).href }));
 // x-default → the default-locale variant; a route with NO default-locale variant
-// self-references instead of advertising a page that doesn't exist.
-const xDefault = pageLocales.includes(DEFAULT_LOCALE)
-  ? new URL(getRelativeLocaleUrl(DEFAULT_LOCALE, localePath), site).href
-  : alternates.find((a) => a.loc === currentLocale)?.href;
+// falls back to the route's FIRST listed locale — deterministic, so every variant
+// of the route advertises the SAME x-default (per-variant self-reference would
+// give conflicting cluster annotations on 3+-locale sites).
+const xDefault = new URL(
+  getRelativeLocaleUrl(pageLocales.includes(DEFAULT_LOCALE) ? DEFAULT_LOCALE : pageLocales[0], localePath),
+  site,
+).href;
 ---
 <html lang={currentLocale}>
   <head>
     …
     <link rel="canonical" href={canonical} />
-    {alternates.map((a) => <link rel="alternate" hreflang={a.loc} href={a.href} />)}
+    {i18nAlternates.map((a) => <link rel="alternate" hreflang={a.loc} href={a.href} />)}
     <link rel="alternate" hreflang="x-default" href={xDefault} />
     …
   </head>
 ```
+The template's LIGHT-path pieces are superseded on a heavy site: **delete the
+`{alternates.map(…)}` render line** (this snippet's cluster replaces it) — the
+`alternates` prop and `altHref` helper then sit unused; remove them too or leave
+them, but never feed both emission paths on one page.
 Keep the existing `OG_LOCALES`/`ogLocale` block (it already maps `lang → og:locale`);
 optionally add `og:locale:alternate` for the non-current locales. `inLanguage` in the
 WebPage/WebSite schema should use `currentLocale`.
 
 ### 4. `src/components/LanguageSwitcher.astro` (new)
-A small nav control that links the **current page** in each locale, using the same
-`getRelativeLocaleUrl(loc, localePath)` it computes from `Astro.url`/`Astro.currentLocale`,
-labelled from `LOCALE_LABELS`, marking the active one `aria-current="true"`.
+A small nav control that links the **current page** in each locale the route exists
+in — iterate `routeLocales(neutral)` (§2), NOT `LOCALES`, or a sparse route's
+switcher links a never-built variant (navigation.spec catches the 404, but build it
+right the first time). Uses the same `getRelativeLocaleUrl(loc, localePath)` it
+computes from `Astro.url`/`Astro.currentLocale`, labelled from `LOCALE_LABELS`,
+marking the active one `aria-current="true"`.
 
 ### 5. Page/content structure
 - Default-locale pages stay at `src/pages/*` (e.g. `src/pages/about.astro` → `/about`).
@@ -299,12 +329,17 @@ deliberately not built. `seo.spec.ts`'s canonical check (`canonical === SITE.url
 path`) and the sitemap-drift test pass unchanged, because the i18n sitemap still
 emits one `<loc>` per page (alternates are `<xhtml:link>`, not extra `<loc>`s).
 
+Adding a locale also brings the new `/de*` pages under `seo.spec.ts`'s own-OG-card
+guard: give each real content page a translated card (`generate_og_cards.py` PAGES +
+`image=` on the page); utility twins (`/de/privacy`) can join `OWN_CARD_EXEMPT`.
+
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).
-For every page in PAGES it asserts: exactly one `<link hreflang>` per locale in `LOCALES`
-**plus** `x-default`; every href is the absolute production URL; the page's canonical
-equals its OWN-locale alternate; `x-default` → the default-locale variant; and cross-page
-**reciprocity** (A→B implies B→A — the #1 hreflang mistake). It also machine-checks the
+For every page in PAGES it asserts: exactly one `<link hreflang>` per locale THE ROUTE
+EXISTS IN (`routeLocales()`, §2) **plus** `x-default`; every href is the absolute
+production URL; the page's canonical equals its OWN-locale alternate; `x-default` → the
+default-locale variant (or the route's first listed locale when it has no default-locale
+variant); and cross-page **reciprocity** (A→B implies B→A — the #1 hreflang mistake). It also machine-checks the
 "translate the whole page" rule below, in two parts (word-count thinness and wrong-language
 body are different failure modes — one check can't catch both):
 - **Stub/thin translation**: for every non-default-locale page it follows its own
@@ -349,9 +384,9 @@ grep -o 'hreflang="[^"]*"' dist/index.html      # en, de, x-default present & re
 grep -c '<xhtml:link' dist/sitemap-0.xml        # alternates present
 npm test                                        # green, INCLUDING tests/i18n.spec.ts
 ```
-Confirm: every page self-references + lists all locales + `x-default`; default-locale
-URLs are unchanged from a single-locale build; trailing slashes are consistent
-(`/` keeps its slash, `/de` and sub-pages have none).
+Confirm: every page self-references + lists every locale its route exists in +
+`x-default`; default-locale URLs are unchanged from a single-locale build; trailing
+slashes are consistent (`/` keeps its slash, `/de` and sub-pages have none).
 
 Testing a **sparse route**? Add `{ path: '/nur-de', locales: ['de'] }` to ROUTES,
 create only `src/pages/de/nur-de.astro`, rebuild, and confirm: `/de/nur-de` emits

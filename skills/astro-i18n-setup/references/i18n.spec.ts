@@ -21,7 +21,8 @@ import { SITE, LOCALES, DEFAULT_LOCALE, pathLocale, neutralPath, routeLocales } 
 //   • absolute     — every alternate href is the production URL (SITE.url + path)
 //   • self-canonical — the page's <link rel=canonical> equals its OWN-locale alternate
 //   • x-default    — points at the default-locale variant; a route with NO
-//                    default-locale variant self-references instead
+//                    default-locale variant uses its first listed locale instead
+//                    (deterministic — the same x-default on every variant)
 //   • reciprocity  — if page A (locale x) links B as its locale-y alternate, then B
 //                    links A back as its locale-x alternate (the #1 hreflang mistake)
 
@@ -76,14 +77,18 @@ test.describe('i18n — hreflang contract', () => {
       expect(canonical, `${path}: canonical must equal its own-locale alternate`).toBe(selfAlt?.href);
 
       // x-default → the default-locale variant. A sparse route with NO default-locale
-      // variant can't do that (the page doesn't exist) — Base.astro emits a
-      // self-referencing x-default instead, and this assertion expects exactly that.
+      // variant can't do that (the page doesn't exist) — Base.astro deterministically
+      // falls back to the route's FIRST listed locale, so every variant of the route
+      // advertises the SAME x-default (not a per-variant self-reference, which would
+      // give conflicting cluster annotations on 3+-locale sites).
+      const routeLocs = routeLocales(neutralPath(path, selfLocale));
+      const xdLocale = routeLocs.includes(DEFAULT_LOCALE) ? DEFAULT_LOCALE : routeLocs[0];
       const xDefault = alts.find((a) => a.hreflang === 'x-default');
-      const defaultAlt = alts.find((a) => a.hreflang === DEFAULT_LOCALE);
+      const xdAlt = alts.find((a) => a.hreflang === xdLocale);
       expect(
         xDefault?.href,
-        `${path}: x-default must point at the default-locale variant (or self, when the route has no default-locale variant)`,
-      ).toBe(defaultAlt?.href ?? selfAlt?.href);
+        `${path}: x-default must point at the default-locale variant (or the route's first listed locale when it has no default-locale variant)`,
+      ).toBe(xdAlt?.href);
     }
 
     // Cross-page: reciprocity. For each alternate that targets a page we know,

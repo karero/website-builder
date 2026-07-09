@@ -199,8 +199,19 @@ test('twin-page hreflang alternates are self-consistent and reciprocal', async (
       alts.some((a) => a.href === canonical),
       `${path}: alternates must include a self-referencing entry equal to the canonical (${canonical})`,
     ).toBe(true);
+    // One entry per hreflang code — duplicates send crawlers conflicting signals.
+    const codes = alts.map((a) => a.hreflang);
+    expect(codes.length, `${path}: duplicate hreflang codes in the cluster (${codes.join(', ')})`).toBe(new Set(codes).size);
+    // x-default must exist and repeat one of the cluster's locale entries — a
+    // missing/typo'd x-default otherwise ships unvalidated (reciprocity skips it).
+    const xd = alts.find((a) => a.hreflang === 'x-default');
+    expect(xd, `${path}: cluster has no x-default entry (pass one in alternates)`).toBeDefined();
+    expect(
+      alts.some((a) => a.hreflang !== 'x-default' && a.href === xd?.href),
+      `${path}: x-default (${xd?.href}) must equal one of the cluster's locale entries`,
+    ).toBe(true);
     for (const a of alts) {
-      if (a.hreflang === 'x-default') continue; // x-default repeats one of the locale entries
+      if (a.hreflang === 'x-default') continue; // validated above; reciprocity covers its target transitively
       if (!a.href.startsWith(SITE.url)) continue; // external target: out of scope
       const target = urlToPath.get(a.href);
       expect(
