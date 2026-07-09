@@ -16,6 +16,15 @@
 #   scripts/whats-new.sh --stamp <skills_dir>     # write the SUITE-VERSION stamp. This is
 #                                                 # the ONLY writer of the stamp format —
 #                                                 # new-website's scaffold step calls it too.
+#   scripts/whats-new.sh --stamp-tests <tests_dir> # write the TESTS-VERSION stamp next to a
+#                                                 # site's tests/ copies. The report uses it
+#                                                 # to flag upstream changes to the template
+#                                                 # test suite + CONTENT_GUIDE — files that
+#                                                 # are FROZEN one-time copies, which
+#                                                 # --refresh deliberately never touches
+#                                                 # (a blind overwrite would clobber the
+#                                                 # site's own PAGES list / exemptions).
+#                                                 # Merge those by hand, then re-stamp.
 #
 # Needs the git clone of the suite (a zip has no history to compare against).
 set -euo pipefail
@@ -41,12 +50,21 @@ write_stamp() {  # $1 = skills dir
     "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/SUITE-VERSION"
 }
 
+# Upstream template files that scaffolded sites carry as FROZEN copies (tests/*,
+# CONTENT_GUIDE.md). Tracked via TESTS-VERSION; never auto-refreshed.
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md'
+
+write_tests_stamp() {  # $1 = tests dir
+  printf 'suite_commit: %s\ncopied: %s\n' \
+    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/TESTS-VERSION"
+}
+
 MODE=report
 TARGET=""
 for arg in "$@"; do
   case "$arg" in
-    --refresh|--stamp)
-      [ "$MODE" = report ] || { echo "error: conflicting flags: --refresh/--stamp" >&2; exit 2; }
+    --refresh|--stamp|--stamp-tests)
+      [ "$MODE" = report ] || { echo "error: conflicting flags: --refresh/--stamp/--stamp-tests" >&2; exit 2; }
       MODE="${arg#--}" ;;
     -*)
       echo "error: unknown flag: $arg" >&2; exit 2 ;;
@@ -66,6 +84,19 @@ if [ "$MODE" = stamp ]; then
   fi
   write_stamp "$TARGET"
   echo "stamped $TARGET/SUITE-VERSION → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
+  exit 0
+fi
+
+if [ "$MODE" = stamp-tests ]; then
+  [ -n "$TARGET" ] || { echo "error: --stamp-tests needs a <tests_dir> (e.g. <site>/tests)" >&2; exit 2; }
+  [ -d "$TARGET" ] || { echo "error: no such directory: $TARGET" >&2; exit 1; }
+  if suite_dirty; then
+    echo "warning: the suite clone has uncommitted skill edits — the stamp records HEAD," >&2
+    echo "which may not match copies made from the working tree. Commit the suite first" >&2
+    echo "for a clean baseline." >&2
+  fi
+  write_tests_stamp "$TARGET"
+  echo "stamped $TARGET/TESTS-VERSION → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
   exit 0
 fi
 
@@ -192,10 +223,74 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "stamp updated → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 }
 
+process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline source label
+  local tests_dir="$1" base="$2" src="$3" short_base changed f
+  if [ -z "$base" ] || [ "$base" = "unknown" ]; then
+    echo "error: the tests baseline ($src) has no usable commit (zip install?). Compare by" >&2
+    echo "hand, then set a fresh baseline with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
+    return 1
+  fi
+  if ! git -C "$REPO_DIR" cat-file -e "$base^{commit}" 2>/dev/null; then
+    echo "error: tests baseline $base is not in this clone — run 'git pull' first, or" >&2
+    echo "reset it with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
+    return 1
+  fi
+  short_base="$(git -C "$REPO_DIR" rev-parse --short "$base")"
+  echo "Template tests: $tests_dir (baseline $short_base, from $src)"
+
+  # shellcheck disable=SC2086
+  changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- $TEMPLATE_TRACKED)"
+  if [ -z "$changed" ]; then
+    echo "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE."
+    if [ "${src#SUITE-VERSION}" != "$src" ]; then
+      echo "Pin the tests baseline off the fallback (it moves when skills refresh):"
+      echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
+    fi
+    return 0
+  fi
+
+  echo
+  echo "Template test files changed upstream — your site's copies are NOT auto-refreshed"
+  echo "(they are frozen one-time copies that may carry site-specific edits like the"
+  echo "PAGES list; --refresh deliberately never touches them):"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$f" in
+      skills/new-website/templates/astro/tests/*)
+        echo "  ${f#skills/new-website/templates/astro/} (site copy: tests/$(basename "$f"))" ;;
+      skills/new-website/templates/content-guide.md)
+        echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
+      *)
+        echo "  $f" ;;
+    esac
+    git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "$f" | sed 's/^/    /'
+  done <<CHANGED
+$changed
+CHANGED
+  echo
+  echo "Review + merge each by hand, e.g.:"
+  echo "  git -C $REPO_DIR diff $short_base HEAD -- $(printf '%s\n' "$changed" | head -1)"
+  if printf '%s\n' "$changed" | grep -q '_helpers\.ts$'; then
+    echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, and i18n.spec.ts"
+    echo "on multilingual sites), so merge the helpers together with any spec that uses the"
+    echo "new exports, or the import breaks loudly."
+  fi
+  echo "When the site's copies are current again, advance the baseline:"
+  echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
+  return 2
+}
+
 # Locate every bundled-skills dir by its stamp — covers .claude/skills,
 # .agents/skills, and any custom $PROJECT_SKILLS_DIR new-website was run with.
 STAMPS="$(find "$PROJECT" -maxdepth 4 -name SUITE-VERSION -not -path '*/node_modules/*' 2>/dev/null | sort)"
 if [ -z "$STAMPS" ]; then
+  # Even without a skills stamp, a present tests/TESTS-VERSION is actionable —
+  # report the tests channel before erroring on the skills side.
+  if [ -f "$PROJECT/tests/TESTS-VERSION" ]; then
+    TB="$(sed -n 's/^suite_commit: //p' "$PROJECT/tests/TESTS-VERSION")"
+    process_tests_stamp "$PROJECT/tests" "$TB" "tests/TESTS-VERSION" || true
+    echo
+  fi
   for d in "$PROJECT/.claude/skills" "$PROJECT/.agents/skills"; do
     [ -d "$d" ] || continue
     echo "error: $d exists but has no SUITE-VERSION stamp — the project predates stamping." >&2
@@ -210,6 +305,33 @@ if [ -z "$STAMPS" ]; then
 fi
 
 echo "Project:    $PROJECT"
+
+# Capture the tests-channel FALLBACK baseline NOW — before process_dir, whose
+# --refresh rewrites the SUITE-VERSION stamps to HEAD; reading it afterwards
+# would silently destroy the pre-refresh baseline (and with it all reported
+# template-test drift) for every site that predates TESTS-VERSION. With
+# multiple stamps (.claude/skills AND .agents/skills), take the OLDEST commit —
+# under-reporting is the dangerous direction for a staleness channel.
+FALLBACK_BASE=""
+while IFS= read -r STAMP; do
+  [ -n "$STAMP" ] || continue
+  SB="$(sed -n 's/^suite_commit: //p' "$STAMP")"
+  [ -n "$SB" ] && [ "$SB" != "unknown" ] || continue
+  git -C "$REPO_DIR" cat-file -e "$SB^{commit}" 2>/dev/null || continue
+  if [ -z "$FALLBACK_BASE" ]; then
+    FALLBACK_BASE="$SB"
+  else
+    # older = ancestor of the current pick (linear history), else compare dates
+    if git -C "$REPO_DIR" merge-base --is-ancestor "$SB" "$FALLBACK_BASE" 2>/dev/null; then
+      FALLBACK_BASE="$SB"
+    elif [ "$(git -C "$REPO_DIR" show -s --format=%ct "$SB")" -lt "$(git -C "$REPO_DIR" show -s --format=%ct "$FALLBACK_BASE")" ]; then
+      FALLBACK_BASE="$SB"
+    fi
+  fi
+done <<EOF
+$STAMPS
+EOF
+
 FAIL=0
 while IFS= read -r STAMP; do
   [ -n "$STAMP" ] || continue
@@ -218,4 +340,26 @@ while IFS= read -r STAMP; do
 done <<EOF
 $STAMPS
 EOF
+
+# Template-tests staleness (frozen copies, tracked separately from skill dirs).
+# Baseline: tests/TESTS-VERSION when present; pre-existing sites (scaffolded
+# before TESTS-VERSION existed) fall back to the first SUITE-VERSION stamp's
+# commit — the closest recorded scaffold point — and the report says so.
+TESTS_DIR="$PROJECT/tests"
+TESTS_STATUS=0
+if [ -d "$TESTS_DIR" ]; then
+  if [ -f "$TESTS_DIR/TESTS-VERSION" ]; then
+    TB="$(sed -n 's/^suite_commit: //p' "$TESTS_DIR/TESTS-VERSION")"
+    process_tests_stamp "$TESTS_DIR" "$TB" "tests/TESTS-VERSION" || TESTS_STATUS=$?
+  elif [ -n "$FALLBACK_BASE" ]; then
+    process_tests_stamp "$TESTS_DIR" "$FALLBACK_BASE" "SUITE-VERSION fallback (oldest stamp, captured pre-refresh) — no tests/TESTS-VERSION yet" || TESTS_STATUS=$?
+  else
+    echo "note: $TESTS_DIR has no TESTS-VERSION and no skills stamp is usable as a" >&2
+    echo "fallback — template-test drift can't be reported. Set a baseline with:" >&2
+    echo "  scripts/whats-new.sh --stamp-tests $TESTS_DIR" >&2
+  fi
+  echo
+fi
+# Stale template tests (status 2) are a report, not a failure; real errors (1) fail.
+[ "$TESTS_STATUS" = 1 ] && FAIL=1
 exit $FAIL

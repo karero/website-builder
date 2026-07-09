@@ -335,6 +335,10 @@ guard: give each real content page a translated card (`generate_og_cards.py` PAG
 
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).
+Like every `tests/*.spec.ts`, that copy is frozen — after a `make refresh` reports
+`astro-i18n-setup` stale, diff `references/i18n.spec.ts` against the project's
+`tests/i18n.spec.ts` by hand (and treat it + `tests/_helpers.ts` as a pair: the spec
+imports helpers, so refresh both together or the import breaks loudly).
 For every page in PAGES it asserts: exactly one `<link hreflang>` per locale THE ROUTE
 EXISTS IN (`routeLocales()`, §2) **plus** `x-default`; every href is the absolute
 production URL; the page's canonical equals its OWN-locale alternate; `x-default` → the
