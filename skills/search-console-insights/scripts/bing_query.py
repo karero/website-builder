@@ -27,6 +27,8 @@ import os
 import sys
 from pathlib import Path
 
+from _lang_normalize import fold
+
 try:
     import requests
 except ImportError:
@@ -117,11 +119,12 @@ def get_page_stats(site, key):
 
 
 def match_keywords(rows, keywords):
-    """Substring (token-AND, case-insensitive) match — mirrors gsc_query.py."""
+    """Substring (token-AND, folded) match — mirrors gsc_query.py, incl. the
+    German umlaut/ß folding ('München' matches rows spelled 'muenchen')."""
     res = []
     for kw in keywords:
-        toks = [t for t in kw.lower().split() if t]
-        m = [r for r in rows if all(t in r["query"].lower() for t in toks)]
+        toks = [t for t in fold(kw).split() if t]
+        m = [r for r in rows if all(t in fold(r["query"]) for t in toks)]
         m.sort(key=lambda r: r["impressions"], reverse=True)
         res.append((kw, m))
     return res

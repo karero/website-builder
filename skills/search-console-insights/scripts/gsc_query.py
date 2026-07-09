@@ -33,6 +33,8 @@ import os
 import sys
 from pathlib import Path
 
+from _lang_normalize import fold
+
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 DEFAULT_TOKEN = Path.home() / ".config" / "gsc-insights" / "token.json"
 ROW_LIMIT = 25000  # GSC max rows per request; plenty for a small site.
@@ -105,13 +107,20 @@ def build_service(creds):
     return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
-def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT):
+def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""):
     body = {
         "startDate": start,
         "endDate": end,
         "dimensions": dimensions,
         "rowLimit": row_limit,
     }
+    if country:
+        # ISO-3166-1 alpha-3, lowercase (GSC convention), e.g. 'deu' for Germany.
+        # Without this, a bilingual/German-market site reads BLENDED global
+        # averages — German positions get masked by (or fake) other markets'.
+        body["dimensionFilterGroups"] = [{
+            "filters": [{"dimension": "country", "expression": country.lower()}],
+        }]
     resp = service.searchanalytics().query(siteUrl=site, body=body).execute()
     return resp.get("rows", [])
 
@@ -134,18 +143,21 @@ def fmt_rows(rows, dim_label, limit=20):
 
 
 def match_keywords(query_rows, keywords):
-    """Substring (case-insensitive) match each target keyword against query rows.
+    """Substring match each target keyword against query rows (folded).
 
     A keyword like 'AI Events Munich' should also catch 'ai events in munich',
     so we match on all whitespace-split tokens being present in the query.
+    Tokens and rows are folded (casefold + German ä/ö/ü/ß) so 'AI Treffen
+    München' matches GSC rows spelled 'ai treffen muenchen' and vice versa —
+    they are distinct query strings in GSC but the same searcher intent.
     Returns list of (keyword, matched_rows_sorted_by_impressions).
     """
     results = []
     for kw in keywords:
-        tokens = [t for t in kw.lower().split() if t]
+        tokens = [t for t in fold(kw).split() if t]
         matched = [
             r for r in query_rows
-            if all(t in r["keys"][0].lower() for t in tokens)
+            if all(t in fold(r["keys"][0]) for t in tokens)
         ]
         matched.sort(key=lambda r: r["impressions"], reverse=True)
         results.append((kw, matched))
@@ -153,10 +165,11 @@ def match_keywords(query_rows, keywords):
 
 
 def build_report(site, start, end, top_queries, top_pages, kw_matches,
-                 perm_level, days):
+                 perm_level, days, country=""):
     L = []
     L.append(f"# Search Console insights — {site}")
-    L.append(f"\n_Window: {start} → {end} ({days} days). Permission: "
+    country_note = f", country filter: {country}" if country else ""
+    L.append(f"\n_Window: {start} → {end} ({days} days){country_note}. Permission: "
              f"{perm_level or 'unknown'}._\n")
 
     total_clicks = sum(int(r["clicks"]) for r in top_queries)
@@ -168,6 +181,10 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                  "> This is expected for a property verified recently — GSC only\n"
                  "> collects data *forward from verification*, with a ~2–3 day lag,\n"
                  "> and there is no historical backfill. Re-run this in 1–2 weeks.\n")
+        if country:
+            L.append(f"> Also note the active `--country {country}` filter — zero rows can\n"
+                     f"> simply mean no traffic from that market in the window; re-run\n"
+                     f"> without the filter to compare.\n")
         return "\n".join(L)
 
     L.append(f"**Totals (across returned query rows):** {total_clicks} clicks, "
@@ -240,6 +257,17 @@ def main():
     ap.add_argument("--client-secret",
                     default=os.environ.get("GSC_CLIENT_SECRET", "client_secret.json"))
     ap.add_argument("--token", default=str(DEFAULT_TOKEN))
+    def _country(v: str) -> str:
+        # GSC matches lowercase alpha-3; the natural mistake is alpha-2 ('de',
+        # the convention serp_check's --gl uses) — which matches NOTHING and
+        # reads as "no impressions yet". Reject it loudly instead.
+        if v and (len(v) != 3 or not v.isalpha()):
+            raise argparse.ArgumentTypeError(f"--country takes ISO alpha-3, e.g. 'deu' (got {v!r})")
+        return v.lower()
+    ap.add_argument("--country", default="", type=_country,
+                    help="ISO-3166-1 alpha-3 country filter, e.g. 'deu' — see the "
+                         "German-market note in SKILL.md. Default: all countries blended. "
+                         "(Google only; Bing has no country parameter.)")
     ap.add_argument("--csv", default="",
                     help="Append target-keyword positions to this history CSV (trend tracking).")
     args = ap.parse_args()
@@ -266,8 +294,8 @@ def main():
     s_start, s_end = start.isoformat(), end.isoformat()
 
     try:
-        top_queries = query(service, args.site, s_start, s_end, ["query"])
-        top_pages = query(service, args.site, s_start, s_end, ["page"])
+        top_queries = query(service, args.site, s_start, s_end, ["query"], country=args.country)
+        top_pages = query(service, args.site, s_start, s_end, ["page"], country=args.country)
     except Exception as e:  # noqa: BLE001
         eprint(f"Search Analytics query failed: {e}")
         sys.exit(1)
@@ -292,7 +320,7 @@ def main():
         eprint(f"appended {len(items)} keyword rows to {args.csv}")
 
     report = build_report(args.site, s_start, s_end, top_queries, top_pages,
-                          kw_matches, perm_level, args.days)
+                          kw_matches, perm_level, args.days, country=args.country)
     print(report)
     if args.out:
         Path(args.out).write_text(report)

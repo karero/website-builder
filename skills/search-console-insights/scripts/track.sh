@@ -20,8 +20,10 @@ KEYWORDS="${2:?keywords required (comma-separated)}"
 [ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
 
 echo "▶ Google Search Console …"
+# GSC_COUNTRY (ISO alpha-3, e.g. deu): optional country filter so the tracked
+# history matches ad-hoc --country reports (env-var pattern like GSC_HISTORY_CSV).
 "$PY" "$DIR/gsc_query.py" --site "sc-domain:$DOMAIN" --days 90 \
-  --keywords "$KEYWORDS" --csv "$CSV" >/dev/null
+  --keywords "$KEYWORDS" --csv "$CSV" ${GSC_COUNTRY:+--country "$GSC_COUNTRY"} >/dev/null
 
 echo "▶ Bing Webmaster …"
 rc=0

@@ -29,6 +29,11 @@ Bing's index fresh automatically.
 > SETUP.md). The agent drafts the exact TXT value and the sitemap URL; the owner
 > pastes/clicks.
 
+> **Console UI labels are localized** — the click paths below are quoted from the
+> English UI; if the owner's account language differs, translate the labels for them
+> (German: *Property hinzufügen*, *DNS → Einträge → Eintrag hinzufügen*, *Aus der
+> Google Search Console importieren*, *Caching → Konfiguration*).
+
 ## 1. Google Search Console (Google)
 
 1. Go to https://search.google.com/search-console and sign in.
