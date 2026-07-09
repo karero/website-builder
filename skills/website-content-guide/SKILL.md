@@ -90,8 +90,8 @@ translation error.
   zukunftsweisend, transformativ, unschlagbar, entfesseln/entfesselt,
   Spitzenreiter (trim/extend per brand).
 - **AI-tell phrases to avoid:**
-  - "In der heutigen ... Welt" (any adjectives — the enforced test tolerates
-    up to two, plus compound forms like "Geschäftswelt")
+  - "In der heutigen ... Welt" (the enforced test tolerates up to two
+    modifiers and compound Welt-nouns like "Geschäftswelt")
   - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."
   - "Zusammenfassend lässt sich sagen,..."
   - "Lassen Sie uns / Lass uns / Lasst uns eintauchen / einen Blick werfen"

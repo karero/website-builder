@@ -321,6 +321,10 @@ export const PAGES = ROUTES.flatMap((r) =>
   ),
 ) as readonly string[];
 ```
+Only the PAGES export changes — KEEP the file's other exports (`THEMES`,
+`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`): the tone and i18n specs
+import them, and replacing the whole file with just this snippet breaks the
+suite at compile time.
 With no `locales` overrides this yields the identical set as before — `/`,
 `/privacy`, `/de`, `/de/privacy` (route-major order instead of locale-major; every
 consumer sorts or iterates, so nothing observes the order). A sparse route appears

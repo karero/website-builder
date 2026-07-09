@@ -283,8 +283,9 @@ language-agnostic shortcut. These are the phrases enforced (with identical
 wording) by the `new-website` skill's scaffolded
 `templates/astro/tests/tone.spec.ts`'s `GERMAN_RULES`:
 
-- "In der heutigen ... Welt" (any adjectives, incl. the canonical
-  "schnelllebigen digitalen" double and compound forms like "Geschäftswelt")
+- "In der heutigen ... Welt" (up to two modifiers, incl. the canonical
+  "schnelllebigen digitalen" double, and compound Welt-nouns like
+  "Geschäftswelt")
 - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."
 - "Zusammenfassend lässt sich sagen,..."
 - "Lassen Sie uns / Lass uns / Lasst uns eintauchen / einen Blick werfen"

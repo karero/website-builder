@@ -16,8 +16,10 @@ export const THEMES = ['light', 'dark'] as const;
 // German function-word density — the wrong-language detector shared by
 // tone.spec.ts (single-locale German sites) and astro-i18n-setup's
 // i18n.spec.ts (multi-locale). ONE implementation so the two enforcement
-// points can't drift. Real German prose runs ~15-20% density; a non-German
-// body runs ~0% — these exact words essentially don't occur in other languages.
+// points can't drift. Real German prose runs ~15-20% density, directory/legal
+// genre (addresses, register numbers) ~4%, a non-German body ~0% — these exact
+// words essentially don't occur in other languages, which is the margin the 3%
+// threshold actually relies on.
 export const GERMAN_FUNCTION_WORDS = /\b(der|die|das|und|ist|nicht|mit|für|von|auf|dass|sich|eine?|den|dem|des|sind|wird|werden|können|kann|auch|oder)\b/gi;
 export function germanFunctionWordDensity(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;

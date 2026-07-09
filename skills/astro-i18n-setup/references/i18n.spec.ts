@@ -205,7 +205,7 @@ test.describe('i18n — hreflang contract', () => {
       await page.goto(path);
       const text = await page.evaluate(() => {
         const body = document.body.cloneNode(true) as HTMLElement;
-        body.querySelectorAll('nav, header, footer').forEach((el) => el.remove());
+        body.querySelectorAll('nav, header, footer, script, style, noscript, blockquote, q, [data-tov-exempt]').forEach((el) => el.remove());
         return body.innerText;
       });
       const words = text.trim().split(/\s+/).filter(Boolean).length;

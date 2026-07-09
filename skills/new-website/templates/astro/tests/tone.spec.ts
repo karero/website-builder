@@ -44,18 +44,23 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
     // Endings cover all four cases incl. dative -em ("mit nahtlosem Übergang"
     // previously slipped through) and superlatives (-ste/-ster/-stes/-sten/-stem,
     // "die nahtloseste Erfahrung").
-    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?|ste)?|nahtlos(?:e|er|es|en|em|este[mnrs]?|este)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?|ste)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?|ste)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?|ste)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?|ste)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?|ste)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?|ste)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?|ste)?|transformativ(?:e|er|es|en|em|ste[mnrs]?|ste)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?|ste)?|entfesseln|entfesselt(?:e|er|es|en|em)?|spitzenreiter)(?!\p{L})/gui,
+    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?)?|nahtlos(?:e|er|es|en|em|este[mnrs]?)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?)?|transformativ(?:e|er|es|en|em|ste[mnrs]?)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?)?|entfesseln|entfesselt(?:e|er|es|en|em)?|spitzenreiter)(?!\p{L})/gui,
   },
   // Multi-word AI-tell phrases — own rule/label (not merged into the buzzword
   // list above). \s+ tolerates whitespace variation between words; same
   // \p{L}-lookaround rationale as the buzzword rule applies at the phrase edges.
   {
     label: 'AI-tell phrase',
-    // "in der heutigen ... Welt" tolerates 1-2 adjectives (the canonical
-    // double-adjective slop opener "schnelllebigen digitalen Welt" previously
-    // missed) and compound Welt-nouns (Geschäftswelt); the eintauchen family
-    // covers Sie/du/wir registers (lassen Sie uns / lass uns / lasst uns).
-    re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+\p{L}+){0,2}?[\s-]*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
+    // "in der heutigen ... Welt" tolerates up to two modifiers (the canonical
+    // double "schnelllebigen digitalen Welt" and the bare form) plus compound
+    // Welt-nouns via \p{L}*welt ("Geschäftswelt", incl. modifiers+compound).
+    // The intervening-word slots REJECT determiners/possessives so a real
+    // clause boundary can't be swallowed ("in der heutigen Zeit, die Welt
+    // dreht sich" and "in der heutigen Ausgabe unserer Welt-Reihe" stay
+    // clean). Known accepted edge: "in der heutigen Umwelt" matches (rare,
+    // and usually filler prose anyway). The eintauchen family covers
+    // Sie/du/wir registers (lassen Sie uns / lass uns / lasst uns).
+    re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+(?!(?:der|die|das|den|dem|des|unser\p{L}*|euer|eure\p{L}*|ihr\p{L}*)\b)\p{L}+){0,2}?[\s-]*\p{L}*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
   },
 ];
 // Exact matches to tolerate (lowercase) — e.g. a brand name like "rock 'n' roll".
@@ -115,14 +120,21 @@ for (const path of PAGES) {
       // lang="de" whose body is still English ships silently otherwise — the
       // multi-locale i18n.spec.ts catches this only on sites running
       // astro-i18n-setup, and single-locale German sites are the COMMON case.
-      // Same helper, thresholds and chrome-stripping as i18n.spec.ts (see
-      // _helpers.germanFunctionWordDensity). Pages under 30 body words are
-      // skipped: density is noise on stubs (a bracket-slot legal page), and the
-      // failure mode this exists for — real content left untranslated — implies
-      // a real body.
+      // Same helper and threshold as i18n.spec.ts (word list + math live in
+      // _helpers.germanFunctionWordDensity); this extraction additionally
+      // strips quoted-voice exemptions, see below. Threshold calibration:
+      // real German PROSE runs ~15-20%; directory/legal-genre German
+      // (addresses, register numbers — the shipped Impressum) runs ~4%, so 3%
+      // keeps a real margin only over NON-German text (~0%) — that is the
+      // failure this catches; don't raise the threshold. Pages under 30 body
+      // words skip entirely: density is noise on tiny stubs.
       const bodyText = await page.evaluate(() => {
         const body = document.body.cloneNode(true) as HTMLElement;
-        body.querySelectorAll('nav, header, footer, script, style, noscript').forEach((el) => el.remove());
+        // Same exemptions as the rules loop above: quoted human voice
+        // (blockquote/q/[data-tov-exempt]) must not trip the register or
+        // density checks — a du-voiced customer testimonial on a Sie-register
+        // site is the NORMAL case, not a violation.
+        body.querySelectorAll('nav, header, footer, script, style, noscript, blockquote, q, [data-tov-exempt]').forEach((el) => el.remove());
         return body.innerText;
       });
       const bodyWords = bodyText.trim().split(/\s+/).filter(Boolean).length;
@@ -155,7 +167,8 @@ for (const path of PAGES) {
       expect(
         informal.length === 0 || formal.length === 0,
         `${path} (lang="de"): page mixes du-register (${[...new Set(informal)].join(', ')}) and ` +
-          `Sie-register (${[...new Set(formal)].join(', ')}) address — pick ONE (CONTENT_GUIDE "du/Sie").`,
+          `Sie-register (${[...new Set(formal)].join(', ')}) address — pick ONE (CONTENT_GUIDE "du/Sie"). ` +
+          `Genuinely quoted voice (a du-voiced testimonial on a Sie site) → <blockquote>/<q>/[data-tov-exempt].`,
       ).toBe(true);
     }
   });
