@@ -292,6 +292,10 @@ Assemble the project at `<site>/` so it travels without any global setup:
    if [ -n "$SUITE_REPO" ] && [ -f "$SUITE_REPO/scripts/whats-new.sh" ] \
       && [ -d "$SUITE_REPO/skills/new-website" ]; then
      bash "$SUITE_REPO/scripts/whats-new.sh" --stamp "$PROJECT_SKILLS_DIR"
+     # Also stamp the FROZEN template copies (tests/*.spec.ts, CONTENT_GUIDE.md):
+     # whats-new reports their upstream drift separately — --refresh never touches
+     # them, they're merged by hand (they may carry site edits like the PAGES list).
+     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp-tests tests
    else
      # No usable suite clone (zip/copy install): record that the baseline is unknown.
      # whats-new can't report for this project until re-stamped from a real clone.
