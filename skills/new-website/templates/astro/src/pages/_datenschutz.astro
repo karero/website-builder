@@ -4,13 +4,18 @@
 // sensitive page — start from this reviewed text instead of re-translating
 // privacy.astro from scratch and re-clearing every gate.
 //
+// The leading underscore keeps this file OUT of Astro's routing (and the
+// sitemap/test gates) until a German site adopts it — while shipping in every
+// scaffolded repo, so the swap works months after handoff too.
 // HOW TO USE (German-ONLY site, Q4a = German):
-//   1. Copy this file to src/pages/datenschutz.astro and DELETE
-//      src/pages/privacy.astro (one privacy page per site, at the German URL).
+//   1. RENAME this file to datenschutz.astro (drop the underscore) and DELETE
+//      privacy.astro (one privacy page per site, at the German URL).
 //   2. Swap '/privacy' for '/datenschutz' in: tests/_helpers.ts PAGES,
-//      public/llms.txt, Base.astro's footer link (label "Datenschutz"),
-//      tests/seo.spec.ts OWN_CARD_EXEMPT, and tests/positioning.spec.ts
-//      POSITIONING_EXEMPT.
+//      Base.astro's footer link (label "Datenschutz"), tests/seo.spec.ts
+//      OWN_CARD_EXEMPT, tests/positioning.spec.ts POSITIONING_EXEMPT — and in
+//      public/llms.txt replace the whole line with its German form:
+//      "- [Datenschutz](https://<domain>/datenschutz): Datenschutzerklärung (DSGVO)."
+//      Also update the README's privacy.astro mentions (docs, not gates).
 //   3. Fill every [BRACKET] slot; make section 3 match the real analytics
 //      setup (or delete it); adjust the date.
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
@@ -35,13 +40,14 @@ import { SITE } from '../config';
 <Base
   lang="de"
   title="Datenschutzerklärung"
-  description={`So geht ${SITE.name} mit personenbezogenen Daten um: cookielose Analyse, Hosting bei Cloudflare Pages, Umgang mit Kontaktdaten und Ihre Rechte nach der DSGVO.`}>
+  description={`So geht ${SITE.name} mit personenbezogenen Daten um: cookielose Analyse, Hosting bei Cloudflare, Kontaktdaten und Ihre Rechte nach der DSGVO.`}>
   <section class="wrap">
     <h1>Datenschutzerklärung</h1>
     <p>
       Stand: [DATUM]. Diese Seite erklärt, welche personenbezogenen Daten diese
       Website verarbeitet, auf welcher Rechtsgrundlage nach der DSGVO
-      (EU 2016/679) und dem TDDDG, und welche Rechte Ihnen zustehen.
+      (EU 2016/679), und welche Rechte Ihnen zustehen; für Zugriffe auf Ihr
+      Endgerät gilt daneben § 25 TDDDG.
     </p>
 
     <h2>1. Verantwortlicher</h2>
@@ -59,28 +65,34 @@ import { SITE } from '../config';
       (Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA). Beim
       Aufruf einer Seite verarbeitet Cloudflare technische Verbindungsdaten
       (IP-Adresse, Datum und Uhrzeit, aufgerufene URL, Browser-Kennung), um die
-      Seite auszuliefern und vor Angriffen zu schützen. Rechtsgrundlage ist
+      Seite auszuliefern und sie vor Angriffen zu schützen. Rechtsgrundlage ist
       unser berechtigtes Interesse an einem sicheren und schnellen Betrieb der
       Website (Art. 6 Abs. 1 lit. f DSGVO). Cloudflare handelt als
       Auftragsverarbeiter nach Art. 28 DSGVO; Übermittlungen in die USA sind
       durch das EU-US Data Privacy Framework und Standardvertragsklauseln
-      abgesichert. Wir führen diese Protokolle nicht mit anderen Daten zusammen.
+      abgesichert. Wir führen diese Protokolle nicht mit anderen Daten zusammen;
+      sie werden nur so lange vorgehalten, wie es für den sicheren Betrieb
+      erforderlich ist, und anschließend gelöscht.
     </p>
 
     <h2>3. Cookies und Analyse</h2>
     <p>
       Diese Website ist werbefrei und <strong>setzt keine Cookies</strong>. Ihr
       Besuch hinterlässt bei uns keine Werbe- oder seitenübergreifenden
-      Tracking-Kennungen; auf Ihrem Endgerät werden keine Informationen
-      gespeichert oder ausgelesen, sodass keine Einwilligung nach § 25 TDDDG
-      erforderlich ist.
+      Tracking-Kennungen. Lediglich Ihre gewählte Darstellungseinstellung
+      (helles oder dunkles Design) wird lokal in Ihrem Browser gespeichert;
+      diese Speicherung ist für die von Ihnen gewünschte Funktion unbedingt
+      erforderlich und daher nach § 25 Abs. 2 Nr. 2 TDDDG einwilligungsfrei.
+      Darüber hinaus werden auf Ihrem Endgerät keine Informationen gespeichert
+      oder ausgelesen.
     </p>
     <p>
       Zur Nutzungsanalyse setzen wir <strong>Plausible Analytics</strong> ein,
       ein datenschutzfreundliches Messwerkzeug
-      [selbst gehostet auf unserem eigenen Server / betrieben für uns von
-      Plausible Insights O&Uuml;, V&auml;striku tn 2, 50403 Tartu, Estland (EU)].
-      Es arbeitet ohne Cookies und erhebt keine personenbezogenen Daten, verfolgt
+      [selbst gehostet auf unserem eigenen Server / betrieben für uns als
+      Auftragsverarbeiter von Plausible Insights OÜ, Västriku tn 2, 50403
+      Tartu, Estland (EU)].
+      Es arbeitet ohne Cookies und speichert keine personenbezogenen Daten, verfolgt
       Sie nicht über Websites hinweg und gibt keine Daten an Dritte weiter.
       IP-Adressen werden nur flüchtig verarbeitet, um anonyme, aggregierte
       Zählungen zu bilden, und niemals gespeichert. Die entstehenden Kennzahlen
@@ -114,9 +126,15 @@ import { SITE } from '../config';
       (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18),
       Datenübertragbarkeit (Art. 20) und Widerspruch gegen Verarbeitungen auf
       Grundlage berechtigten Interesses (Art. 21). Wenden Sie sich dazu an die
-      in Abschnitt 1 genannte Adresse; wir prüfen Ihre Identität, bevor wir auf
-      einen Antrag hin tätig werden. Ihnen steht zudem ein Beschwerderecht bei
-      einer Datenschutzaufsichtsbehörde zu (Art. 77 DSGVO).
+      in Abschnitt 1 genannte Adresse; bei Zweifeln an Ihrer Identität können
+      wir zusätzliche Informationen anfordern. Ihnen steht zudem ein
+      Beschwerderecht bei einer Datenschutzaufsichtsbehörde zu (Art. 77 DSGVO).
+    </p>
+    <p>
+      <strong>Widerspruchsrecht (Art. 21 DSGVO):</strong> Sie haben das Recht,
+      aus Gründen, die sich aus Ihrer besonderen Situation ergeben, jederzeit
+      gegen Verarbeitungen zu widersprechen, die auf Art. 6 Abs. 1 lit. f DSGVO
+      beruhen.
     </p>
 
     <h2>6. Änderungen dieser Seite</h2>
