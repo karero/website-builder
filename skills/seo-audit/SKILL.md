@@ -236,7 +236,8 @@ Three equivalent placement methods: HTML `<link>` in `<head>`, HTTP `Link` heade
 **Check for:**
 - Unique titles for each page
 - Primary keyword near beginning
-- 50-60 characters (visible in SERP)
+- 50-60 characters (visible in SERP; Google cuts by ~580px pixel width — German
+  and other all-caps-noun languages render wide, so target 50-55 there)
 - Compelling and click-worthy
 - Brand name placement (end, usually)
 

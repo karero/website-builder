@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
-import { SITE } from '../src/config';
+import { SITE, ogLocaleFor } from '../src/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -73,6 +73,18 @@ for (const path of PAGES) {
     expect(description.length, `meta description ${description.length} chars < ${DESC_MIN} (wastes SERP space — the website-seo-geo floor)`).toBeGreaterThanOrEqual(DESC_MIN);
     expect(description.length, `meta description ${description.length} chars > ${DESC_MAX}`).toBeLessThanOrEqual(DESC_MAX);
 
+    // og:locale contract: when config.ogLocaleFor derives a value for the
+    // page's lang (mapped base, or any regioned tag), the tag must be present
+    // and correct — a German page silently shipping og:locale en_US (or none)
+    // is invisible drift otherwise. Languages with no derivation legitimately
+    // omit the tag (no assertion). Same function as Base.astro's emission, so
+    // the two cannot drift.
+    const htmlLang = (await page.locator('html').getAttribute('lang')) ?? '';
+    const expectedOgLocale = ogLocaleFor(htmlLang);
+    if (expectedOgLocale) {
+      expect(await meta(page, 'meta[property="og:locale"]'), `og:locale must match <html lang="${htmlLang}">`).toBe(expectedOgLocale);
+    }
+
     expect(await meta(page, 'meta[property="og:title"]'), 'og:title must equal <title>').toBe(title);
     expect(await meta(page, 'meta[name="twitter:title"]'), 'twitter:title must equal <title>').toBe(title);
     expect(await meta(page, 'meta[property="og:description"]'), 'og:description must equal meta description').toBe(description);
@@ -117,7 +129,11 @@ for (const path of PAGES) {
     expect(await meta(page, 'meta[property="og:url"]'), 'og:url must equal canonical').toBe(canonical);
     // canonical is always the PRODUCTION URL (Astro.site), even when previewing on
     // localhost — compare to SITE.url, not the runtime origin.
-    expect(canonical, 'canonical must be the absolute production URL for this path').toBe(`${SITE.url}${path}`);
+    // decodeURI both sides: a non-ASCII route (/über-uns) percent-encodes in the
+    // browser-read canonical but not in PAGES — comparing raw strings produces a
+    // look-identical failure. (ASCII slugs stay the house rule — site-architecture,
+    // website-seo-geo — this just makes the failure mode honest, not the rule.)
+    expect(decodeURI(canonical ?? ''), 'canonical must be the absolute production URL for this path').toBe(decodeURI(`${SITE.url}${path}`));
 
     await expect(page.locator('h1'), 'each page must have exactly one <h1>').toHaveCount(1);
 
@@ -159,7 +175,7 @@ test('sitemap matches PAGES (drift alarm)', async ({ request, baseURL }) => {
     expect(res.status(), `child sitemap ${child} should fetch (otherwise the comparison below lies)`).toBe(200);
     const xml = await res.text();
     for (const m of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
-      const p = new URL(m[1]).pathname;
+      const p = decodeURI(new URL(m[1]).pathname); // non-ASCII routes: compare decoded (see canonical note)
       built.push(p === '/' ? '/' : p.replace(/\/$/, ''));
     }
   }
@@ -194,7 +210,9 @@ test('twin-page hreflang alternates are self-consistent and reciprocal', async (
   }
   if (!seen.size) return; // no page on this site opts in
 
-  const urlToPath = new Map(PAGES.map((p) => [p === '/' ? `${SITE.url}/` : `${SITE.url}${p}`, p]));
+  // encodeURI: DOM hrefs come back percent-encoded for non-ASCII routes (see
+  // the canonical note above) — key the lookup the same way.
+  const urlToPath = new Map(PAGES.map((p) => [encodeURI(p === '/' ? `${SITE.url}/` : `${SITE.url}${p}`), p]));
   for (const [path, { alts, canonical }] of seen) {
     expect(
       alts.some((a) => a.href === canonical),

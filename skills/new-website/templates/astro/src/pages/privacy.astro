@@ -4,9 +4,22 @@
 //   2. Make section 3 match reality: pick the self-hosted OR cloud Plausible
 //      wording, or delete the analytics paragraphs entirely if the site ships
 //      without analytics (then also trim the meta description below).
-//   3. German-market sites: translate this page into German (Datenschutzerklaerung)
-//      and serve it at /datenschutz; German law expects legal pages in German.
-//   4. A solid baseline, not legal advice. When in doubt, have it reviewed.
+//   3. German-market sites: German law expects legal pages in German. German-ONLY
+//      site → swap this page for the vetted German draft that ships in this
+//      repo at src/pages/_datenschutz.astro (underscore = unrouted until you
+//      rename it; its header says how; it serves at /datenschutz and REPLACES
+//      this page — never ship both). Multilingual site via astro-i18n-setup →
+//      the German privacy page lives at the locale-prefixed route (/de/privacy)
+//      instead; use the German draft as its content.
+//   4. Consent law: the "no consent banner" reasoning in section 3 rests on the
+//      stack being cookieless AND touching no device storage — under the GDPR
+//      and, for Germany, § 25 TDDDG (formerly TTDSG; the served copy's § 25
+//      mention is a German-market lean — other EU markets have their own
+//      ePrivacy transpositions, drop or adapt the cite if it reads odd there). ANY third-party embed or
+//      non-cookieless analytics (YouTube iframe, remote Google Fonts, GA) flips
+//      that answer: re-check this page and add a consent solution BEFORE
+//      shipping such an addition.
+//   5. A solid baseline, not legal advice. When in doubt, have it reviewed.
 // The copy below already passes the a11y / seo / tone / email suites: keep one
 // <h1>, the description in the 120-160 char window, no em dashes or banned
 // contractions, and every email address behind <EmailLink>.
@@ -57,7 +70,7 @@ import { SITE } from '../config';
       Analytics</strong>, a privacy-friendly measurement tool
       [self-hosted on our own server / operated for us by Plausible Insights
       O&Uuml;, V&auml;striku tn 2, 50403 Tartu, Estonia (EU)]. It is cookieless
-      and collects no personal data. It does not track you across websites or
+      and stores no personal data. It does not track you across websites or
       over time, and no data is shared with third parties. Visitor IP addresses
       are processed only transiently to derive anonymous, aggregated counts and
       are never stored. The resulting metrics (such as page views, referrers and
@@ -66,8 +79,8 @@ import { SITE } from '../config';
     <p>
       The legal basis for this aggregated measurement is our legitimate interest
       in operating and improving the website (Art. 6(1)(f) GDPR). Because the
-      measurement is cookieless and stores no personal data, no consent banner is
-      required. You can prevent the measurement entirely by blocking the
+      measurement is cookieless, accesses no information on your device (§ 25
+      TDDDG), and stores no personal data, no consent banner is required. You can prevent the measurement entirely by blocking the
       analytics script in your browser.
     </p>
 

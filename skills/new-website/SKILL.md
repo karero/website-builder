@@ -125,8 +125,13 @@ non-expert can answer, and record the answers in the project `README.md`.
      recommend the **paid cloud version** (from **€9/mo** —
      https://plausible.io/#pricing) so the client runs no server.
    - Prefer cookieless tools over Google Analytics, which would pull in a
-     cookie-consent banner. Any analytics script is gated to the production
-     branch only. The privacy page must match whatever is chosen here.
+     cookie-consent banner — for German-market sites the statute behind that
+     banner is § 25 TDDDG (formerly TTDSG). Third-party additions kill the
+     banner-free claim by different routes: a YouTube iframe triggers § 25
+     itself (device storage/readout), while remote Google Fonts flip the
+     answer via the GDPR instead (unconsented IP disclosure — LG München I,
+     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only. The
+     privacy page must match whatever is chosen here.
 
 6. **Domain + how do changes go live? (publish model)**
    *Decides: the publish workflow — a safety-vs-simplicity trade-off. **Offer both, explain
@@ -223,7 +228,13 @@ Assemble the project at `<site>/` so it travels without any global setup:
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
    and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
-   `astro-i18n-setup`) — the overlay ships `locale: 'en'`, and leaving that default in
+   `astro-i18n-setup`). **`'de'` flips the footer's privacy link to `/datenschutz`** —
+   do the privacy→datenschutz swap in the SAME step (rename the in-repo
+   draft `src/pages/_datenschutz.astro` per its header: page file,
+   `tests/_helpers.ts` PAGES, `public/llms.txt`, `OWN_CARD_EXEMPT` +
+   `POSITIONING_EXEMPT` in the specs) or every intermediate `npm test` fails
+   navigation on the footer link.
+   The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch. **Astro 6 needs Node ≥22.12** — the overlay's `.nvmrc` pins
    22 for local + Cloudflare Pages builds.
@@ -377,8 +388,12 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       ~300 KB. Plus favicon/manifest icon set in place.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
-      `[BRACKET]` slot filled, the analytics section matching the real setup,
-      German-market sites translated to German. It also ships a German Impressum
+      `[BRACKET]` slot filled, the analytics section matching the real setup.
+      German-market sites: don't re-translate — swap in the vetted German draft
+      that ships in the site repo (`src/pages/_datenschutz.astro`, § 25
+      TDDDG-aware; underscore = unrouted until renamed; its header lists the
+      swap steps — German-only sites serve it at `/datenschutz` REPLACING
+      `/privacy`; multilingual sites use its text at `/de/privacy`). It also ships a German Impressum
       draft (`src/pages/impressum.astro`, § 5 DDG + § 18 Abs. 2 MStV — required
       for providers established in Germany, whatever the site's language, and
       for sites targeting the German market; linked from every page via the
