@@ -23,9 +23,8 @@ Usage:
       --keywords "AI Events Munich,AI Meetups Munich,AI Treffen München" \
       --domain example.com
 
-German terms (containing 'treffen'/'münchen'/'veranstaltung') are queried with
-hl=de automatically; everything else with hl=en. gl defaults to 'de' (Munich).
-Override with --hl / --gl.
+The SERP language (hl) defaults to the target country's language: gl=de/at/ch →
+hl=de, everything else hl=en. gl defaults to 'de'. Override with --hl / --gl.
 
 Dependencies: requests (see ../requirements.txt)
 """
@@ -40,16 +39,20 @@ except ImportError:
     print("Missing 'requests'. Run: pip install -r requirements.txt", file=sys.stderr)
     sys.exit(2)
 
-GERMAN_HINTS = ("treffen", "münchen", "muenchen", "veranstaltung", "termine")
-
-
 def eprint(*a):
     print(*a, file=sys.stderr)
 
 
-def auto_hl(keyword: str) -> str:
-    k = keyword.lower()
-    return "de" if any(h in k for h in GERMAN_HINTS) else "en"
+def auto_hl(gl: str) -> str:
+    """Default the SERP language to the target country's language.
+
+    Was a 5-word German hint list matched against the keyword — which classified
+    'Zahnarzt Köln' as English and queried a mixed-locale SERP whose features and
+    competitors differ from what a German searcher sees. If you target Germany
+    (gl=de) you almost always want German-language results; --hl overrides for
+    the exceptions (e.g. English-keyword checks against the German index).
+    """
+    return {"de": "de", "at": "de", "ch": "de"}.get(gl.lower(), "en")
 
 
 def serper(keyword, gl, hl, num, key):
@@ -114,7 +117,7 @@ def main():
     target = args.domain.lower().replace("www.", "")
 
     for kw in keywords:
-        hl = args.hl or auto_hl(kw)
+        hl = args.hl or auto_hl(args.gl)
         print(f"\n## {kw}   (gl={args.gl}, hl={hl})\n")
         try:
             results = fn(kw, args.gl, hl, args.num, key)

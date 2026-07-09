@@ -28,6 +28,8 @@ Dependencies: see ../requirements.txt
 """
 
 import argparse
+
+from _lang_normalize import fold
 import datetime as dt
 import os
 import sys
@@ -105,13 +107,20 @@ def build_service(creds):
     return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
-def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT):
+def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""):
     body = {
         "startDate": start,
         "endDate": end,
         "dimensions": dimensions,
         "rowLimit": row_limit,
     }
+    if country:
+        # ISO-3166-1 alpha-3, lowercase (GSC convention), e.g. 'deu' for Germany.
+        # Without this, a bilingual/German-market site reads BLENDED global
+        # averages — German positions get masked by (or fake) other markets'.
+        body["dimensionFilterGroups"] = [{
+            "filters": [{"dimension": "country", "expression": country.lower()}],
+        }]
     resp = service.searchanalytics().query(siteUrl=site, body=body).execute()
     return resp.get("rows", [])
 
@@ -134,18 +143,21 @@ def fmt_rows(rows, dim_label, limit=20):
 
 
 def match_keywords(query_rows, keywords):
-    """Substring (case-insensitive) match each target keyword against query rows.
+    """Substring match each target keyword against query rows (folded).
 
     A keyword like 'AI Events Munich' should also catch 'ai events in munich',
     so we match on all whitespace-split tokens being present in the query.
+    Tokens and rows are folded (casefold + German ä/ö/ü/ß) so 'AI Treffen
+    München' matches GSC rows spelled 'ai treffen muenchen' and vice versa —
+    they are distinct query strings in GSC but the same searcher intent.
     Returns list of (keyword, matched_rows_sorted_by_impressions).
     """
     results = []
     for kw in keywords:
-        tokens = [t for t in kw.lower().split() if t]
+        tokens = [t for t in fold(kw).split() if t]
         matched = [
             r for r in query_rows
-            if all(t in r["keys"][0].lower() for t in tokens)
+            if all(t in fold(r["keys"][0]) for t in tokens)
         ]
         matched.sort(key=lambda r: r["impressions"], reverse=True)
         results.append((kw, matched))
@@ -240,6 +252,9 @@ def main():
     ap.add_argument("--client-secret",
                     default=os.environ.get("GSC_CLIENT_SECRET", "client_secret.json"))
     ap.add_argument("--token", default=str(DEFAULT_TOKEN))
+    ap.add_argument("--country", default="",
+                    help="ISO-3166-1 alpha-3 country filter, e.g. 'deu' — see the "
+                         "German-market note in SKILL.md. Default: all countries blended.")
     ap.add_argument("--csv", default="",
                     help="Append target-keyword positions to this history CSV (trend tracking).")
     args = ap.parse_args()
@@ -266,8 +281,8 @@ def main():
     s_start, s_end = start.isoformat(), end.isoformat()
 
     try:
-        top_queries = query(service, args.site, s_start, s_end, ["query"])
-        top_pages = query(service, args.site, s_start, s_end, ["page"])
+        top_queries = query(service, args.site, s_start, s_end, ["query"], country=args.country)
+        top_pages = query(service, args.site, s_start, s_end, ["page"], country=args.country)
     except Exception as e:  # noqa: BLE001
         eprint(f"Search Analytics query failed: {e}")
         sys.exit(1)

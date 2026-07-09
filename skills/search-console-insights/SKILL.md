@@ -36,7 +36,7 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | Source | Script | Auth | What you get |
 |---|---|---|---|
 | **Combined (the default)** | `insights.py` | — | **Google + Bing side by side** per keyword + a nudge to connect any missing free source |
-| **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages |
+| **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages. German-market/bilingual sites: pass `--country deu` (ISO alpha-3; also on `insights.py`) — default numbers are blended across every country, which can mask or fake German positions. Keyword matching folds umlauts/ß ("München" matches rows typed "muenchen") |
 | **Live Google SERP** | `serp_check.py` | Serper key (free, optional) | The actual Top-10 for any keyword + where you sit — incl. keywords you don't rank for yet |
 | **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats — a Copilot/ChatGPT-visibility proxy; ~6-month aggregate |
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
@@ -81,7 +81,10 @@ So a returning user is never re-onboarded:
 
 ### Step 3 — The human-only steps ( 🧑 **you do this** )
 You cannot click inside Google's console. Hand these over **one at a time** and wait —
-do not paste all five at once. Reassure them it's one-time:
+do not paste all five at once. Reassure them it's one-time. **Console UI labels are
+localized** — if the owner's Google account language isn't English, translate the
+quoted labels for them (German: *APIs und Dienste → Bibliothek*, *Anmeldedaten →
+Anmeldedaten erstellen → OAuth-Client-ID*, *Computeranwendung*, *Testnutzer*):
 - 🧑 a. Open https://console.cloud.google.com → create or pick any project.
 - 🧑 b. **APIs & Services → Library** → search & **enable "Google Search Console API"**.
 - 🧑 c. **APIs & Services → Google Auth Platform → Audience** → add your Google email
@@ -220,7 +223,8 @@ set -a; . ~/.config/gsc-insights/.env; set +a    # loads the SERP key (keep it o
 ```
 
 Prints the live Top-10 per keyword, flags your own position (or absence), and logs how many
-searches were spent so you never blow a free cap. German terms auto-query with `hl=de`; `gl`
+searches were spent so you never blow a free cap. The SERP language follows the target
+country (`gl=de/at/ch` → `hl=de`, else `hl=en`; `--hl` overrides); `gl`
 defaults to `de` (Munich). No key set → it exits cleanly; GSC/Bing are unaffected.
 
 **How to use the output:**
