@@ -56,11 +56,12 @@ expectations — pick the one where your unique value wins.
 > that [unique value], unlike [competitive alternative], because [unique attribute
 > / proof].
 
-**Non-English builds: rewrite this frame in the target language's own grammar** —
-do not fill the English sentence brackets with translated words ("Für [Zielkunde]
-mit [Bedarf] ist [Marke] ein [Marktkategorie], das..." reads as English syntax
-wearing German words). Write the German sentence a German marketer would write,
-then extract the same fields from it.
+**Non-English builds: rewrite this frame as a natural sentence in the target
+language** — do not fill the English sentence brackets with translated words.
+Fixed articles and pronouns can't agree with an arbitrary filled noun ("ein
+[Marktkategorie], das..." breaks the moment the category is feminine: "eine
+..., die"). Write the sentence a native marketer would write, then extract the
+same fields from it.
 
 - **Core positioning term:** [the short, plain phrase threaded through the home
   `<title>`, `<meta description>` and `<h1>` — keep it the SAME across all three]

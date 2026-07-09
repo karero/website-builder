@@ -234,8 +234,10 @@ Words and phrases they actually use (sourced from research):
 
 Write each deliverable — including its section headers and labels — in the
 site's content language (a German build gets "Themen", "Zitate", "Personas",
-not English headers over German quotes). Depending on what the user needs,
-offer:
+not English headers over German quotes); these artifacts feed the site's copy,
+so they follow the CONTENT language even when the owner converses in another
+(the conversation itself follows the user's language, per new-website §1).
+Depending on what the user needs, offer:
 
 1. **Research synthesis report** — themes, quotes, patterns, and implications
 2. **VOC quote bank** — organized verbatim quotes by theme, for use in copy

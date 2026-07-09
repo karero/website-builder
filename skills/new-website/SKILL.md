@@ -278,7 +278,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    the frozen handoff set.
 
    **Conditional setup skills** — run the matching line ONLY when the interview
-   selected it (they don't ship with a single-locale, CMS-free site):
+   selected it (they don't ship with a declared one-language, CMS-free site;
+   a multilingual-PHASED site is single-locale at scaffold time and still
+   gets astro-i18n-setup):
    ```bash
    # If Q3 = "non-technical editor" (Keystatic):
    cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
