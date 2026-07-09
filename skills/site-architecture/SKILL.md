@@ -182,6 +182,14 @@ Breadcrumbs should mirror the URL hierarchy. Every breadcrumb segment should be 
 | Integration | `/integrations/{name}` | `/integrations/slack` |
 | Template | `/templates/{slug}` | `/templates/marketing-plan` |
 
+**Slugs are ASCII-only — transliterate, don't percent-encode.** German (and any
+non-ASCII) slugs use the digraph convention: ä→ae, ö→oe, ü→ue, ß→ss
+(`/ueber-uns`, `/groessen`, `/fussball`), never a literal `/über-uns` — a
+percent-encoded path invites canonical-mismatch and tooling bugs, reads badly
+in shared links, and mixes conventions the moment one page differs. Localized
+slugs themselves are good practice (see `seo-audit/references/international-seo.md`,
+"Localized Slugs") — just spell them in ASCII.
+
 ### Common Mistakes
 
 - **Dates in blog URLs** — `/blog/2024/01/15/post-title` adds no value and makes URLs long. Use `/blog/post-title`.
