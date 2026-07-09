@@ -67,6 +67,18 @@ commit 1; you replace it with your brand by editing the script and re-running `n
 `npm run og -- --check` exits non-zero if any card exceeds 300 KB — wire it into CI or the
 pre-push hook if you want generation (not just validation) gated.
 
+## Long or unbreakable words (German compounds)
+
+`fit_title()` shrinks the font until every wrapped line actually fits the card's text
+area, not just until the line count looks right. A single unbroken word still wider than
+the area at the smallest size (52pt) fails the run loudly (`OG card OVERFLOW: ...`)
+instead of drawing past the edge — long German compounds (`Suchmaschinenoptimierung`,
+`Datenschutz-Grundverordnung`) are the classic trigger, and this failure is
+unconditional (not gated behind `--check`, which only guards file size). If you hit it:
+shorten the title to a near-synonym, or insert a plain space at a natural compound
+boundary (`Suchmaschinen Optimierung`) — the generator deliberately does not hyphenate
+compounds automatically.
+
 ## Prerequisite
 
 Pillow, a local authoring dependency only (not shipped to the site or its runtime):

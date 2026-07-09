@@ -124,14 +124,32 @@ def wrap(draw, text, fnt, max_w):
 
 
 def fit_title(draw, text, max_w, max_lines=3, hi=84, lo=52):
-    """Largest bold size that wraps `text` into ≤ max_lines."""
+    """Largest bold size that wraps `text` into ≤ max_lines AND fits max_w.
+
+    Line count alone is not enough: wrap() splits on whitespace, so one long
+    unbreakable word (a German compound like "Suchmaschinenoptimierung") becomes
+    its own line that can be wider than max_w at EVERY size — a naive line-count
+    check accepts it and the headline draws past the card edge.
+    """
     for size in range(hi, lo - 1, -2):
         fnt = font(True, size)
         lines = wrap(draw, text, fnt, max_w)
-        if len(lines) <= max_lines:
+        if len(lines) <= max_lines and all(draw.textlength(ln, font=fnt) <= max_w for ln in lines):
             return fnt, lines, size
+    # Nothing fits, even at the smallest size. Fail loud instead of drawing
+    # off-card (deliberately unconditional, not gated behind --check: that flag
+    # guards file SIZE; clipped text should never ship silently). No automatic
+    # hyphenation on purpose — a wrong mid-compound break is worse than an error.
     fnt = font(True, lo)
-    return fnt, wrap(draw, text, fnt, max_w), lo
+    lines = wrap(draw, text, fnt, max_w)
+    overflow = [ln for ln in lines if draw.textlength(ln, font=fnt) > max_w]
+    if overflow:
+        sys.exit(
+            f"OG card OVERFLOW: {overflow!r} is wider than the {max_w}px text area "
+            f"even at the smallest size ({lo}pt). Shorten the title, or insert a "
+            f"space at a natural compound boundary (e.g. 'Suchmaschinen Optimierung')."
+        )
+    return fnt, lines, lo
 
 
 def _emblem(card):
