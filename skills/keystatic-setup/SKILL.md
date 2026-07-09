@@ -74,9 +74,11 @@ build stays fully static (no adapter, no auth, no server). Steps applied to the 
    ```
    **The `label:` strings ARE the CMS UI the owner sees daily** — write them in the
    owner's language, not English (a German owner gets `label: 'Beiträge'` / `'Titel'` /
-   `'Inhalt'`). For a multilingual site built with `astro-i18n-setup`, mirror the
-   per-locale content structure as separate collections (one per locale directory), or
-   the CMS can only edit half the site.
+   `'Inhalt'`). For a multilingual site built with `astro-i18n-setup`: per-locale
+   entry dirs → mirror them as separate collections (one per locale directory — a single
+   `path` glob can't span locale subdirectories, and a mis-scoped path leaves the other
+   locale uneditable); a `locale` frontmatter field → keep ONE collection and add that
+   field to the Keystatic schema.
    Mirror the site's real Content Collections (the same `path`/schema the Astro
    `src/content.config.ts` reads), so the CMS and the site agree on shape.
 4. **Allowlist** — `Bash(npx keystatic:*)` + `WebFetch(domain:keystatic.com)` already ship

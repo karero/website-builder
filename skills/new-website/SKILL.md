@@ -52,7 +52,7 @@ repo's permission allowlist (fewer prompts, same guardrails); and `search-consol
 ## 1. Decision interview (answer before any code)
 
 **Conduct the interview — and ALL user-facing guidance throughout this pipeline
-(explanations, the §3a permission question, the §4 preview-vs-live announcement,
+(explanations, the §3a link-sweep question, the §4 preview-vs-live announcement,
 error walk-throughs) — in the language the user writes in.** A German owner gets
 the whole journey in German; the skill files themselves stay English. The verbatim
 message templates below are content specs, not required English wording — deliver
