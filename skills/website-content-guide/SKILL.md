@@ -80,7 +80,9 @@ translation error.
   picks "Sie" — either is fine as long as it's consistent.
 - This *is* the German answer to "speak to the reader as 'you'" — the du/Sie
   choice above settles it; don't treat "you" as a separate, unresolved
-  question for German copy.
+  question for German copy. tone.spec.ts machine-checks the unambiguous
+  mixing cases (lowercase du-family vs. capitalized "Kontaktieren Sie ..."
+  imperatives on one page); subtler shifts still need a human read.
 - **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
   bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
   maßgeschneidert (Swiss spelling "massgeschneidert" is caught too — the
@@ -88,10 +90,11 @@ translation error.
   zukunftsweisend, transformativ, unschlagbar, entfesseln/entfesselt,
   Spitzenreiter (trim/extend per brand).
 - **AI-tell phrases to avoid:**
-  - "In der heutigen schnelllebigen/digitalen Welt,..."
+  - "In der heutigen ... Welt" (the enforced test tolerates up to two
+    modifiers and compound Welt-nouns like "Geschäftswelt")
   - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."
   - "Zusammenfassend lässt sich sagen,..."
-  - "Lassen Sie uns eintauchen/einen Blick werfen..."
+  - "Lassen Sie uns / Lass uns / Lasst uns eintauchen / einen Blick werfen"
 
 ## EEAT — build it in from the start
 

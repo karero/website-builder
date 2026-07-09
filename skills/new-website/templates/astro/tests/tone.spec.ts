@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PAGES } from './_helpers';
+import { PAGES, germanFunctionWordDensity } from './_helpers';
 
 // Tone-of-voice guardrail (see the website-content-guide skill + CONTENT_GUIDE.md).
 // Hard rules across all user-facing copy AND metadata. Genuinely quoted human/customer
@@ -41,14 +41,26 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
     // "massgeschneidert" alongside "maßgeschneidert": Swiss German writes ß as ss, and
     // the /i flag does not fold ß↔ss for us. entfesselt gets the same (?:e|er|es|en)?
     // adjective-ending coverage as every other entry (was previously (?:e)? only).
-    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en)?|nahtlos(?:e|er|es|en)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en)?|revolutionär(?:e|er|es|en)?|wegweisend(?:e|er|es|en)?|erstklassig(?:e|er|es|en)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en)?|hochmodern(?:e|er|es|en)?|zukunftsweisend(?:e|er|es|en)?|transformativ(?:e|er|es|en)?|unschlagbar(?:e|er|es|en)?|entfesseln|entfesselt(?:e|er|es|en)?|spitzenreiter)(?!\p{L})/gui,
+    // Endings cover all four cases incl. dative -em ("mit nahtlosem Übergang"
+    // previously slipped through) and superlatives (-ste/-ster/-stes/-sten/-stem,
+    // "die nahtloseste Erfahrung").
+    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?)?|nahtlos(?:e|er|es|en|em|este[mnrs]?)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?)?|transformativ(?:e|er|es|en|em|ste[mnrs]?)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?)?|entfesseln|entfesselt(?:e|er|es|en|em)?|spitzenreiter)(?!\p{L})/gui,
   },
   // Multi-word AI-tell phrases — own rule/label (not merged into the buzzword
   // list above). \s+ tolerates whitespace variation between words; same
   // \p{L}-lookaround rationale as the buzzword rule applies at the phrase edges.
   {
     label: 'AI-tell phrase',
-    re: /(?<!\p{L})(in\s+der\s+heutigen\s+(?:schnelllebigen|digitalen)\s+welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lassen\s+sie\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
+    // "in der heutigen ... Welt" tolerates up to two modifiers (the canonical
+    // double "schnelllebigen digitalen Welt" and the bare form) plus compound
+    // Welt-nouns via \p{L}*welt ("Geschäftswelt", incl. modifiers+compound).
+    // The intervening-word slots REJECT determiners/possessives so a real
+    // clause boundary can't be swallowed ("in der heutigen Zeit, die Welt
+    // dreht sich" and "in der heutigen Ausgabe unserer Welt-Reihe" stay
+    // clean). Known accepted edge: "in der heutigen Umwelt" matches (rare,
+    // and usually filler prose anyway). The eintauchen family covers
+    // Sie/du/wir registers (lassen Sie uns / lass uns / lasst uns).
+    re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+(?!(?:der|die|das|den|dem|des|unser\p{L}*|euer|eure\p{L}*|ihr\p{L}*)\b)\p{L}+){0,2}?[\s-]*\p{L}*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
   },
 ];
 // Exact matches to tolerate (lowercase) — e.g. a brand name like "rock 'n' roll".
@@ -102,5 +114,62 @@ for (const path of PAGES) {
         `long form · drop the buzzword. Genuine quoted voice → [data-tov-exempt]/<blockquote>/<q>.\n` +
         violations.map((v) => '  • ' + v).join('\n'),
     ).toEqual([]);
+
+    if (primaryLang === 'de') {
+      // Wrong-language body (German pages, ANY site shape): a page declaring
+      // lang="de" whose body is still English ships silently otherwise — the
+      // multi-locale i18n.spec.ts catches this only on sites running
+      // astro-i18n-setup, and single-locale German sites are the COMMON case.
+      // Same helper and threshold as i18n.spec.ts (word list + math live in
+      // _helpers.germanFunctionWordDensity); this extraction additionally
+      // strips quoted-voice exemptions, see below. Threshold calibration:
+      // real German PROSE runs ~15-20%; directory/legal-genre German
+      // (addresses, register numbers — the shipped Impressum) runs ~4%, so 3%
+      // keeps a real margin only over NON-German text (~0%) — that is the
+      // failure this catches; don't raise the threshold. Pages under 30 body
+      // words skip entirely: density is noise on tiny stubs.
+      const bodyText = await page.evaluate(() => {
+        const body = document.body.cloneNode(true) as HTMLElement;
+        // Same exemptions as the rules loop above: quoted human voice
+        // (blockquote/q/[data-tov-exempt]) must not trip the register or
+        // density checks — a du-voiced customer testimonial on a Sie-register
+        // site is the NORMAL case, not a violation.
+        body.querySelectorAll('nav, header, footer, script, style, noscript, blockquote, q, [data-tov-exempt]').forEach((el) => el.remove());
+        return body.innerText;
+      });
+      const bodyWords = bodyText.trim().split(/\s+/).filter(Boolean).length;
+      if (bodyWords >= 30) {
+        const density = germanFunctionWordDensity(bodyText);
+        expect(
+          density,
+          `${path} (lang="de"): body reads as non-German (${(density * 100).toFixed(1)}% German ` +
+            `function words in ${bodyWords} words, expected >=3%) — content left in the original ` +
+            `language under a German lang attribute?`,
+        ).toBeGreaterThanOrEqual(0.03);
+      }
+
+      // du/Sie register consistency: mixing informal and formal address on one
+      // page reads as a translation error (CONTENT_GUIDE, website-content-guide).
+      // PRECISION over recall — only UNAMBIGUOUS markers count, both sides
+      // case-sensitive (no i flag):
+      //  - informal: lowercase du-family words. Lowercase "du/dich/dein" can
+      //    only be informal address in German (capitalized sentence-initial
+      //    "Du" is skipped — ambiguous with the formal-letter Du-style).
+      //  - formal: capitalized imperative verb+Sie phrases ("Kontaktieren
+      //    Sie..."). Bare "Sie/Ihnen/Ihre" is deliberately NOT counted:
+      //    sentence-initial it collides with sie=she/they and Ihre=her/their,
+      //    and innerText loses too much sentence structure to disambiguate.
+      // A miss ships (recall loss, acceptable); a false alarm on clean copy
+      // should not — if this still over-fires, the fallback is documenting the
+      // rule as manual review, not loosening the match.
+      const informal = bodyText.match(/\b(du|dich|dir|dein|deine|deinen|deinem|deiner)\b/g) ?? [];
+      const formal = bodyText.match(/\b(?:Kontaktieren|Erreichen|Melden|Rufen|Schreiben|Erfahren|Buchen|Vereinbaren|Testen|Starten|Entdecken|Fragen)\s+Sie\b/g) ?? [];
+      expect(
+        informal.length === 0 || formal.length === 0,
+        `${path} (lang="de"): page mixes du-register (${[...new Set(informal)].join(', ')}) and ` +
+          `Sie-register (${[...new Set(formal)].join(', ')}) address — pick ONE (CONTENT_GUIDE "du/Sie"). ` +
+          `Genuinely quoted voice (a du-voiced testimonial on a Sie site) → <blockquote>/<q>/[data-tov-exempt].`,
+      ).toBe(true);
+    }
   });
 }

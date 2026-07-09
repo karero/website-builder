@@ -283,7 +283,26 @@ language-agnostic shortcut. These are the phrases enforced (with identical
 wording) by the `new-website` skill's scaffolded
 `templates/astro/tests/tone.spec.ts`'s `GERMAN_RULES`:
 
-- "In der heutigen schnelllebigen/digitalen Welt,..."
+- "In der heutigen ... Welt" (up to two modifiers, incl. the canonical
+  "schnelllebigen digitalen" double, and compound Welt-nouns like
+  "Geschäftswelt")
 - "Es ist wichtig zu betonen/beachten/erwähnen, dass..."
 - "Zusammenfassend lässt sich sagen,..."
-- "Lassen Sie uns eintauchen/einen Blick werfen..."
+- "Lassen Sie uns / Lass uns / Lasst uns eintauchen / einen Blick werfen"
+
+## Natural German connectors (positive alternatives)
+
+The 16 sections above are English-only; these are their highest-value German
+counterparts — the connectors real German marketing prose actually uses:
+
+- **Addition:** Außerdem · Dazu kommt · Obendrein · Und noch etwas
+- **Contrast:** Allerdings · Andererseits · Trotzdem · Dafür
+- **Cause → effect:** Deshalb · Darum · Das heißt konkret · Die Folge:
+- **Examples:** Zum Beispiel · Ein Beispiel · Konkret heißt das · Etwa
+- **Emphasis:** Vor allem · Entscheidend ist · Der Punkt ist
+- **Sequence:** Zuerst · Danach · Am Ende · Sobald das steht
+- **Summary:** Kurz gesagt · Unterm Strich · Am Ende zählt
+
+Overused German connectors with the same "moreover/furthermore" stiffness —
+not banned, but reads like a translated essay if they carry every paragraph:
+Darüber hinaus, Des Weiteren, Nichtsdestotrotz, Im Folgenden.
