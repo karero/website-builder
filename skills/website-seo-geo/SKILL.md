@@ -77,8 +77,9 @@ write within that budget, not the budget itself.
   and `seo.spec.ts` pins `canonical == SITE.url + path`, so the whole site stays consistent.
 - Exactly one `<h1>` per page (its text MAY differ from the keyword-tuned title).
 - **ASCII slugs only:** transliterate German umlauts/ß to digraphs (`/ueber-uns`,
-  not `/über-uns`) — non-ASCII paths percent-encode inconsistently across
-  canonical/sitemap/links (site-architecture has the full rule).
+  not `/über-uns`) — machine-serialized URLs (canonical, sitemap) percent-encode
+  non-ASCII while hand-written strings (PAGES, llms.txt, authored links) stay
+  raw, a mismatch factory (site-architecture has the full rule).
 
 ## Schema (JSON-LD) — minimum per page
 

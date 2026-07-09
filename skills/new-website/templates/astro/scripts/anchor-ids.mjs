@@ -30,16 +30,22 @@ const ID_WORDS = 2; // how many meaningful words a generated id uses by default
 
 // Filler words dropped before picking the id words, so "The outcomes we deliver"
 // -> "outcomes-deliver" rather than "the-outcomes". Articles, conjunctions,
-// prepositions, pronouns, auxiliaries and question words. English + German in
-// ONE set: id generation is heading-level, a site can mix languages, and none
-// of the German words below collide with a meaningful English heading word.
-const STOP = new Set(
+// prepositions, pronouns, auxiliaries and question words. The German set is
+// applied ONLY on German-lang pages: several German fillers ARE meaningful
+// English heading words ("Die Casting Services", "MIT License", "The War on
+// Talent", "Living with ALS") — a combined set silently erases those topics
+// from English ids (and renames published anchors on adoption).
+const STOP_EN = new Set(
   ('a an the and or but of to in into on for with at by from as is are be been ' +
     'this that these those it its our your their we you they i how what why when ' +
-    'where which who will can do does has have ' +
-    'der die das den dem des ein eine einen einem einer und oder aber zu im in ' +
+    'where which who will can do does has have')
+    .split(' ')
+);
+const STOP_DE = new Set(
+  ('der die das den dem des ein eine einen einem einer und oder aber zu im in ' +
     'auf mit bei von aus als ist sind war waren wir ihr sie es fuer wie was ' +
-    'warum wann wo wer wird werden kann koennen so')
+    'warum wann wo wer wird werden kann koennen so ' +
+    'zum zur vom am beim ins ans')
     .split(' ')
 );
 
@@ -48,7 +54,7 @@ const STOP = new Set(
 // PRESERVED, so a hyphenated name or domain like "acme-corp" stays ONE word (up to
 // two hyphens kept, domain-style). Filler words are dropped. The id uses the
 // first ID_WORDS; more are appended only to break a collision.
-function idWords(text) {
+function idWords(text, stop) {
   const words = text
     .toLowerCase()
     // NFC first: a decomposed umlaut (u + combining mark, e.g. pasted content)
@@ -60,6 +66,8 @@ function idWords(text) {
     // SPLIT the word ("Maßnahmen" -> "ma" + "nahmen"); umlauts get their
     // German digraphs (ä->ae) instead of bare accent-stripping (ä->a), so
     // "Größen" becomes "groessen", matching the ASCII-slug house rule.
+    // (German-specific by design — other non-decomposing letters (ø æ œ ł)
+    // still word-split; extend the replace chain if your site needs them.)
     .replace(/ß/g, 'ss')
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
     .normalize('NFKD')
@@ -76,7 +84,7 @@ function idWords(text) {
     })
     .map((w) => w.split('-').filter(Boolean).slice(0, 3).join('-')) // <= 2 hyphens / name
     .filter(Boolean);
-  const meaningful = words.filter((w) => !STOP.has(w));
+  const meaningful = words.filter((w) => !stop.has(w));
   return meaningful.length ? meaningful : words.length ? words : ['section'];
 }
 
@@ -119,11 +127,15 @@ for (const file of htmlFiles(DIST)) {
     root.querySelectorAll('[id]').map((el) => el.getAttribute('id')).filter(Boolean)
   );
 
+  // Locale-conditional stop set, from the page's own <html lang>.
+  const pageLang = (root.querySelector('html')?.getAttribute('lang') ?? 'en').toLowerCase().split('-')[0];
+  const stop = pageLang === 'de' ? STOP_DE : STOP_EN;
+
   // Parser order matches regex order, so decisions[] aligns 1:1 with the tags below.
   const decisions = headings.map((h) => {
     if (h.getAttribute('id')) return null;          // explicit id wins
     if (coveredByCuratedSection(h)) return null;    // section/article anchor covers it
-    const words = idWords(h.text || '');
+    const words = idWords(h.text || '', stop);
     const base = words.slice(0, ID_WORDS).join('-') || 'section';
     // ID_WORDS words by default; append the next word(s) to disambiguate a clash
     // before resorting to a numeric suffix (so two clashing headings become

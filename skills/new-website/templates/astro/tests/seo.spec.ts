@@ -198,7 +198,9 @@ test('twin-page hreflang alternates are self-consistent and reciprocal', async (
   }
   if (!seen.size) return; // no page on this site opts in
 
-  const urlToPath = new Map(PAGES.map((p) => [p === '/' ? `${SITE.url}/` : `${SITE.url}${p}`, p]));
+  // encodeURI: DOM hrefs come back percent-encoded for non-ASCII routes (see
+  // the canonical note above) — key the lookup the same way.
+  const urlToPath = new Map(PAGES.map((p) => [encodeURI(p === '/' ? `${SITE.url}/` : `${SITE.url}${p}`), p]));
   for (const [path, { alts, canonical }] of seen) {
     expect(
       alts.some((a) => a.href === canonical),
