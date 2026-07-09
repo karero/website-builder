@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PAGES } from './_helpers';
+import { PAGES, germanFunctionWordDensity } from './_helpers';
 
 // Tone-of-voice guardrail (see the website-content-guide skill + CONTENT_GUIDE.md).
 // Hard rules across all user-facing copy AND metadata. Genuinely quoted human/customer
@@ -41,14 +41,21 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
     // "massgeschneidert" alongside "maßgeschneidert": Swiss German writes ß as ss, and
     // the /i flag does not fold ß↔ss for us. entfesselt gets the same (?:e|er|es|en)?
     // adjective-ending coverage as every other entry (was previously (?:e)? only).
-    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en)?|nahtlos(?:e|er|es|en)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en)?|revolutionär(?:e|er|es|en)?|wegweisend(?:e|er|es|en)?|erstklassig(?:e|er|es|en)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en)?|hochmodern(?:e|er|es|en)?|zukunftsweisend(?:e|er|es|en)?|transformativ(?:e|er|es|en)?|unschlagbar(?:e|er|es|en)?|entfesseln|entfesselt(?:e|er|es|en)?|spitzenreiter)(?!\p{L})/gui,
+    // Endings cover all four cases incl. dative -em ("mit nahtlosem Übergang"
+    // previously slipped through) and superlatives (-ste/-ster/-stes/-sten/-stem,
+    // "die nahtloseste Erfahrung").
+    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?|ste)?|nahtlos(?:e|er|es|en|em|este[mnrs]?|este)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?|ste)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?|ste)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?|ste)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?|ste)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?|ste)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?|ste)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?|ste)?|transformativ(?:e|er|es|en|em|ste[mnrs]?|ste)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?|ste)?|entfesseln|entfesselt(?:e|er|es|en|em)?|spitzenreiter)(?!\p{L})/gui,
   },
   // Multi-word AI-tell phrases — own rule/label (not merged into the buzzword
   // list above). \s+ tolerates whitespace variation between words; same
   // \p{L}-lookaround rationale as the buzzword rule applies at the phrase edges.
   {
     label: 'AI-tell phrase',
-    re: /(?<!\p{L})(in\s+der\s+heutigen\s+(?:schnelllebigen|digitalen)\s+welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lassen\s+sie\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
+    // "in der heutigen ... Welt" tolerates 1-2 adjectives (the canonical
+    // double-adjective slop opener "schnelllebigen digitalen Welt" previously
+    // missed) and compound Welt-nouns (Geschäftswelt); the eintauchen family
+    // covers Sie/du/wir registers (lassen Sie uns / lass uns / lasst uns).
+    re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+\p{L}+){0,2}?[\s-]*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
   },
 ];
 // Exact matches to tolerate (lowercase) — e.g. a brand name like "rock 'n' roll".
@@ -102,5 +109,54 @@ for (const path of PAGES) {
         `long form · drop the buzzword. Genuine quoted voice → [data-tov-exempt]/<blockquote>/<q>.\n` +
         violations.map((v) => '  • ' + v).join('\n'),
     ).toEqual([]);
+
+    if (primaryLang === 'de') {
+      // Wrong-language body (German pages, ANY site shape): a page declaring
+      // lang="de" whose body is still English ships silently otherwise — the
+      // multi-locale i18n.spec.ts catches this only on sites running
+      // astro-i18n-setup, and single-locale German sites are the COMMON case.
+      // Same helper, thresholds and chrome-stripping as i18n.spec.ts (see
+      // _helpers.germanFunctionWordDensity). Pages under 30 body words are
+      // skipped: density is noise on stubs (a bracket-slot legal page), and the
+      // failure mode this exists for — real content left untranslated — implies
+      // a real body.
+      const bodyText = await page.evaluate(() => {
+        const body = document.body.cloneNode(true) as HTMLElement;
+        body.querySelectorAll('nav, header, footer, script, style, noscript').forEach((el) => el.remove());
+        return body.innerText;
+      });
+      const bodyWords = bodyText.trim().split(/\s+/).filter(Boolean).length;
+      if (bodyWords >= 30) {
+        const density = germanFunctionWordDensity(bodyText);
+        expect(
+          density,
+          `${path} (lang="de"): body reads as non-German (${(density * 100).toFixed(1)}% German ` +
+            `function words in ${bodyWords} words, expected >=3%) — content left in the original ` +
+            `language under a German lang attribute?`,
+        ).toBeGreaterThanOrEqual(0.03);
+      }
+
+      // du/Sie register consistency: mixing informal and formal address on one
+      // page reads as a translation error (CONTENT_GUIDE, website-content-guide).
+      // PRECISION over recall — only UNAMBIGUOUS markers count, both sides
+      // case-sensitive (no i flag):
+      //  - informal: lowercase du-family words. Lowercase "du/dich/dein" can
+      //    only be informal address in German (capitalized sentence-initial
+      //    "Du" is skipped — ambiguous with the formal-letter Du-style).
+      //  - formal: capitalized imperative verb+Sie phrases ("Kontaktieren
+      //    Sie..."). Bare "Sie/Ihnen/Ihre" is deliberately NOT counted:
+      //    sentence-initial it collides with sie=she/they and Ihre=her/their,
+      //    and innerText loses too much sentence structure to disambiguate.
+      // A miss ships (recall loss, acceptable); a false alarm on clean copy
+      // should not — if this still over-fires, the fallback is documenting the
+      // rule as manual review, not loosening the match.
+      const informal = bodyText.match(/\b(du|dich|dir|dein|deine|deinen|deinem|deiner)\b/g) ?? [];
+      const formal = bodyText.match(/\b(?:Kontaktieren|Erreichen|Melden|Rufen|Schreiben|Erfahren|Buchen|Vereinbaren|Testen|Starten|Entdecken|Fragen)\s+Sie\b/g) ?? [];
+      expect(
+        informal.length === 0 || formal.length === 0,
+        `${path} (lang="de"): page mixes du-register (${[...new Set(informal)].join(', ')}) and ` +
+          `Sie-register (${[...new Set(formal)].join(', ')}) address — pick ONE (CONTENT_GUIDE "du/Sie").`,
+      ).toBe(true);
+    }
   });
 }

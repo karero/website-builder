@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { PAGES } from './_helpers';
+import { PAGES, germanFunctionWordDensity } from './_helpers';
 import { SITE, LOCALES, DEFAULT_LOCALE, pathLocale, neutralPath, routeLocales } from '../src/config';
 
 // hreflang contract for a multi-locale site (the gap seo.spec.ts does NOT cover).
@@ -194,7 +194,9 @@ test.describe('i18n — hreflang contract', () => {
     // untranslated -- verified empirically: a realistic German footer (~40 words of real prose)
     // plus a fully-English ~30-word body scores ~19% density on document.body (a false pass),
     // vs. 0% once nav/header/footer are excluded first.
-    const GERMAN_FUNCTION_WORDS = /\b(der|die|das|und|ist|nicht|mit|für|von|auf|dass|sich|eine?|den|dem|des|sind|wird|werden|können|kann|auch|oder)\b/gi;
+    // Word list + density math live in _helpers.germanFunctionWordDensity —
+    // ONE implementation shared with tone.spec.ts (which covers single-locale
+    // German sites), so the two enforcement points can't drift.
     const MIN_DENSITY = 0.03; // real German prose: ~15-20%; wrong-language body: ~0% -- huge margin
 
     for (const path of PAGES) {
@@ -207,8 +209,8 @@ test.describe('i18n — hreflang contract', () => {
         return body.innerText;
       });
       const words = text.trim().split(/\s+/).filter(Boolean).length;
-      const hits = (text.match(GERMAN_FUNCTION_WORDS) || []).length;
-      const density = words === 0 ? 0 : hits / words;
+      const density = germanFunctionWordDensity(text);
+      const hits = Math.round(density * words);
 
       expect(
         density,

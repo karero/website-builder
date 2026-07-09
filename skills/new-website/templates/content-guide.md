@@ -44,6 +44,9 @@ lever is register, not contraction.
 - **Register:** [du / Sie] — pick one per brand and hold it for the whole
   site; mixing du/Sie mid-page reads as a translation error, not a style
   choice. This settles "speak to the reader as you" for German copy.
+  tone.spec.ts machine-checks the unambiguous cases (lowercase du-family
+  words vs. capitalized "Kontaktieren Sie ..."-style imperatives on one
+  page); subtler mixing still needs a human read.
 - **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
   bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
   maßgeschneidert (Swiss "massgeschneidert" also caught — the enforced test
