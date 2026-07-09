@@ -94,7 +94,11 @@ write within that budget, not the budget itself.
 ## GEO (generative engine optimization)
 
 - Ship `/llms.txt` (template in the starters): a curated, accurate index of key
-  pages + facts for AI answer engines. Keep it in sync with the site — route
+  pages + facts for AI answer engines. **Write it in the site's primary content
+  language** (German site → German descriptions; multilingual site → each
+  entry's description in that page's language) — same precedent as the
+  privacy page: an answer engine quoting your English blurb to a German
+  searcher is the wrong-language failure again. Keep it in sync with the site — route
   *coverage* is enforced both ways in the new-website starter suite:
   `tests/llms-coverage.spec.ts` fails if any `PAGES` route is missing from it,
   or if a same-site entry goes stale (page removed/renamed). Add the page's

@@ -232,6 +232,15 @@ AI systems don't just cite your website — they cite where you appear.
 - Create YouTube content for key how-to queries
 - Answer relevant Quora questions with depth
 
+**DACH / German-market equivalents** (the sources above are US/English; German
+answers cite German sources — customer-research's DACH watering-hole list has
+the fuller research view):
+- de.wikipedia.org (its own article ecosystem, not a translation of en.wiki)
+- gutefrage.net (the Quora analogue), German subreddits (r/de, r/Finanzen, trade-specific)
+- OMR Reviews, trusted.de (G2/Capterra analogues); Trusted Shops for commerce,
+  Kununu for employer topics
+- heise.de / golem.de for tech; industry trade press (Fachpresse) for everything else
+
 ### Machine-Readable Files for AI Agents
 
 AI agents aren't just answering questions — they're becoming buyers. When an AI agent evaluates tools on behalf of a user, it needs structured, parseable information. If your pricing is locked in a JavaScript-rendered page or a "contact sales" wall, agents will skip you and recommend competitors whose information they can actually read.
