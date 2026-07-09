@@ -56,6 +56,12 @@ body {
   color: var(--ink);
   background: var(--bg);
   line-height: 1.65;
+  /* Long compounds (German: "Datenschutzerklärung") must never force a
+     horizontal scroll in a narrow column. hyphens honors the page's lang
+     attribute (Base.astro sets it), so German gets German hyphenation. */
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto; /* Safari < 17 */
+  hyphens: auto;
 }
 img, picture, svg, video { max-width: 100%; height: auto; }  /* responsive media */
 a { color: var(--link); }

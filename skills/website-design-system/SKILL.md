@@ -59,6 +59,11 @@ enforces them. For generating image assets, use the `image` skill.
   moment real translated copy replaces it.
 - **Prefer flexible widths.** Use `min-width` / flex / grid `auto`/`fr` sizing for any
   element holding translated text, not a fixed `width` sized to the English string.
+- **Overflow ≠ width:** flexible sizing doesn't stop a SINGLE long compound noun
+  (`Datenschutzerklärung`) from bursting a narrow column — that needs
+  `hyphens: auto` (correct per-language via the `lang` attribute Base.astro already
+  sets) plus `overflow-wrap: break-word` as the fallback; the starter's `global.css`
+  ships both on `body`.
 - **Don't rely on `white-space: nowrap` + `text-overflow: ellipsis` alone** as the
   handling for nav links or button labels — truncating a nav link is usually not
   acceptable UX (the visitor can no longer tell where it goes). Fine for content

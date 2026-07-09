@@ -284,6 +284,9 @@ const xDefault = new URL(
     …
   </head>
 ```
+The starter's CHROME chrome-strings lookup keys on `SITE.locale`, which §2
+removed — rekey it on `Astro.currentLocale ?? DEFAULT_LOCALE` (per-page chrome
+language IS correct on a locale-routed site, unlike the single-locale starter).
 The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `{alternates.map(…)}` render line** (this snippet's cluster replaces it) — the
 `alternates` prop and `altHref` helper then sit unused; remove them too or leave
