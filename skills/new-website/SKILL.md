@@ -362,7 +362,16 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup,
-      German-market sites translated to German. The imprint stays site-specific.
+      German-market sites translated to German. It also ships a German Impressum
+      draft (`src/pages/impressum.astro`, § 5 DDG + § 18 Abs. 2 MStV — required
+      on effectively every commercial German-market site, linked from every page
+      via the Base.astro footer): fill every `[BRACKET]` slot (legal name + form,
+      ladungsfähige Anschrift, phone as the second contact channel, Handelsregister
+      + USt-IdNr. where applicable, chamber/supervisory authority for regulated
+      professions, § 18 MStV contact for editorial content) and delete the
+      sections that don't apply. Sites NOT targeting DE/AT/CH: delete
+      `impressum.astro`, its footer link in `Base.astro`, and its
+      `tests/_helpers.ts` PAGES entry instead.
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set

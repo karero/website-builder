@@ -4,6 +4,7 @@
 export const PAGES = [
   '/',
   '/privacy',
+  '/impressum',  // German-market legal page; non-DE/AT/CH sites delete it (see new-website checklist)
   // '/about',
   // '/contact',
 ] as const;

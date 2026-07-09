@@ -1,0 +1,92 @@
+---
+// Impressum (provider identification) — REQUIRED for German-market sites under
+// § 5 DDG (Digitale-Dienste-Gesetz, formerly § 5 TMG) and § 18 Abs. 2 MStV.
+// German case law expects it "leicht erkennbar, unmittelbar erreichbar und
+// staendig verfuegbar": linked from EVERY page (the Base.astro footer does this).
+// Before launch:
+//   1. Fill every [BRACKET] slot. Each section's comment says who needs it —
+//      delete sections that do not apply, never ship an empty bracket.
+//   2. Site NOT aimed at Germany/Austria/Switzerland? Delete this page, its
+//      footer link in src/layouts/Base.astro, and its tests/_helpers.ts entry.
+//   3. A solid baseline, not legal advice. When in doubt, have it reviewed.
+// NOTE: no link to the EU ODR platform (ec.europa.eu/consumers/odr) — the
+// platform was discontinued in July 2025; copying the link from older
+// Impressum templates now points users at a dead service.
+// The copy below already passes the a11y / seo / tone / email suites: keep one
+// <h1>, the description in the 120-160 char window, no em dashes, and every
+// email address behind <EmailLink>.
+import Base from '../layouts/Base.astro';
+import EmailLink from '../components/EmailLink.astro';
+import { SITE } from '../config';
+---
+<Base
+  title="Impressum"
+  description={`Impressum von ${SITE.name}: Anbieterkennzeichnung nach § 5 DDG mit Anschrift, Kontaktwegen, Vertretungsberechtigten sowie Register- und Steuerangaben.`}>
+  <section class="wrap">
+    <h1>Impressum</h1>
+
+    <h2>Angaben gemäß § 5 DDG</h2>
+    <p>
+      [LEGAL NAME INCL. FORM, e.g. Beispiel GmbH]<br />
+      [STREET AND NUMBER, ladungsfähige Anschrift, no PO box]<br />
+      [POSTCODE, CITY]<br />
+      [COUNTRY]
+    </p>
+    <!-- Required for legal entities (GmbH, UG, AG, e.V., ...); sole proprietors
+         name the owner here instead. -->
+    <p>
+      Vertreten durch: [MANAGING DIRECTOR(S) / AUTHORIZED REPRESENTATIVE(S)]
+    </p>
+
+    <h2>Kontakt</h2>
+    <!-- § 5 DDG requires an email address PLUS a second channel for fast,
+         direct contact — a phone number is the safe choice. -->
+    <p>
+      Telefon: [PHONE NUMBER]<br />
+      E-Mail: <EmailLink address="hello@example.com" subject="Kontakt" />
+    </p>
+
+    <!-- Only for businesses with a register entry (GmbH, UG, AG, eingetragener
+         Kaufmann, Vereine). No entry? Delete this section. -->
+    <h2>Registereintrag</h2>
+    <p>
+      Eintragung im [Handelsregister / Vereinsregister]:<br />
+      Registergericht: [AMTSGERICHT]<br />
+      Registernummer: [HRB / VR NUMBER]
+    </p>
+
+    <!-- Only if a USt-IdNr. exists (§ 27a UStG). No VAT ID? Delete this section. -->
+    <h2>Umsatzsteuer-ID</h2>
+    <p>
+      Umsatzsteuer-Identifikationsnummer gemäß § 27a Umsatzsteuergesetz:
+      [USt-IdNr., e.g. DE123456789]
+    </p>
+
+    <!-- Only for regulated professions (lawyers, tax advisors, doctors,
+         architects, insurance brokers, ...): name the competent chamber or
+         supervisory authority, the legal professional title and the state that
+         awarded it. Not regulated? Delete this section. -->
+    <h2>Aufsichtsbehörde / Berufsrecht</h2>
+    <p>
+      [COMPETENT CHAMBER OR SUPERVISORY AUTHORITY, ADDRESS, URL]<br />
+      Berufsbezeichnung: [PROFESSIONAL TITLE, AWARDING STATE]
+    </p>
+
+    <!-- Only for sites with editorial/journalistic content (blog with opinion
+         pieces, news). Pure product/company pages can delete this section. -->
+    <h2>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV</h2>
+    <p>
+      [NAME]<br />
+      [ADDRESS, a natural person with residence in Germany]
+    </p>
+
+    <h2>Verbraucherstreitbeilegung</h2>
+    <!-- § 36 VSBG declaration — mandatory for businesses with more than 10
+         employees, customary for everyone. Willing to participate instead?
+         Name the competent Verbraucherschlichtungsstelle here. -->
+    <p>
+      Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren
+      vor einer Verbraucherschlichtungsstelle teilzunehmen.
+    </p>
+  </section>
+</Base>
