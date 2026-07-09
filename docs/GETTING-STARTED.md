@@ -9,6 +9,10 @@ If you get stuck at any point, you can always type **"what does this do?"** or *
 confused, can you explain that more simply?"** to your assistant. That's allowed, and it
 works.
 
+🇩🇪 You can also do this entire journey in German (or any language): write to your
+assistant in your language and it answers in it — the copy-paste prompt below works the
+same, or add "Bitte auf Deutsch." after it.
+
 ---
 
 ## What you need first

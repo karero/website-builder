@@ -18,6 +18,8 @@ let your AI assistant guide you step by step.**
 
 > 🇩🇪 **Auch auf Deutsch:** Deine KI spricht Deutsch mit dir — du kannst mit dem Baukasten
 > deutsche Webseiten bauen und dabei super Ergebnisse in Sachen SEO-, GEO- und E-E-A-T erzielen.
+> Schreib deinem Assistenten einfach auf Deutsch, er antwortet auf Deutsch — der
+> Copy-paste-Prompt unten funktioniert genauso, oder häng „Bitte auf Deutsch." an.
 
 ## What it helps you build
 
