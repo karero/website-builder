@@ -15,8 +15,13 @@ export function encodeEmail(address: string): string {
   return Buffer.from(reversed, 'utf-8').toString('base64');
 }
 
-// Human-readable no-JS fallback: "name [at] domain [dot] com".
-export function emailHint(address: string): string {
+// Human-readable no-JS fallback: "name [at] domain [dot] com" — localized
+// ("[punkt]" for German) so the fallback reads naturally in the site's
+// language. CHANGES IN LOCKSTEP with EmailLink.astro's decode script, which
+// keys on the "[at]" literal to know a hint is still un-decoded.
+const DOT_WORD: Record<string, string> = { en: 'dot', de: 'punkt' };
+export function emailHint(address: string, lang = 'en'): string {
   const [user, domain = ''] = address.split('@');
-  return `${user} [at] ${domain.replace(/\./g, ' [dot] ')}`;
+  const dot = DOT_WORD[lang.toLowerCase().split('-')[0]] ?? 'dot';
+  return `${user} [at] ${domain.replace(/\./g, ` [${dot}] `)}`;
 }

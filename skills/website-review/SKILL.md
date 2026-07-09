@@ -56,6 +56,14 @@ catches what a test suite can't — cross-file drift and half-done work.
 - **Docs match code:** README test list + "how to add a page / run tests / deploy" current;
   `CONTENT_GUIDE.md` + `BRAND.md` filled; decision-interview answers recorded; the handoff
   skill set present in `.claude/skills/`.
+- **Language/i18n (non-English or multi-locale sites):** every page's CONTENT language
+  matches its `<html lang>` (the tone gate's density check covers German; eyeball other
+  languages); `og:locale` present and matching on every page; chrome (skip link, footer)
+  in the site's language; German-market sites carry the filled Impressum and the German
+  privacy page at the right URL (`/datenschutz` single-locale, `/de/privacy` multilingual);
+  multi-locale sites: hreflang sets complete + reciprocal (`tests/i18n.spec.ts` green, or
+  the twin-page seo.spec test for the light path), every `/locale` route in PAGES, the
+  language switcher on every multi-locale page, llms.txt entries in each page's language.
 
 ## Output / done means
 A ranked **BUG / RISK / NIT** list, each with `file:line` and a concrete fix (same shape as
