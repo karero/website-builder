@@ -9,8 +9,9 @@ description: >
   fixed and every RISK/NIT is fixed or explicitly waived by the human owner.
   Use BEFORE building from any non-trivial plan and BEFORE merging any
   non-trivial PR. Trigger phrases: "cross-review this plan", "get a second model
-  to review", "codex review", "gemini review", "adversarial review", "review
-  before I merge", "independent review", "cross-model review".
+  to review", "codex review", "gemini review", "antigravity review", "agy
+  review", "adversarial review", "review before I merge", "independent
+  review", "cross-model review".
 ---
 
 # Independent review — the cross-model gate
