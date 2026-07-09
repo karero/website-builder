@@ -292,6 +292,10 @@ the trend without a new pull.)
 
 ## Weekly auto-tracking (opt-in, per site) — offer this
 
+German-market sites: export `GSC_COUNTRY=deu` in the tracker's env file so the tracked
+history matches your ad-hoc `--country deu` reports — otherwise the trend is computed on
+blended-global numbers while your reports are market-filtered, and the two disagree.
+
 Good practice: once a site is connected and you've shown its first trend, **proactively
 offer** to schedule the tracker weekly so the history builds itself (manual re-runs get
 forgotten). Let the user choose **which sites** and a day/time — **never auto-install**, and

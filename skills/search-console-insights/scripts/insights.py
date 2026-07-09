@@ -98,8 +98,14 @@ def main():
     ap.add_argument("--days", type=int, default=90)
     ap.add_argument("--client-secret", default=str(DEFAULT_SECRET))
     ap.add_argument("--token", default=str(DEFAULT_TOKEN))
-    ap.add_argument("--country", default="",
-                    help="ISO-3166-1 alpha-3 GSC country filter, e.g. 'deu'.")
+    def _country(v):
+        if v and (len(v) != 3 or not v.isalpha()):
+            ap.error(f"--country takes ISO alpha-3, e.g. 'deu' not {v!r}")
+        return v.lower()
+    ap.add_argument("--country", default="", type=_country,
+                    help="ISO-3166-1 alpha-3 GSC country filter, e.g. 'deu'. Google column "
+                         "only — Bing's API has no country parameter, so its column stays "
+                         "global; note that when comparing the two.")
     args = ap.parse_args()
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]

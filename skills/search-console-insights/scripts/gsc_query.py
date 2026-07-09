@@ -28,12 +28,12 @@ Dependencies: see ../requirements.txt
 """
 
 import argparse
-
-from _lang_normalize import fold
 import datetime as dt
 import os
 import sys
 from pathlib import Path
+
+from _lang_normalize import fold
 
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 DEFAULT_TOKEN = Path.home() / ".config" / "gsc-insights" / "token.json"
@@ -165,10 +165,11 @@ def match_keywords(query_rows, keywords):
 
 
 def build_report(site, start, end, top_queries, top_pages, kw_matches,
-                 perm_level, days):
+                 perm_level, days, country=""):
     L = []
     L.append(f"# Search Console insights — {site}")
-    L.append(f"\n_Window: {start} → {end} ({days} days). Permission: "
+    country_note = f", country filter: {country}" if country else ""
+    L.append(f"\n_Window: {start} → {end} ({days} days){country_note}. Permission: "
              f"{perm_level or 'unknown'}._\n")
 
     total_clicks = sum(int(r["clicks"]) for r in top_queries)
@@ -180,6 +181,10 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                  "> This is expected for a property verified recently — GSC only\n"
                  "> collects data *forward from verification*, with a ~2–3 day lag,\n"
                  "> and there is no historical backfill. Re-run this in 1–2 weeks.\n")
+        if country:
+            L.append(f"> Also note the active `--country {country}` filter — zero rows can\n"
+                     f"> simply mean no traffic from that market in the window; re-run\n"
+                     f"> without the filter to compare.\n")
         return "\n".join(L)
 
     L.append(f"**Totals (across returned query rows):** {total_clicks} clicks, "
@@ -252,9 +257,17 @@ def main():
     ap.add_argument("--client-secret",
                     default=os.environ.get("GSC_CLIENT_SECRET", "client_secret.json"))
     ap.add_argument("--token", default=str(DEFAULT_TOKEN))
-    ap.add_argument("--country", default="",
+    def _country(v: str) -> str:
+        # GSC matches lowercase alpha-3; the natural mistake is alpha-2 ('de',
+        # the convention serp_check's --gl uses) — which matches NOTHING and
+        # reads as "no impressions yet". Reject it loudly instead.
+        if v and (len(v) != 3 or not v.isalpha()):
+            raise argparse.ArgumentTypeError(f"--country takes ISO alpha-3, e.g. 'deu' (got {v!r})")
+        return v.lower()
+    ap.add_argument("--country", default="", type=_country,
                     help="ISO-3166-1 alpha-3 country filter, e.g. 'deu' — see the "
-                         "German-market note in SKILL.md. Default: all countries blended.")
+                         "German-market note in SKILL.md. Default: all countries blended. "
+                         "(Google only; Bing has no country parameter.)")
     ap.add_argument("--csv", default="",
                     help="Append target-keyword positions to this history CSV (trend tracking).")
     args = ap.parse_args()
@@ -307,7 +320,7 @@ def main():
         eprint(f"appended {len(items)} keyword rows to {args.csv}")
 
     report = build_report(args.site, s_start, s_end, top_queries, top_pages,
-                          kw_matches, perm_level, args.days)
+                          kw_matches, perm_level, args.days, country=args.country)
     print(report)
     if args.out:
         Path(args.out).write_text(report)

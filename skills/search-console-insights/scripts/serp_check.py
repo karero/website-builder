@@ -100,7 +100,7 @@ def main():
                     help="Your domain, e.g. example.com — flagged in results if present.")
     ap.add_argument("--provider", choices=PROVIDERS.keys(), default="serper")
     ap.add_argument("--gl", default="de", help="Country (default de = Germany).")
-    ap.add_argument("--hl", default="", help="Language; default auto per keyword.")
+    ap.add_argument("--hl", default="", help="Language; default follows --gl (de/at/ch → de, else en).")
     ap.add_argument("--num", type=int, default=10)
     args = ap.parse_args()
 
