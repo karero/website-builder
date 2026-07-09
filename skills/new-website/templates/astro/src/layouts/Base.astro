@@ -108,9 +108,9 @@ const [langBase = 'en', ...langRest] = lang.toLowerCase().split('-');
 // CONTENT is another language (the German Impressum on an English-market
 // site keeps the English footer, and its /privacy link keeps resolving).
 // SETTING SITE.locale to 'de' FLIPS THE FOOTER to /datenschutz — do the
-// privacy→datenschutz swap IN THE SAME STEP (swap-in template:
-// skills/new-website/templates/datenschutz.astro; its header lists every
-// gate-file change) or every navigation test fails on the footer link.
+// privacy→datenschutz swap IN THE SAME STEP (rename the in-repo draft
+// src/pages/_datenschutz.astro per its header, which lists every gate-file
+// change) or every navigation test fails on the footer link.
 // Unmapped languages fall back to English — extend as you translate.
 // Multilingual sites: astro-i18n-setup §3 rewires this lookup (SITE.locale
 // is removed there — rekey on Astro.currentLocale, see that skill).
