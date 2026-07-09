@@ -296,6 +296,38 @@ For local business location pages.
 }
 ```
 
+**German business variant** — DE address format, `+49` phone, EUR price range,
+and `vatID` (the USt-IdNr., also useful on Organization):
+
+```json
+{
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  "name": "Zahnarztpraxis Dr. Weber",
+  "legalName": "Zahnarztpraxis Dr. Weber GmbH",
+  "url": "https://example.de",
+  "telephone": "+49-89-1234567",
+  "vatID": "DE123456789",
+  "priceRange": "€€",
+  "sameAs": ["https://www.instagram.com/zahnarztpraxis-weber", "https://g.page/zahnarztpraxis-weber"],
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Beispielstraße 12",
+    "postalCode": "80331",
+    "addressLocality": "München",
+    "addressCountry": "DE"
+  },
+  "geo": { "@type": "GeoCoordinates", "latitude": 48.1425, "longitude": 11.5765 },
+  "areaServed": { "@type": "City", "name": "München" },
+  "openingHoursSpecification": [{
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "opens": "08:00",
+    "closes": "18:00"
+  }]
+}
+```
+
 ---
 
 ## Event

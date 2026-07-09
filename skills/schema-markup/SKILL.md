@@ -30,6 +30,22 @@ Before implementing schema, understand:
 - Schema must accurately represent page content
 - Don't markup content that doesn't exist
 - Keep updated when content changes
+- Set `inLanguage` on CreativeWork types (Article, FAQPage, and similar
+  content types — NOT LocalBusiness/Organization/Product, which schema.org
+  does not define the property for) to match the page's `lang` — the
+  starter's Base.astro already does this for WebSite/WebPage; hand-written
+  schema must keep up
+
+### 1a. German entity disambiguation
+German businesses face two extra ambiguity traps AI retrieval stumbles on:
+set BOTH `name` (the everyday brand) and `legalName` (with the GmbH/UG/e.K.
+suffix), and when the brand collides with a common German noun (a bakery
+named "Krume", a tool named "Hebel") or the town name is ambiguous
+(Frankfurt², Neustadt ×30), lean on `sameAs` (register/profile URLs) plus a
+full `PostalAddress`, `geo`, and `areaServed` so the entity resolves to YOUR
+Frankfurt and YOUR Krume. The German LocalBusiness example in
+references/schema-examples.md shows the full shape (incl. `vatID`,
+`sameAs`, `geo`, `areaServed`).
 
 ### 2. Use JSON-LD
 - Google recommends JSON-LD format

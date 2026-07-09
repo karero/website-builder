@@ -128,6 +128,15 @@ Use for topic pages with multiple common questions. Essential for FAQ schema.
 
 **Tips for FAQ questions:**
 - Use natural question phrasing ("How do I..." not "How does one...")
+- German pages: phrase questions the way Germans actually search — "Wie kann
+  ich..." / "Was kostet..." / "Lohnt sich...", and note that NOMINAL queries
+  (noun phrases with no question word: "Impressum Pflicht Verein",
+  "Zahnreinigung Kosten") are a common German search pattern worth using as
+  H2s alongside question forms. Google's "People Also Ask" is "Ähnliche
+  Fragen" in German SERPs — mine it the same way. Worked example:
+  H2 "Was kostet eine professionelle Zahnreinigung?" answered in the first
+  sentence ("Eine professionelle Zahnreinigung kostet in Deutschland meist
+  80 bis 120 Euro."), details after.
 - Include question words: what, how, why, when, where, who, which
 - Match "People Also Ask" queries from search results
 - Keep answers between 50-100 words

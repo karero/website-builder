@@ -324,7 +324,9 @@ landmark-unique rule).
   translation reads as thin/duplicate (international-seo.md).
 
 ### 6. `public/llms.txt` — keep ONE unified file
-List the key pages across all locales in a single `/llms.txt` (do not split per locale).
+List the key pages across all locales in a single `/llms.txt` (do not split per
+locale) — each entry's description written in THAT page's language (the German
+entries in German), per website-seo-geo's GEO rule.
 
 ## Test-harness changes (the part that keeps the gate honest)
 
