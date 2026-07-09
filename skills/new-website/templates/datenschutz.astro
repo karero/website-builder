@@ -1,0 +1,127 @@
+---
+// Datenschutzerklärung — the vetted GERMAN privacy draft (DSGVO + § 25 TDDDG).
+// German law expects legal pages in German, and this is the site's most legally
+// sensitive page — start from this reviewed text instead of re-translating
+// privacy.astro from scratch and re-clearing every gate.
+//
+// HOW TO USE (German-ONLY site, Q4a = German):
+//   1. Copy this file to src/pages/datenschutz.astro and DELETE
+//      src/pages/privacy.astro (one privacy page per site, at the German URL).
+//   2. Swap '/privacy' for '/datenschutz' in: tests/_helpers.ts PAGES,
+//      public/llms.txt, Base.astro's footer link (label "Datenschutz"), and
+//      tests/seo.spec.ts OWN_CARD_EXEMPT.
+//   3. Fill every [BRACKET] slot; make section 3 match the real analytics
+//      setup (or delete it); adjust the date.
+//   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
+//   your German privacy page lives at the locale-prefixed route
+//   (/de/privacy); use this text as its content.
+//
+// § 25 TDDDG (formerly TTDSG) is Germany's consent statute for device access
+// (cookies, storage). The "no consent banner" reasoning below holds for the
+// default cookieless-Plausible stack — but ANY third-party embed or
+// non-cookieless analytics (YouTube iframe, remote Google Fonts, GA) flips
+// that answer: re-check this page and add a consent solution BEFORE shipping
+// such an addition.
+//
+// The copy passes the a11y / seo / tone suites incl. the German rules: one
+// <h1>, description in the 120-160 window, no em dashes, Sie-register
+// throughout (don't mix in du), every email behind <EmailLink>.
+// A solid baseline, not legal advice. When in doubt, have it reviewed.
+import Base from '../layouts/Base.astro';
+import EmailLink from '../components/EmailLink.astro';
+import { SITE } from '../config';
+---
+<Base
+  lang="de"
+  title="Datenschutzerklärung"
+  description={`So geht ${SITE.name} mit personenbezogenen Daten um: cookielose Analyse, Hosting bei Cloudflare Pages, Umgang mit Kontaktdaten und Ihre Rechte nach der DSGVO.`}>
+  <section class="wrap">
+    <h1>Datenschutzerklärung</h1>
+    <p>
+      Stand: [DATUM]. Diese Seite erklärt, welche personenbezogenen Daten diese
+      Website verarbeitet, auf welcher Rechtsgrundlage nach der DSGVO
+      (EU 2016/679) und dem TDDDG, und welche Rechte Ihnen zustehen.
+    </p>
+
+    <h2>1. Verantwortlicher</h2>
+    <p>Verantwortlich für die Datenverarbeitung auf dieser Website ist:</p>
+    <p>
+      [NAME DES VERANTWORTLICHEN]<br />
+      [STRASSE UND HAUSNUMMER]<br />
+      [PLZ, ORT, LAND]<br />
+      Kontakt: <EmailLink address="hello@example.com" subject="Datenschutzanfrage" />
+    </p>
+
+    <h2>2. Hosting und Server-Logs</h2>
+    <p>
+      Diese Website wird über <strong>Cloudflare Pages</strong> ausgeliefert
+      (Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA). Beim
+      Aufruf einer Seite verarbeitet Cloudflare technische Verbindungsdaten
+      (IP-Adresse, Datum und Uhrzeit, aufgerufene URL, Browser-Kennung), um die
+      Seite auszuliefern und vor Angriffen zu schützen. Rechtsgrundlage ist
+      unser berechtigtes Interesse an einem sicheren und schnellen Betrieb der
+      Website (Art. 6 Abs. 1 lit. f DSGVO). Cloudflare handelt als
+      Auftragsverarbeiter nach Art. 28 DSGVO; Übermittlungen in die USA sind
+      durch das EU-US Data Privacy Framework und Standardvertragsklauseln
+      abgesichert. Wir führen diese Protokolle nicht mit anderen Daten zusammen.
+    </p>
+
+    <h2>3. Cookies und Analyse</h2>
+    <p>
+      Diese Website ist werbefrei und <strong>setzt keine Cookies</strong>. Ihr
+      Besuch hinterlässt bei uns keine Werbe- oder seitenübergreifenden
+      Tracking-Kennungen; auf Ihrem Endgerät werden keine Informationen
+      gespeichert oder ausgelesen, sodass keine Einwilligung nach § 25 TDDDG
+      erforderlich ist.
+    </p>
+    <p>
+      Zur Nutzungsanalyse setzen wir <strong>Plausible Analytics</strong> ein,
+      ein datenschutzfreundliches Messwerkzeug
+      [selbst gehostet auf unserem eigenen Server / betrieben für uns von
+      Plausible Insights O&Uuml;, V&auml;striku tn 2, 50403 Tartu, Estland (EU)].
+      Es arbeitet ohne Cookies und erhebt keine personenbezogenen Daten, verfolgt
+      Sie nicht über Websites hinweg und gibt keine Daten an Dritte weiter.
+      IP-Adressen werden nur flüchtig verarbeitet, um anonyme, aggregierte
+      Zählungen zu bilden, und niemals gespeichert. Die entstehenden Kennzahlen
+      (etwa Seitenaufrufe, Verweisquellen und Länder) sind aggregiert und lassen
+      sich keiner Person zuordnen.
+    </p>
+    <p>
+      Rechtsgrundlage dieser aggregierten Messung ist unser berechtigtes
+      Interesse am Betrieb und der Verbesserung der Website (Art. 6 Abs. 1
+      lit. f DSGVO). Da die Messung ohne Cookies auskommt, nicht auf Ihr
+      Endgerät zugreift und keine personenbezogenen Daten speichert, ist kein
+      Einwilligungsbanner erforderlich. Sie können die Messung jederzeit
+      verhindern, indem Sie das Analyse-Skript in Ihrem Browser blockieren.
+    </p>
+
+    <h2>4. Kontakt per E-Mail</h2>
+    <p>
+      Wenn Sie uns kontaktieren, verarbeiten wir die von Ihnen mitgeteilten
+      Daten (Name, E-Mail-Adresse und den Inhalt Ihrer Nachricht), um die
+      Anfrage und mögliche Rückfragen zu bearbeiten. Rechtsgrundlage ist
+      Art. 6 Abs. 1 lit. b DSGVO, soweit sich die Anfrage auf einen Vertrag
+      bezieht, im Übrigen unser berechtigtes Interesse an der Beantwortung von
+      Anfragen (Art. 6 Abs. 1 lit. f DSGVO). Wir bewahren die Korrespondenz nur
+      so lange auf, wie es für diesen Zweck und für gesetzliche
+      Aufbewahrungspflichten nötig ist.
+    </p>
+
+    <h2>5. Ihre Rechte</h2>
+    <p>
+      Nach der DSGVO haben Sie das Recht auf Auskunft (Art. 15), Berichtigung
+      (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18),
+      Datenübertragbarkeit (Art. 20) und Widerspruch gegen Verarbeitungen auf
+      Grundlage berechtigten Interesses (Art. 21). Wenden Sie sich dazu an die
+      in Abschnitt 1 genannte Adresse; wir prüfen Ihre Identität, bevor wir auf
+      einen Antrag hin tätig werden. Ihnen steht zudem ein Beschwerderecht bei
+      einer Datenschutzaufsichtsbehörde zu (Art. 77 DSGVO).
+    </p>
+
+    <h2>6. Änderungen dieser Seite</h2>
+    <p>
+      Wir aktualisieren diese Seite, sobald sich die Datenverarbeitung auf
+      dieser Website ändert, und passen das Datum oben entsprechend an.
+    </p>
+  </section>
+</Base>
