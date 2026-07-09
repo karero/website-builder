@@ -364,14 +364,19 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       `[BRACKET]` slot filled, the analytics section matching the real setup,
       German-market sites translated to German. It also ships a German Impressum
       draft (`src/pages/impressum.astro`, § 5 DDG + § 18 Abs. 2 MStV — required
-      on effectively every commercial German-market site, linked from every page
-      via the Base.astro footer): fill every `[BRACKET]` slot (legal name + form,
-      ladungsfähige Anschrift, phone as the second contact channel, Handelsregister
-      + USt-IdNr. where applicable, chamber/supervisory authority for regulated
-      professions, § 18 MStV contact for editorial content) and delete the
-      sections that don't apply. Sites NOT targeting DE/AT/CH: delete
-      `impressum.astro`, its footer link in `Base.astro`, and its
-      `tests/_helpers.ts` PAGES entry instead.
+      for providers established in Germany, whatever the site's language, and
+      for sites targeting the German market; linked from every page via the
+      Base.astro footer): fill every `[BRACKET]` slot (legal name + form,
+      ladungsfähige Anschrift, phone as the second contact channel, register
+      entry, USt-IdNr. or Wirtschafts-IdNr., supervisory authority for licensed
+      activities + chamber/professional rules for regulated professions, § 18
+      MStV contact for editorial content) and delete the sections that don't
+      apply. Austrian/Swiss providers: adapt to § 5 ECG + § 25 MedienG resp.
+      Art. 3 UWG (the page's comments say how). Provider neither established in
+      Germany nor targeting it: delete all five pieces — `impressum.astro`, the
+      `Base.astro` footer link, the `tests/_helpers.ts` PAGES entry, the
+      `public/llms.txt` line, and the `OWN_CARD_EXEMPT` entry in
+      `tests/seo.spec.ts`.
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
