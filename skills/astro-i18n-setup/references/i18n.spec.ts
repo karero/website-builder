@@ -113,23 +113,45 @@ test.describe('i18n — hreflang contract', () => {
 
   test('every multi-locale page carries a language switcher matching its real locale siblings', async ({ page }) => {
     for (const path of PAGES) {
-      const locs = routeLocales(neutralPath(path, localeOf(path)));
+      const selfLocale = localeOf(path);
+      const neutral = neutralPath(path, selfLocale);
+      const locs = routeLocales(neutral);
       if (locs.length < 2) continue; // sparse single-locale route: no switcher required
       await page.goto(path);
-      const links = await page.$$eval('nav.lang-switcher a[hreflang], nav.lang-switcher [aria-current="true"]', (els) =>
-        els.map((e) => e.getAttribute('hreflang') ?? '(current)'),
+      // Per-switcher: header + footer switchers are both legitimate — each must
+      // be complete on its own. Classify by aria-current PRESENCE (a self-link
+      // variant using aria-current="page" is as valid as the span pattern).
+      const switchers = await page.$$eval('nav.lang-switcher', (navs) =>
+        navs.map((nav) =>
+          [...nav.querySelectorAll('a[hreflang], [aria-current]')].map((e) => ({
+            code: e.hasAttribute('aria-current') ? '(current)' : e.getAttribute('hreflang'),
+            href: e.getAttribute('href'),
+          })),
+        ),
       );
       expect(
-        links.length,
+        switchers.length,
         `${path}: no language switcher found — copy references/LanguageSwitcher.astro into the nav (SKILL.md §4); ` +
           `hreflang <link> tags only talk to crawlers, visitors need a visible way to switch`,
       ).toBeGreaterThan(0);
-      const offered = links.filter((l) => l !== '(current)').sort();
-      const expected = locs.filter((l) => l !== localeOf(path)).sort();
-      expect(
-        offered,
-        `${path}: switcher must offer exactly the route's OTHER locales (routeLocales minus self)`,
-      ).toEqual(expected);
+      for (const entries of switchers) {
+        const offered = entries.filter((e) => e.code !== '(current)');
+        const expectedCodes = locs.filter((l) => l !== selfLocale).sort();
+        expect(
+          offered.map((e) => e.code).sort(),
+          `${path}: each switcher must offer exactly the route's OTHER locales (routeLocales minus self)`,
+        ).toEqual(expectedCodes);
+        // hreflang alone can lie about the target: assert each link points at
+        // THIS route's sibling, not e.g. the locale's home page.
+        for (const e of offered) {
+          const expectedPath =
+            e.code === DEFAULT_LOCALE ? neutral : neutral === '/' ? `/${e.code}` : `/${e.code}${neutral}`;
+          expect(
+            decodeURI(new URL(e.href ?? '', 'https://x.invalid').pathname).replace(/\/$/, '') || '/',
+            `${path}: switcher link "${e.code}" must target this page's sibling (${expectedPath}), not another route`,
+          ).toBe(expectedPath);
+        }
+      }
     }
   });
 
@@ -142,17 +164,26 @@ test.describe('i18n — hreflang contract', () => {
     const res = await request.get(new URL('/sitemap-0.xml', baseURL!).href);
     expect(res.status(), 'sitemap-0.xml should exist').toBe(200);
     const xml = await res.text();
+    let checked = 0;
     for (const entry of xml.matchAll(/<url>([\s\S]*?)<\/url>/g)) {
       const loc = entry[1].match(/<loc>([^<]+)<\/loc>/)?.[1];
       if (!loc) continue;
       const path = decodeURI(new URL(loc).pathname).replace(/\/$/, '') || '/';
       const langs = [...entry[1].matchAll(/hreflang="([^"]+)"/g)].map((m) => m[1]).filter((l) => l !== 'x-default').sort();
       if (!langs.length) continue; // singleton clusters are dropped by the serialize hook (documented)
+      checked++;
       const expected = [...routeLocales(neutralPath(path, localeOf(path)))].sort();
       expect(
         langs,
         `${loc}: sitemap alternates must match the route's locales (serialize hook contract)`,
       ).toEqual(expected);
+    }
+    // Wholesale-vanished alternates (the i18n map deleted from sitemap()) must
+    // not slip through as "every entry skipped": if any route is multi-locale,
+    // at least one sitemap entry must carry alternates.
+    const anyMultiLocale = PAGES.some((p) => routeLocales(neutralPath(p, localeOf(p))).length > 1);
+    if (anyMultiLocale) {
+      expect(checked, 'no sitemap entry carries <xhtml:link> alternates — is the i18n map missing from sitemap()?').toBeGreaterThan(0);
     }
   });
 

@@ -14,6 +14,13 @@
 import { getRelativeLocaleUrl } from 'astro:i18n';
 import { DEFAULT_LOCALE, LOCALE_LABELS, routeLocales, neutralPath } from '../config';
 
+interface Props {
+  // Localize per site language ("Sprache"); give a SECOND switcher on the same
+  // page a distinct label (axe landmark-unique).
+  ariaLabel?: string;
+}
+const { ariaLabel = 'Language' } = Astro.props;
+
 const currentLocale = Astro.currentLocale ?? DEFAULT_LOCALE;
 let cleanPath = Astro.url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
 if (cleanPath !== '/' && cleanPath.endsWith('/')) cleanPath = cleanPath.slice(0, -1);
@@ -22,7 +29,7 @@ const localePath = neutral === '/' ? undefined : neutral.replace(/^\//, '');
 const pageLocales = routeLocales(neutral);
 ---
 {pageLocales.length > 1 && (
-  <nav class="lang-switcher" aria-label="Language">
+  <nav class="lang-switcher" aria-label={ariaLabel}>
     <ul>
       {pageLocales.map((loc) => (
         <li>

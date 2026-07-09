@@ -152,7 +152,7 @@ export default defineConfig({
       // advertises a never-built variant contradicts the head hreflang set
       // (international-seo.md: head and sitemap must not disagree).
       serialize(item) {
-        const path = new URL(item.url).pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+        const path = decodeURI(new URL(item.url).pathname).replace(/\.html$/, '').replace(/\/$/, '') || '/';
         const locs = routeLocales(neutralPath(path));
         if (item.links && locs.length < LOCALES.length) {
           item.links = item.links.filter((l) =>
@@ -298,8 +298,11 @@ Copy the ready component from `references/LanguageSwitcher.astro` into
 the **current page** in each locale the route exists in — `routeLocales(neutral)`
 (§2), NOT `LOCALES`, so a sparse route's switcher never links a never-built
 variant — labelled from `LOCALE_LABELS`, active locale `aria-current="true"`.
-`tests/i18n.spec.ts` asserts every multi-locale page carries it and that its
-links match the route's real siblings exactly.
+`tests/i18n.spec.ts` asserts every multi-locale page carries it and that each
+switcher's links point at exactly the route's real siblings (hreflang AND
+href). Rendering it twice (header + footer) is fine — the check runs per
+switcher — but give the second one a distinct `ariaLabel` (axe's
+landmark-unique rule).
 
 ### 5. Page/content structure
 - Default-locale pages stay at `src/pages/*` (e.g. `src/pages/about.astro` → `/about`).
@@ -389,12 +392,12 @@ are a near-duplicate risk, not a win (international-seo.md, "Near-Duplicate
 Regional Variants"). Go regional only when content genuinely differs per market
 (prices in CHF, different legal entities, Swiss ß→ss spelling).
 
-For real multi-region German, do NOT write `LOCALES = ['de-DE', 'de-CH']` with the
-plain string routing — that yields ugly `/de-DE/…` URL prefixes. Use Astro's
-`{ path, codes }` locale objects instead:
+For real multi-region German, the Astro-level mechanism is `{ path, codes }`
+locale objects — NOT `LOCALES = ['de-DE', 'de-CH']` with plain string routing,
+which yields ugly `/de-DE/…` URL prefixes:
 
 ```js
-// astro.config.mjs
+// astro.config.mjs — Astro syntax reference ONLY, see the warning below
 i18n: {
   defaultLocale: 'de',
   locales: [{ path: 'de', codes: ['de', 'de-DE'] }, { path: 'ch', codes: ['de-CH'] }],
@@ -402,9 +405,19 @@ i18n: {
 }
 ```
 
-and map both in `sitemap({ i18n })` so hreflang carries the regioned codes while
-URLs stay clean (`/ch/…`). The suite's German checks key on the PRIMARY subtag,
-so `de-AT`/`de-CH` pages get the German tone/density rules automatically.
+**The kit's harness does NOT yet support path≠code locales** — `config.ts`
+`LOCALES` holds plain strings that must equal the URL prefixes: applying the
+config above to a kit-built site crashes the build (`getRelativeLocaleUrl`
+throws for unknown locales), and mapping regioned codes into
+`sitemap({ i18n })` makes the sitemap say `de-DE` where `routeLocales()` says
+`de` — failing the sitemap-consistency test with a genuine head/sitemap
+contradiction. Treat multi-region as a harness EXTENSION: `LOCALES`,
+`pathLocale()`, PAGES generation and the serialize hook all need the
+path↔codes mapping first. Two Astro behaviors to know when you build that:
+the sitemap i18n map takes ONE code per path key (pick the canonical one),
+and `Astro.currentLocale` returns `codes[0]` — order matters, and `<html
+lang>` (which drives the German tone/density checks via the primary subtag)
+follows it. Until then: bare `de` is the supported answer.
 
 ## Wiring (done once in the suite)
 - `new-website/SKILL.md` §1 Q4 → "if 2+ languages: run `astro-i18n-setup`"; add the
