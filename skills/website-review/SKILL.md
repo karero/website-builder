@@ -32,7 +32,8 @@ catches what a test suite can't — cross-file drift and half-done work.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
 - `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
-- Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped pages.
+- Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
+  pages OR `public/` assets (the manifest's fields are brackets too — no spec reads them).
 - Nothing silently unshipped (two-stage sites): `git log origin/production..origin/main` empty,
   or the gap is a conscious decision — and the last `npm run ship` ended "✓ LIVE — verified".
 
