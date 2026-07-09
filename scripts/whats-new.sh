@@ -90,6 +90,11 @@ fi
 if [ "$MODE" = stamp-tests ]; then
   [ -n "$TARGET" ] || { echo "error: --stamp-tests needs a <tests_dir> (e.g. <site>/tests)" >&2; exit 2; }
   [ -d "$TARGET" ] || { echo "error: no such directory: $TARGET" >&2; exit 1; }
+  if suite_dirty; then
+    echo "warning: the suite clone has uncommitted skill edits — the stamp records HEAD," >&2
+    echo "which may not match copies made from the working tree. Commit the suite first" >&2
+    echo "for a clean baseline." >&2
+  fi
   write_tests_stamp "$TARGET"
   echo "stamped $TARGET/TESTS-VERSION → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
   exit 0
@@ -220,6 +225,11 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
 process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline source label
   local tests_dir="$1" base="$2" src="$3" short_base changed f
+  if [ -z "$base" ] || [ "$base" = "unknown" ]; then
+    echo "error: the tests baseline ($src) has no usable commit (zip install?). Compare by" >&2
+    echo "hand, then set a fresh baseline with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
+    return 1
+  fi
   if ! git -C "$REPO_DIR" cat-file -e "$base^{commit}" 2>/dev/null; then
     echo "error: tests baseline $base is not in this clone — run 'git pull' first, or" >&2
     echo "reset it with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
@@ -232,6 +242,10 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
   changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- $TEMPLATE_TRACKED)"
   if [ -z "$changed" ]; then
     echo "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE."
+    if [ "${src#SUITE-VERSION}" != "$src" ]; then
+      echo "Pin the tests baseline off the fallback (it moves when skills refresh):"
+      echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
+    fi
     return 0
   fi
 
@@ -255,9 +269,12 @@ $changed
 CHANGED
   echo
   echo "Review + merge each by hand, e.g.:"
-  echo "  git -C $REPO_DIR diff $short_base HEAD -- skills/new-website/templates/astro/tests/<file>"
-  echo "NOTE: a refreshed tests/i18n.spec.ts and tests/_helpers.ts pair belongs together —"
-  echo "the spec imports helpers; refreshing one without the other breaks the import loudly."
+  echo "  git -C $REPO_DIR diff $short_base HEAD -- $(printf '%s\n' "$changed" | head -1)"
+  if printf '%s\n' "$changed" | grep -q '_helpers\.ts$'; then
+    echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, and i18n.spec.ts"
+    echo "on multilingual sites), so merge the helpers together with any spec that uses the"
+    echo "new exports, or the import breaks loudly."
+  fi
   echo "When the site's copies are current again, advance the baseline:"
   echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
   return 2
@@ -267,6 +284,13 @@ CHANGED
 # .agents/skills, and any custom $PROJECT_SKILLS_DIR new-website was run with.
 STAMPS="$(find "$PROJECT" -maxdepth 4 -name SUITE-VERSION -not -path '*/node_modules/*' 2>/dev/null | sort)"
 if [ -z "$STAMPS" ]; then
+  # Even without a skills stamp, a present tests/TESTS-VERSION is actionable —
+  # report the tests channel before erroring on the skills side.
+  if [ -f "$PROJECT/tests/TESTS-VERSION" ]; then
+    TB="$(sed -n 's/^suite_commit: //p' "$PROJECT/tests/TESTS-VERSION")"
+    process_tests_stamp "$PROJECT/tests" "$TB" "tests/TESTS-VERSION" || true
+    echo
+  fi
   for d in "$PROJECT/.claude/skills" "$PROJECT/.agents/skills"; do
     [ -d "$d" ] || continue
     echo "error: $d exists but has no SUITE-VERSION stamp — the project predates stamping." >&2
@@ -281,6 +305,33 @@ if [ -z "$STAMPS" ]; then
 fi
 
 echo "Project:    $PROJECT"
+
+# Capture the tests-channel FALLBACK baseline NOW — before process_dir, whose
+# --refresh rewrites the SUITE-VERSION stamps to HEAD; reading it afterwards
+# would silently destroy the pre-refresh baseline (and with it all reported
+# template-test drift) for every site that predates TESTS-VERSION. With
+# multiple stamps (.claude/skills AND .agents/skills), take the OLDEST commit —
+# under-reporting is the dangerous direction for a staleness channel.
+FALLBACK_BASE=""
+while IFS= read -r STAMP; do
+  [ -n "$STAMP" ] || continue
+  SB="$(sed -n 's/^suite_commit: //p' "$STAMP")"
+  [ -n "$SB" ] && [ "$SB" != "unknown" ] || continue
+  git -C "$REPO_DIR" cat-file -e "$SB^{commit}" 2>/dev/null || continue
+  if [ -z "$FALLBACK_BASE" ]; then
+    FALLBACK_BASE="$SB"
+  else
+    # older = ancestor of the current pick (linear history), else compare dates
+    if git -C "$REPO_DIR" merge-base --is-ancestor "$SB" "$FALLBACK_BASE" 2>/dev/null; then
+      FALLBACK_BASE="$SB"
+    elif [ "$(git -C "$REPO_DIR" show -s --format=%ct "$SB")" -lt "$(git -C "$REPO_DIR" show -s --format=%ct "$FALLBACK_BASE")" ]; then
+      FALLBACK_BASE="$SB"
+    fi
+  fi
+done <<EOF
+$STAMPS
+EOF
+
 FAIL=0
 while IFS= read -r STAMP; do
   [ -n "$STAMP" ] || continue
@@ -300,16 +351,12 @@ if [ -d "$TESTS_DIR" ]; then
   if [ -f "$TESTS_DIR/TESTS-VERSION" ]; then
     TB="$(sed -n 's/^suite_commit: //p' "$TESTS_DIR/TESTS-VERSION")"
     process_tests_stamp "$TESTS_DIR" "$TB" "tests/TESTS-VERSION" || TESTS_STATUS=$?
+  elif [ -n "$FALLBACK_BASE" ]; then
+    process_tests_stamp "$TESTS_DIR" "$FALLBACK_BASE" "SUITE-VERSION fallback (oldest stamp, captured pre-refresh) — no tests/TESTS-VERSION yet" || TESTS_STATUS=$?
   else
-    FIRST_STAMP="$(printf '%s\n' "$STAMPS" | head -1)"
-    TB="$(sed -n 's/^suite_commit: //p' "$FIRST_STAMP")"
-    if [ -n "$TB" ] && [ "$TB" != "unknown" ]; then
-      process_tests_stamp "$TESTS_DIR" "$TB" "SUITE-VERSION fallback — no tests/TESTS-VERSION yet" || TESTS_STATUS=$?
-    else
-      echo "note: $TESTS_DIR has no TESTS-VERSION and the skills stamp is unusable as a" >&2
-      echo "fallback — template-test drift can't be reported. Set a baseline with:" >&2
-      echo "  scripts/whats-new.sh --stamp-tests $TESTS_DIR" >&2
-    fi
+    echo "note: $TESTS_DIR has no TESTS-VERSION and no skills stamp is usable as a" >&2
+    echo "fallback — template-test drift can't be reported. Set a baseline with:" >&2
+    echo "  scripts/whats-new.sh --stamp-tests $TESTS_DIR" >&2
   fi
   echo
 fi
