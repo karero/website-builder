@@ -4,3 +4,4 @@ dist/
 node_modules/
 scripts/.clean-denylist
 /.claude/
+__pycache__/
