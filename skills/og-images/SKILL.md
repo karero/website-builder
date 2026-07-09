@@ -70,14 +70,19 @@ pre-push hook if you want generation (not just validation) gated.
 ## Long or unbreakable words (German compounds)
 
 `fit_title()` shrinks the font until every wrapped line actually fits the card's text
-area, not just until the line count looks right. A single unbroken word still wider than
-the area at the smallest size (52pt) fails the run loudly (`OG card OVERFLOW: ...`)
-instead of drawing past the edge — long German compounds (`Suchmaschinenoptimierung`,
-`Datenschutz-Grundverordnung`) are the classic trigger, and this failure is
-unconditional (not gated behind `--check`, which only guards file size). If you hit it:
-shorten the title to a near-synonym, or insert a plain space at a natural compound
-boundary (`Suchmaschinen Optimierung`) — the generator deliberately does not hyphenate
-compounds automatically.
+area, not just until the line count looks right. Three overflow cases fail the run
+loudly (`OG card OVERFLOW: ...`) instead of drawing past the edge, all unconditional
+(not gated behind `--check`, which only guards file size):
+- a single unbroken word wider than the text area at the smallest size (52pt) — long
+  German compounds (`Suchmaschinenoptimierung`, `Datenschutz-Grundverordnung`) are the
+  classic trigger;
+- a title still needing more than 3 lines at 52pt (it would collide with the
+  subtitles/footer);
+- a subtitle wider than the text area (subtitles render at a fixed 30pt).
+
+If you hit one: shorten the text to a near-synonym, or insert a plain space at a
+natural compound boundary (`Suchmaschinen Optimierung`) — the generator deliberately
+does not hyphenate compounds automatically.
 
 ## Prerequisite
 
