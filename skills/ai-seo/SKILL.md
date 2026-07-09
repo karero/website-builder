@@ -233,8 +233,8 @@ AI systems don't just cite your website — they cite where you appear.
 - Answer relevant Quora questions with depth
 
 **DACH / German-market equivalents** (the sources above are US/English; German
-answers cite German sources — customer-research's DACH watering-hole list has
-the fuller research view):
+answers cite German sources — see also customer-research's DACH watering-hole
+list for the research-workflow view):
 - de.wikipedia.org (its own article ecosystem, not a translation of en.wiki)
 - gutefrage.net (the Quora analogue), German subreddits (r/de, r/Finanzen, trade-specific)
 - OMR Reviews, trusted.de (G2/Capterra analogues); Trusted Shops for commerce,

@@ -309,7 +309,7 @@ and `vatID` (the USt-IdNr., also useful on Organization):
   "telephone": "+49-89-1234567",
   "vatID": "DE123456789",
   "priceRange": "€€",
-  "inLanguage": "de",
+  "sameAs": ["https://www.instagram.com/zahnarztpraxis-weber", "https://g.page/zahnarztpraxis-weber"],
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "Beispielstraße 12",
@@ -317,6 +317,8 @@ and `vatID` (the USt-IdNr., also useful on Organization):
     "addressLocality": "München",
     "addressCountry": "DE"
   },
+  "geo": { "@type": "GeoCoordinates", "latitude": 48.1425, "longitude": 11.5765 },
+  "areaServed": { "@type": "City", "name": "München" },
   "openingHoursSpecification": [{
     "@type": "OpeningHoursSpecification",
     "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
