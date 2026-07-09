@@ -17,6 +17,11 @@ export const SITE = {
     'it is for, written plainly and within the 120 to 160 character window.',
 } as const;
 
+// og:locale mapping from a lang tag's PRIMARY subtag — shared by Base.astro
+// (emission) and tests/seo.spec.ts (assertion), one source so they can't
+// drift. Regioned tags (de-AT) derive base+region in Base.astro instead.
+export const OG_LOCALES: Record<string, string | undefined> = { en: 'en_US', de: 'de_DE', fr: 'fr_FR', es: 'es_ES', it: 'it_IT' };
+
 export const COMPANY = {
   legalName: 'Example GmbH',
   logo: '/images/logo.png',            // resolved against SITE.url for schema

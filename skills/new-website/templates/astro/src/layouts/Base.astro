@@ -11,7 +11,7 @@
 //   - schemas: extra JSON-LD objects (FAQPage, Article, …).
 //   - <slot name="head" /> lets a page add its own <head> tags.
 import '../styles/global.css';
-import { SITE, COMPANY, ANALYTICS, SAME_AS, KNOWS_ABOUT } from '../config';
+import { SITE, COMPANY, ANALYTICS, SAME_AS, KNOWS_ABOUT, OG_LOCALES } from '../config';
 
 interface Props {
   title: string;
@@ -96,10 +96,10 @@ const allSchemas = [orgSchema, websiteSchema, webPageSchema, ...schemas].filter(
 const robots = noindex
   ? 'noindex, follow'
   : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
-// og:locale from lang: 'de' → de_DE; regioned tags use base + region ('de-AT' →
-// de_AT, 'zh-Hans-CN' → zh_CN). Unmapped bases omit the tag entirely — og:locale
-// is optional, and a wrong en_US would contradict inLanguage.
-const OG_LOCALES: Record<string, string | undefined> = { en: 'en_US', de: 'de_DE', fr: 'fr_FR', es: 'es_ES', it: 'it_IT' };
+// og:locale from lang: 'de' → de_DE (OG_LOCALES lives in config.ts, shared
+// with the seo.spec assertion); regioned tags use base + region ('de-AT' →
+// de_AT, 'zh-Hans-CN' → zh_CN). Unmapped bases omit the tag entirely —
+// og:locale is optional, and a wrong en_US would contradict inLanguage.
 const [langBase = 'en', ...langRest] = lang.toLowerCase().split('-');
 // Chrome strings that must not silently ship in the wrong language on a
 // German-language site: the skip link and the footer's privacy link. Keyed

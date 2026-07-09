@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
-import { SITE } from '../src/config';
+import { SITE, OG_LOCALES } from '../src/config';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -72,6 +72,20 @@ for (const path of PAGES) {
     expect(title.length, `<title> "${title}" is ${title.length} chars > ${TITLE_MAX}`).toBeLessThanOrEqual(TITLE_MAX);
     expect(description.length, `meta description ${description.length} chars < ${DESC_MIN} (wastes SERP space — the website-seo-geo floor)`).toBeGreaterThanOrEqual(DESC_MIN);
     expect(description.length, `meta description ${description.length} chars > ${DESC_MAX}`).toBeLessThanOrEqual(DESC_MAX);
+
+    // og:locale contract: when the page's primary lang subtag has an OG_LOCALES
+    // mapping, the tag must be present and correct (a German page silently
+    // shipping og:locale en_US — or none — is invisible drift otherwise).
+    // Regioned tags (de-AT → de_AT) derive in Base.astro and also pass the
+    // base-mapping check via their primary subtag when unregioned; unmapped
+    // languages legitimately omit the tag (no assertion).
+    const htmlLang = (await page.locator('html').getAttribute('lang')) ?? '';
+    const [ogBase = '', ...ogRest] = htmlLang.toLowerCase().split('-');
+    const ogRegion = ogRest.at(-1);
+    const expectedOgLocale = ogRegion && ogRegion.length === 2 ? `${ogBase}_${ogRegion.toUpperCase()}` : OG_LOCALES[ogBase];
+    if (expectedOgLocale) {
+      expect(await meta(page, 'meta[property="og:locale"]'), `og:locale must match <html lang="${htmlLang}">`).toBe(expectedOgLocale);
+    }
 
     expect(await meta(page, 'meta[property="og:title"]'), 'og:title must equal <title>').toBe(title);
     expect(await meta(page, 'meta[name="twitter:title"]'), 'twitter:title must equal <title>').toBe(title);

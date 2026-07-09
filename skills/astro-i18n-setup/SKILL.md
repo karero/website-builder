@@ -337,8 +337,18 @@ path`) and the sitemap-drift test pass unchanged, because the i18n sitemap still
 emits one `<loc>` per page (alternates are `<xhtml:link>`, not extra `<loc>`s).
 
 Adding a locale also brings the new `/de*` pages under `seo.spec.ts`'s own-OG-card
-guard: give each real content page a translated card (`generate_og_cards.py` PAGES +
-`image=` on the page); utility twins (`/de/privacy`) can join `OWN_CARD_EXEMPT`.
+guard. Give each real CONTENT page a translated card — an entry with German
+title/subtitle text in `generate_og_cards.py` PAGES plus `image=` on the page.
+Do NOT just exempt content routes: an exempted `/de` page shares the ENGLISH
+default card into German chats, the same silent-wrong-language failure the
+German gates exist to stop. Utility twins are the exception — make the
+exemption locale-neutral with one line in seo.spec.ts (both places that
+consult it), so `/de/privacy` inherits `/privacy`'s exemption:
+```ts
+const isCardExempt = (p: string) => OWN_CARD_EXEMPT.has(neutralPath(p, pathLocale(p)));
+```
+(import both helpers from `../src/config`; replace the two `OWN_CARD_EXEMPT.has(path)`
+call sites with `isCardExempt(path)`.)
 
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).

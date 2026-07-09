@@ -59,6 +59,12 @@ noticeably less content once translated. Write for it deliberately:
   it, and then trim words until the character count fits; that's how you end
   up with a mangled abbreviation instead of a deliberate, readable title.
 
+- **Target the LOWER half of the title range (~50–55 chars) for German.**
+  Google truncates by pixel width (~580px), not characters — German capitalizes
+  every noun, and capitals plus umlauts render wide, so a passing 60-char
+  German title can still be cut in the SERP. The 60-char cap is a ceiling,
+  not a safe harbor.
+
 This is a **writing tactic**, not a test change: `seo.spec.ts` enforces the same
 character counts regardless of language, and it should — the fix here is how you
 write within that budget, not the budget itself.
@@ -76,6 +82,10 @@ write within that budget, not the budget itself.
   without a trailing slash. `navigation.spec.ts` flags any `/about/` link (404/redirect hop)
   and `seo.spec.ts` pins `canonical == SITE.url + path`, so the whole site stays consistent.
 - Exactly one `<h1>` per page (its text MAY differ from the keyword-tuned title).
+- **og:locale derives from `<html lang>`** (de → de_DE; regioned tags → base+region;
+  map in `src/config.ts` `OG_LOCALES`, emitted by Base.astro, asserted by
+  `seo.spec.ts` for mapped languages) — a German page silently carrying
+  `og:locale en_US` is exactly the drift this row exists to stop.
 
 ## Schema (JSON-LD) — minimum per page
 
