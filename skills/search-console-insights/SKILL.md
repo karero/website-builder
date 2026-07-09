@@ -366,3 +366,6 @@ Compare a 28-day window to the prior 28 days to see genuine movement.
 - Paid scale-up (not wired here): DataForSEO (no free tier, $50 min) is the option if
   you outgrow Serper/SerpApi and want a full keyword/SERP backbone — see
   `references/keyword-strategy.md`.
+- **Always report full absolute URLs** (`https://domain.tld/path`) — never bare paths,
+  domain-relative fragments, or truncated prefixes. Owners copy these straight into GSC's
+  Removals tool, a browser, or elsewhere; a partial URL forces manual reconstruction.
