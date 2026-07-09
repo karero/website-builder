@@ -17,10 +17,17 @@ export const SITE = {
     'it is for, written plainly and within the 120 to 160 character window.',
 } as const;
 
-// og:locale mapping from a lang tag's PRIMARY subtag — shared by Base.astro
-// (emission) and tests/seo.spec.ts (assertion), one source so they can't
-// drift. Regioned tags (de-AT) derive base+region in Base.astro instead.
+// og:locale derivation — ONE implementation shared by Base.astro (emission)
+// and tests/seo.spec.ts (assertion), so they can't drift: 'de' → de_DE via
+// the map; regioned tags use base + region ('de-AT' → de_AT); unmapped bases
+// return undefined (og:locale is optional; a wrong en_US would contradict
+// inLanguage).
 export const OG_LOCALES: Record<string, string | undefined> = { en: 'en_US', de: 'de_DE', fr: 'fr_FR', es: 'es_ES', it: 'it_IT' };
+export function ogLocaleFor(lang: string): string | undefined {
+  const [base = '', ...rest] = lang.toLowerCase().split('-');
+  const region = rest.at(-1);
+  return region && region.length === 2 ? `${base}_${region.toUpperCase()}` : OG_LOCALES[base];
+}
 
 export const COMPANY = {
   legalName: 'Example GmbH',

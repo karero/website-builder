@@ -291,7 +291,7 @@ The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `{alternates.map(…)}` render line** (this snippet's cluster replaces it) — the
 `alternates` prop and `altHref` helper then sit unused; remove them too or leave
 them, but never feed both emission paths on one page.
-Keep the existing `OG_LOCALES`/`ogLocale` block (it already maps `lang → og:locale`);
+Keep the `ogLocale` line (config.ts's shared `ogLocaleFor` maps `lang → og:locale`);
 optionally add `og:locale:alternate` for the non-current locales. `inLanguage` in the
 WebPage/WebSite schema should use `currentLocale`.
 
@@ -343,11 +343,15 @@ Do NOT just exempt content routes: an exempted `/de` page shares the ENGLISH
 default card into German chats, the same silent-wrong-language failure the
 German gates exist to stop. Utility twins are the exception — make the
 exemption locale-neutral with one line in seo.spec.ts (both places that
-consult it), so `/de/privacy` inherits `/privacy`'s exemption:
+consult it), so `/de/privacy` inherits `/privacy`'s exemption. The HOME route
+must NOT inherit: `/` is exempt only because the default card IS the home
+card — a rationale that does not transfer to `/de`, which needs its own
+translated card in `generate_og_cards.py` like any content page:
 ```ts
-const isCardExempt = (p: string) => OWN_CARD_EXEMPT.has(neutralPath(p, pathLocale(p)));
+const isCardExempt = (p: string) =>
+  OWN_CARD_EXEMPT.has(p) || (neutralPath(p) !== '/' && OWN_CARD_EXEMPT.has(neutralPath(p)));
 ```
-(import both helpers from `../src/config`; replace the two `OWN_CARD_EXEMPT.has(path)`
+(import `neutralPath` from `../src/config`; replace the two `OWN_CARD_EXEMPT.has(path)`
 call sites with `isCardExempt(path)`.)
 
 ### `tests/i18n.spec.ts` (new) — hreflang contract

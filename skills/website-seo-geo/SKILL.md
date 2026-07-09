@@ -83,9 +83,10 @@ write within that budget, not the budget itself.
   and `seo.spec.ts` pins `canonical == SITE.url + path`, so the whole site stays consistent.
 - Exactly one `<h1>` per page (its text MAY differ from the keyword-tuned title).
 - **og:locale derives from `<html lang>`** (de → de_DE; regioned tags → base+region;
-  map in `src/config.ts` `OG_LOCALES`, emitted by Base.astro, asserted by
-  `seo.spec.ts` for mapped languages) — a German page silently carrying
-  `og:locale en_US` is exactly the drift this row exists to stop.
+  one shared `ogLocaleFor()` in `src/config.ts`, emitted by Base.astro, asserted
+  by `seo.spec.ts` whenever a value derives — mapped bases and all regioned
+  tags) — a German page silently carrying `og:locale en_US` is exactly the
+  drift this row exists to stop.
 
 ## Schema (JSON-LD) — minimum per page
 
