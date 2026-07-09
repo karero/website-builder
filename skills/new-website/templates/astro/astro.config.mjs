@@ -12,9 +12,9 @@ export default defineConfig({
   },
   integrations: [
     // No lastmod: stamping build time on every URL tells crawlers all pages changed
-    // when none did. If a page sets noindex, exclude it here too, e.g.
-    //   sitemap({ filter: (url) => !url.endsWith('/internal') })
-    // — and remove it from tests/_helpers.ts PAGES (seo.spec.ts compares the two).
-    sitemap({ changefreq: 'monthly', priority: 0.7 }),
+    // when none did. If a page sets noindex, exclude it here too (like the 404
+    // below) — and keep it out of tests/_helpers.ts PAGES (seo.spec.ts compares
+    // the two).
+    sitemap({ filter: (url) => !url.endsWith('/404'), changefreq: 'monthly', priority: 0.7 }),
   ],
 });

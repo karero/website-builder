@@ -30,11 +30,16 @@ const ID_WORDS = 2; // how many meaningful words a generated id uses by default
 
 // Filler words dropped before picking the id words, so "The outcomes we deliver"
 // -> "outcomes-deliver" rather than "the-outcomes". Articles, conjunctions,
-// prepositions, pronouns, auxiliaries and question words.
+// prepositions, pronouns, auxiliaries and question words. English + German in
+// ONE set: id generation is heading-level, a site can mix languages, and none
+// of the German words below collide with a meaningful English heading word.
 const STOP = new Set(
   ('a an the and or but of to in into on for with at by from as is are be been ' +
     'this that these those it its our your their we you they i how what why when ' +
-    'where which who will can do does has have')
+    'where which who will can do does has have ' +
+    'der die das den dem des ein eine einen einem einer und oder aber zu im in ' +
+    'auf mit bei von aus als ist sind war waren wir ihr sie es fuer wie was ' +
+    'warum wann wo wer wird werden kann koennen so')
     .split(' ')
 );
 
@@ -46,6 +51,17 @@ const STOP = new Set(
 function idWords(text) {
   const words = text
     .toLowerCase()
+    // NFC first: a decomposed umlaut (u + combining mark, e.g. pasted content)
+    // would miss the precomposed replaces below and degrade to bare
+    // accent-stripping (ü->u instead of ue).
+    .normalize('NFC')
+    // German transliteration BEFORE the ASCII strip: ß does not decompose
+    // under NFKD, so it would fall through to the [^a-z0-9-] separator and
+    // SPLIT the word ("Maßnahmen" -> "ma" + "nahmen"); umlauts get their
+    // German digraphs (ä->ae) instead of bare accent-stripping (ä->a), so
+    // "Größen" becomes "groessen", matching the ASCII-slug house rule.
+    .replace(/ß/g, 'ss')
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '') // strip accents (e.g. accented -> plain)
     .replace(/[^a-z0-9-]+/g, ' ') // separators -> space, but KEEP hyphens

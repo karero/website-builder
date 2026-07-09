@@ -28,7 +28,9 @@ import { SITE, LOCALES, DEFAULT_LOCALE, pathLocale, neutralPath, routeLocales } 
 
 // URL for a route, matching Base.astro's canonical/alternate output: root keeps its
 // trailing slash, every other path has none (trailingSlash:'never').
-const urlFor = (path: string) => (path === '/' ? `${SITE.url}/` : `${SITE.url}${path}`);
+// encodeURI: a non-ASCII route (/über-uns) reaches the DOM percent-encoded, so
+// build the comparison URL the same way (ASCII slugs remain the house rule).
+const urlFor = (path: string) => encodeURI(path === '/' ? `${SITE.url}/` : `${SITE.url}${path}`);
 
 // The locale a route belongs to — shared helper from src/config.ts (the prefix
 // segment if it is a non-default locale, else the default locale).
