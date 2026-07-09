@@ -223,7 +223,12 @@ Assemble the project at `<site>/` so it travels without any global setup:
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
    and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
-   `astro-i18n-setup`) — the overlay ships `locale: 'en'`, and leaving that default in
+   `astro-i18n-setup`). **`'de'` flips the footer's privacy link to `/datenschutz`** —
+   do the privacy→datenschutz swap in the SAME step (copy
+   `templates/datenschutz.astro` per its header: page file, `tests/_helpers.ts`
+   PAGES, `public/llms.txt`, `OWN_CARD_EXEMPT` + `POSITIONING_EXEMPT` in the
+   specs) or every intermediate `npm test` fails navigation on the footer link.
+   The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch. **Astro 6 needs Node ≥22.12** — the overlay's `.nvmrc` pins
    22 for local + Cloudflare Pages builds.
