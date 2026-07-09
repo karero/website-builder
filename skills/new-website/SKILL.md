@@ -282,7 +282,10 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```bash
    # If Q3 = "non-technical editor" (Keystatic):
    cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
-   # If Q4 = "2+ languages at launch":
+   # If Q4 = "2+ languages at launch" OR "multilingual, one language first"
+   # (phased rollout): the phased site NEEDS the skill vendored from day 1 —
+   # its Phase 2 instruction is "run astro-i18n-setup when translations are
+   # ready", which can't resolve if the skill was never copied.
    cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
    ```
 

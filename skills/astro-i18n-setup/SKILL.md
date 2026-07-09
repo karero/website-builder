@@ -39,6 +39,11 @@ You don't have to translate everything before launch. Because the default locale
 unprefixed, you can build and ship the **primary language first**, then add the second
 locale when the translations are ready — without moving a single existing URL:
 
+0. **Phase 0 — vendor this skill NOW.** A declared-multilingual-phased site gets
+   `astro-i18n-setup` copied into its skills dir at scaffold time (new-website §3's
+   conditional copy list) even while running single-locale — Phase 2 below is
+   executed months later by whoever holds the handoff, and the instruction can't
+   resolve if the skill isn't in the project.
 1. **Phase 1 — primary only.** Build the site in the default language and ship it. Keep
    `LOCALES = [DEFAULT_LOCALE]` (one entry). `tests/i18n.spec.ts` **self-skips** while
    there's a single locale (`LOCALES.length < 2`), so the full QA gate is green with no
