@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
-import { SITE, LOCALES, DEFAULT_LOCALE } from '../src/config';
+import { SITE, LOCALES, DEFAULT_LOCALE, pathLocale, neutralPath, routeLocales } from '../src/config';
 
 // hreflang contract for a multi-locale site (the gap seo.spec.ts does NOT cover).
 // Drop this file into tests/ when astro-i18n-setup runs. Hermetic: it navigates the
@@ -8,11 +8,20 @@ import { SITE, LOCALES, DEFAULT_LOCALE } from '../src/config';
 // cross-locale invariants Google actually enforces — see
 // seo-audit/references/international-seo.md for the WHY behind each.
 //
+// SPARSE ROUTES: a route does not have to exist in every locale. `ROUTES` in
+// src/config.ts is the single registry — a route with an explicit `locales` list
+// exists only in those locales (a German-only blog post on a DE+EN site), and this
+// spec derives every per-page expectation from that registry via routeLocales().
+// Base.astro and astro.config.mjs (sitemap serialize) read the SAME registry, so
+// head, sitemap and tests cannot drift apart.
+//
 // Invariants asserted:
-//   • completeness — every page lists ONE alternate per locale + exactly one x-default
+//   • completeness — every page lists ONE alternate per locale THE ROUTE EXISTS IN
+//                    (routeLocales), plus exactly one x-default
 //   • absolute     — every alternate href is the production URL (SITE.url + path)
 //   • self-canonical — the page's <link rel=canonical> equals its OWN-locale alternate
-//   • x-default    — points at the default-locale variant of the page
+//   • x-default    — points at the default-locale variant; a route with NO
+//                    default-locale variant self-references instead
 //   • reciprocity  — if page A (locale x) links B as its locale-y alternate, then B
 //                    links A back as its locale-x alternate (the #1 hreflang mistake)
 
@@ -20,13 +29,17 @@ import { SITE, LOCALES, DEFAULT_LOCALE } from '../src/config';
 // trailing slash, every other path has none (trailingSlash:'never').
 const urlFor = (path: string) => (path === '/' ? `${SITE.url}/` : `${SITE.url}${path}`);
 
-// The locale a route belongs to: the prefix segment if it is a non-default locale,
-// else the default locale (clean-default routing — '/', '/about' are the default).
-const localeOf = (path: string) =>
-  LOCALES.find((l) => l !== DEFAULT_LOCALE && (path === `/${l}` || path.startsWith(`/${l}/`))) ??
-  DEFAULT_LOCALE;
+// The locale a route belongs to — shared helper from src/config.ts (the prefix
+// segment if it is a non-default locale, else the default locale).
+const localeOf = pathLocale;
 
-const EXPECTED_CODES = [...LOCALES, 'x-default'].sort();
+// Per-page expected hreflang codes: the locales this page's ROUTE exists in, plus
+// x-default (Base.astro always emits one — self-referencing on sparse routes with
+// no default-locale variant).
+const expectedCodesFor = (path: string) => {
+  const locs = routeLocales(neutralPath(path, localeOf(path)));
+  return [...locs, 'x-default'].sort();
+};
 
 test.describe('i18n — hreflang contract', () => {
   // Single-locale sites have no hreflang to check (astro-i18n-setup only runs for 2+).
@@ -49,8 +62,8 @@ test.describe('i18n — hreflang contract', () => {
     for (const [path, { alts, canonical }] of seen) {
       expect(
         alts.map((a) => a.hreflang).sort(),
-        `${path}: hreflang set must be every locale + x-default`,
-      ).toEqual(EXPECTED_CODES);
+        `${path}: hreflang set must be every locale the route exists in (ROUTES/routeLocales) + x-default`,
+      ).toEqual(expectedCodesFor(path));
 
       for (const a of alts) {
         // SITE.url + '/' (not bare SITE.url) so a lookalike origin or a slash-less
@@ -62,9 +75,15 @@ test.describe('i18n — hreflang contract', () => {
       const selfAlt = alts.find((a) => a.hreflang === selfLocale);
       expect(canonical, `${path}: canonical must equal its own-locale alternate`).toBe(selfAlt?.href);
 
+      // x-default → the default-locale variant. A sparse route with NO default-locale
+      // variant can't do that (the page doesn't exist) — Base.astro emits a
+      // self-referencing x-default instead, and this assertion expects exactly that.
       const xDefault = alts.find((a) => a.hreflang === 'x-default');
       const defaultAlt = alts.find((a) => a.hreflang === DEFAULT_LOCALE);
-      expect(xDefault?.href, `${path}: x-default must point at the default-locale variant`).toBe(defaultAlt?.href);
+      expect(
+        xDefault?.href,
+        `${path}: x-default must point at the default-locale variant (or self, when the route has no default-locale variant)`,
+      ).toBe(defaultAlt?.href ?? selfAlt?.href);
     }
 
     // Cross-page: reciprocity. For each alternate that targets a page we know,
@@ -78,7 +97,9 @@ test.describe('i18n — hreflang contract', () => {
         // Every locale alternate must resolve to a page in PAGES — otherwise that
         // locale's pages were never built/listed and its reciprocity goes unchecked
         // (the exact "A links B, B never links back" mistake this file exists to catch).
-        expect(target, `${path}: alternate "${a.hreflang}" → ${a.href} has no matching page in PAGES — build + list every locale's routes`).toBeDefined();
+        // Sparse routes emit alternates only for routeLocales(), so a correctly
+        // narrowed route never trips this on its missing locales.
+        expect(target, `${path}: alternate "${a.hreflang}" → ${a.href} has no matching page in PAGES — build + list every locale's routes (or narrow the route's \`locales\` in ROUTES)`).toBeDefined();
         const back = seen.get(target!)!.alts.find((x) => x.hreflang === selfLocale);
         expect(back?.href, `${target} must link back to ${path} under hreflang="${selfLocale}"`).toBe(url);
       }
@@ -105,6 +126,9 @@ test.describe('i18n — hreflang contract', () => {
 
     for (const path of PAGES) {
       if (localeOf(path) === DEFAULT_LOCALE) continue;
+      // Sparse route with no default-locale variant: there is no original to
+      // compare against — nothing to check (the route IS the only version).
+      if (!routeLocales(neutralPath(path, localeOf(path))).includes(DEFAULT_LOCALE)) continue;
 
       await page.goto(path);
       const defaultHref = await page

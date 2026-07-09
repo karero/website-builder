@@ -168,6 +168,56 @@ test('sitemap matches PAGES (drift alarm)', async ({ request, baseURL }) => {
   ).toEqual([...PAGES].sort());
 });
 
+// Twin-page hreflang reciprocity (the LIGHT i18n path — Base.astro's `alternates`
+// prop; the heavy locale-prefix path gets the fuller tests/i18n.spec.ts from the
+// astro-i18n-setup skill instead). Opt-in: pages without `alternates` emit no
+// hreflang and are skipped, so this is a no-op until a page opts in. Three rules:
+//   • self — the cluster must contain an entry equal to the page's own canonical
+//   • no dead targets — a same-site alternate must be a PAGES route (the sitemap
+//     drift alarm guarantees PAGES is complete, so "same-site but not in PAGES"
+//     is always a typo'd href, not a skip)
+//   • reciprocity — the target page must link back to this page's canonical
+//     (one-sided clusters are IGNORED by Google and shipped silently — the
+//     exact live bug this check exists to prevent)
+test('twin-page hreflang alternates are self-consistent and reciprocal', async ({ page }) => {
+  type Alt = { hreflang: string; href: string };
+  const seen = new Map<string, { alts: Alt[]; canonical: string | null }>();
+  for (const path of PAGES) {
+    await page.goto(path);
+    const alts: Alt[] = await page.$$eval('link[rel="alternate"][hreflang]', (els) =>
+      els.map((e) => ({ hreflang: e.getAttribute('hreflang') || '', href: e.getAttribute('href') || '' })),
+    );
+    if (!alts.length) continue; // page doesn't use the twin-pages pattern
+    const canonical = await page.locator('link[rel="canonical"]').getAttribute('href');
+    seen.set(path, { alts, canonical });
+  }
+  if (!seen.size) return; // no page on this site opts in
+
+  const urlToPath = new Map(PAGES.map((p) => [p === '/' ? `${SITE.url}/` : `${SITE.url}${p}`, p]));
+  for (const [path, { alts, canonical }] of seen) {
+    expect(
+      alts.some((a) => a.href === canonical),
+      `${path}: alternates must include a self-referencing entry equal to the canonical (${canonical})`,
+    ).toBe(true);
+    for (const a of alts) {
+      if (a.hreflang === 'x-default') continue; // x-default repeats one of the locale entries
+      if (!a.href.startsWith(SITE.url)) continue; // external target: out of scope
+      const target = urlToPath.get(a.href);
+      expect(
+        target,
+        `${path}: alternate "${a.hreflang}" → ${a.href} is same-site but not a PAGES route — typo'd href?`,
+      ).toBeDefined();
+      const targetAlts = seen.get(target!)?.alts ?? [];
+      expect(
+        targetAlts.some((b) => b.href === canonical),
+        `${path}: alternate "${a.hreflang}" → ${a.href} does not link back — ` +
+          `${target} declares no alternate pointing at ${canonical} (non-reciprocal hreflang; ` +
+          `add the full cluster to BOTH twins' <Base alternates={…}>)`,
+      ).toBe(true);
+    }
+  }
+});
+
 // Indexability guard: the site is useless if a future edit silently closes it to
 // crawlers. Cloudflare's "Disable robots.txt configuration" leaves THIS file
 // authoritative, so it must stay open and point at the real domain. A blanket

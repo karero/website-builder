@@ -54,6 +54,74 @@ The one rule: commit to an **unprefixed default** from day 1 (`prefixDefaultLoca
 false`). That's the only decision that's expensive to change later; the translations
 themselves are always additive.
 
+## Partial translation (some routes are not translated)
+
+Not every route needs every locale. A German company running a DE+EN site whose blog
+stays German-only, or an English-first site adding one German landing page, does not
+have to translate everything to keep the i18n gate on.
+
+Mark such a route in `src/config.ts`'s `ROUTES` registry (§2) with an explicit
+`locales` list; a route with no `locales` field exists in every locale (unchanged
+default):
+
+```ts
+export const ROUTES: readonly RouteSpec[] = [
+  { path: '/' },
+  { path: '/privacy' },
+  { path: '/blog/some-post', locales: ['de'] },  // German-only, no EN variant
+];
+```
+
+One registry drives everything: `tests/_helpers.ts` PAGES (the EN variant is never
+expected to exist), Base.astro's head hreflang (the route emits one `de` alternate +
+a self-referencing `x-default` — never a link to a never-built page), the sitemap
+`serialize` hook (§1 — no advertised-but-missing alternate), and
+`tests/i18n.spec.ts`'s completeness/x-default/reciprocity/thin-translation checks
+(all per-route via `routeLocales()`). Google's guidance is explicit that hreflang
+belongs only on pages that actually have variants (international-seo.md) — this is
+that rule, made enforceable.
+
+## Light path: twin pages (no prefixed routing)
+
+For a handful of translated pages on an otherwise single-language site, the full
+routing setup above is more machinery than the job needs. The default kit
+`Base.astro` ships an optional `alternates` prop instead — no astro.config changes,
+no locale prefixes, no `LOCALES`:
+
+Give each paired page its own localized slug (see "Localized slugs" in
+`seo-audit/references/international-seo.md`) — e.g. `/ai-events-munich` (EN) and
+`/ai-treffen-muenchen` (DE) — and pass BOTH pages the full cluster, including a
+self-referencing entry and `x-default`:
+
+```astro
+<!-- /ai-events-munich (EN page) -->
+<Base title="…" description="…" alternates={[
+  { hreflang: 'en', href: '/ai-events-munich' },
+  { hreflang: 'de', href: '/ai-treffen-muenchen' },
+  { hreflang: 'x-default', href: '/ai-events-munich' },
+]}>
+
+<!-- /ai-treffen-muenchen (DE page) -->
+<Base lang="de" title="…" description="…" alternates={[
+  { hreflang: 'de', href: '/ai-treffen-muenchen' },
+  { hreflang: 'en', href: '/ai-events-munich' },
+  { hreflang: 'x-default', href: '/ai-events-munich' },
+]}>
+```
+
+`tests/seo.spec.ts`'s twin-page reciprocity check (in the default suite) enforces
+that both halves agree: a self-referencing entry equal to the canonical, no dead
+same-site targets, and A→B implies B→A. Forgetting the cluster on one twin — the
+exact bug that shipped live on a real site built from this kit (an English event
+page with no `alternates`, so its German twin's hreflang went unreciprocated,
+which makes Google ignore the pair) — now fails the build. Also add a visible
+`<a href="/ai-treffen-muenchen" lang="de" hreflang="de">Deutsch</a>` near the
+nav/footer: `alternates` only talks to crawlers, not visitors.
+
+Pick the heavy path (everything above this section) when most of the site is
+translated and you want prefixed routing + a language switcher; pick this light
+path for a few one-off translated pages. Don't mix both on the same page.
+
 ## What it changes
 
 ### 1. `astro.config.mjs` — i18n routing + sitemap alternates
@@ -69,17 +137,80 @@ export default defineConfig({
   },
   integrations: [
     // The i18n map makes @astrojs/sitemap emit <xhtml:link> hreflang alternates.
-    sitemap({ i18n: { defaultLocale: 'en', locales: { en: 'en', de: 'de' } }, changefreq: 'monthly', priority: 0.7 }),
+    sitemap({
+      i18n: { defaultLocale: 'en', locales: { en: 'en', de: 'de' } },
+      changefreq: 'monthly',
+      priority: 0.7,
+      // Sparse routes (ROUTES entries with an explicit `locales` list — see §2 and
+      // "Partial translation" below): the i18n map above emits alternates for EVERY
+      // locale on EVERY page; it knows nothing about ROUTES. Filter each entry's
+      // alternates to the locales the route actually exists in — a sitemap that
+      // advertises a never-built variant contradicts the head hreflang set
+      // (international-seo.md: head and sitemap must not disagree).
+      serialize(item) {
+        const path = new URL(item.url).pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+        const locs = routeLocales(neutralPath(path));
+        if (item.links && locs.length < LOCALES.length) {
+          item.links = item.links.filter((l) =>
+            l.lang === 'x-default' ? locs.includes(DEFAULT_LOCALE) : locs.includes(l.lang),
+          );
+          if (item.links.length < 2) delete item.links; // a cluster of one says nothing
+        }
+        return item;
+      },
+    }),
   ],
 });
 ```
+The `serialize` hook imports the shared registry from `src/config.ts` (Vite loads the
+Astro config, so the TS import works):
+```js
+import { LOCALES, DEFAULT_LOCALE, neutralPath, routeLocales } from './src/config';
+```
+Fully-translated sites (no `locales` overrides in ROUTES): the hook is a no-op.
 
-### 2. `src/config.ts` — replace the single locale
+### 2. `src/config.ts` — replace the single locale, add the route registry
 ```ts
 // was: locale: 'en'  inside SITE
 export const LOCALES = ['en', 'de'] as const;        // keep in sync with astro.config i18n.locales
 export const DEFAULT_LOCALE = 'en';
 export const LOCALE_LABELS: Record<string, string> = { en: 'English', de: 'Deutsch' };
+
+// Per-route locale membership — THE single registry that Base.astro (head
+// hreflang), astro.config.mjs (sitemap alternates) and the tests all read, so
+// they can't drift apart. A route with NO `locales` field exists in every
+// LOCALES entry (the fully-translated default: nothing changes for such sites).
+// Give a route an explicit `locales` list ONLY when it is NOT fully translated —
+// see "Partial translation" below.
+export type RouteSpec = { path: string; locales?: readonly string[] };
+export const ROUTES: readonly RouteSpec[] = [
+  { path: '/' },
+  { path: '/privacy' },
+  // { path: '/blog/some-post', locales: ['de'] },   // German-only page, no EN twin
+];
+
+// The locale a (possibly prefixed) path belongs to: the prefix segment if it is
+// a non-default locale, else the default locale (clean-default routing).
+export function pathLocale(path: string): string {
+  return (
+    LOCALES.find((l) => l !== DEFAULT_LOCALE && (path === `/${l}` || path.startsWith(`/${l}/`))) ??
+    DEFAULT_LOCALE
+  );
+}
+
+// Strip a non-default locale prefix: neutralPath('/de/privacy') === '/privacy'.
+export function neutralPath(path: string, locale: string = pathLocale(path)): string {
+  if (locale === DEFAULT_LOCALE) return path;
+  const stripped = path.replace(new RegExp(`^/${locale}(?=/|$)`), '');
+  return stripped === '' ? '/' : stripped;
+}
+
+// The locales a neutral path exists in — every LOCALES entry unless ROUTES
+// narrows it. Paths absent from ROUTES get the all-locales default, so an
+// unregistered page behaves exactly like a fully-translated one.
+export function routeLocales(neutral: string): readonly string[] {
+  return ROUTES.find((r) => r.path === neutral)?.locales ?? LOCALES;
+}
 ```
 Remove `SITE.locale` — and the matching `lang = SITE.locale` default prop in
 `Base.astro` (line ~28): the layout derives the locale from `Astro.currentLocale` now
@@ -93,7 +224,7 @@ locale, and emit self-referencing hreflang + `x-default`. Build and confirm the 
 ```astro
 ---
 import { getRelativeLocaleUrl } from 'astro:i18n';
-import { SITE, LOCALES, DEFAULT_LOCALE /* … */ } from '../config';
+import { SITE, DEFAULT_LOCALE, routeLocales /* … */ } from '../config';
 // … existing title/description/image props …
 
 const site = Astro.site ?? new URL(SITE.url);
@@ -111,8 +242,15 @@ if (neutral === '') neutral = '/';
 // getRelativeLocaleUrl() expects a bare path segment (or none for the locale root) — NOT a
 // leading-slash path — or it can drift the trailing slash under trailingSlash: 'never'.
 const localePath = neutral === '/' ? undefined : neutral.replace(/^\//, '');
-const alternates = LOCALES.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, localePath), site).href }));
-const xDefault = new URL(getRelativeLocaleUrl(DEFAULT_LOCALE, localePath), site).href;
+// Sparse-aware: only the locales this ROUTE exists in (routeLocales, §2) get an
+// alternate — not every LOCALES entry. Fully-translated routes are unaffected.
+const pageLocales = routeLocales(neutral);
+const alternates = pageLocales.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, localePath), site).href }));
+// x-default → the default-locale variant; a route with NO default-locale variant
+// self-references instead of advertising a page that doesn't exist.
+const xDefault = pageLocales.includes(DEFAULT_LOCALE)
+  ? new URL(getRelativeLocaleUrl(DEFAULT_LOCALE, localePath), site).href
+  : alternates.find((a) => a.loc === currentLocale)?.href;
 ---
 <html lang={currentLocale}>
   <head>
@@ -144,20 +282,22 @@ List the key pages across all locales in a single `/llms.txt` (do not split per 
 
 ## Test-harness changes (the part that keeps the gate honest)
 
-### `tests/_helpers.ts` — generate PAGES per locale
+### `tests/_helpers.ts` — generate PAGES from the route registry
 ```ts
-import { LOCALES, DEFAULT_LOCALE } from '../src/config';
-const BASE = ['/', '/privacy'] as const;          // locale-neutral paths
-export const PAGES = LOCALES.flatMap((loc) =>
-  BASE.map((p) =>
-    loc === DEFAULT_LOCALE ? p : (p === '/' ? `/${loc}` : `/${loc}${p}`),
+import { DEFAULT_LOCALE, ROUTES, routeLocales } from '../src/config';
+export const PAGES = ROUTES.flatMap((r) =>
+  routeLocales(r.path).map((loc) =>
+    loc === DEFAULT_LOCALE ? r.path : (r.path === '/' ? `/${loc}` : `/${loc}${r.path}`),
   ),
 ) as readonly string[];
 ```
-This yields `/`, `/privacy`, `/de`, `/de/privacy`. `seo.spec.ts`'s canonical check
-(`canonical === SITE.url + path`) and the sitemap-drift test then pass unchanged,
-because the i18n sitemap still emits one `<loc>` per page (alternates are
-`<xhtml:link>`, not extra `<loc>`s).
+With no `locales` overrides this yields the identical set as before — `/`,
+`/privacy`, `/de`, `/de/privacy` (route-major order instead of locale-major; every
+consumer sorts or iterates, so nothing observes the order). A sparse route appears
+only under its own locales, so navigation.spec never 404-checks a variant that was
+deliberately not built. `seo.spec.ts`'s canonical check (`canonical === SITE.url +
+path`) and the sitemap-drift test pass unchanged, because the i18n sitemap still
+emits one `<loc>` per page (alternates are `<xhtml:link>`, not extra `<loc>`s).
 
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).
@@ -212,3 +352,9 @@ npm test                                        # green, INCLUDING tests/i18n.sp
 Confirm: every page self-references + lists all locales + `x-default`; default-locale
 URLs are unchanged from a single-locale build; trailing slashes are consistent
 (`/` keeps its slash, `/de` and sub-pages have none).
+
+Testing a **sparse route**? Add `{ path: '/nur-de', locales: ['de'] }` to ROUTES,
+create only `src/pages/de/nur-de.astro`, rebuild, and confirm: `/de/nur-de` emits
+exactly one locale alternate + a self-referencing `x-default`; `npm test` stays
+green with no EN variant anywhere; and `dist/sitemap-0.xml` carries no
+`<xhtml:link>` pointing at a never-built `/nur-de` (the §1 `serialize` hook).
