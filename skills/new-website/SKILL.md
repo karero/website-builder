@@ -51,6 +51,13 @@ repo's permission allowlist (fewer prompts, same guardrails); and `search-consol
 
 ## 1. Decision interview (answer before any code)
 
+**Conduct the interview — and ALL user-facing guidance throughout this pipeline
+(explanations, the §3a link-sweep question, the §4 preview-vs-live announcement,
+error walk-throughs) — in the language the user writes in.** A German owner gets
+the whole journey in German; the skill files themselves stay English. The verbatim
+message templates below are content specs, not required English wording — deliver
+them in the user's language.
+
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
 non-expert can answer, and record the answers in the project `README.md`.
@@ -393,6 +400,9 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       owners new to Cloudflare (least-privilege, expiring token; you run Wrangler), with
       git-integration (push-to-deploy, no token) and browser/manual as the other offered paths.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
+      Non-English-speaking owner? Translate `PUBLISHING.md` in-session first (e.g. save
+      as `PUBLISHING.de.md`, or replace the copy) — it is the owner's PERMANENT reference,
+      unlike your conversational guidance, and the shipped template is English.
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
