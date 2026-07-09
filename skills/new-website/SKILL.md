@@ -385,7 +385,10 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 - [ ] **OG share cards** generated (`npm run og`, the `og-images` skill): a 1200×630
       JPEG **≤300 KB** per page (`public/images/og/`), each page wiring `image=` (or the
       default). `tests/seo.spec.ts` enforces size/dimensions; WhatsApp drops previews over
-      ~300 KB. Plus favicon/manifest icon set in place.
+      ~300 KB. Plus favicon/manifest icon set in place, and the manifest's
+      `[BRACKET]` fields (name/short_name/description) filled in the site's
+      content language with `lang` set from `SITE.locale` — no spec reads the
+      manifest, so placeholder English there ships silently otherwise.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.

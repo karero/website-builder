@@ -6,6 +6,7 @@
 //   <EmailLink address="hello@example.com" />
 //   <EmailLink address="hello@example.com" subject="Project enquiry" text="Email us" />
 import { encodeEmail, emailHint } from '../lib/obfuscate';
+import { SITE } from '../config';
 
 interface Props {
   address: string;
@@ -16,7 +17,7 @@ interface Props {
 const { address, subject, text, class: className } = Astro.props;
 const data = encodeEmail(address);
 const subj = subject ? encodeURIComponent(subject) : '';
-const label = text ?? emailHint(address);
+const label = text ?? emailHint(address, SITE.locale);
 ---
 <a class:list={['email-link', className]} href="#" data-email={data} data-subject={subj}>{label}</a>
 

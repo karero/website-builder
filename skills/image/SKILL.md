@@ -310,7 +310,9 @@ Generate OG images programmatically for pages with dynamic content (blog posts, 
 2. **Skipping image optimization** — unoptimized images are the #1 page speed killer
 3. **No OG image** — shared links look broken without a preview image
 4. **Wrong aspect ratio** — always check platform specs before generating
-5. **Text-heavy images without Ideogram** — most AI models butcher text; use Ideogram or add text in post
+5. **Text-heavy images without Ideogram** — most AI models butcher text; use Ideogram or add text in post.
+   Non-English text is worse still: umlauts/ß (and any diacritics) garble far more often
+   than ASCII — for German text in images, prefer programmatic overlays even more strongly
 6. **Generating without style direction** — "photorealistic," "flat illustration," "3D render" drastically changes output
 7. **Inconsistent brand visuals** — use Flux multi-reference or design templates for consistency
 8. **Huge images on landing pages** — compress, resize, lazy load

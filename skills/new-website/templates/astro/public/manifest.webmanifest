@@ -1,7 +1,8 @@
 {
-  "name": "Example",
-  "short_name": "Example",
-  "description": "One-line description.",
+  "name": "[SITE NAME]",
+  "short_name": "[SHORT NAME]",
+  "description": "[One-line description, in the site's content language.]",
+  "lang": "en",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
