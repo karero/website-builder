@@ -114,7 +114,7 @@ PR's *base* branch, so long-lived staging/production branches are safe). Pair it
 fetch-time pruning so the deleted branches also disappear from local `origin/…` references
 (prune only cleans tracking refs, never local branches):
 ```bash
-gh api -X PATCH "repos/{owner}/{repo}" -F delete_branch_on_merge=true
+gh repo edit --delete-branch-on-merge
 git config --global fetch.prune true   # once per machine; use --local to scope per repo
 ```
 
@@ -129,9 +129,12 @@ is what makes that true on a direct-push workflow). It needs `npx playwright ins
 
 The hook also contains a commented-out **PR-only-main guard**: enable it when several people
 or parallel AI agents share the checkout and new commits should reach `main` only via reviewed
-PRs (server-side branch protection needs a paid plan on private repos). It rejects direct
-pushes to `main` (`ALLOW_MAIN_PUSH=1` overrides); ship flows pushing `main:production` and
-GitHub PR merges are unaffected.
+PRs (server-side branch protection needs a paid plan on private repos). It's a **local,
+advisory convention, not an enforced one** — `git push --no-verify`, unsetting
+`core.hooksPath`, or pushing from a different clone all bypass it — so it only helps when
+everyone sharing the checkout has it enabled and respects it; it rejects direct pushes to
+`main` (`ALLOW_MAIN_PUSH=1` overrides) from a checkout that has it on, while ship flows
+pushing `main:production` and GitHub PR merges are unaffected either way.
 
 ---
 
