@@ -109,9 +109,12 @@ avoiding the terminal for this step, unlike the IDE-only Antigravity path.
 
 ## Picking a model — RAM decides this, don't guess
 
-**Check available RAM first, then pick from the table — don't let the user
+**Check installed RAM first, then pick from the table — don't let the user
 guess or default to the biggest model "to be safe."** A model that doesn't
-fit in RAM either fails to load or runs so slowly it's unusable.
+fit in RAM either fails to load or runs so slowly it's unusable. The table
+below is keyed to *installed* RAM, not RAM free at this exact moment — if the
+machine is already under heavy memory pressure from other apps, the honest
+move is telling the user to close them first, not silently dropping a tier.
 
 **Check the machine:**
 - macOS: `sysctl hw.memsize` (answer is in bytes — divide by 1,073,741,824
@@ -125,15 +128,29 @@ fit in RAM either fails to load or runs so slowly it's unusable.
 Apple Silicon Macs (M1–M4) use unified memory — there's no separate VRAM
 number to check; the figure from `sysctl hw.memsize` is the whole budget.
 
-**RAM → model table** (quantized at Q4_K_M, the ollama default; includes
-headroom for the OS itself):
+**RAM → model table** (sizes are each tag's default-pull download size, not
+a uniform quantization scheme — ollama's per-tag default varies (e.g.
+`gpt-oss` ships natively in MXFP4, `deepseek-coder-v2:16b` defaults to
+Q4_0); run `ollama show <tag>` if the exact quantization matters for your
+case, don't assume Q4_K_M applies to every row. Sized to leave headroom for
+the OS — each row's model is meaningfully smaller than the RAM tier it's
+keyed to, on purpose. One default tag per row — recommend exactly that one;
+mention a row's noted exception only when the user explicitly accepts its
+stated constraints, never as an unprompted choice to pick between):
 
-| Available RAM | Pull this | Size | What it's realistically good for |
+| Installed RAM | Pull this | Size | What it's realistically good for |
 |---|---|---|---|
 | 8 GB | `qwen2.5-coder:7b` | 4.7 GB | Surface-level bugs: obvious null-check gaps, off-by-ones, inverted conditionals. Close other apps first — it's tight. |
-| 16 GB | `deepseek-coder-v2:16b` or `gpt-oss:20b` | 8.9 GB / 14 GB | Noticeably better context-holding than 7B; still not adversarial-grade. |
-| 32 GB | `qwen3-coder:30b` or `qwen2.5-coder:32b` | ~19–20 GB | The best currently-realistic local option — meaningfully narrows the gap to cloud models, though still a notch below Codex/Antigravity on subtle, multi-file, or business-logic bugs. |
-| 64 GB+ | 70B-class, or `gpt-oss:120b` (65 GB) | 40–65 GB | Diminishing returns vs. 30B for most review purposes; only worth it if the RAM is already sitting there unused. |
+| 16 GB | `deepseek-coder-v2:16b` | 8.9 GB | Noticeably better context-holding than 7B; still not adversarial-grade. (`gpt-oss:20b`, 14 GB, is sharper but leaves only ~2 GB for the OS and everything else — don't recommend it as the default; mention it only if the user says they'll close every other app first.) |
+| 32 GB | `qwen3-coder:30b` | ~19 GB | The best currently-realistic local option — meaningfully narrows the gap to cloud models, though still a notch below Codex/Antigravity on subtle, multi-file, or business-logic bugs. |
+| 64–95 GB | `llama3.3:70b` | ~43 GB | Diminishing returns vs. 30B for most review purposes; only worth it if the RAM is already sitting there unused. |
+| 96 GB+ | `gpt-oss:120b` | 65 GB | Same diminishing-returns caveat as `llama3.3:70b` — a 65 GB model needs real headroom above it, which is why it's a separate tier rather than folded into the 64 GB row (a 64 GB machine can't fit it at all). |
+
+Tags and sizes above were spot-checked at the time of writing; ollama library
+retags occasionally change a tag's underlying quantization or default
+variant. If a pull comes back a meaningfully different size than the table
+says, trust `ollama list`'s actual reported size over this table and recheck
+against RAM before proceeding — don't assume the table is still current.
 
 (`qwen3-coder:30b` and `gpt-oss:20b` are mixture-of-experts models — despite
 the "30B"/"20B" name, they only load their active-expert weights, which is
@@ -166,16 +183,19 @@ drift**:
    model, and OpenAI's own canonical pricing page could not be fetched
    directly during this research (blocked). Don't state a specific number to
    a user — point them at OpenAI's current pricing page
-   (chatgpt.com/codex/pricing) if they want exact figures, and describe the
-   shape qualitatively instead ("a rolling several-hour window, resets
-   automatically, current task finishes even if you hit it mid-task").
+   ([chatgpt.com/codex/pricing](https://chatgpt.com/codex/pricing)) if they
+   want exact figures, and describe the shape qualitatively instead ("a
+   rolling several-hour window, resets automatically, current task finishes
+   even if you hit it mid-task").
 2. **Antigravity's exact free-tier quota.** Google has deliberately not
    published a number ("basic weekly rate limits" is the entire official
    description as of this writing). The one concrete data point available is
-   a single dated report — XDA Developers, May 12 2026, "Tried Google's
-   Antigravity — the limitation made me close it good" — describing a
-   real-world lockout of up to ~7 days after roughly 20–30 minutes of active
-   use. Cite it as exactly that (one reviewer's dated account, not an
+   a single dated report — XDA Developers, May 12 2026, ["I tried Google's
+   Antigravity for a week, and this limitation made me close it for
+   good"](https://www.xda-developers.com/tried-googles-antigravity-limitation-made-close-it-good/)
+   — describing a real-world lockout of up to ~7 days after roughly 20–30
+   minutes of active use. Cite it as exactly that (one reviewer's dated
+   account, not an
    official guarantee), not as a hard fact about what every user will
    experience — and don't drop the citation when quoting the number; the
    number without its source is exactly the kind of stale-prone claim this

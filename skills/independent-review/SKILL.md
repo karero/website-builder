@@ -99,13 +99,31 @@ below needs a figure (a time estimate, a limit, a lockout report), pull it
 from there rather than restating one here from memory, so there is exactly
 one place to update when it goes stale.
 
-**"Installed" is not "working" — three distinct checks, don't conflate them:**
-1. *On PATH* — `command -v codex` / `command -v agy` / `command -v ollama`.
+**"Installed" is not "working" — three distinct checks, don't conflate them.**
+On macOS/Linux, run these directly. **On Windows, if the agent's own shell is
+PowerShell rather than a POSIX shell (WSL, git-bash), `command -v`/`test -f`
+won't work as written** — use the PowerShell equivalents shown:
+1. *On PATH* — `p="$(command -v codex)" && test -f "$p" && test -x "$p"` /
+   same for `agy`/`ollama` (a bare `command -v` alone can match a shell
+   alias or function, not the real binary; `test -x` alone isn't enough
+   either — a directory can be `-x` without being the binary — so require
+   both `-f` and `-x` on the resolved path). This is a best-effort check,
+   not a perfect one — an edge case remains where `command -v` returns a
+   bare function name and a same-named executable happens to sit in the
+   current directory; don't spend more effort closing that specific gap,
+   Step 5's real-review-output check is what actually matters. (PowerShell:
+   `Get-Command codex -CommandType Application -ErrorAction
+   SilentlyContinue`, same pattern for `agy`/`ollama` — `-CommandType
+   Application` is the equivalent guard against matching an alias or
+   function instead of the actual binary).
    Proves the binary exists, nothing more.
-2. *Looks authenticated* — `test -f ~/.codex/auth.json` (Codex); `agy models`
-   returns a model list, not an error (Antigravity); `ollama list` returns
-   without error (ollama, though this only proves the daemon runs, not that
-   any model is pulled yet). A stale/expired token can still pass this check.
+2. *Looks authenticated* — `test -f ~/.codex/auth.json` (PowerShell:
+   `Test-Path -LiteralPath "$HOME\.codex\auth.json" -PathType Leaf` — plain
+   `Test-Path` without `-PathType Leaf` would also match a directory
+   accidentally named `auth.json`) for Codex; `agy models` returns a model
+   list, not an error (Antigravity); `ollama list` returns without error
+   (ollama, though this only proves the daemon runs, not that any model is
+   pulled yet). A stale/expired token can still pass this check.
 3. *Actually works* — a real review request returns real review-shaped
    output. This is the only check that proves the tool is usable right now;
    see Step 5. Don't report "done" off checks 1–2 alone.
@@ -145,8 +163,11 @@ is the cross-model option there; on an Antigravity/Gemini host, the reverse.
 - If the user asked generically for review setup, and ≥1 reviewer that is
   **cross-model for the current host** (per the table above — not ollama
   alone, and not same-family-as-host alone) is already installed and
-  authenticated, skip straight to Step 6 (confirm it still works with one
-  real test run per Step 5's evidence standard).
+  authenticated: **first run one real test review per Step 5's evidence
+  standard — installed-and-authenticated is checks 1–2, not proof it
+  works — then, only once that passes, skip the rest of onboarding and go
+  straight to Step 6.** A failed test run means treat it as broken, not as
+  done (see the last bullet below).
 - If only ollama is set up so far, treat that the same as "nothing set up
   yet" for gate purposes — it's a fine backup to already have, but proceed to
   Step 3 to add a cloud reviewer, don't report the wizard as done.
@@ -258,6 +279,44 @@ success with no quoted output is not evidence and doesn't satisfy this step.
 A tool that installed but can't produce a real review (bad auth, model
 unavailable, `looks_like_review()` in the script would reject its output) is
 not done — fix it or tell the user honestly it isn't working yet.
+
+**For Antigravity/`agy` specifically, this step must also confirm the
+*model*, not just that a review came back.** `agy models` (used in Step
+2/4a) only proves models can be listed — it says nothing about which model
+the CLI will actually use for a review. Apply the ONE rule this whole skill
+uses everywhere else (see the Independence rule table) — don't re-derive a
+per-host list here, that's what kept breaking across earlier drafts of this
+paragraph: **the reviewer's confirmed model family must differ from the
+CURRENT host's family. That's it — check it against whichever host is
+actually running right now, for whichever reviewer is actually being
+verified, every time.**
+
+`agy`'s default model is Gemini (`independent_review.sh` invokes `agy
+--sandbox --model "$AGY_MODEL" ...`, `AGY_MODEL` defaulting to "Gemini 3.1
+Pro (High)" — that env var is this script's own convention, mapped straight
+onto `agy`'s real `--model` flag; it is not a native `agy` setting, so don't
+expect it to do anything outside this script). Gemini differs from every
+host in this skill except an Antigravity/Gemini host itself — so on a
+Gemini host specifically, `agy` only satisfies the gate if `AGY_MODEL` is
+overridden away from Gemini (e.g. to Claude); on every other host, `agy`'s
+Gemini default already satisfies it. If a fallback reviewer is needed
+because `agy`'s model can't be confirmed, apply the same one rule to pick
+it — Codex is cross-model everywhere except when the host is itself Codex.
+
+Look for a model identifier in the test review's own output — the actual
+invocation's reported model, not a config file (a valid Codex install may
+have no `config.toml`, or one with no explicit `model` entry, sourcing its
+effective model from defaults/profile/CLI args instead; `codex exec` does
+reliably print its effective config in its own output regardless, e.g.
+"model: gpt-5.6-terra" — that's the thing to read, not the file). `agy`'s
+output format for this wasn't independently confirmed while writing this
+skill, so treat that pattern as a lead to check, not a guarantee. **If no
+model identifier can be confirmed at all, do not report `agy` as
+gate-satisfying** — "a review came back" and "a review came back from a
+confirmed cross-model model" are different claims, and only the second one
+closes the gate; say plainly that the model couldn't be verified and pick a
+fallback the same way (the one rule, above) rather than defaulting to any
+specific tool by name.
 
 ### Step 6 — THEN teach them how to use it. Don't skip this.
 
