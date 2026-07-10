@@ -107,6 +107,17 @@ The template `.gitignore` excludes `node_modules/`, `dist/`, `.astro/`, Playwrig
 `.env*` secrets, `.wrangler/`, and OS/editor cruft. **Never commit a `.env` or any token** —
 Cloudflare/analytics secrets live in the Cloudflare dashboard's env vars, not the repo.
 
+When you create the GitHub repo (`gh repo create … --private`), also turn on auto-delete of
+merged PR head branches — a no-op on the default direct-push workflow, and it prevents stale
+branches from piling up the day the project graduates to a PR flow (GitHub never deletes a
+PR's *base* branch, so long-lived staging/production branches are safe). Pair it with
+fetch-time pruning so the deleted branches also disappear from local `origin/…` references
+(prune only cleans tracking refs, never local branches):
+```bash
+gh api -X PATCH "repos/{owner}/{repo}" -F delete_branch_on_merge=true
+git config --global fetch.prune true   # once per machine; use --local to scope per repo
+```
+
 ### Pre-push quality gate (auto-wired by `npm install`)
 
 The `prepare` script in `package.json` points `core.hooksPath` at `scripts/hooks`, so the
@@ -115,6 +126,12 @@ local enforcement of "fails → does not ship" (Cloudflare deploys independently
 is what makes that true on a direct-push workflow). It needs `npx playwright install chromium`
 (above). Relax for one push with `git push --no-verify`; disable with
 `git config --unset core.hooksPath`. See `website-qa` §1c — offer this choice, don't impose it.
+
+The hook also contains a commented-out **PR-only-main guard**: enable it when several people
+or parallel AI agents share the checkout and new commits should reach `main` only via reviewed
+PRs (server-side branch protection needs a paid plan on private repos). It rejects direct
+pushes to `main` (`ALLOW_MAIN_PUSH=1` overrides); ship flows pushing `main:production` and
+GitHub PR merges are unaffected.
 
 ---
 

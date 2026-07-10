@@ -12,6 +12,21 @@
 #
 set -e
 
+# OPTIONAL: PR-only main flow. If this repo's convention is that new commits
+# reach main only via reviewed PRs (typical when several people or parallel AI
+# agents share the checkout), uncomment the block below to reject direct
+# pushes to main. Ship flows pushing main:production are unaffected; GitHub
+# PR merges happen server-side, so they're unaffected too. Deliberate exception:
+# ALLOW_MAIN_PUSH=1 git push ...
+# (Must stay ABOVE the build/test steps: it consumes the hook's stdin.)
+#
+# while read -r _lref _lsha remote_ref _rsha; do
+#   if [ "$remote_ref" = "refs/heads/main" ] && [ "${ALLOW_MAIN_PUSH:-0}" != "1" ]; then
+#     echo "✗ Direct push to 'main' blocked — open a PR instead (ALLOW_MAIN_PUSH=1 to override)." >&2
+#     exit 1
+#   fi
+# done
+
 echo "▶ pre-push gate: building…"
 npm run build
 
