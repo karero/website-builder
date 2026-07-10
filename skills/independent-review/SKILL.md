@@ -41,7 +41,10 @@ rounds caught 5 BUGs the author had shipped.
 ## Reviewer stack (run ALL available, not first-success)
 
 1. **Codex CLI** (`codex exec -s read-only`) — genuine read-only sandbox; model +
-   effort from `~/.codex/config.toml`.
+   effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
+   `CODEX_MODEL=gpt-5.6-sol` for a harder case or a long plan — config.toml's
+   reasoning-effort setting still applies on top, since the override only touches
+   the model key.
 2. **Gemini 3.1 Pro (High)** via the Antigravity CLI (`agy --sandbox -p`) — free
    Antigravity login. *(The old `@google/gemini-cli` path is deprecated: Google
    discontinued its free tier 2026-06-18.)*

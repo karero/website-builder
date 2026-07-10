@@ -19,7 +19,10 @@
 #   independent_review.sh change.patch --diff   # force diff framing
 #   git diff main...HEAD | independent_review.sh -   # stdin -> auto diff
 # Env:
-#   (codex model + reasoning effort come from ~/.codex/config.toml, e.g. gpt-5.5 xhigh)
+#   (codex model + reasoning effort default from ~/.codex/config.toml — daily driver)
+#   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
+#                                    e.g. CODEX_MODEL=gpt-5.6-sol for a hard case or a
+#                                    long plan. Does not touch config.toml's daily driver.
 #   AGY_MODEL      (Gemini 3.1 Pro (High))  Antigravity CLI model for tier 2.
 #   OLLAMA_MODEL   (unset)           explicit ollama model — REQUIRED to use the
 #                                    ollama tier. Cloud vs local is NOT detectable
@@ -112,10 +115,13 @@ looks_like_review() {
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
 #     non-review output) / 3 (unavailable). Callers fall through on non-zero. ------
-# PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort — e.g.
-# gpt-5.5 / xhigh) and ~/.codex/auth.json; `exec -s read-only` gives a GENUINE read-only
-# sandbox — its shell commands can't touch your repo. The binary may not be on PATH (it ships inside the
-# ChatGPT VS Code extension), so resolve it explicitly.
+# PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort as
+# the daily-driver default) and ~/.codex/auth.json; `exec -s read-only` gives a GENUINE
+# read-only sandbox — its shell commands can't touch your repo. The binary may not be
+# on PATH (it ships inside the ChatGPT VS Code extension), so resolve it explicitly.
+# CODEX_MODEL overrides the model for this run only (e.g. a stronger tier for a hard
+# case or a long plan) via `-c model=...`; config.toml's reasoning-effort setting still
+# applies on top of it, since that's a separate key the override doesn't touch.
 codex_bin() {
   command -v codex 2>/dev/null && return 0
   ls -1 "$HOME"/.vscode/extensions/openai.chatgpt-*/bin/*/codex 2>/dev/null | sort -V | tail -1
@@ -123,12 +129,21 @@ codex_bin() {
 run_codex() {
   local bin; bin="$(codex_bin)"
   [ -n "$bin" ] && [ -x "$bin" ] && [ -f "$HOME/.codex/auth.json" ] || return 3
-  "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"; local rc=$?
+  # No array for the optional -c flag: bash 3.2 (macOS's system /usr/bin/bash, which
+  # this script's `env bash` shebang can resolve to) throws "unbound variable" on
+  # "${arr[@]}" for an EMPTY array under `set -u` — verified on this host, not
+  # theoretical — so branch instead of building an argv array conditionally.
+  if [ -n "${CODEX_MODEL:-}" ]; then
+    "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+  else
+    "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+  fi
+  local rc=$?
   { [ $rc -eq 0 ] && [ -s "$RAW_DIR/codex.out" ]; } || return 1
   local out; out="$(cat "$RAW_DIR/codex.out")"
   looks_like_review "$out" || return 1
-  local cfg; cfg="$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')"
-  printf '## Independent review — codex (~/.codex config: %s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
+  local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
+  printf '## Independent review — codex (%s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
 }
 # 2. Google Gemini — via the Antigravity CLI `agy` (brew: antigravity-cli). FREE tier via the
 #    Antigravity Google login (shared with the IDE — no separate auth, no API key), and it
@@ -220,7 +235,7 @@ cat >&2 <<'EOF'
 ## No automated reviewer available/succeeded — the gate is NOT satisfied.
 # Set one up:
 #   codex           # OpenAI Codex CLI (bundled in the ChatGPT VS Code extension) — preferred;
-#                   # already reads ~/.codex config (gpt-5.5 xhigh) + auth.json
+#                   # already reads ~/.codex config (model + reasoning effort) + auth.json
 #   brew install antigravity-cli    # `agy` — Gemini 3.1 Pro (High), free Antigravity login
 #   OLLAMA_MODEL=glm-5.2:cloud …    # a named ollama cloud model (strong, private-ish)
 # Or paste the prompt below into any strong model and feed the findings back:
