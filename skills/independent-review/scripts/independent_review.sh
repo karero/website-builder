@@ -145,8 +145,8 @@ run_codex() {
   # for a specific (usually stronger) model in the first place.
   if { [ $rc -ne 0 ] || [ ! -s "$RAW_DIR/codex.out" ]; }; then
     if [ -n "${CODEX_MODEL:-}" ]; then
-      echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" failed (exit $rc):" >&2
-      tail -5 "$RAW_DIR/codex.err" >&2 2>/dev/null
+      echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" failed (exit $rc) — full stderr: $RAW_DIR/codex.err" >&2
+      tail -20 "$RAW_DIR/codex.err" >&2 2>/dev/null
     fi
     return 1
   fi
