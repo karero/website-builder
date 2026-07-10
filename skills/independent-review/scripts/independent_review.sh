@@ -139,10 +139,27 @@ run_codex() {
     "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   fi
   local rc=$?
-  { [ $rc -eq 0 ] && [ -s "$RAW_DIR/codex.out" ]; } || return 1
+  # An explicit CODEX_MODEL request failing must not fail silently — with
+  # --first-success the caller just moves on to the next tier with no sign the
+  # requested override never actually ran, which defeats the point of asking
+  # for a specific (usually stronger) model in the first place.
+  if { [ $rc -ne 0 ] || [ ! -s "$RAW_DIR/codex.out" ]; }; then
+    if [ -n "${CODEX_MODEL:-}" ]; then
+      echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" failed (exit $rc):" >&2
+      tail -5 "$RAW_DIR/codex.err" >&2 2>/dev/null
+    fi
+    return 1
+  fi
   local out; out="$(cat "$RAW_DIR/codex.out")"
-  looks_like_review "$out" || return 1
-  local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
+  if ! looks_like_review "$out"; then
+    [ -n "${CODEX_MODEL:-}" ] && echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" ran but returned non-review output" >&2
+    return 1
+  fi
+  # ^model[[:space:]]*= (not bare ^model): config.toml also has a
+  # model_reasoning_effort key, which a bare ^model prefix match also catches —
+  # confirmed live in this session's own captured review headers, which were
+  # garbled by exactly this ("codex (~/.codex config: gpt-5.6-terra\nmodel_rea…").
+  local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
   printf '## Independent review — codex (%s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
 }
 # 2. Google Gemini — via the Antigravity CLI `agy` (brew: antigravity-cli). FREE tier via the
