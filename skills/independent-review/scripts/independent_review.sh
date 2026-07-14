@@ -109,8 +109,16 @@ looks_like_review() {
   printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
   # 2. structured findings (list/heading-anchored severity)
   printf '%s\n' "$1" | grep -qiE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b' && return 0
-  # 3. genuine clean verdicts
-  printf '%s\n' "$1" | grep -qiE '\bno findings\b|\bcame back clean\b|\ball clean\b'
+  # 3. genuine clean verdicts. Broadened past a strict "\bno findings\b" phrase match
+  #    after 3 real Codex responses in one session all misreported as gate-FAIL despite
+  #    being genuine clean reviews (verified live 2026-07-13, exit 0, valid stdout each
+  #    time): "No BUG / RISK / NIT findings in this diff." (no+findings not adjacent),
+  #    "Ranked findings: none." (findings before none, no "no" at all as its own word -
+  #    "none" doesn't word-boundary-match \bno\b), and "Ranked findings: none. I found no
+  #    BUG, RISK, or NIT..." (findings appears before, not after, the "no"). Order- and
+  #    phrasing-tolerant now: matches no+findings in EITHER order, "findings: none",
+  #    bare "none" as a sentence, or "no bug/risk/nit" directly.
+  printf '%s\n' "$1" | grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno (bug|risk|nit)s?\b'
 }
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
