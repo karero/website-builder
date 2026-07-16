@@ -18,7 +18,7 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
 # handoff. NOT the scripts (they DEFINE the secret regexes — would self-match). The name
 # denylist stays on $SCAN only: LICENSE legitimately carries the owner name + clone URLs.
-SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE Makefile docs"
+SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE SECURITY.md Makefile docs"
 fail=0
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
