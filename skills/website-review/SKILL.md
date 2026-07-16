@@ -74,19 +74,28 @@ honors this override for plans, it doesn't force the pair. Setup: if
 `independent-review` isn't already working in this repo, its own SKILL.md
 has a guided onboarding wizard for getting Codex or ollama-cloud running
 (free, no payment) — walk through that first rather than assuming it's ready.
+In a scaffolded site the skill isn't shipped at all: check that the
+`independent-review` folder actually exists before offering this escalation
+as ready-to-run. If it doesn't, either vendor it first (copy
+`skills/independent-review/` from github.com/karero/website-builder into the
+site's `.claude/skills/`) or frame the offer honestly as "available after a
+one-time setup step".
 
 **Explain the choice, then ask — don't decide silently.** Before reaching for
 anything beyond this skill's own two passes, say plainly what the options
 are and what's actually at stake: *"I can review this with the built-in
 check — free, runs now — or also send it to an outside AI for a second
-opinion, which takes a few extra minutes and (if it's the paid-adjacent
-option) uses a credit. For [this kind of change] I'd lean toward
+opinion, which costs nothing either but takes a few extra minutes. For
+[this kind of change] I'd lean toward
 [recommendation] because [reason] — want that, or would you rather [the
 other option]?"* The owner decides; this skill's job is to make an informed
 recommendation, never to pick unasked.
 
 ## Pass 1 — correctness / bugs
 - Run **`/code-review`** on the branch/diff (correctness bugs + reuse/simplification).
+  `/code-review` is Claude Code-only — under another host, review the diff by
+  hand against this pass's checklist, or vendor the generic `double-knuth`
+  skill from github.com/karero/website-builder.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
 - `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
