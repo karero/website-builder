@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Progress tracker mockup &mdash; website-builder</title>
+<style>
+  :root {
+    --page-bg: #ffffff;
+    --text-primary: #1a1a1a;
+    --text-secondary: #5f5e5a;
+    --text-muted: #888780;
+    --border: #d3d1c7;
+    --accent-bg: #E6F1FB; --accent-text: #0C447C; --accent-border: #378ADD;
+    --success-bg: #EAF3DE; --success-text: #27500A;
+    --surface-1: #F1EFE8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg: #1c1c1a;
+      --text-primary: #f1efe8;
+      --text-secondary: #b4b2a9;
+      --text-muted: #888780;
+      --border: #5f5e5a;
+      --accent-bg: #0C447C; --accent-text: #B5D4F4; --accent-border: #378ADD;
+      --success-bg: #27500A; --success-text: #C0DD97;
+      --surface-1: #242422;
+    }
+  }
+  body {
+    background: var(--page-bg);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+    line-height: 1.6;
+  }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 0.5rem; }
+  .note {
+    font-size: 14px;
+    color: var(--text-secondary);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0 2rem;
+  }
+  .note p { margin: 0 0 0.5rem; }
+  .note p:last-child { margin-bottom: 0; }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(180deg); }
+  .chev { display: inline-block; transition: transform 0.15s; font-size: 14px; color: var(--text-muted); }
+  .row { border-bottom: 0.5px solid var(--border); padding: 14px 0; }
+  .row:last-child { border-bottom: none; }
+  .dot {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+  .dot.done { background: var(--success-bg); color: var(--success-text); }
+  .dot.current { background: var(--accent-bg); color: var(--accent-text); border: 2px solid var(--accent-border); }
+  .dot.upcoming { background: var(--surface-1); color: var(--text-muted); border: 0.5px solid var(--border); }
+  summary { display: flex; align-items: center; gap: 12px; }
+  .title { font-weight: 600; font-size: 15px; }
+  .title.muted { color: var(--text-secondary); }
+  .status { font-size: 13px; }
+  .status.done, .status.upcoming { color: var(--text-muted); }
+  .status.current { color: var(--accent-text); }
+  .detail { padding: 10px 0 2px 38px; font-size: 14px; color: var(--text-secondary); }
+  .sub { margin: 0; padding-left: 18px; line-height: 1.8; }
+  .subsub { margin: 3px 0 8px; padding-left: 16px; line-height: 1.6; font-size: 12px; color: var(--text-muted); }
+  .done-item { color: var(--text-primary); }
+  .done-item::before { content: "\2713  "; color: var(--success-text); }
+</style>
+</head>
+<body>
+
+<h1>Where you stand &mdash; progress tracker mockup</h1>
+<div class="note">
+  <p>This is a saved mockup, not a live feature yet. The "done / in progress / up next"
+  states below are hardcoded to show what step 3 of 6 would look like &mdash; nothing here
+  reads real project state.</p>
+  <p>Open question before this becomes real: what should drive the state? Options discussed
+  so far &mdash; Claude tracks it conversationally (no file needed), a small checklist file in
+  the repo that gets checked off per phase, or it gets inferred from which docs/tests already
+  exist in the project. Not pushed into the site build yet; this lives in <code>docs/</code>
+  for reference only.</p>
+</div>
+
+<div>
+
+<div class="row">
+<details>
+<summary>
+<span class="dot done">&#10003;</span>
+<span style="flex:1;"><div class="title">1. Understand your purpose</div><div class="status done">Done</div></span>
+<span class="chev">&#9662;</span>
+</summary>
+<div class="detail">
+<ul class="sub">
+<li>Research the audience &amp; the field
+  <ul class="subsub"><li>Who the audience is</li><li>What they actually say</li><li>Who else is out there</li></ul>
+</li>
+<li>Find the positioning
+  <ul class="subsub"><li>What you offer</li><li>Who it's for</li><li>The category it sits in</li></ul>
+</li>
+</ul>
+</div>
+</details>
+</div>
+
+<div class="row">
+<details>
+<summary>
+<span class="dot done">&#10003;</span>
+<span style="flex:1;"><div class="title">2. Plan the site &amp; voice</div><div class="status done">Done</div></span>
+<span class="chev">&#9662;</span>
+</summary>
+<div class="detail">
+<ul class="sub">
+<li>Write the voice &amp; EEAT checklist
+  <ul class="subsub"><li>Tone of voice rules</li><li>Proof of experience &amp; trust</li><li>Page-by-page content plan</li></ul>
+</li>
+<li>Map every page &amp; the nav
+  <ul class="subsub"><li>Page hierarchy &amp; clean URLs</li><li>Navigation &amp; breadcrumbs</li><li>Internal linking plan</li></ul>
+</li>
+<li>Pick the tech setup
+  <ul class="subsub"><li>Static vs. a light backend</li><li>Self-editing later or not</li><li>One language or several</li></ul>
+</li>
+</ul>
+</div>
+</details>
+</div>
+
+<div class="row">
+<details open>
+<summary>
+<span class="dot current">3</span>
+<span style="flex:1;"><div class="title">3. Build every page</div><div class="status current">In progress</div></span>
+<span class="chev">&#9662;</span>
+</summary>
+<div class="detail">
+<ul class="sub">
+<li class="done-item">Design mobile-first pages
+  <ul class="subsub"><li>Responsive images, no layout shift</li><li>Dark mode</li><li>Brand &amp; theme colors</li></ul>
+</li>
+<li class="done-item">Add search &amp; AI tags (SEO + GEO)
+  <ul class="subsub"><li>Title &amp; description that fit</li><li>Structured data (schema.org)</li><li>llms.txt for AI engines</li></ul>
+</li>
+<li>Create share images
+  <ul class="subsub"><li>One image per page</li><li>Sized right for social apps</li></ul>
+</li>
+<li>Add real testimonials (EEAT)
+  <ul class="subsub"><li>Real quotes, not fabricated</li><li>Review markup on the right item</li></ul>
+</li>
+</ul>
+</div>
+</details>
+</div>
+
+<div class="row">
+<details>
+<summary>
+<span class="dot upcoming">4</span>
+<span style="flex:1;"><div class="title muted">4. Test, review &amp; polish</div><div class="status upcoming">Up next</div></span>
+<span class="chev">&#9662;</span>
+</summary>
+<div class="detail">
+<ul class="sub">
+<li>Check accessibility &amp; broken links
+  <ul class="subsub"><li>Screen-reader &amp; keyboard checks</li><li>Every link, in and out, still works</li><li>No orphaned pages</li></ul>
+</li>
+<li>Check page speed
+  <ul class="subsub"><li>Lighthouse / PageSpeed run</li><li>Fix slow images or scripts</li></ul>
+</li>
+<li>Independent second review
+  <ul class="subsub"><li>Fresh eyes on correctness</li><li>Cross-page consistency check</li></ul>
+</li>
+</ul>
+</div>
+</details>
+</div>
+
+<div class="row">
+<details>
+<summary>
+<span class="dot upcoming">5</span>
+<span style="flex:1;"><div class="title muted">5. Launch &amp; get found</div><div class="status upcoming">Up next</div></span>
+<span class="chev">&#9662;</span>
+</summary>
+<div class="detail">
+<ul class="sub">
+<li>Go live on the real domain
+  <ul class="subsub"><li>Preview link double-checked first</li><li>Sitemap &amp; robots.txt in place</li></ul>
+</li>
+<li>Hand over the keys
+  <ul class="subsub"><li>Plain-English publishing guide</li><li>Everything documented for you</li></ul>
+</li>
+</ul>
+</div>
+</details>
+</div>
+
+<div class="row">
+<details>
+<summary>
+<span class="dot upcoming">6</span>
+<span style="flex:1;"><div class="title muted">6. Optimize what's working</div><div class="status upcoming">Up next</div></span>
+<span class="chev">&#9662;</span>
+</summary>
+<div class="detail">
+<ul class="sub">
+<li>See which keywords rank
+  <ul class="subsub"><li>Real Google + Bing data</li><li>Exact position, clicks, impressions</li></ul>
+</li>
+<li>Find quick wins
+  <ul class="subsub"><li>Striking-distance queries (pos. 8-20)</li><li>Fastest path to page one</li></ul>
+</li>
+<li>Fix low-click pages
+  <ul class="subsub"><li>High views, low clicks</li><li>Rewrite the title &amp; description</li></ul>
+</li>
+<li>&#8635; try something new
+  <ul class="subsub"><li>See who outranks you</li><li>Test a different angle or page</li></ul>
+</li>
+</ul>
+</div>
+</details>
+</div>
+
+</div>
+
+</body>
+</html>
