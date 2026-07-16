@@ -50,12 +50,14 @@ build stays fully static (no adapter, no auth, no server). Steps applied to the 
    });
    ```
    The `keystatic()` integration **auto-injects** the `/keystatic` admin route + its API —
-   you do NOT hand-write route files. (Verified deps on Astro 7: `@astrojs/react@^5`,
-   `@astrojs/markdoc@^2` (peer `astro: ^7.0.0` — the `^1` line stays capped at `astro: ^6.0.0`
-   and will NOT install against an Astro 7 site; `npx astro add markdoc` resolves the right
-   major automatically, but don't hand-pin `^1` from an older note), `@keystatic/core@^0.5`,
-   `@keystatic/astro@^5` (peer range explicitly covers `astro: 2 || 3 || 4 || 5 || 6 || 7`),
-   `react@19`.)
+   you do NOT hand-write route files. (Verified deps on Astro 7 — each checked via
+   `npm view <pkg> peerDependencies`, not assumed: `@astrojs/markdoc@^2` (peer
+   `astro: ^7.0.0` — the `^1` line stays capped at `astro: ^6.0.0` and will NOT install
+   against an Astro 7 site; `npx astro add markdoc` resolves the right major automatically,
+   but don't hand-pin `^1` from an older note); `@keystatic/astro@^5` (peer range explicitly
+   covers `astro: 2 || 3 || 4 || 5 || 6 || 7`); `@astrojs/react@^5` and `@keystatic/core@^0.5`
+   declare NO `astro` peer at all — decoupled from Astro's version entirely, so they can't be
+   the thing that breaks on a future Astro major either; `react@19`.)
 3. **`keystatic.config.ts`** at the repo root — one collection per repeating content type,
    each `path` pointing into `src/content/`:
    ```ts
