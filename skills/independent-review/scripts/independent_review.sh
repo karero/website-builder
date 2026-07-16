@@ -1,13 +1,25 @@
 #!/usr/bin/env bash
 #
 # independent_review.sh — external-model half of the `independent-review` gate.
-# Runs a plan MD or a diff through ALL available INDEPENDENT models (default) —
-# or the first that succeeds with --first-success — and prints their ranked
-# BUG/RISK/NIT reviews. The skill ALSO runs a host fresh-eyes pass (tier 3 —
-# whatever model family the host agent is) and consolidates. Exit 0 only means
-# "≥1 reviewer produced output" — the VERDICT
-# (unaddressed BUG / unwaived RISK = gate FAIL) is enforced by the skill from
-# the findings, never by this exit code. No reviewer at all → exit 4 (FAIL).
+# DEFAULT STANDARD PAIR = Codex CLI + ollama-cloud (glm-5.2:cloud) — both run
+# every time (or the first that succeeds with --first-success), and their
+# ranked BUG/RISK/NIT reviews print. The skill ALSO runs a host fresh-eyes pass
+# (tier 3 — whatever model family the host agent is) and consolidates.
+#
+# Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
+# WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
+# fallback: the owner's Antigravity free-tier credits are scarce and are spent
+# only when explicitly asked for (a genuinely hard case, or the owner directly
+# requests "antigravity review"/"agy review"). Default runs never touch it.
+#
+# PLAN gate always wants 2 reviewers: for --plan (or auto-detected plan type),
+# --first-success is overridden back to a full run (both Codex and ollama
+# attempted) with a warning — a plan is high-stakes enough that "first thing
+# that answered" isn't enough independence.
+#
+# Exit 0 only means "≥1 reviewer produced output" — the VERDICT (unaddressed
+# BUG / unwaived RISK = gate FAIL) is enforced by the skill from the findings,
+# never by this exit code. No reviewer at all → exit 4 (FAIL).
 #
 # SECURITY. The preferred reviewer, `codex exec -s read-only`, runs in a GENUINE
 # read-only sandbox — model-generated shell commands cannot write to your repo.
@@ -18,20 +30,24 @@
 #   independent_review.sh PLAN.md               # type auto-detected: plan
 #   independent_review.sh change.patch --diff   # force diff framing
 #   git diff main...HEAD | independent_review.sh -   # stdin -> auto diff
+#   independent_review.sh PLAN.md --with-antigravity  # explicitly spend an Antigravity credit too
 # Env:
 #   (codex model + reasoning effort default from ~/.codex/config.toml — daily driver)
 #   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
 #                                    e.g. CODEX_MODEL=gpt-5.6-sol for a hard case or a
 #                                    long plan. Does not touch config.toml's daily driver.
-#   AGY_MODEL      (Gemini 3.1 Pro (High))  Antigravity CLI model for tier 2.
-#   OLLAMA_MODEL   (unset)           explicit ollama model — REQUIRED to use the
-#                                    ollama tier. Cloud vs local is NOT detectable
-#                                    from `ollama list`, so you must name it.
+#   OLLAMA_MODEL   (glm-5.2:cloud)   ollama model for the standard second reviewer —
+#                                    defaults to the owner's pulled ollama-cloud model;
+#                                    override to point at a different cloud/local tag.
+#   AGY_MODEL      (Gemini 3.1 Pro (High))  Antigravity CLI model, used only when
+#                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
+#   WITH_ANTIGRAVITY (0)             set to 1 (or pass --with-antigravity) to include
+#                                    the Antigravity/agy tier for this run. Off by default.
 
 set -uo pipefail
 
-# --- args: one file (or -), optional --plan/--diff/--first-success/--local-only
-FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0
+# --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity
+FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}"
 for a in "$@"; do
   case "$a" in
     --plan)  TYPE="plan" ;;
@@ -39,17 +55,30 @@ for a in "$@"; do
     --first-success) FIRST_SUCCESS=1 ;;   # stop at the first tier that succeeds
     --local-only)    LOCAL_ONLY=1 ;;      # nothing leaves the machine: skip codex/agy/paste,
                                           # local ollama only (explicitly degraded gate)
+    --with-antigravity) WITH_ANTIGRAVITY=1 ;;  # explicit opt-in: spend an Antigravity credit this run
     -)       FILE="-" ;;
     -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
-             echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only]" >&2; exit 2 ;;
+             echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity]" >&2; exit 2 ;;
     *)       if [ -z "$FILE" ]; then FILE="$a"; else   # a silently dropped 2nd file = unreviewed artifact
                echo "extra argument: $a (one artifact per run)" >&2; exit 2; fi ;;
   esac
 done
-[ -n "$FILE" ] || { echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only]" >&2; exit 2; }
+[ -n "$FILE" ] || { echo "usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity]" >&2; exit 2; }
 CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: $FILE" >&2; exit 2; }
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
+fi
+# The standard second reviewer is the owner's pulled ollama-cloud model — no
+# env var needed to get the default duo (Codex + ollama-cloud) working.
+# NOT defaulted in --local-only mode: that mode's whole point is nothing
+# leaves the machine, and glm-5.2:cloud is a network call by definition —
+# local-only still requires the caller to name an explicit LOCAL model tag.
+[ "$LOCAL_ONLY" = "1" ] || OLLAMA_MODEL="${OLLAMA_MODEL:-glm-5.2:cloud}"
+# PLAN gate always wants 2 independent reviewers attempted — "first thing that
+# answered" isn't enough independence for a high-stakes planning doc.
+if [ "$TYPE" = "plan" ] && [ "$FIRST_SUCCESS" = "1" ]; then
+  echo "note: --first-success is ignored for plan reviews — running the full reviewer set (plans always want ≥2 independent passes)." >&2
+  FIRST_SUCCESS=0
 fi
 # argv ceiling: the whole artifact rides inside ONE -p argument. Linux caps a single
 # argv string at 128 KB (MAX_ARG_STRLEN=131072 — hard kernel limit; macOS is laxer,
@@ -170,13 +199,16 @@ run_codex() {
   local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
   printf '## Independent review — codex (%s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
 }
-# 2. Google Gemini — via the Antigravity CLI `agy` (brew: antigravity-cli). FREE tier via the
-#    Antigravity Google login (shared with the IDE — no separate auth, no API key), and it
-#    exposes the literal "Gemini 3.1 Pro (High)" model. Verified headless 2026-07-02.
-#    (The old @google/gemini-cli path is DEPRECATED: Google discontinued its free
-#    "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
-#    --sandbox = terminal restrictions; -p print mode never auto-approves tool calls (we do NOT
-#    pass --dangerously-skip-permissions). Run from a throwaway dir; treat output as untrusted.
+# OPT-IN ONLY (--with-antigravity / WITH_ANTIGRAVITY=1) — Google Gemini via the
+# Antigravity CLI `agy` (brew: antigravity-cli). The owner's Antigravity free-tier
+# credits are scarce; this tier is never run automatically, only when explicitly
+# requested because it's genuinely worth spending one. FREE tier via the
+# Antigravity Google login (shared with the IDE — no separate auth, no API key), and it
+# exposes the literal "Gemini 3.1 Pro (High)" model. Verified headless 2026-07-02.
+# (The old @google/gemini-cli path is DEPRECATED: Google discontinued its free
+# "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
+# --sandbox = terminal restrictions; -p print mode never auto-approves tool calls (we do NOT
+# pass --dangerously-skip-permissions). Run from a throwaway dir; treat output as untrusted.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-Gemini 3.1 Pro (High)}"
@@ -228,13 +260,15 @@ run_ollama() {
   fi
 }
 
-# --- dispatch. DEFAULT = run ALL available reviewers and print every section
-#     (maximum blind-spot diversity; the caller consolidates). --first-success
-#     stops at the first tier that returns findings (quick mode). Exit 0 iff
+# --- dispatch. DEFAULT STANDARD PAIR = Codex + ollama-cloud, both run, every
+#     section printed (the caller consolidates). Antigravity only runs when
+#     --with-antigravity/WITH_ANTIGRAVITY=1 opted it in for this run.
+#     --first-success stops at the first tier that returns findings (quick
+#     mode; not honored for plan type — see the override above). Exit 0 iff
 #     at least one reviewer succeeded — the caller still judges the findings.
 # (tier 3 = the HOST agent's fresh-eyes pass — whatever family the host is — run by
 #  the orchestrating skill, not this script)
-OK=0
+OK=0 ; SUCCESS_COUNT=0
 if [ "$LOCAL_ONLY" = "1" ]; then
   # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
@@ -245,24 +279,31 @@ if [ "$LOCAL_ONLY" = "1" ]; then
   echo "Run the host fresh-eyes pass; do NOT paste externally in local-only mode." >&2
   exit 4
 elif [ "$FIRST_SUCCESS" = "1" ]; then
-  run_codex && OK=1                                            # 1. OpenAI Codex CLI
-  [ $OK -eq 1 ] || { run_agy && OK=1; }                        # 2. Gemini 3.1 Pro via agy
-  [ $OK -eq 1 ] || { command -v ollama >/dev/null && run_ollama && OK=1; }  # 4/5. ollama
+  run_codex && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }                     # 1. OpenAI Codex CLI
+  [ $OK -eq 1 ] || { command -v ollama >/dev/null && run_ollama && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }; }  # 2. ollama-cloud
+  [ $OK -eq 1 ] || { [ "$WITH_ANTIGRAVITY" = "1" ] && run_agy && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }; }    # 3. agy, opt-in only
 else
-  run_codex  && OK=1                                           # 1. OpenAI Codex CLI
-  run_agy    && OK=1                                           # 2. Gemini 3.1 Pro via agy
-  command -v ollama >/dev/null && run_ollama && OK=1           # 4/5. ollama cloud/local
+  run_codex  && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }                    # 1. OpenAI Codex CLI
+  command -v ollama >/dev/null && run_ollama && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }  # 2. ollama cloud/local
+  if [ "$WITH_ANTIGRAVITY" = "1" ]; then
+    run_agy && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }                     # 3. agy, opt-in only
+  fi
+fi
+if [ "$TYPE" = "plan" ] && [ "$SUCCESS_COUNT" -lt 2 ]; then
+  echo "⚠ plan gate wants ≥2 independent reviewers; only $SUCCESS_COUNT produced output. Treat as degraded — consider --with-antigravity or a manual paste round." >&2
 fi
 [ $OK -eq 1 ] && { echo "raw output: $RAW_DIR" >&2; exit 0; }
 
 # No automated reviewer succeeded — DO NOT exit 0. Emit the manual prompt + FAIL (tier 6).
 cat >&2 <<'EOF'
 ## No automated reviewer available/succeeded — the gate is NOT satisfied.
-# Set one up:
+# Standard pair (default, no flags needed if both are set up):
 #   codex           # OpenAI Codex CLI (bundled in the ChatGPT VS Code extension) — preferred;
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
+#   ollama          # local daemon + `ollama signin` for the glm-5.2:cloud default tag
+# Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
+# (or WITH_ANTIGRAVITY=1) to spend one this run:
 #   brew install antigravity-cli    # `agy` — Gemini 3.1 Pro (High), free Antigravity login
-#   OLLAMA_MODEL=glm-5.2:cloud …    # a named ollama cloud model (strong, private-ish)
 # Or paste the prompt below into any strong model and feed the findings back:
 EOF
 # skipped tiers (missing CLI/auth) return before writing anything — only ATTEMPTED

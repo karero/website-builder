@@ -3,12 +3,17 @@ name: independent-review
 description: >
   Domain-agnostic cross-model review gate: run a planning markdown (PLAN gate) or
   a branch/PR diff (DIFF gate) through INDEPENDENT reviewers — external models via
-  scripts/independent_review.sh (Codex gpt-class, Gemini 3.1 Pro via the
-  Antigravity CLI, ollama) PLUS a fresh-eyes no-shared-context pass by the host
-  agent — consolidate a ranked BUG/RISK/NIT list, and BLOCK until every BUG is
-  fixed and every RISK/NIT is fixed or explicitly waived by the human owner.
-  Use BEFORE building from any non-trivial plan and BEFORE merging any
-  non-trivial PR. On first use, if no reviewer that's cross-model for the
+  scripts/independent_review.sh. Default STANDARD PAIR, runs automatically:
+  Codex (gpt-class) + ollama-cloud (GLM). Antigravity/Gemini is OPT-IN ONLY
+  (--with-antigravity) — never runs by default, since the owner's Antigravity
+  credits are scarce and are spent only when explicitly worth it. PLUS a
+  fresh-eyes no-shared-context pass by the host agent (optionally a same-family
+  Fable pass on request) — consolidate a ranked BUG/RISK/NIT list, and BLOCK
+  until every BUG is fixed and every RISK/NIT is fixed or explicitly waived by
+  the human owner. PLAN-typed artifacts always get ≥2 reviewers attempted (the
+  script ignores --first-success for plans). Use BEFORE building from any
+  non-trivial plan and BEFORE merging any non-trivial PR. On first use, if no
+  reviewer that's cross-model for the
   current host is set up yet (ollama alone or a same-family cloud tool never
   counts — see the skill body), runs a guided ONBOARDING for non-technical
   users — explains
@@ -38,27 +43,46 @@ rounds caught 5 BUGs the author had shipped.
 - **DIFF gate** — reviews a branch/PR diff *before* merge. Catches test blind
   spots: a guard passing while the thing it protects regressed.
 
-## Reviewer stack (run ALL available, not first-success)
+## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
 
 1. **Codex CLI** (`codex exec -s read-only`) — genuine read-only sandbox; model +
    effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
    `CODEX_MODEL=gpt-5.6-sol` for a harder case or a long plan — config.toml's
    reasoning-effort setting still applies on top, since the override only touches
    the model key.
-2. **Gemini 3.1 Pro (High)** via the Antigravity CLI (`agy --sandbox -p`) — free
-   Antigravity login. *(The old `@google/gemini-cli` path is deprecated: Google
-   discontinued its free tier 2026-06-18.)*
+2. **ollama cloud** (`OLLAMA_MODEL`, defaults to `glm-5.2:cloud`) — the standard
+   second reviewer, runs automatically alongside Codex with no env var needed.
+   Override to a different tag if a specific case warrants it.
 3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
    `double-knuth` skill) with NO shared context: give it only the artifact and
    the strict prompt below. Never reuse the authoring conversation. If the host
    has no sub-agent primitive (some Codex installs), use a separate fresh
    session with only the artifact — or record the pass as *degraded* in the
-   trail, not as no-shared-context.
-4. **ollama cloud** (named via `OLLAMA_MODEL`, e.g. `glm-5.2:cloud`) — fallback.
+   trail, not as no-shared-context. On a Claude Code host, a **Fable** pass
+   (Agent tool, `model: "fable"`) is a good candidate for this seat when the
+   owner wants a second same-family opinion on top of the Sonnet host pass —
+   it's free (no external credits, no CLI), just not cross-model (see the
+   Independence rule below). Offer it after presenting results, don't run it
+   unasked.
+4. **Antigravity — OPT-IN ONLY, never automatic.** Gemini 3.1 Pro (High) via
+   the Antigravity CLI (`agy --sandbox -p`), free Antigravity login. The
+   owner's Antigravity free-tier credits are scarce and get spent only when
+   explicitly worth it: pass `--with-antigravity` to the script, or the owner
+   directly asks ("antigravity review", "agy review", "worth burning a
+   credit on this one"). The default run (no flags) never touches it — this
+   is a deliberate change from earlier drafts of this skill, which ran it
+   unconditionally on every default pass and burned credits silently.
 5. **ollama local** — sanity pass only; the script never lets it satisfy the
    gate alone.
 6. **Any model, copy & paste** — the script emits the prompt; a human pastes it
    into whatever is available and feeds findings back.
+
+**PLAN gate floor: always ≥2 reviewers.** A plan is high-stakes enough that
+"whichever one answered first" isn't enough independence — the script ignores
+`--first-success` for plan-typed artifacts and always attempts the full
+Codex + ollama-cloud pair (see Procedure below). If only one produces output,
+treat the round as degraded and say so, don't silently proceed as if the bar
+were met.
 
 **Independence rule:** run every tier, but *classify* them — the tier matching
 the HOST agent's model family counts as the fresh-eyes seat, never as
@@ -66,13 +90,17 @@ cross-model independence. **The gate is satisfied only when at least one
 successful reviewer is cross-model (a different family than the host)**; if
 only same-family reviewers ran, the gate is degraded and needs an explicit
 owner waiver — codex reviewing codex-authored work shares the blind spots this
-gate exists to catch. Per host: **Claude Code** — fresh-eyes = the Claude pass,
-cross-model = Codex + Gemini. **Codex** — fresh-eyes = Codex, cross-model =
-Gemini + Claude. **Antigravity/Gemini** — fresh-eyes = Gemini, cross-model =
-Codex + Claude. On any non-Claude host the Anthropic seat is free via the
-Antigravity CLI — `AGY_MODEL="Claude Opus 4.6 (Thinking)"` (verified headless
-2026-07-02; Claude Code itself has no free tier — Pro/API only — and the free
-claude.ai paste tier fits plans and small diffs at best).
+gate exists to catch. Per host: **Claude Code** — fresh-eyes = the Claude pass
+(optionally a **Fable** pass, see the reviewer stack above — same family,
+doesn't count as cross-model either), cross-model = Codex + ollama-cloud
+(GLM, Z.ai — the standard default pair) + Gemini/Antigravity (opt-in extra,
+not needed to satisfy the gate since Codex or ollama-cloud already does).
+**Codex** — fresh-eyes = Codex, cross-model = ollama-cloud + Gemini + Claude.
+**Antigravity/Gemini** — fresh-eyes = Gemini, cross-model = Codex +
+ollama-cloud + Claude. On any non-Claude host the Anthropic seat is free via
+the Antigravity CLI — `AGY_MODEL="Claude Opus 4.6 (Thinking)"` (verified
+headless 2026-07-02; Claude Code itself has no free tier — Pro/API only — and
+the free claude.ai paste tier fits plans and small diffs at best).
 
 ## Onboarding — the agent runs this wizard on first use
 
@@ -360,9 +388,12 @@ a lighter-weight reviewer, not a like-for-like replacement."*
 2. Run the external half (path relative to THIS skill's directory — after an
    install that is `<skills-root>/independent-review/scripts/…`):
    `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
-   — default runs ALL authenticated externals and prints one section per
-   reviewer; `--first-success` is the quick mode. Exit 4 = no reviewer ran =
-   gate FAIL (never treat as clean).
+   — default runs the standard pair (Codex + ollama-cloud) and prints one
+   section per reviewer; `--first-success` is the quick mode (ignored for
+   `--plan` — plans always get the full pair attempted, see the reviewer
+   stack above). Add `--with-antigravity` only when it's genuinely worth
+   spending one of the owner's scarce Antigravity credits — never by default.
+   Exit 4 = no reviewer ran = gate FAIL (never treat as clean).
 3. Run tier 3 (fresh-eyes) with the same strict prompt.
 4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
    id, severity (BUG/RISK/NIT), source reviewer(s), location, status
@@ -400,7 +431,12 @@ a lighter-weight reviewer, not a like-for-like replacement."*
    costs. The owner steers — they can stop, waive, redirect, or run a
    **manual round of their own**; a human review round is a first-class
    reviewer seat and goes in the trail like any other (reviewer: owner,
-   findings, dispositions). Never let rounds run silently back-to-back.
+   findings, dispositions). Never let rounds run silently back-to-back. Once
+   the standard pair (and any fresh-eyes pass) has reported, ASK — don't just
+   stop — whether the owner wants anything more: a `--with-antigravity` round
+   (spending one of the scarce credits), or an extra same-family **Fable**
+   pass (Agent tool, `model: "fable"` — free, no credits, just not
+   cross-model). Offer, don't run either unasked.
 9. Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
    and for each external reviewer its CLI version, model, and sandbox mode
    (for a human round: who, and what they reviewed).
