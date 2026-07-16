@@ -22,8 +22,11 @@
 #
 # Exit 0 only means "≥1 reviewer produced output" — the VERDICT (unaddressed
 # BUG / unwaived RISK = gate FAIL) is enforced by the skill from the findings,
-# never by this exit code. No reviewer at all (every internal tier already
-# tried and exhausted) → exit 4 (FAIL, terminal). NOTE: this differs from the
+# never by this exit code. Exit 4 means no GATE-ELIGIBLE reviewer succeeded —
+# every internal tier already tried and exhausted, OR the only output
+# produced (e.g. a local-ollama sanity pass outside --local-only) was
+# real but policy-ineligible to satisfy the gate on its own; either way
+# treat it as FAIL, never as clean. NOTE: this differs from the
 # sibling per-tier scripts (bugfix-mr-flow's codex_review.sh/
 # antigravity_review.sh, ollama-review's ollama_review.sh), where exit 4 means
 # "this one tier hit quota, the caller should cascade to the next tier" — a
@@ -47,7 +50,7 @@
 #                                    e.g. CODEX_MODEL=gpt-5.6-sol for a hard case or a
 #                                    long plan. Does not touch config.toml's daily driver.
 #   OLLAMA_MODEL   (glm-5.2:cloud)   ollama model for the standard second reviewer —
-#                                    defaults to the owner's pulled ollama-cloud model;
+#                                    defaults to the owner's signed-in ollama-cloud model;
 #                                    override to point at a different cloud/local tag.
 #   AGY_MODEL      (Gemini 3.1 Pro (High))  Antigravity CLI model, used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
@@ -80,16 +83,28 @@ if [ -z "$TYPE" ]; then
 fi
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
+  # Antigravity is already structurally unreachable from the LOCAL_ONLY
+  # dispatch branch (it never calls run_agy) — verified live. Clearing the
+  # flag here too is defense-in-depth against a future dispatch refactor
+  # silently making it reachable while this note still claims it's skipped.
+  WITH_ANTIGRAVITY=0
 fi
 # Shared by the --local-only guard below and run_ollama()'s tier classification
 # — one place to define "looks like a cloud tag" so the two never drift apart.
 is_cloud_ollama_tag() {
+  # Anchored to the LITERAL ":cloud" suffix (matching the same convention
+  # ollama-review/SKILL.md already uses: `grep -v ':cloud$'` to list local
+  # models) — NOT a bare "*cloud*" substring, which would misclassify a
+  # genuinely local model merely named with "cloud" in it (e.g. a pulled
+  # community model "cloudcoder:7b") as cloud, wrongly refusing it under
+  # --local-only and, worse, wrongly letting it satisfy the cross-model gate
+  # outside --local-only. Caught via a real Codex DIFF-gate review, 2026-07-16.
   case "$1" in
-    *cloud*|*:120b|*:405b|*:480b) return 0 ;;
+    *:cloud|*:120b|*:405b|*:480b) return 0 ;;
     *) return 1 ;;
   esac
 }
-# The standard second reviewer is the owner's pulled ollama-cloud model — no
+# The standard second reviewer is the owner's signed-in ollama-cloud model — no
 # env var needed to get the default duo (Codex + ollama-cloud) working.
 # NOT defaulted in --local-only mode: that mode's whole point is nothing
 # leaves the machine, and glm-5.2:cloud is a network call by definition —
@@ -104,6 +119,32 @@ if [ "$LOCAL_ONLY" = "1" ] && [ -n "${OLLAMA_MODEL:-}" ] && is_cloud_ollama_tag 
   echo "--local-only requires a LOCAL model tag, but OLLAMA_MODEL=\"$OLLAMA_MODEL\" looks like a cloud tag — refusing to risk a network call." >&2
   echo "Unset OLLAMA_MODEL or set it to a locally-pulled tag (see 'ollama list')." >&2
   exit 2
+fi
+# A benign-looking model tag is not enough either: the `ollama` CLI routes
+# every request through OLLAMA_HOST, and a caller-supplied one pointing at a
+# remote daemon (a real setup for shared team ollama infrastructure) would
+# still send the artifact off this machine even with a genuinely local model
+# name. Found via a real Codex DIFF-gate review of this very fix, 2026-07-16
+# — the model-tag guard above only catches ONE of the two ways content can
+# leave the machine under --local-only.
+if [ "$LOCAL_ONLY" = "1" ] && [ -n "${OLLAMA_HOST:-}" ]; then
+  # Anchored, exact-host regex, not a prefix match: a prefix match (e.g.
+  # `http://localhost*`) would wrongly accept `http://localhost.evil.example`
+  # (a different domain entirely) or `http://localhost@evil.example` (URL
+  # userinfo syntax — "localhost" here is a username, not the host). Caught
+  # live via a real Codex DIFF-gate review of this very fix, 2026-07-16.
+  # Scheme OPTIONAL: ollama's own documented/default OLLAMA_HOST format is
+  # scheme-less ("127.0.0.1:11434"), which the earlier http(s)://-required
+  # version of this regex wrongly refused — caught via a real ollama-cloud
+  # DIFF-gate review of this very fix, same date. 0.0.0.0 is intentionally
+  # NOT in the allow-list: it binds all interfaces, a materially different
+  # (network-exposed) posture than loopback, even though it's also reachable
+  # via localhost.
+  if [[ ! "$OLLAMA_HOST" =~ ^(https?://)?(127\.0\.0\.1|localhost|\[::1\])(:[0-9]+)?/?$ ]]; then
+    echo "--local-only requires a LOCAL ollama daemon, but OLLAMA_HOST=\"$OLLAMA_HOST\" is not loopback — refusing to risk a network call." >&2
+    echo "Unset OLLAMA_HOST or point it at 127.0.0.1/localhost." >&2
+    exit 2
+  fi
 fi
 # PLAN gate DEFAULT wants 2 independent reviewers — "first thing that
 # answered" isn't enough independence for a high-stakes planning doc. This is
@@ -166,13 +207,34 @@ rm -f -- "$RAW_DIR/codex.out" "$RAW_DIR/codex.err" "$RAW_DIR/agy.out" "$RAW_DIR/
 # list/heading formatting: a refusal SENTENCE that merely mentions "BUG, RISK, or
 # NIT" ("I cannot return a ranked list of BUG...") must not match.
 looks_like_review() {
-  # 1. refusals about the reviewing act FIRST — a refusal formatted like a finding
-  #    ("- BUG: I cannot review this file...") must not slip past the positive match.
-  #    Verb-anchored so genuine text survives: "a guard that cannot fire" (no act verb)
-  #    and "I cannot find any bugs" ("find" deliberately not in the verb list) both pass.
-  printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
+  # Count genuine structured findings ANYWHERE in the response first — this
+  # decides how much weight the refusal check below gets.
+  local finding_count
+  finding_count="$(printf '%s\n' "$1" | grep -ciE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b')"
+  # 1. refusals about the reviewing act — a refusal formatted like a finding
+  #    ("- BUG: I cannot review this file...") must not slip past the positive
+  #    match below. Verb-anchored so genuine text survives: "a guard that
+  #    cannot fire" (no act verb) and "I cannot find any bugs" ("find"
+  #    deliberately not in the verb list) both pass. Only decisive when
+  #    finding_count <= 1: the historical exploit is a refusal formatted AS
+  #    A LONE fake finding with nothing else — genuinely ≥2 structured
+  #    findings elsewhere means this is a real review that merely opens (or
+  #    asides) with refusal-adjacent phrasing ("I could not see the full
+  #    context, but here are 6 findings: ...") rather than an actual refusal.
+  #    An earlier char-scoped version of this check (limit the scan to the
+  #    response's first 500 bytes) was NOT enough — caught live 2026-07-16
+  #    via two independent real Codex+ollama DIFF-gate runs of this very
+  #    diff: both a genuine 6-finding Codex review and a genuine long ollama
+  #    review used "could not see"/"could not access" as an early analytical
+  #    aside, still within the first 500 bytes, and both got wrongly
+  #    rejected. Verified against the original disguised-refusal exploit
+  #    shape (still rejected), a bare no-findings refusal (still rejected),
+  #    and both real captured failures above (now accepted).
+  if [ "$finding_count" -le 1 ]; then
+    printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
+  fi
   # 2. structured findings (list/heading-anchored severity)
-  printf '%s\n' "$1" | grep -qiE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b' && return 0
+  [ "$finding_count" -gt 0 ] && return 0
   # 3. genuine clean verdicts. Broadened past a strict "\bno findings\b" phrase match
   #    after 3 real Codex responses in one session all misreported as gate-FAIL despite
   #    being genuine clean reviews (verified live 2026-07-13, exit 0, valid stdout each
@@ -206,8 +268,15 @@ run_codex() {
   # "${arr[@]}" for an EMPTY array under `set -u` — verified on this host, not
   # theoretical — so branch instead of building an argv array conditionally.
   if [ -n "${CODEX_MODEL:-}" ]; then
+    # Guards TOML value syntax (a literal '"' breaks out of model="...";
+    # a literal newline could inject a second key=value line into codex's
+    # single-line -c override) — NOT shell injection: a variable's own
+    # content is never re-parsed for $()/backticks by bash on expansion,
+    # verified empirically, so that class of attack doesn't apply here.
     case "$CODEX_MODEL" in
       *'"'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal double-quote — cannot safely pass it to codex's -c model=... config value. Remove the quote." >&2; return 1 ;;
+      *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; return 1 ;;
+      *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; return 1 ;;
     esac
     "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   else

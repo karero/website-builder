@@ -16,8 +16,8 @@ description: >
   work — see website-review's "review depth" guidance). Use BEFORE building from any
   non-trivial plan and BEFORE merging any non-trivial PR. On first use, if no
   reviewer that's cross-model for the
-  current host is set up yet (ollama alone or a same-family cloud tool never
-  counts — see the skill body), runs a guided ONBOARDING for non-technical
+  current host is set up yet (LOCAL ollama alone or a same-family cloud tool
+  never counts — see the skill body), runs a guided ONBOARDING for non-technical
   users — explains
   the free-tier tradeoffs plainly (including realistic usage-limit
   expectations), walks the download/login steps, picks an ollama model sized
@@ -203,16 +203,17 @@ ollama-cloud or Antigravity are the cross-model options there; on an
 Antigravity/Gemini host, the reverse (Codex or ollama-cloud count,
 Antigravity doesn't).
 - If the user asked generically for review setup, and ≥1 reviewer that is
-  **cross-model for the current host** (per the table above — not ollama
-  alone, and not same-family-as-host alone) is already installed and
+  **cross-model for the current host** (per the table above — not LOCAL
+  ollama alone, and not same-family-as-host alone) is already installed and
   authenticated: **first run one real test review per Step 5's evidence
   standard — installed-and-authenticated is checks 1–2, not proof it
   works — then, only once that passes, skip the rest of onboarding and go
   straight to Step 6.** A failed test run means treat it as broken, not as
   done (see the last bullet below).
-- If only ollama is set up so far, treat that the same as "nothing set up
-  yet" for gate purposes — it's a fine backup to already have, but proceed to
-  Step 3 to add a cloud reviewer, don't report the wizard as done.
+- If only LOCAL ollama is set up so far, treat that the same as "nothing set
+  up yet" for gate purposes — it's a fine backup to already have, but proceed
+  to Step 3 to add a cloud reviewer (including ollama-cloud itself — `ollama
+  signin` on the same install), don't report the wizard as done.
 - If the user asked for a **specific** tool that isn't set up yet (e.g. "set
   up ollama too" when only Codex is working), don't skip — go set up the one
   they actually asked for, even though the gate is already technically
@@ -250,7 +251,7 @@ detail, but lead with this, not the table:
 
 **Default recommendation if they're unsure (Claude Code host — see the note
 at the top of this section for any other host):** set up Codex CLI plus
-ollama-cloud (`ollama signin`, no separate account) — that's the script's
+ollama-cloud (a free `ollama signin` — no payment method required) — that's the script's
 actual standard default pair, and it runs automatically with no flags once
 both are set up. Add a local ollama model pull too, as a free unlimited
 backup for whenever Codex or ollama-cloud's free tier is temporarily tapped
@@ -390,12 +391,14 @@ temporarily rate-limited, that round still runs with whichever of
 Antigravity/ollama are set up. **That keeps you fully covered only if a
 cross-model reviewer for this host is still available — if ollama is the
 only thing left, that round is a lighter-weight, degraded pass, not a full
-substitute** (same rule as everywhere else in this skill: ollama alone never
-closes the gate on its own). If review is run in quick 'first available'
+substitute** (same rule as everywhere else in this skill: LOCAL ollama alone
+never closes the gate on its own — signed-in ollama-cloud does). If review is
+run in quick 'first available'
 mode instead, it tries Codex first and only moves to the next one if Codex
-fails outright. Either way, having ollama set
-up means there's always a free, unlimited option in the mix — just know it's
-a lighter-weight reviewer, not a like-for-like replacement."*
+fails outright. Either way, having a **locally pulled** ollama model (not
+just `ollama signin`) means there's always a free, unlimited, fully-private
+option in the mix — just know it's a lighter-weight reviewer, not a
+like-for-like replacement."*
 
 ## Procedure
 
