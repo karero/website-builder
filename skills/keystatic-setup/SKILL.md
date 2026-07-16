@@ -50,8 +50,12 @@ build stays fully static (no adapter, no auth, no server). Steps applied to the 
    });
    ```
    The `keystatic()` integration **auto-injects** the `/keystatic` admin route + its API —
-   you do NOT hand-write route files. (Verified deps: `@astrojs/react@^5`,
-   `@astrojs/markdoc@^1`, `@keystatic/core@^0.5`, `@keystatic/astro@^5`, `react@19`, Astro 6.)
+   you do NOT hand-write route files. (Verified deps on Astro 7: `@astrojs/react@^5`,
+   `@astrojs/markdoc@^2` (peer `astro: ^7.0.0` — the `^1` line stays capped at `astro: ^6.0.0`
+   and will NOT install against an Astro 7 site; `npx astro add markdoc` resolves the right
+   major automatically, but don't hand-pin `^1` from an older note), `@keystatic/core@^0.5`,
+   `@keystatic/astro@^5` (peer range explicitly covers `astro: 2 || 3 || 4 || 5 || 6 || 7`),
+   `react@19`.)
 3. **`keystatic.config.ts`** at the repo root — one collection per repeating content type,
    each `path` pointing into `src/content/`:
    ```ts

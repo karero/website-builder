@@ -68,7 +68,7 @@ Astro avoids the tax entirely (first-class CF adapter). **Stay on Cloudflare for
 - **First-class Cloudflare adapter.** Static by default; flip to `@astrojs/cloudflare` only when
   you need SSR/server islands — same repo, same host.
 
-### Current best practices (Astro 5 → Astro 6 in 2026)
+### Current best practices (2026)
 1. **Static-first.** Assume plain HTML. Only add a `client:*` directive if the user benefits.
    Avoid the 3 classic mistakes: mapping large arrays into client islands, wrapping a whole
    layout in a framework component, defaulting to `client:load`. Prefer `client:visible` / `client:idle`.

@@ -62,7 +62,7 @@ npx playwright install chromium        # per machine, once
 > the tools with the macOS/Linux commands above (including `pip3 install Pillow`) inside the
 > WSL2 shell, not the PowerShell ones.
 
-> **Node ≥22.12 required** (Astro 6) — the LTS installs above satisfy it; the repo's
+> **Node ≥22.12 required** (Astro's own floor) — the LTS installs above satisfy it; the repo's
 > `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` no
 > longer auto-runs native install scripts: if it warns "packages have install scripts
 > not yet covered", approve the two Astro needs or the build fails —

@@ -29,9 +29,12 @@ jobs:
           # The template pins its Node version; build/test on the same one Cloudflare uses.
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: Install dependencies
-        # No committed lockfile in the template (scaffolded projects generate their own),
-        # so `npm install`, not `npm ci`.
-        run: npm install --no-audit --no-fund
+        # The template's own package-lock.json IS committed (since 2026-07-09) — npm ci
+        # for a reproducible install. This tests the "copy package.json + npm install" path
+        # from templates/astro/README.md, NOT the primary npm-create-astro@latest onboarding
+        # flow real recipients follow — see docs/reviews/REVIEW-plan-2026-07-16-astro7-upgrade-r1.md
+        # for that known gap (tracked as a separate follow-up, not fixed by this change).
+        run: npm ci --no-audit --no-fund
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run template test suite
