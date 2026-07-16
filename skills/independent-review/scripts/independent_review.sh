@@ -129,8 +129,8 @@ fi
 # leave the machine under --local-only.
 if [ "$LOCAL_ONLY" = "1" ] && [ -n "${OLLAMA_HOST:-}" ]; then
   # Anchored, exact-host regex, not a prefix match: a prefix match (e.g.
-  # `http://localhost*`) would wrongly accept `http://localhost.evil.example`
-  # (a different domain entirely) or `http://localhost@evil.example` (URL
+  # `http://localhost*`) would wrongly accept `http://localhost.example.com`
+  # (a different domain entirely) or `http://localhost@example.com` (URL
   # userinfo syntax — "localhost" here is a username, not the host). Caught
   # live via a real Codex DIFF-gate review of this very fix, 2026-07-16.
   # Scheme OPTIONAL: ollama's own documented/default OLLAMA_HOST format is
