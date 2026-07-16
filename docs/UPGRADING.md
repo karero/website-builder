@@ -33,18 +33,27 @@ content or design change), and confirm they want it now rather than later.
    of being silently auto-corrected. If something's genuinely broken, this is where it
    surfaces, with an exact file:line. Fix the real problem; don't work around it.
 
-4. **Check for a whitespace regression the test suite can't catch.** Astro 7 changed how
-   whitespace between inline elements renders by default (`compressHTML` now defaults to
-   `'jsx'` — it collapses whitespace using JSX rules instead of the old lossless behavior).
-   Anywhere the site has two inline elements (e.g. two `<a>` tags, an icon `<span>` next to
-   text) separated only by a newline with no explicit space, a visible gap can silently
-   disappear.
-   - Build the OLD version to a SEPARATE directory before touching anything (e.g.
-     `npm run build && mv dist dist-before-upgrade`, or use a git worktree) — the upgrade
-     build will overwrite `dist/` otherwise, and you need something to diff against.
-   - After the upgrade build, spot-check rendered pages — especially the footer and nav,
-     where adjacent links are common — against `dist-before-upgrade` for words or links that
-     now run together.
+4. **Set `compressHTML: true` in `astro.config.mjs`.** Astro 7 changed how whitespace
+   between inline elements renders by default (`compressHTML` now defaults to `'jsx'` — it
+   collapses whitespace using JSX rules instead of the old lossless behavior). This isn't
+   just a layout edge case: a source line-break between two inline elements, OR inside a
+   paragraph where a sentence wraps around a link or `<strong>` tag, collapses to ZERO
+   characters instead of a space — a completely normal way to write prose, confirmed to
+   break real body text (not just footers/nav) on a live site during this toolkit's own
+   Astro 6→7 migration (2026-07-16). Setting `compressHTML: true` restores the old
+   "lossless" behavior (still compresses, just keeps a rendered space where one exists in
+   source) and eliminates the whole bug class at the config level — a source-level fix,
+   not per-paragraph patching that a future content edit can silently undo. Sites scaffolded
+   from this toolkit after 2026-07-16 already have this set; this step is for existing sites
+   upgrading in place.
+   - Belt-and-suspenders: build the OLD version to a SEPARATE directory before touching
+     anything (e.g. `npm run build && mv dist dist-before-upgrade`, or use a git worktree) —
+     the upgrade build will overwrite `dist/` otherwise, and you need something to diff
+     against.
+   - After the upgrade build (with `compressHTML: true` set), spot-check rendered pages —
+     footer, nav, AND body prose with inline links — against `dist-before-upgrade` to
+     confirm nothing runs together. `compressHTML: true` should make this a formality, not
+     a hunt.
    - If the site uses `scripts/anchor-ids.mjs` (heading auto-ids), re-run it and diff the
      generated `id`s against the pre-upgrade `dist/`. A shifted id silently breaks any
      hand-authored `#fragment` link elsewhere on the site or from outside it.
