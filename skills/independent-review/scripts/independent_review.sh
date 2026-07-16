@@ -12,14 +12,24 @@
 # only when explicitly asked for (a genuinely hard case, or the owner directly
 # requests "antigravity review"/"agy review"). Default runs never touch it.
 #
-# PLAN gate always wants 2 reviewers: for --plan (or auto-detected plan type),
-# --first-success is overridden back to a full run (both Codex and ollama
-# attempted) with a warning — a plan is high-stakes enough that "first thing
-# that answered" isn't enough independence.
+# PLAN gate DEFAULTS to wanting 2 reviewers: for --plan (or auto-detected plan
+# type) with no --first-success, both Codex and ollama are attempted — "first
+# thing that answered" isn't enough independence for a high-stakes planning
+# doc by default. This is advisory, not enforced: an explicit --first-success
+# on a plan is HONORED (stops after 1 reviewer), not overridden — a caller's
+# conscious choice for a lower-stakes plan. A stderr note fires either way
+# when a plan lands with <2 reviewers (see SUCCESS_COUNT below).
 #
 # Exit 0 only means "≥1 reviewer produced output" — the VERDICT (unaddressed
 # BUG / unwaived RISK = gate FAIL) is enforced by the skill from the findings,
-# never by this exit code. No reviewer at all → exit 4 (FAIL).
+# never by this exit code. No reviewer at all (every internal tier already
+# tried and exhausted) → exit 4 (FAIL, terminal). NOTE: this differs from the
+# sibling per-tier scripts (bugfix-mr-flow's codex_review.sh/
+# antigravity_review.sh, ollama-review's ollama_review.sh), where exit 4 means
+# "this one tier hit quota, the caller should cascade to the next tier" — a
+# soft/recoverable signal, not a terminal FAIL. Same number, different
+# contract: this script drives its own internal cascade and never expects a
+# caller to treat its exit 4 as anything but final.
 #
 # SECURITY. The preferred reviewer, `codex exec -s read-only`, runs in a GENUINE
 # read-only sandbox — model-generated shell commands cannot write to your repo.
@@ -68,12 +78,33 @@ CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: 
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
 fi
+if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
+  echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
+fi
+# Shared by the --local-only guard below and run_ollama()'s tier classification
+# — one place to define "looks like a cloud tag" so the two never drift apart.
+is_cloud_ollama_tag() {
+  case "$1" in
+    *cloud*|*:120b|*:405b|*:480b) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 # The standard second reviewer is the owner's pulled ollama-cloud model — no
 # env var needed to get the default duo (Codex + ollama-cloud) working.
 # NOT defaulted in --local-only mode: that mode's whole point is nothing
 # leaves the machine, and glm-5.2:cloud is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
 [ "$LOCAL_ONLY" = "1" ] || OLLAMA_MODEL="${OLLAMA_MODEL:-glm-5.2:cloud}"
+# Skipping the DEFAULT above isn't enough on its own: a caller-supplied
+# OLLAMA_MODEL already pointing at a cloud tag (e.g. left exported from an
+# earlier non-local-only run in the same shell) would otherwise still trigger
+# a real network call under --local-only, silently breaking the "nothing
+# leaves the machine" guarantee. Refuse rather than risk it.
+if [ "$LOCAL_ONLY" = "1" ] && [ -n "${OLLAMA_MODEL:-}" ] && is_cloud_ollama_tag "$OLLAMA_MODEL"; then
+  echo "--local-only requires a LOCAL model tag, but OLLAMA_MODEL=\"$OLLAMA_MODEL\" looks like a cloud tag — refusing to risk a network call." >&2
+  echo "Unset OLLAMA_MODEL or set it to a locally-pulled tag (see 'ollama list')." >&2
+  exit 2
+fi
 # PLAN gate DEFAULT wants 2 independent reviewers — "first thing that
 # answered" isn't enough independence for a high-stakes planning doc. This is
 # advisory, not enforced: an explicit --first-success is a caller's conscious
@@ -139,7 +170,7 @@ looks_like_review() {
   #    ("- BUG: I cannot review this file...") must not slip past the positive match.
   #    Verb-anchored so genuine text survives: "a guard that cannot fire" (no act verb)
   #    and "I cannot find any bugs" ("find" deliberately not in the verb list) both pass.
-  printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
+  printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
   # 2. structured findings (list/heading-anchored severity)
   printf '%s\n' "$1" | grep -qiE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b' && return 0
   # 3. genuine clean verdicts. Broadened past a strict "\bno findings\b" phrase match
@@ -175,6 +206,9 @@ run_codex() {
   # "${arr[@]}" for an EMPTY array under `set -u` — verified on this host, not
   # theoretical — so branch instead of building an argv array conditionally.
   if [ -n "${CODEX_MODEL:-}" ]; then
+    case "$CODEX_MODEL" in
+      *'"'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal double-quote — cannot safely pass it to codex's -c model=... config value. Remove the quote." >&2; return 1 ;;
+    esac
     "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   else
     "$bin" exec -s read-only "$PROMPT" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
@@ -229,11 +263,8 @@ run_agy() {
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
   ollama list >/dev/null 2>&1 || return 3
-  local is_local=0
-  case "$OLLAMA_MODEL" in
-    *cloud*|*:120b|*:405b|*:480b) : ;;            # assume strong/cloud only if named so
-    *) is_local=1 ;;
-  esac
+  local is_local=1
+  is_cloud_ollama_tag "$OLLAMA_MODEL" && is_local=0
   local tmp="$RAW_DIR/ollama.out" rc
   ollama run "$OLLAMA_MODEL" "$PROMPT" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || return 1
@@ -258,6 +289,10 @@ run_ollama() {
   ' "$tmp"
   # tier 5 (local) = sanity pass, NEVER the sole gate — EXCEPT in --local-only mode,
   # where the owner explicitly traded strength for privacy (mode is marked degraded).
+  # Returns 1 here means "policy rejection" (a real review WAS produced and
+  # printed above), not "failed/empty/non-review output" as the tier-function
+  # contract summary at this file's top describes for other tiers — this is
+  # the one intentional exception.
   if [ $is_local -eq 1 ] && [ "$LOCAL_ONLY" != "1" ]; then
     echo "⚠ '$OLLAMA_MODEL' looks LOCAL — sanity pass only, gate NOT satisfied by this tier. Prefer codex or a named cloud model." >&2
     return 1

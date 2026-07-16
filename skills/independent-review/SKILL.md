@@ -192,11 +192,16 @@ request is already satisfied AND the gate is actually satisfiable with
 what's installed," not "any one tool works":** per this skill's own
 Independence rule above, a reviewer only satisfies the gate if it's
 **cross-model relative to the CURRENT host**, not just "installed" — ollama
-alone never satisfies it regardless of host (tier 5 — sanity pass only), and
-which cloud tool counts as cross-model depends on what's running this
-wizard: on a Claude Code host, Codex and/or Antigravity both count; on a
-Codex host, Codex CLI alone does NOT (same family as the host) — Antigravity
-is the cross-model option there; on an Antigravity/Gemini host, the reverse.
+LOCAL never satisfies it regardless of host (tier 5 — sanity pass only), but
+ollama CLOUD (a signed-in `:cloud`-tagged model, e.g. the default
+`glm-5.2:cloud`) DOES count, same as Codex/Antigravity — it's tier 2, part of
+the standard default pair (see Reviewer stack above), not tier 5. Which cloud
+tool(s) count as cross-model depends on what's running this wizard: on a
+Claude Code host, Codex and/or ollama-cloud and/or Antigravity all count; on
+a Codex host, Codex CLI alone does NOT (same family as the host) —
+ollama-cloud or Antigravity are the cross-model options there; on an
+Antigravity/Gemini host, the reverse (Codex or ollama-cloud count,
+Antigravity doesn't).
 - If the user asked generically for review setup, and ≥1 reviewer that is
   **cross-model for the current host** (per the table above — not ollama
   alone, and not same-family-as-host alone) is already installed and
@@ -231,21 +236,30 @@ detail, but lead with this, not the table:
   published.** Pull the current, sourced detail (including a dated real-world
   report of severe lockouts) from `references/setup-guide.md` and say it
   plainly — don't undersell it, and don't guess at numbers not in that file.
-- **ollama (local, on your own computer)** — completely free, unlimited,
-  private (nothing leaves the machine), no account at all. The tradeoff:
-  quality depends on how much RAM the computer has, and even a well-equipped
-  machine's best local model still lags the two cloud options on subtle
-  bugs. Good as a free unlimited *backup*, not usually as the only reviewer.
+- **ollama** — free either way, two distinct modes:
+  - *Cloud* (e.g. the default `glm-5.2:cloud`) — needs a one-time `ollama
+    signin` (free, no payment) but nothing beyond that; runs on Ollama's own
+    servers, so it DOES leave the machine. This is the script's actual
+    standard second reviewer — sharp enough to satisfy the gate on its own,
+    same tier as Codex/Antigravity.
+  - *Local* (a model pulled to this computer) — completely free, unlimited,
+    private (nothing leaves the machine), no account at all. Quality depends
+    on the computer's RAM, and even a well-equipped machine's best local
+    model lags the cloud options on subtle bugs — sanity-pass only, never
+    satisfies the gate alone. Good as a free unlimited *backup*.
 
 **Default recommendation if they're unsure (Claude Code host — see the note
-at the top of this section for any other host):** set up Codex CLI as the
-main reviewer, and ollama alongside it as a free backup for whenever Codex's
-free tier is temporarily tapped out. Antigravity is worth adding on top if
-they want a third, independent model family and are comfortable with a less
-predictable free tier — it is not required. **If the current host is itself
-Codex, swap this recommendation: Codex CLI would be same-family and
-wouldn't satisfy the gate — recommend Antigravity as the main reviewer
-instead**, with ollama as the same free backup either way.
+at the top of this section for any other host):** set up Codex CLI plus
+ollama-cloud (`ollama signin`, no separate account) — that's the script's
+actual standard default pair, and it runs automatically with no flags once
+both are set up. Add a local ollama model pull too, as a free unlimited
+backup for whenever Codex or ollama-cloud's free tier is temporarily tapped
+out. Antigravity is worth adding on top if they want a third, independent
+model family and are comfortable with a less predictable free tier — it is
+not required. **If the current host is itself Codex, swap this
+recommendation: Codex CLI would be same-family and wouldn't satisfy the
+gate — recommend Antigravity (or ollama-cloud) as the main reviewer
+instead**, with local ollama as the same free backup either way.
 
 Ask which one(s) to set up, then proceed per tool below.
 
@@ -265,9 +279,11 @@ done it, one plain instruction at a time.
 - 🧑 **ollama:** for macOS/Windows, download and open the installer like any
   normal app (no terminal for the install itself) — but the model download
   in Step 4b still needs a terminal command; on Linux there's a single
-  terminal install command. Then tell me your available RAM (or let me
-  detect it) so I can recommend a model — do NOT let them guess a model size
-  themselves; see Step 4b.
+  terminal install command. **For ollama-cloud** (the script's actual
+  standard second reviewer), also run `ollama signin` once and follow the
+  browser sign-in prompt — one click, free, no payment. For the local backup
+  model, tell me your available RAM (or let me detect it) so I can recommend
+  one — do NOT let them guess a model size themselves; see Step 4b.
 
 Hand these over **one at a time**, wait for confirmation each step landed,
 don't paste all the commands at once.
@@ -387,8 +403,10 @@ a lighter-weight reviewer, not a like-for-like replacement."*
    third-party services: grep the artifact for secrets (keys, tokens, passwords,
    customer data) and get the owner's OK the first time a given repo's content
    is sent out. If the content must stay local, run the script with
-   `--local-only` (skips codex/agy/paste entirely; local ollama only) plus the
-   tier-3 host fresh-eyes pass — tier 6 (paste into any model) is just as
+   `--local-only` (skips codex/agy/paste entirely; local ollama only — the
+   script refuses to proceed if `OLLAMA_MODEL` is already set to a cloud tag,
+   rather than silently sending content out) plus the tier-3 host fresh-eyes
+   pass — tier 6 (paste into any model) is just as
    external as the CLIs and is excluded. A local-only verdict is inherently
    DEGRADED; record that in the trail.
 2. Run the external half (path relative to THIS skill's directory — after an
@@ -471,6 +489,14 @@ The HOST agent is the clerk, and each artifact has a distinct job:
 Capture reviewer output by **streaming to a file**, never by buffering it in a
 shell variable — a session teardown mid-run must leave the partial review on
 disk, not vaporize it.
+
+4. **Cleanup**: once items 1–3 are posted/committed, delete the run's
+   `$RAW_DIR` (path printed to stderr as `raw output: <dir>`) — it held the
+   full artifact content plus every reviewer's raw output (owner-only
+   permissions, but proprietary code sitting in `$TMPDIR` indefinitely serves
+   no purpose once items 1–3 have durably captured everything worth keeping).
+   Skip only if a verification round (Procedure step 6) still needs this
+   run's raw output.
 
 ## The strict review prompt (both gates)
 
