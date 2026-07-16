@@ -10,8 +10,10 @@ description: >
   fresh-eyes no-shared-context pass by the host agent (optionally a same-family
   Fable pass on request) — consolidate a ranked BUG/RISK/NIT list, and BLOCK
   until every BUG is fixed and every RISK/NIT is fixed or explicitly waived by
-  the human owner. PLAN-typed artifacts always get ≥2 reviewers attempted (the
-  script ignores --first-success for plans). Use BEFORE building from any
+  the human owner. PLAN-typed artifacts DEFAULT to ≥2 reviewers attempted —
+  an explicit --first-success is honored, not overridden, for callers who
+  deliberately want one reviewer on a lower-stakes plan (e.g. website-content
+  work — see website-review's "review depth" guidance). Use BEFORE building from any
   non-trivial plan and BEFORE merging any non-trivial PR. On first use, if no
   reviewer that's cross-model for the
   current host is set up yet (ollama alone or a same-family cloud tool never
@@ -77,12 +79,16 @@ rounds caught 5 BUGs the author had shipped.
 6. **Any model, copy & paste** — the script emits the prompt; a human pastes it
    into whatever is available and feeds findings back.
 
-**PLAN gate floor: always ≥2 reviewers.** A plan is high-stakes enough that
-"whichever one answered first" isn't enough independence — the script ignores
-`--first-success` for plan-typed artifacts and always attempts the full
-Codex + ollama-cloud pair (see Procedure below). If only one produces output,
-treat the round as degraded and say so, don't silently proceed as if the bar
-were met.
+**PLAN gate default: ≥2 reviewers.** A plan is often high-stakes enough that
+"whichever one answered first" isn't enough independence — the script's
+un-flagged default runs the full Codex + ollama-cloud pair for a plan (see
+Procedure below). This is a *default*, not a floor: pass `--first-success`
+explicitly to get one reviewer instead, when the caller has already judged
+the artifact low-stakes enough not to need two (the script honors this, it
+does not override it — see the credit-cost tradeoff this represents). If a
+plan lands with only one reviewer's output for any reason — an explicit
+`--first-success` or a tier failing — treat the round as degraded *only if
+that wasn't the deliberate choice*, and say so either way.
 
 **Independence rule:** run every tier, but *classify* them — the tier matching
 the HOST agent's model family counts as the fresh-eyes seat, never as
@@ -389,8 +395,9 @@ a lighter-weight reviewer, not a like-for-like replacement."*
    install that is `<skills-root>/independent-review/scripts/…`):
    `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
    — default runs the standard pair (Codex + ollama-cloud) and prints one
-   section per reviewer; `--first-success` is the quick mode (ignored for
-   `--plan` — plans always get the full pair attempted, see the reviewer
+   section per reviewer; `--first-success` is the quick mode (for a `--plan`
+   this deliberately drops from the default 2 reviewers to 1 — a conscious
+   choice for lower-stakes plans, honored not overridden — see the reviewer
    stack above). Add `--with-antigravity` only when it's genuinely worth
    spending one of the owner's scarce Antigravity credits — never by default.
    Exit 4 = no reviewer ran = gate FAIL (never treat as clean).

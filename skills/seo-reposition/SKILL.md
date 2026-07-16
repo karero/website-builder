@@ -7,7 +7,10 @@ description: >
   sites: SERP trap-test every candidate phrase → find the winnable wedge →
   rewording plan with a target-vs-copy rule → GUARD TESTS FIRST (red→green
   ratchet) → phased gated implementation → ship → schedule a predicted-vs-actual
-  grading run. Calls independent-review at the plan and PR gates. Trigger
+  grading run. Review at the plan and PR gates is OWNER'S CHOICE — website-review
+  (Double-Knuth) or /code-review alone by default; independent-review with a
+  single reviewer (--first-success) is an optional escalation for the owner to
+  approve, never independent-review's own default of two. Trigger
   phrases: "reposition the site's SEO", "our keywords collide with X", "we're
   not ranking for our category", "Google files us under the wrong thing",
   "trap-phrase audit", "rewording plan", "find our SEO wedge".
@@ -49,7 +52,17 @@ defaults (a US default is wrong for a DACH-market site and vice versa).
 - Produce `WORDING-GUIDE.md` (`references/wording-guide-template.md`): the
   blacklist (with what Google returns instead — the *why*), approved vocabulary,
   route decisions (retarget / 301 / rename), canonical product description.
-- **Gate:** run the plan through `independent-review` (PLAN gate) until clean.
+- **Gate (owner's choice — explain, then ask, don't default silently):**
+  a repositioning plan can misjudge the wedge and ship confidently wrong, so
+  it's a reasonable candidate for extra scrutiny — but it's still website
+  content strategy, not application code, so `website-review`'s free
+  two-pass audit (or `/code-review` alone) is a legitimate, sufficient
+  choice on its own. If the owner wants an external second opinion on top,
+  run ONE reviewer, not independent-review's own default of two:
+  `independent_review.sh WORDING-GUIDE.md --plan --first-success`. State the
+  tradeoff plainly (free+now vs. a few extra minutes / a credit) and let
+  them pick — see `website-review`'s "Review depth" section for the full
+  reasoning.
 
 ## Phase 3 — Guard tests FIRST (red → green ratchet)
 
@@ -79,7 +92,10 @@ green as pages land and stay as regression guards forever:
   hide stale phrasing) → new comparison pages.
 - Stop after each phase; show the guard burn-down (e.g. trap-guard 143→0).
   Commit per phase. Full QA via `website-qa` where available.
-- **Gate:** `independent-review` (DIFF gate) on the PR before merge.
+- **Gate (owner's choice, same as Phase 2):** `website-review` / `/code-review`
+  by default; `independent_review.sh <diff> --diff --first-success` (one
+  reviewer) only if the owner opts in for this PR specifically. Ask, don't
+  assume the heavier option.
 
 ## Phase 5 — Ship → grade (close the loop)
 
@@ -96,8 +112,9 @@ green as pages land and stay as regression guards forever:
 ## Boundaries
 
 - Delegates, never reimplements: SERP/GSC → `search-console-insights`; QA →
-  `website-qa`; review gates → `independent-review` (+ `website-review` for the
-  site-wide pass — note it still assumes Claude Code; under a Codex host use
-  the vendored `double-knuth` generic path instead). Owns Phases 1–3,
-  orchestrates 4–5.
+  `website-qa`; review gates → `website-review` by default (the site-wide
+  pass; note it still assumes Claude Code — under a Codex host use the
+  vendored `double-knuth` generic path instead), with `independent-review`
+  as an owner-approved optional single-reviewer escalation, never its own
+  two-reviewer default. Owns Phases 1–3, orchestrates 4–5.
 - Never promise ranking outcomes — record predictions and grade them.

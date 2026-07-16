@@ -74,11 +74,15 @@ fi
 # leaves the machine, and glm-5.2:cloud is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
 [ "$LOCAL_ONLY" = "1" ] || OLLAMA_MODEL="${OLLAMA_MODEL:-glm-5.2:cloud}"
-# PLAN gate always wants 2 independent reviewers attempted — "first thing that
-# answered" isn't enough independence for a high-stakes planning doc.
+# PLAN gate DEFAULT wants 2 independent reviewers — "first thing that
+# answered" isn't enough independence for a high-stakes planning doc. This is
+# advisory, not enforced: an explicit --first-success is a caller's conscious
+# choice (e.g. lower-stakes website-content plans, where a single reviewer is
+# the deliberate policy — see website-review's "review depth" guidance) and is
+# honored, not silently overridden. The SUCCESS_COUNT check below still notes
+# when a plan lands with <2 reviewers, whatever the reason.
 if [ "$TYPE" = "plan" ] && [ "$FIRST_SUCCESS" = "1" ]; then
-  echo "note: --first-success is ignored for plan reviews — running the full reviewer set (plans always want ≥2 independent passes)." >&2
-  FIRST_SUCCESS=0
+  echo "note: --first-success requested for a plan review — proceeding with 1 reviewer as asked (the default recommendation is 2; override accepted, not blocked)." >&2
 fi
 # argv ceiling: the whole artifact rides inside ONE -p argument. Linux caps a single
 # argv string at 128 KB (MAX_ARG_STRLEN=131072 — hard kernel limit; macOS is laxer,

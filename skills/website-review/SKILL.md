@@ -7,10 +7,18 @@ description: >
   breaks). Pass 1 = bugs/correctness/Rule-12 (delegates the diff to /code-review);
   Pass 2 = completeness + route/URL/SEO/config/email/docs consistency against the
   site contract. Read-only: returns a ranked BUG/RISK/NIT list with file:line +
-  fixes. Prerequisite: website-qa green. Trigger phrases: "double-knuth",
-  "double knuth the site", "review the site", "site review", "final review before
-  launch", "review this page", "did adding the page break anything", "consistency
-  check the site", "audit the site code".
+  fixes. Prerequisite: website-qa green. Also owns the "review depth" decision
+  for website work: this skill (or /code-review alone for a small diff) is the
+  free default, sufficient for most changes; a single external reviewer via
+  `independent-review` is an owner-approved OPTIONAL extra for genuinely
+  higher-stakes changes (site-wide SEO repositioning, payment/checkout flows,
+  sensitive-data forms, major redesigns) — never independent-review's own
+  default of two reviewers, and never decided silently. Trigger phrases:
+  "double-knuth", "double knuth the site", "review the site", "site review",
+  "final review before launch", "review this page", "did adding the page break
+  anything", "consistency check the site", "audit the site code", "how much
+  review does this need", "do I need a second opinion on this", "should I use
+  independent-review for this".
 ---
 
 # Website review — Double-Knuth (correctness + consistency)
@@ -26,6 +34,56 @@ catches what a test suite can't — cross-file drift and half-done work.
   nav, the sitemap, internal links and canonical, so consistency can silently break.
 - It is **read-only**: produce a ranked list, then fix BUGs before launch. Don't
   fix-and-forget — surface first (Rule 12: never hide a skipped or broken thing).
+
+## Review depth — the owner chooses, every time
+
+A website is lower-stakes than application code: a subtle bug in a landing
+page's copy costs a bad reading experience, not a broken payment or a data
+leak. This skill (Double-Knuth, below) is free, runs entirely in the current
+session, and is **the default, sufficient review for the large majority of
+website changes** — new pages, copy edits, layout tweaks, small SEO
+adjustments, content updates. An external AI reviewer on top of it is an
+*optional* extra, never a requirement, and never more than one at a time.
+
+**Default — no setup, no cost, use this unless there's a specific reason not to:**
+- **This skill, both passes** — Pass 1 delegates to `/code-review`
+  (correctness bugs), Pass 2 is the cross-file/consistency sweep below.
+- **`/code-review` alone** — just Pass 1, for a small, self-contained diff
+  where cross-file consistency clearly isn't at risk (a one-page copy fix, a
+  single component tweak). Faster than the full two-pass audit when that's
+  all the change touches.
+
+**Optional escalation — one external reviewer, only when it's genuinely worth it:**
+A handful of website changes carry enough risk that a second, independent
+model is worth the extra step: a **site-wide SEO repositioning** (the
+`seo-reposition` skill's plan/diff gates), a **payment or checkout flow**, a
+form collecting **sensitive personal data**, or a **major structural
+redesign** where the author reviewing their own architecture risks sharing
+its blind spots. Even for these, use **one** external reviewer, not the
+`independent-review` skill's own default of two — that default is calibrated
+for production application code (Rails migrations, auth changes), not
+website content/structure work:
+```bash
+# from this repo's skills root, or the equivalent path in a site that has
+# independent-review vendored in:
+skills/independent-review/scripts/independent_review.sh <file> --plan --first-success   # or --diff
+```
+`--first-success` stops at the first reviewer that answers (Codex CLI,
+falling back to ollama-cloud) instead of running both — independent-review
+honors this override for plans, it doesn't force the pair. Setup: if
+`independent-review` isn't already working in this repo, its own SKILL.md
+has a guided onboarding wizard for getting Codex or ollama-cloud running
+(free, no payment) — walk through that first rather than assuming it's ready.
+
+**Explain the choice, then ask — don't decide silently.** Before reaching for
+anything beyond this skill's own two passes, say plainly what the options
+are and what's actually at stake: *"I can review this with the built-in
+check — free, runs now — or also send it to an outside AI for a second
+opinion, which takes a few extra minutes and (if it's the paid-adjacent
+option) uses a credit. For [this kind of change] I'd lean toward
+[recommendation] because [reason] — want that, or would you rather [the
+other option]?"* The owner decides; this skill's job is to make an informed
+recommendation, never to pick unasked.
 
 ## Pass 1 — correctness / bugs
 - Run **`/code-review`** on the branch/diff (correctness bugs + reuse/simplification).
