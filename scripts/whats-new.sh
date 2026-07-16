@@ -26,6 +26,11 @@
 #                                                 # site's own PAGES list / exemptions).
 #                                                 # Merge those by hand, then re-stamp.
 #
+# The report also flags a stale Astro MAJOR version (site's package.json vs. the suite's
+# current template pin) and points at docs/UPGRADING.md — deliberately a pointer, not an
+# auto-refresh: unlike a skill copy, a dependency bump needs a real build + verification
+# pass, which is left to the AI assistant reading that doc, not a blind file overwrite here.
+#
 # Needs the git clone of the suite (a zip has no history to compare against).
 set -euo pipefail
 
@@ -57,6 +62,28 @@ TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/te
 write_tests_stamp() {  # $1 = tests dir
   printf 'suite_commit: %s\ncopied: %s\n' \
     "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/TESTS-VERSION"
+}
+
+is_int() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+
+astro_major() {  # $1 = path to a package.json; prints its "astro" dependency's major version
+  sed -n 's/.*"astro"[[:space:]]*:[[:space:]]*"[^0-9]*\([0-9][0-9]*\)\..*/\1/p' "$1" | head -1
+}
+
+check_astro_version() {  # $1 = project dir; report-only, never mutates
+  local pkg="$1/package.json" ref="$REPO_DIR/skills/new-website/templates/astro/package.json"
+  [ -f "$pkg" ] && [ -f "$ref" ] || return 0
+  local site_major suite_major
+  site_major="$(astro_major "$pkg")"
+  suite_major="$(astro_major "$ref")"
+  is_int "$site_major" && is_int "$suite_major" || return 0
+  if [ "$site_major" -lt "$suite_major" ]; then
+    echo "Astro version: this site pins astro major $site_major; the suite's current template"
+    echo "pins major $suite_major. Ask your AI assistant to follow docs/UPGRADING.md (in the"
+    echo "website-builder clone) to upgrade — it walks through the version bump, the known"
+    echo "gotchas, and what to verify, so nothing gets silently skipped."
+    echo
+  fi
 }
 
 MODE=report
@@ -362,4 +389,7 @@ if [ -d "$TESTS_DIR" ]; then
 fi
 # Stale template tests (status 2) are a report, not a failure; real errors (1) fail.
 [ "$TESTS_STATUS" = 1 ] && FAIL=1
+
+check_astro_version "$PROJECT"
+
 exit $FAIL
