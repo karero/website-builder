@@ -77,9 +77,9 @@ has a guided onboarding wizard for getting Codex or ollama-cloud running
 In a scaffolded site the skill isn't shipped at all: check that the
 `independent-review` folder actually exists before offering this escalation
 as ready-to-run. If it doesn't, either vendor it first (copy
-`skills/independent-review/` from github.com/karero/website-builder into the
-site's `.claude/skills/`) or frame the offer honestly as "available after a
-one-time setup step".
+`skills/independent-review/` from the website-builder suite — the same kit
+this skill was copied from — into the site's `.claude/skills/`) or frame the
+offer honestly as "available after a one-time setup step".
 
 **Explain the choice, then ask — don't decide silently.** Before reaching for
 anything beyond this skill's own two passes, say plainly what the options
@@ -95,7 +95,7 @@ recommendation, never to pick unasked.
 - Run **`/code-review`** on the branch/diff (correctness bugs + reuse/simplification).
   `/code-review` is Claude Code-only — under another host, review the diff by
   hand against this pass's checklist, or vendor the generic `double-knuth`
-  skill from github.com/karero/website-builder.
+  skill from the website-builder suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
 - `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
