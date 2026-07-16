@@ -51,13 +51,17 @@ build stays fully static (no adapter, no auth, no server). Steps applied to the 
    ```
    The `keystatic()` integration **auto-injects** the `/keystatic` admin route + its API —
    you do NOT hand-write route files. (Verified deps on Astro 7 — each checked via
-   `npm view <pkg> peerDependencies`, not assumed: `@astrojs/markdoc@^2` (peer
-   `astro: ^7.0.0` — the `^1` line stays capped at `astro: ^6.0.0` and will NOT install
-   against an Astro 7 site; `npx astro add markdoc` resolves the right major automatically,
-   but don't hand-pin `^1` from an older note); `@keystatic/astro@^5` (peer range explicitly
-   covers `astro: 2 || 3 || 4 || 5 || 6 || 7`); `@astrojs/react@^5` and `@keystatic/core@^0.5`
-   declare NO `astro` peer at all — decoupled from Astro's version entirely, so they can't be
-   the thing that breaks on a future Astro major either; `react@19`.)
+   `npm view <pkg>`, not assumed: `@astrojs/markdoc@^2` (peer `astro: ^7.0.0` — the `^1`
+   line stays capped at `astro: ^6.0.0` and will NOT install against an Astro 7 site);
+   `@keystatic/astro@^5` (peer range explicitly covers `astro: 2 || 3 || 4 || 5 || 6 || 7`);
+   `@astrojs/react@^6`, NOT `^5` — `^5` declares no `astro` peer so it *installs* against
+   Astro 7, but its own `vite` dependency is `^7.3.2` against astro 7's `vite@^8.0.13`,
+   producing a duplicate non-deduped vite tree and real build-time deprecation warnings;
+   `^6.0.1`'s `vite` dependency (`^8.0.13`) matches astro 7 exactly, confirmed via
+   `npm view @astrojs/react@6 dependencies.vite`; `@keystatic/core@^0.5` declares no `astro`
+   peer and has no such transitive mismatch either, so it's fine as-is; `react@19`.
+   `npx astro add react markdoc` (the Install step above) resolves the right majors
+   automatically — this parenthetical is for anyone tempted to hand-pin an older note.)
 3. **`keystatic.config.ts`** at the repo root — one collection per repeating content type,
    each `path` pointing into `src/content/`:
    ```ts

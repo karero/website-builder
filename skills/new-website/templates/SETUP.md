@@ -63,10 +63,14 @@ npx playwright install chromium        # per machine, once
 > WSL2 shell, not the PowerShell ones.
 
 > **Node ≥22.12 required** (Astro's own floor) — the LTS installs above satisfy it; the repo's
-> `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` no
-> longer auto-runs native install scripts: if it warns "packages have install scripts
-> not yet covered", approve the two Astro needs or the build fails —
-> `npm approve-scripts esbuild && npm approve-scripts sharp`.
+> `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
+> "packages have install scripts not yet covered" for scripts it hasn't been told to trust
+> — per npm's own docs this is currently advisory only (the scripts still run; a future
+> npm release will start blocking them), but approve the two Astro needs now to silence the
+> warning and be ready ahead of that: `npm approve-scripts esbuild && npm approve-scripts sharp`.
+> Approvals are pinned to the exact version reviewed (npm's own default, by design) — a future
+> `astro` bump that pulls a different esbuild/sharp version will re-surface this same warning;
+> just re-run the same command.
 
 ### What each tool does
 | Tool | Function |

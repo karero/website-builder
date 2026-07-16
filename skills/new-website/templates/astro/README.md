@@ -42,9 +42,11 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    ```
    (Or copy this `package.json` and run `npm install`.) **Commit the
    `package-lock.json`** — CI uses `npm ci`, which fails without it.
-   On **npm ≥11.16**, `install` no longer auto-runs native install scripts — if it
-   prints "packages have install scripts not yet covered", approve the two Astro
-   needs or the build fails: `npm approve-scripts esbuild && npm approve-scripts sharp`.
+   On **npm ≥11.16**, `install` prints "packages have install scripts not yet covered"
+   for scripts it hasn't been told to trust — per npm's own docs this is currently
+   advisory only (the scripts still run; a future npm release will start blocking them),
+   but approve the two Astro needs now to silence the warning and be ready ahead of that:
+   `npm approve-scripts esbuild && npm approve-scripts sharp`.
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color, analytics — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads).
