@@ -4,7 +4,7 @@ Quick single-pass review (requested scope, not the full blocking multi-round gat
 
 ## Artifact
 `skills/new-website/templates/astro/tests/images.spec.ts` — adds a rendered-vs-declared
-aspect-ratio check to the images test, porting a fix that shipped live on a sample website
+aspect-ratio check to the images test, porting a fix that shipped live on genai-wednesday.de
 (a squished circular logo caused by CSS setting only one of width/height, no object-fit).
 
 ## Reviewers run
@@ -23,7 +23,7 @@ one reviewer sufficed and produced actionable, non-degenerate findings. Gate is 
    would still pass; (b) a genuinely art-directed `<picture>` (different crop per breakpoint)
    could false-fail.
    **Disposition: open, owner-facing.** Verified neither sub-case is currently reachable — no
-   `<Picture>`/`<picture>` usage exists in this template or in the origin site;
+   `<Picture>`/`<picture>` usage exists in this template or in GenAI_site (the origin site);
    the one comment referencing `<Picture>` describes format-only switching (same dimensions),
    which this check handles correctly. Re-scoping to `naturalWidth`/`naturalHeight` trades this
    gap for a different one (needs image decode, complicates lazy-loaded below-fold images) —
