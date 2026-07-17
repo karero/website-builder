@@ -1,11 +1,11 @@
 # REVIEW — DIFF gate, PR #54 (findings against PR #50), round 1 (2026-07-10)
 
 Artifact: `git diff v0.15..origin/main` in website-builder — the combined diff of
-everything going into release v0.16 (PRs #49, #50, #51, #52), reviewed at Daniel's
+everything going into release v0.16 (PRs #49, #50, #51, #52), reviewed at the owner's
 explicit request ("review independently with CODEX all the new stuff we want to put
-in the release"). A separate, narrower pass also reviewed PR #52 alone per Daniel's
-explicit callout — see the website-builder-shared-checkout-incident /
-apreet-backend-shared-worktree-risk memory family for that PR's own context; its
+in the release"). A separate, narrower pass also reviewed PR #52 alone per the owner's
+explicit callout — see the website-builder-shared-checkout-incident memory family
+(and its shared-worktree-risk counterpart in a downstream repo) for that PR's own context; its
 findings were fixed directly (PR #53, already merged) and are not repeated here.
 
 ## Reviewers (version / model / sandbox)
@@ -13,7 +13,7 @@ findings were fixed directly (PR #53, already merged) and are not repeated here.
 |---|---|---|---|---|
 | cross-model | codex-cli 0.144.1 | gpt-5.6-terra / xhigh | `exec -s read-only` | 8 findings (4 BUG · 4 RISK) |
 
-Independence: host = Claude Code; gate satisfied (Codex is cross-model here). Daniel
+Independence: host = Claude Code; gate satisfied (Codex is cross-model here). The owner
 named Codex specifically, so only that reviewer ran this round (no Antigravity/ollama,
 no separate fresh-eyes host pass) — per established practice, one named reviewer
 satisfies a round when the user names exactly one tool.
@@ -49,6 +49,6 @@ All CONFIRMED and PLAUSIBLE findings (7 of 8; #1 refuted) taken forward as a fix
 See r2–r5 for the fix + re-verification cycle — this took 5 rounds because the first
 two fix attempts at finding #4/#6's underlying design (agy host-family logic)
 introduced new bugs while fixing prior ones; round 4 redesigned rather than patched.
-Reported to Daniel with the CONFIRMED/PLAUSIBLE/REFUTED breakdown before fixing
-anything, per this skill's "keep the human in the loop" step — he said "fix these
-now."
+Reported to the owner with the CONFIRMED/PLAUSIBLE/REFUTED breakdown before fixing
+anything, per this skill's "keep the human in the loop" step — the owner said "fix
+these now."

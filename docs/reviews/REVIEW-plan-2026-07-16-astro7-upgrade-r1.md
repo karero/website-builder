@@ -4,7 +4,7 @@ Artifact: `astro7-upgrade-plan.md` (scratchpad, not committed to the repo) — t
 bumping `skills/new-website/templates/astro/`'s pinned Astro dependency from `^6.0.0` to
 `^7.1.0`, produced after an earlier 4-agent investigation workflow and one ad-hoc single-model
 (`ollama-review`, `glm-5.2:cloud`) pass on an unrevised draft. This round is the actual
-`independent-review` gate, run at Daniel's explicit request.
+`independent-review` gate, run at the owner's explicit request.
 
 ## Reviewers (version / model / sandbox)
 
@@ -127,7 +127,7 @@ error to silently fix): the plan validates the "copy `package.json`, `npm instal
 the toolkit's own CI tests) but has never run a clean-room scaffold exercising the PRIMARY
 documented path (`npm create astro@latest` + `npm i` the extra packages on top) end-to-end to
 directly confirm what real recipients get, rather than inferring it. Whether to add that
-clean-room test as a merge gate now versus as a fast-follow is Daniel's call — recorded in the
+clean-room test as a merge gate now versus as a fast-follow is the owner's call — recorded in the
 plan's "Timing decision" section, not decided here.
 
 ## Disposition

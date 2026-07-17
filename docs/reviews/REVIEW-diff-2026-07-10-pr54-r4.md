@@ -36,7 +36,7 @@ stopping:
 6. **RISK** — "current task finishes even if you hit it mid-task" (Codex pricing
    claim) isn't guaranteed by the linked page. Pre-existing content (predates this
    PR's edits, only the surrounding citation was touched) — noted, not fixed in this
-   PR; flagged to Daniel as a separate, lower-priority item.
+   PR; flagged to the owner as a separate, lower-priority item.
 7. **RISK** — cited XDA URL claimed to return 502. **Independently verified and
    REFUTED**: `curl -sI` (twice, with and without a UA string) returns 200.
 
@@ -47,4 +47,4 @@ real verification; PowerShell `Test-Path -PathType Leaf` correct.
 Disposition: fixed #1, #3, #4, #5. Refuted #2, #7 with evidence (not silently
 dropped — refutation stated explicitly in the r5 review prompt so the reviewer
 wouldn't re-flag them blind). #6 deferred as pre-existing/out-of-scope, surfaced to
-Daniel rather than silently skipped.
+the owner rather than silently skipped.

@@ -16,9 +16,12 @@ export LC_ALL=C   # unlocalized grep output — filter_ignored parses "Binary fi
 cd "$(dirname "$0")/.."
 SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
-# handoff. NOT the scripts (they DEFINE the secret regexes — would self-match). The name
-# denylist stays on $SCAN only: LICENSE legitimately carries the owner name + clone URLs.
-SCAN_DOCS="$SCAN README.md THIRD-PARTY-LICENSES.md LICENSE SECURITY.md Makefile docs"
+# handoff, including LICENSE. NOT the scripts (they DEFINE the secret regexes — would
+# self-match). The name denylist covers the same docs EXCEPT LICENSE, which legitimately
+# carries the owner's real name + clone URLs (2026-07-17: widened from skills/-only after
+# docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
+SCAN_NAMES="$SCAN README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs"
+SCAN_DOCS="$SCAN_NAMES LICENSE"
 fail=0
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
@@ -48,7 +51,10 @@ report() { # <label> <grep-output>
 DENYLIST_FILE="scripts/.clean-denylist"
 if [ -f "$DENYLIST_FILE" ]; then
   NAMES="$(grep -vE '^[[:space:]]*(#|$)' "$DENYLIST_FILE" | paste -sd'|' -)"
-  [ -n "$NAMES" ] && report "personal/site identifier" "$(grep -rinE "\\b(${NAMES})\\b" $SCAN 2>/dev/null)"
+  # karero/website-builder is this project's OWN public repo — self-links to it (README
+  # badges, clone instructions, the security policy) are the point, not a leak.
+  [ -n "$NAMES" ] && report "personal/site identifier" "$(grep -rinE "\\b(${NAMES})\\b" $SCAN_NAMES 2>/dev/null \
+    | grep -viE 'github\.com/karero/website-builder')"
 else
   echo "· personal-name denylist skipped (no $DENYLIST_FILE) — generic checks still run"
 fi

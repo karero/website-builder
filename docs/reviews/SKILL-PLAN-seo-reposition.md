@@ -5,7 +5,7 @@
 > This document is the design record + review trail, not a live proposal;
 > where it and the shipped skills disagree, the skills win.
 
-A design distilling the apreet.com + m-squad.com engagements into
+A design distilling two client-site engagements into
 website-builder skills. Two things were proven twice and aren't captured anywhere:
 
 1. **A repositioning method** — diagnose where a site's own phrasing collides with unrelated
@@ -42,7 +42,7 @@ This is the answer to "how do we implement the CODEX review as a skill step."
 
 ### Two gate types
 - **PLAN gate** — reviews a planning markdown *before* any code is written. Catches strategy
-  errors, stale assumptions, internal contradictions. (Ran ~5× on apreet's plan.)
+  errors, stale assumptions, internal contradictions. (Ran ~5× on one client's plan.)
 - **DIFF gate** — reviews a branch/PR diff *before* merge. Catches test blind spots — a guard
   passing while the thing it protects regressed (e.g. bare "trip overlap" moved into a title
   slot; a homepage trust card blurring two product concepts; stale related-card anchors).
@@ -140,7 +140,7 @@ Generate, from the WORDING-GUIDE, failing test specs that ratchet green as copy 
 - **`trap-guard`** — scan built HTML + llms.txt + OG source for blacklisted phrases (source of
   truth = WORDING-GUIDE blacklist).
 - **`slot-guard`** — bans "copy-legal but not-a-target" phrases from title/H1/schema/anchor
-  (the apreet blind spot: bare "trip overlap" in a title). This needs a **per-route slot
+  (a real blind spot found this way: bare "trip overlap" in a title). This needs a **per-route slot
   extractor** (parse `<title>`/`<h1>`/JSON-LD/anchor text per built page) with a negative-lookbehind
   on the allowed qualifier — a flat regex over `dist/` can't tell a slot from body copy. So
   slot-guard is **templated + hand-finished per site**, not fully auto-generated.
@@ -265,7 +265,7 @@ Cross-model tier, run **directly** via `codex exec -s read-only` (session `019f2
 - **RISK #11 — US-only SERP hardcoded.** ⚠ ADOPT: make market/lang/device/date explicit inputs to
   `trap_test.py`.
 - **RISK #15 — "schedule a grading run" needs a mechanism.** ✅ we already ship one — the
-  `scheduled-tasks` entry (`grade-apreet-seo-rewording`, fires 2026-07-29). Name that as the
+  `scheduled-tasks` entry (a dated grading run, fires 2026-07-29). Name that as the
   artifact in the skill.
 - **RISK #10/#7 — free-form findings, file:line for pasted artifacts.** ⚠ note: adopt a finding
   schema (id/severity/source/status/waiver) + require section-anchor (not file:line) for non-repo

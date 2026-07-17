@@ -43,4 +43,4 @@ config-file overclaim, a documented shell edge case, a wording NIT) rather than 
 design defects. Fixed all four. Not independently re-verified by a 6th Codex round —
 noted here per this skill's Procedure step 6 ("record 'last round not re-verified'
 in the trail" is the legitimate way to defer verification without deferring the fix
-itself). Reported the full before/after to Daniel rather than merging silently.
+itself). Reported the full before/after to the owner rather than merging silently.

@@ -1,7 +1,7 @@
 # REVIEW — DIFF gate, PR #19, round 1 (2026-07-02)
 
 Artifact: `git diff main...feat/llms-coverage-guard` — the llms-coverage test guard
-(port of the m-squad.com guard into the new-website starter suite) + doc updates.
+(port of a sample website's guard into the new-website starter suite) + doc updates.
 
 ## Reviewers (version / model / sandbox)
 | Seat | Tool | Model | Sandbox | Outcome |
@@ -33,7 +33,7 @@ Data check: diff grepped for secrets before dispatch — clean; owner requested 
   site that predates the guard, copy the spec in").
 - **claude B1 (reclassified: false positive, hardening adopted)** — claimed the `(URL)`
   match can't see markdown links; wrong (a markdown link *contains* `(URL)`, and the
-  check passes in production on m-squad). But the stricter `](URL)` anchor was adopted:
+  check passes in production on a sample website). But the stricter `](URL)` anchor was adopted:
   it pins a markdown link TARGET, so a bare URL in prose no longer satisfies coverage.
 
 ### Rejected, with reason
