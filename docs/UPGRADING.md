@@ -101,8 +101,8 @@ content or design change), and confirm they want it now rather than later.
 
 ## Why these specific steps
 
-This checklist reflects issues actually found and verified during the karero/website-builder
-toolkit's own Astro 6→7 migration (2026-07-16) and two subsequent real-site upgrades
-(webcroft-site, m-squad-website, 2026-07-16/17) — it's not generic upgrade advice. If Astro
-ships another major version later, this file should be rewritten for that transition rather
+This checklist reflects issues actually found and verified during this toolkit's own Astro
+6→7 migration (2026-07-16) and two subsequent real-site upgrades (2026-07-16/17) — it's not
+generic upgrade advice. If Astro ships another major version later, this file should be
+rewritten for that transition rather
 than assumed to still apply as-is.

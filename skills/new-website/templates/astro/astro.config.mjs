@@ -9,7 +9,7 @@ export default defineConfig({
   // elements (or between text and an inline element, e.g. wrapping a sentence across lines
   // around a link) collapses to ZERO characters instead of a space. That's a normal way to
   // write prose, so this silently breaks real content, not just edge-case markup — confirmed
-  // on a live site during the karero/website-builder Astro 6→7 migration (2026-07-16).
+  // on a live site during this toolkit's own Astro 6→7 migration (2026-07-16).
   // `true` restores the old "lossless" behavior (still compresses, just keeps a rendered
   // space where one exists in source).
   compressHTML: true,

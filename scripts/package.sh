@@ -14,11 +14,13 @@ cd "$REPO_DIR"
 # can never leak into the handoff. LICENSE + THIRD-PARTY-LICENSES.md ship the notices the
 # README points to; Makefile makes `make install` work for a zip recipient.
 # docs/reviews/ holds internal review trails + plan artifacts — never handoff material.
+# docs/local/ is excluded from git entirely (.git/info/exclude) for private, never-shipped
+# notes — but zip -r is git-agnostic and would sweep it in anyway if it exists on disk.
 zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh \
-  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' >/dev/null
+  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
