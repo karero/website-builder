@@ -101,6 +101,12 @@ recommendation, never to pick unasked.
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
 - Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
   pages OR `public/` assets (the manifest's fields are brackets too — no spec reads them).
+- **Freshness date matches the edit:** if the page's visible content changed and it carries a
+  last-modified signal (a `dateModified`/"Updated" byline, an Article/BlogPosting JSON-LD date),
+  that date is bumped to today. It silently drifts otherwise — stale in the visible byline, the
+  `<time datetime>` attribute, and the schema's `dateModified` (an SEO/AI-answer-engine freshness
+  signal) all at once, and no test catches it because nothing can know a date is "wrong" without
+  knowing the edit happened.
 - Nothing silently unshipped (two-stage sites): `git log origin/production..origin/main` empty,
   or the gap is a conscious decision — and the last `npm run ship` ended "✓ LIVE — verified".
 
@@ -113,6 +119,11 @@ recommendation, never to pick unasked.
   `canonical == og:url == SITE.url + path`.
 - **Single source of truth:** address, email, phone, nav come **only** from `src/config.ts` —
   no hardcoded copies drifting inside pages.
+- **Recurring section patterns carry consistent headings:** if a component pattern (e.g. a
+  `grid grid-2`/`grid-3` card block) has its own `<h2>` directly above it everywhere else it
+  appears on the site, a new or edited instance should too. A local heading step (h2 → h3) will
+  not trip axe's heading-order rule, so this only surfaces by checking this page's heading
+  structure against how the same pattern is used on other pages, not by trusting the a11y suite.
 - **SEO (`website-seo-geo`):** title ≤60, description 120–160, og/twitter mirror, exactly one
   `<h1>`, JSON-LD valid, sitemap covers every page, `llms.txt` current.
 - **Images (`website-design-system`):** WebP/AVIF, explicit `width`/`height`, `alt`; the LCP
