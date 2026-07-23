@@ -9,8 +9,8 @@ description: >
   credits are scarce and are spent only when explicitly worth it. PLUS a
   fresh-eyes no-shared-context pass by the host agent (optionally a same-family
   Fable pass on request) — consolidate a ranked BUG/RISK/NIT list, and BLOCK
-  until every BUG is fixed and every RISK/NIT is fixed or explicitly waived by
-  the human owner. PLAN-typed artifacts DEFAULT to ≥2 reviewers attempted —
+  until every BUG is fixed or refuted and every RISK/NIT is fixed, refuted, or
+  explicitly waived by the human owner. PLAN-typed artifacts DEFAULT to ≥2 reviewers attempted —
   an explicit --first-success is honored, not overridden, for callers who
   deliberately want one reviewer on a lower-stakes plan (e.g. website-content
   work — see website-review's "review depth" guidance). Use BEFORE building from any
@@ -424,11 +424,61 @@ like-for-like replacement."*
    Exit 4 = no reviewer ran = gate FAIL (never treat as clean).
 3. Run tier 3 (fresh-eyes) with the same strict prompt.
 4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
-   id, severity (BUG/RISK/NIT), source reviewer(s), location, status
-   (open/fixed/waived + waiver reason and owner).
+   id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted, or
+   waived. A waiver needs a reason and the human owner's sign-off. Refuted applies the same way to
+   a BUG, RISK, or NIT alike — it needs the disproving reasoning instead of an owner sign-off,
+   since a refuted finding was never a real issue.
+
+   **A pre-existing artifact annotation never auto-closes a finding that re-raises it — its own
+   reasoning must actually cover what THIS reviewer raised, confirm that first.** Only once
+   confirmed: if the artifact itself already explains a deliberate choice a finding re-raises (a
+   code comment, a plan annotation — e.g. from a prior planning-stage review whose reasoning was
+   carried forward, see `phased-plan-runner`'s equivalent convention for artifacts produced by
+   that skill), triage can cite that existing reasoning instead of a from-scratch re-derivation —
+   but citing it does not by itself pick a status: the finding still resolves to REFUTED only if
+   the annotation's reasoning actually disproves it, or to WAIVED only if the annotation traces to
+   a real prior owner decision (citing an old waiver does not manufacture a NEW one's required
+   sign-off out of nothing — get a fresh one if the annotation doesn't already clearly carry it).
+   An annotation that merely explains a tradeoff the team accepted, without disproving the finding,
+   is waiver-shaped, not refutation-shaped — treat it as such, not as an automatic close.
+   Whenever the annotation's reasoning does NOT cover what the new finding raises, that finding is
+   new signal — not repetition — regardless of whether the reviewer saw the annotation; it gets
+   triaged like any other finding, never dismissed because *something* was already written nearby.
 5. **Enforce the verdict** (this is the skill's job — never the script's exit
-   code): every BUG must be fixed, no exceptions; RISK/NIT may be waived only
-   with a named reason from the human owner — no blanket waivers.
+   code): every BUG confirmed real by verification must be fixed, no exceptions — one conclusively
+   shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
+   may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
+   if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
+   means evidence appropriate to what's actually being claimed: empirical verification (run it,
+   reproduce it, or rule it out — under the SAME standard as failure shape (a) below, testing the
+   claim's full stated reasoning, not just one cited example) for a claim about runtime/checkable
+   behavior; direct textual or
+   logical demonstration — quoting the actual contradiction, or its absence — for a claim about
+   structure, logic, or wording, where there is no runtime to check against. Don't demand an
+   empirical test a claim was never about in the first place.
+
+   **Verify checkable claims — empirically where the claim is about runtime/checkable behavior, by
+   direct textual/logical demonstration where it's about structure, logic, or wording — before
+   calling them fixed OR refuted; a reviewer's named example is illustrative, not exhaustive.** Two
+   recurring failure shapes:
+   (a) a fix that resolves only the ONE example a reviewer happened to cite (a specific
+   string, a specific input) can still leave the reviewer's actual, broader claim true — test
+   against their full stated reasoning, not just the named case, before marking it fixed
+   (caught in practice: a regex fix was accepted after disproving only one cited false-positive
+   string, but the reviewer's broader point still reproduced on a harder test). (b) a finding that an
+   API/data surface is reachable, or behaves a certain way, is NOT settled by confirming a
+   type/field/shape matches — trace the real access path (auth mechanism, routing,
+   permissions) it actually goes through; a correctly-shaped type sitting behind different
+   auth than assumed is still wrong, and "the shape looks right" is exactly the plausible
+   half-check that misses it. Both apply symmetrically to REFUTING a finding, not just
+   fixing one: don't dismiss a reviewer's claim as wrong just because its own cited example
+   fails to reproduce — check whether the underlying point still holds under a harder case
+   before writing it off. **A claim that's checkable in principle but can't actually be tested
+   right now** (missing environment, credentials, or permissions) **stays OPEN**, with the
+   missing prerequisite recorded — don't force it into fixed or refuted without the check that
+   would justify either. (A RISK/NIT in this state may still be WAIVED with a reason and the
+   owner's sign-off, same as any other open RISK/NIT — waiving needs no check, just the owner's
+   call; only fixed/refuted are blocked pending the missing prerequisite.)
 6. **Iterate — fix, then re-review.** Send the updated artifact back through
    the reviewers as a *verification round*: give them the prior round's BUG
    list, ask them to confirm each fix landed AND that the fixes introduced
@@ -437,22 +487,84 @@ like-for-like replacement."*
    bias that turns round 2 into a rubber stamp). Repeat until essentially
    clean. Stop conditions: (a) clean — done; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
-   — you may proceed once all known BUGs are *fixed* AND every RISK/NIT is
-   fixed or explicitly owner-waived (same bar as the blocking rule), deferring
+   — you may proceed once all known BUGs are *fixed or refuted* AND every RISK/NIT is
+   fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Deferring verification is legitimate; deferring a fix or a waiver never is.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
-   while quality demonstrably rises each round. After every round, check three
-   signals: (a) the finding count is falling; (b) new findings target code
-   *added by the previous round's fixes*, not ground already ruled clean;
-   (c) no oscillation — a fix that re-breaks something an earlier round fixed,
-   or reviewers re-raising a finding already dispositioned, means you are
-   running in circles. If (b) or (c) fails, or the count plateaus for two
-   rounds: STOP patching. Step back and redesign the component (patch-churn on
-   a wrong design converges never), or take the open items to the owner as a
-   decision. Say so plainly in the trail — "stopped: not converging" is a
-   legitimate, documented outcome; silent round 7 is not.
+   while quality demonstrably rises each round. After every round, check three signals:
+
+   **(a) Finding count.** Is it falling? Don't read this alone as the verdict — a rising count
+   from genuinely new scrutiny is healthy: a later round that finally verifies claims no earlier
+   round checked SHOULD find more, not fewer, real issues.
+
+   **(b) Are findings landing on genuinely new ground?** A finding PASSES (b) when it targets
+   code *added by the previous round's fixes*, or when checking it names a concrete new thing —
+   a specific check, input class, execution path, invariant, or evidence source the earlier pass
+   didn't use (e.g. round 3 starts empirically tracing auth/data-access paths where rounds 1-2
+   only reasoned from reviewer prose) — regardless of whether the overall method is nominally the
+   same or different; simply asserting a pass was "more careful," "deeper," or used a "different"
+   method, without naming that concrete delta, does not pass (b) on its own. A genuinely new
+   method that comes back CLEAN isn't a (b) failure either — there's no finding for it to
+   classify; it's valid convergence evidence, not wasted effort. (b) FAILS when a finding
+   re-covers ground a PRIOR PASS explicitly checked and reported CLEAN, without naming that
+   concrete new thing — this is about ground nothing was ever raised against, a different
+   population from the re-raises (c) below covers, where something WAS raised and dispositioned.
+
+   **(c) No oscillation.** A fix that, once verified per point 5's own standard (reproduced or
+   demonstrated, not just asserted), DEMONSTRABLY re-breaks something an earlier round FIXED means
+   STOP regardless of how many other findings that round are genuinely new — a regression isn't
+   offset by unrelated progress elsewhere. This is the only EVEN-ONE-finding trigger in this
+   section; every other case below pools into the STOP threshold's MOST-of-the-round test instead.
+
+   A reviewer re-raising a finding THIS REVIEW's own round-to-round trail already dispositioned
+   (matched by the stable id from point 4, not just similar wording) is common and NOT
+   automatically oscillation — an independent reviewer, especially the no-shared-context
+   fresh-eyes/Fable seat, is expected to sometimes re-notice something a prior round already
+   handled, precisely because that seat doesn't know the prior rounds happened. What matters,
+   checked with the same verification standard as any other claim (not just asserted): does the
+   re-raise bring new reasoning or evidence beyond what the prior disposition already considered —
+   the same coverage test point 4 uses for pre-existing artifact annotations (does the prior
+   disposition's reasoning actually cover what the new evidence raises?), adapted here to
+   round-to-round dispositions *within this review*. If it does, it's a fresh finding, full stop,
+   regardless of what the prior disposition was. If it doesn't (checked, and the original
+   disposition still holds), where it counts depends on that prior disposition:
+   - a re-raise of something FIXED or REFUTED with no new reasoning pools into the MOST threshold
+     below, alongside (b)-failures — NOT this signal's strict even-one bucket above. It's reviewer
+     overhead (re-checking a claim that turned out to still be nothing new), not the artifact
+     regressing; the strict bucket is for a DEMONSTRATED regression specifically, and holding a
+     routine no-shared-context re-raise to that same bar would effectively punish running a
+     genuinely independent reviewer every round — the whole point of that seat.
+   - a re-raise of something WAIVED with no new reasoning also pools into the MOST threshold, for
+     a related but distinct reason: waiving concedes the issue may be real, so it was never "ruled
+     clean" (that's (b)'s own test above) and re-noticing it isn't a regression of something
+     dispositioned-as-resolved (that's this signal's own test above) — it's an independent
+     reviewer correctly re-noticing something the owner already knew about and accepted.
+   - a re-raise of something still OPEN under point 5's untestable-claim rule (blocked on a
+     missing prerequisite) pools into the MOST threshold the same way: it was never "ruled clean"
+     either, and there's no fixed/refuted disposition for it to contradict — restating a known,
+     already-tracked open item is not new signal, but it isn't instability either.
+
+   **STOP patching when:** the regression case above fires for even one finding; OR (b)-failures
+   and any of the three no-new-evidence re-raise cases above, TOGETHER, characterize MOST (more
+   than half) or all of the round's findings — not just one stray finding amid otherwise-new ones;
+   OR the count plateaus for two consecutive rounds AND those plateauing findings are not
+   predominantly (b)-passing (a plateau of genuinely distinct, newly-surfaced findings each round
+   is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
+   area is bigger than first estimated, worth naming explicitly rather than silently forcing
+   STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s hard
+   3-round cap for any round that still has a BUG or RISK open — that cap bounds iteration on
+   those regardless of how these signals read; a round left with ONLY NIT churn has no equivalent
+   hard cap and relies on these signals alone.) When triggered: step back and redesign the
+   component (patch-churn on a wrong design converges never), or take the open items to the owner
+   as a decision — escalation can defer, re-scope, or reject the release, but it cannot waive a
+   BUG that's still open (for an open BUG blocked on a missing prerequisite — see point 5's
+   untestable-claim rule — deferral keeps the release blocked; the BUG can close only after the
+   prerequisite becomes available and verification supports either a refutation or a verified fix
+   — deferring is what you do while waiting, not the closure itself); point 5's rule holds
+   regardless of who's deciding. Say so plainly in the trail — "stopped: not
+   converging" is a legitimate, documented outcome; silent round 7 is not.
 8. **Keep the human in the loop — narration is part of the gate.** Between
    rounds, tell the owner: what was found, what was fixed, what is pending,
    the convergence trend (e.g. 19 → 9 → 6), and roughly what each round
@@ -483,7 +595,7 @@ The HOST agent is the clerk, and each artifact has a distinct job:
 2. **Consolidated** (actionable): the clerk's dedup + dispositions across all
    reviewers, posted as the main PR comment.
 3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch —
-   dispositions, rejected-with-reason findings, pending waivers, reviewer
+   dispositions, refuted (rejected-with-reason) findings, pending waivers, reviewer
    versions. This is the record that survives PR-comment archaeology. Trails
    (and other internal working notes, e.g. plans) go under `docs/reviews/`,
    never at the repo root — they must not clutter the project's GitHub
