@@ -611,14 +611,24 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    behalf — clearly labeled with tool, version, model, and sandbox mode.
 2. **Consolidated** (actionable): the clerk's dedup + dispositions across all
    reviewers, posted as the main PR comment. Begin the comment body with the
-   literal line `<!-- independent-review:consolidated -->` (an HTML comment —
-   invisible when GitHub/GitLab renders it, but present in the raw body the
-   platform's API returns). This is a stable, machine-checkable marker, not a
-   nicety: it lets a repo wire a CI gate that checks "did a trail file land
-   without a posted review" by querying the PR/MR's notes for this exact
-   string, instead of matching prose that can get reworded later.
-   apreet-backend's `review-trail-posted-gate` job (`.gitlab-ci.yml`) is the
-   first consumer — once a gate depends on it, don't drop or reword it.
+   literal line `<!-- independent-review:consolidated sha=<full commit SHA> -->`
+   (an HTML comment — invisible when GitHub/GitLab renders it, but present in
+   the raw body the platform's API returns), where `<full commit SHA>` is the
+   actual current HEAD of the branch/PR being reviewed at post time (`git rev-
+   parse HEAD` on the branch, right before posting — not the SHA the review
+   started against if the branch moved since). This is a stable,
+   machine-checkable marker, not a nicety: it lets a repo wire a CI gate that
+   checks "did a trail file land without a posted review *for the commit
+   actually being merged*" by querying the PR/MR's notes for this exact
+   marker+SHA pair, instead of matching bare prose that (a) can get reworded
+   later or (b) would be satisfied by ANY note containing the marker,
+   including a stale one from an earlier round on a reused branch — apreet-
+   backend's `review-trail-posted-gate` job (`.gitlab-ci.yml`) originally
+   shipped with the bare marker and exactly that bypass; round-1 review
+   (Codex) caught it before merge. Once a gate depends on this marker, don't
+   drop the SHA suffix or reword the fixed text around it — a rebase or a
+   later push is *supposed* to invalidate a prior post (post again against
+   the new HEAD), not silently keep passing.
 3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch —
    dispositions, refuted (rejected-with-reason) findings, pending waivers, reviewer
    versions. This is the record that survives PR-comment archaeology. Trails
