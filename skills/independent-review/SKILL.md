@@ -577,11 +577,28 @@ like-for-like replacement."*
    (spending one of the scarce credits), or an extra same-family **Fable**
    pass (Agent tool, `model: "fable"` — free, no credits, just not
    cross-model). Offer, don't run either unasked.
-9. Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings, dispositions,
-   and for each external reviewer its CLI version, model, and sandbox mode
-   (for a human round: who, and what they reviewed).
+9. **Close out — both halves, not just the trail file.** These are two separate artifacts;
+   doing one is not doing the other, and skipping the second is the single most likely way this
+   skill's real work goes invisible.
+   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings,
+   dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
+   human round: who, and what they reviewed).
+   (b) **If the artifact is an actual PR/MR** (a DIFF gate almost always is): post the review
+   *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one consolidated
+   summary — **before merging, not after.** A trail file that merges into the repo is not a
+   substitute: it's the permanent record for someone who already knows to look in
+   `docs/reviews/`, but the PR/MR comment is what the repo owner, a teammate, or future-you
+   actually sees first. Do this even when — especially when — the repo's own convention is "no
+   human reviewers on this MR": that convention describes who approves, not whether the
+   AI review gets a visible record. A blocking gate this skill's frontmatter calls BLOCK is not
+   satisfied by work that only exists in a file nobody has a reason to open yet.
+   Treat (b) as a checklist item with the same weight as "did the tests pass" — check it
+   explicitly before calling the gate satisfied, don't rely on remembering the clerk-procedure
+   section below on your own.
 
 ## The clerk procedure — who posts what (explain this to the user)
+
+*(This is Procedure step 9(b) above, not a separate optional step — read together.)*
 
 The external reviewers **structurally cannot** comment on a PR: they run in
 read-only sandboxes (codex) or sandboxed throwaway dirs (agy) and hold no
@@ -593,7 +610,25 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    time, posted as a collapsed (`<details>`) PR comment on the reviewer's
    behalf — clearly labeled with tool, version, model, and sandbox mode.
 2. **Consolidated** (actionable): the clerk's dedup + dispositions across all
-   reviewers, posted as the main PR comment.
+   reviewers, posted as the main PR comment. Begin the comment body with the
+   literal line `<!-- independent-review:consolidated sha=<full commit SHA> -->`
+   (an HTML comment — invisible when GitHub/GitLab renders it, but present in
+   the raw body the platform's API returns), where `<full commit SHA>` is the
+   actual current HEAD of the branch/PR being reviewed at post time (`git rev-
+   parse HEAD` on the branch, right before posting — not the SHA the review
+   started against if the branch moved since). This is a stable,
+   machine-checkable marker, not a nicety: it lets a repo wire a CI gate that
+   checks "did a trail file land without a posted review *for the commit
+   actually being merged*" by querying the PR/MR's notes for this exact
+   marker+SHA pair, instead of matching bare prose that (a) can get reworded
+   later or (b) would be satisfied by ANY note containing the marker,
+   including a stale one from an earlier round on a reused branch — apreet-
+   backend's `review-trail-posted-gate` job (`.gitlab-ci.yml`) originally
+   shipped with the bare marker and exactly that bypass; round-1 review
+   (Codex) caught it before merge. Once a gate depends on this marker, don't
+   drop the SHA suffix or reword the fixed text around it — a rebase or a
+   later push is *supposed* to invalidate a prior post (post again against
+   the new HEAD), not silently keep passing.
 3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch —
    dispositions, refuted (rejected-with-reason) findings, pending waivers, reviewer
    versions. This is the record that survives PR-comment archaeology. Trails
