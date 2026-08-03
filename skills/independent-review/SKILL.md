@@ -128,9 +128,13 @@ plan lands with only one reviewer's output for any reason — an explicit
 `--first-success` or a tier failing — treat the round as degraded *only if
 that wasn't the deliberate choice*, and say so either way.
 
-**Independence rule:** run every tier, but *classify* them — the tier matching
-the HOST agent's model family counts as the fresh-eyes seat, never as
-cross-model independence. **The gate is satisfied only when at least one
+**Independence rule:** *classify* every tier that actually ran — which tiers
+those are is decided by the reviewer stack above (the standard pair by default;
+Antigravity only on explicit opt-in; paste always manual; local ollama runs
+whenever `OLLAMA_MODEL` names a local tag, but never *closes the gate* on its
+own), and this rule governs how the ones that ran are scored, not how many to
+launch. The tier matching the HOST agent's model family counts as the
+fresh-eyes seat, never as cross-model independence. **The gate is satisfied only when at least one
 successful reviewer is cross-model (a different family than the host)**; if
 only same-family reviewers ran, the gate is degraded and needs an explicit
 owner waiver — codex reviewing codex-authored work shares the blind spots this
@@ -424,9 +428,11 @@ accurate about what "fallback" actually means:** *"Codex and Antigravity are
 free but not unlimited — you may occasionally hit a limit (see
 references/setup-guide.md for what's currently known about each). Here's
 what actually happens if you do, depending on how review is run: by
-default every configured reviewer runs together each time, so if Codex is
-temporarily rate-limited, that round still runs with whichever of
-Antigravity/ollama are set up. **That keeps you fully covered only if a
+default Codex and ollama-cloud run together each time — **Antigravity never
+runs by default, even once it's set up**, because it spends one of your scarce
+credits and waits for you to ask — so if Codex is temporarily rate-limited,
+that round still runs with the ollama seat (cloud if it's available, local as a
+degraded fallback). **That keeps you fully covered only if a
 cross-model reviewer for this host is still available — if ollama is the
 only thing left, that round is a lighter-weight, degraded pass, not a full
 substitute** (same rule as everywhere else in this skill: LOCAL ollama alone
@@ -618,7 +624,9 @@ like-for-like replacement."*
 9. **Close out — both halves, not just the trail file.** These are two separate artifacts;
    doing one is not doing the other, and skipping the second is the single most likely way this
    skill's real work goes invisible.
-   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings,
+   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md`, **in a repo this session
+   owns** — for someone else's artifact see the ownership note below, which keeps the content and
+   changes only the destination — findings,
    dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
    human round: who, and what they reviewed).
    (b) **If the artifact is an actual PR/MR THIS SESSION OWNS** (a DIFF gate almost always is):
@@ -639,18 +647,42 @@ like-for-like replacement."*
    everything above frames posting as mandatory. Someone else's MR is theirs to run, and a review
    comment — however useful — is still writing into their work in progress. Instead: hand the
    consolidated findings to the human owner **in this session, in full**, name the owning
-   session/branch/MR, and stop. Still write the trail file (a) — that part is unconditional and
-   costs nobody anything. Codified 2026-08-02 after a session gated its own abandoned branch,
+   session/branch/MR, and stop. Still produce the trail — the same content as (a), but written
+   where THIS session has authority to write, not at (a)'s literal in-repo path. Recording it is
+   unconditional; the destination is not. Do not create or modify files in a repo or worktree this
+   session doesn't own: a broad `git add -A`/`git add .` sweeps a new untracked file into their
+   next commit, and an edit to a file they already track is swept by a plain `git commit -a` —
+   the latter observed 2026-08-03, when one session's uncommitted edit landed inside another
+   session's commit under an unrelated message. Put it somewhere this session's own work durably
+   lives — its own repo's `docs/reviews/`, or wherever this session keeps notes that outlive the
+   conversation — NOT a temp dir that gets cleaned, since clerk item 3 defines the trail as the
+   permanent record. If no durable location exists, hand the content to the owner inline and say
+   plainly that no durable trail was written. Codified 2026-08-02 after a session gated its own
+   abandoned branch,
    found real issues that also applied to a parallel session's MR, and posted them onto that MR by
    following this very step. See the `loose-ends` skill, "Open ends belong to a session". The one
    exception is an explicit handoff from the owner ("review and comment on !72 for me") — noticing
    the MR is not a handoff.
 
-   **If you do post to someone else's MR under an explicit handoff, omit the consolidated marker
-   below** unless you actually gated *that* MR's own diff. Posting the marker for a review run
-   against a different branch is precisely the false-pass the marker exists to prevent — and the
-   token is easy to leak accidentally: writing it verbatim in prose ("I omitted the `…` marker")
-   is enough for a grep-based gate to match. Describe it; don't spell it out.
+   **If you cannot establish ownership, it is not yours.** Undeterminable ownership is the common
+   case, not the edge case — a worktree with no owner attribution, a branch whose session was
+   archived, a commit made in a primary checkout. Fail closed: treat unknown as someone else's,
+   hand the consolidated findings to the human owner **in this session, in full**, name the owning
+   session/branch/MR as far as you can establish it, and stop. Only affirmative evidence that THIS
+   session created the PR/MR establishes ownership — a session record of creating that exact
+   PR/MR, or an explicit handoff. A branch or SHA mentioned in some transcript, a reflog timestamp
+   that lines up with a session's last activity, or a project-local ownership convention if your
+   setup has one (e.g. a `ccd.owner` git config) are LEADS worth one cheap check, never proof: a
+   guess is not a check, and "probably mine" is not ownership.
+
+   **Never stamp the consolidated marker on a PR/MR whose own diff you did not gate.** The
+   explicit-handoff case above is one instance; so is any post where the review actually ran
+   against a different branch, a plan, or any other artifact that wasn't this PR/MR's own diff.
+   Stamping an ungated diff is precisely the false-pass the marker exists to prevent. The token
+   also leaks easily: a gate that greps for the BARE marker — the bypass documented as fixed
+   below — matches any note containing it, including prose explaining that you deliberately left
+   it out. The current marker+SHA form is narrower and would not match placeholder prose, but
+   don't bet on every repo's gate being the strict one. Describe the marker; don't spell it out.
 
 ## The clerk procedure — who posts what (explain this to the user)
 
@@ -672,10 +704,16 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    reviewers, posted as the main PR comment. Begin the comment body with the
    literal line `<!-- independent-review:consolidated sha=<full commit SHA> -->`
    (an HTML comment — invisible when GitHub/GitLab renders it, but present in
-   the raw body the platform's API returns), where `<full commit SHA>` is the
-   actual current HEAD of the branch/PR being reviewed at post time (`git rev-
-   parse HEAD` on the branch, right before posting — not the SHA the review
-   started against if the branch moved since). This is a stable,
+   the raw body the platform's API returns), where `<full commit SHA>` is the SHA whose diff the
+   reviewers ACTUALLY SAW. Capture it (`git rev-parse HEAD`) when the review starts, re-read it
+   immediately before posting, and stamp only when the two are equal. If HEAD moved, the review no
+   longer covers what would merge: re-run the gate against the new HEAD — **every seat whose
+   findings appear in the consolidated verdict, including the tier-3 fresh-eyes pass, not just the
+   external half** — then re-check HEAD again, since it can move during the re-run too; loop until
+   the check passes. If re-running is impossible (credits exhausted, step 6(c)), do NOT stamp: the
+   gate stays blocked until a re-review of the current HEAD can run, exactly like any other
+   missing prerequisite under step 5. Never stamp a commit nobody reviewed — that is the same
+   false-pass in a different costume. This is a stable,
    machine-checkable marker, not a nicety: it lets a repo wire a CI gate that
    checks "did a trail file land without a posted review *for the commit
    actually being merged*" by querying the PR/MR's notes for this exact
@@ -688,7 +726,8 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    drop the SHA suffix or reword the fixed text around it — a rebase or a
    later push is *supposed* to invalidate a prior post (post again against
    the new HEAD), not silently keep passing.
-3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch —
+3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch
+   **you own** —
    dispositions, refuted (rejected-with-reason) findings, pending waivers, reviewer
    versions. This is the record that survives PR-comment archaeology. Trails
    (and other internal working notes, e.g. plans) go under `docs/reviews/`,
