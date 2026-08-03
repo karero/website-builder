@@ -45,6 +45,44 @@ rounds caught 5 BUGs the author had shipped.
 - **DIFF gate** — reviews a branch/PR diff *before* merge. Catches test blind
   spots: a guard passing while the thing it protects regressed.
 
+### "It's only a docs row" is the wrong test — ask what the reader will DO
+
+(Codified 2026-08-03 after a single session sent five MRs through this gate and
+**every one came back with something real**, including two where the defect was
+in the artifact's *proposed fix* rather than its description.)
+
+The instinct that a BUGLOG row, a ledger row, or a runbook is "too small to
+review" is about the artifact's SIZE. The thing that matters is whether someone
+will later ACT on it without re-deriving it. A deferred-bug row's "suggested
+fix" field is a **delegated instruction**: months later, an implementer reads it,
+trusts it, and builds it. It is simultaneously the field the author reasons
+about least (the bug is already understood; the fix is an afterthought) and the
+one the reader trusts most. That asymmetry is where the defects were:
+
+- A row said "add the missing build steps to the CI job." The job was *manual*,
+  so the fix would not have closed the gap. Round 1 caught it.
+- The rewrite said "…and add a cross-project trigger." A triggered pipeline ran
+  the *automatic* job, still never the manual one. **Round 2 caught the same
+  class of error one level down** — which is the case for a verification round
+  after any BUG, not just a code one.
+
+Practical rule: **gate on consequence, not on diff size or file extension.** A
+row whose fix someone will implement, a runbook headed for a production session,
+a plan a stage agent will execute — all carry more downstream weight than a
+small code change that CI will catch anyway. Where a lighter gate is genuinely
+right, name the gate it got and why (Procedure step 9's trail does this), rather
+than skipping silently.
+
+**Corollary — send the code that CONSUMES the config, not just the config.**
+Reviewing a compose/env/infra diff in isolation reliably produces
+"this might be a silent no-op" and "this might fail indistinguishably" findings
+that the consuming source already answers. In the session above, BOTH reviewers
+independently raised exactly those two against a deploy-wiring diff, and both
+were refuted from twenty lines of the application code that reads the variable.
+That round cost a full standard pair to produce two speculations and two real
+NITs. Include the reading code in the artifact, or expect to spend the round
+refuting rather than fixing.
+
 ## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
 
 1. **Codex CLI** (`codex exec -s read-only`) — genuine read-only sandbox; model +
@@ -583,10 +621,10 @@ like-for-like replacement."*
    (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings,
    dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
    human round: who, and what they reviewed).
-   (b) **If the artifact is an actual PR/MR** (a DIFF gate almost always is): post the review
-   *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one consolidated
-   summary — **before merging, not after.** A trail file that merges into the repo is not a
-   substitute: it's the permanent record for someone who already knows to look in
+   (b) **If the artifact is an actual PR/MR THIS SESSION OWNS** (a DIFF gate almost always is):
+   post the review *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one
+   consolidated summary — **before merging, not after.** A trail file that merges into the repo is
+   not a substitute: it's the permanent record for someone who already knows to look in
    `docs/reviews/`, but the PR/MR comment is what the repo owner, a teammate, or future-you
    actually sees first. Do this even when — especially when — the repo's own convention is "no
    human reviewers on this MR": that convention describes who approves, not whether the
@@ -596,9 +634,30 @@ like-for-like replacement."*
    explicitly before calling the gate satisfied, don't rely on remembering the clerk-procedure
    section below on your own.
 
+   **⚠ "Owns" is load-bearing — (b) applies ONLY to a PR/MR this session created.** If the
+   artifact belongs to a *different* session (or to a teammate), do NOT post to it, even though
+   everything above frames posting as mandatory. Someone else's MR is theirs to run, and a review
+   comment — however useful — is still writing into their work in progress. Instead: hand the
+   consolidated findings to the human owner **in this session, in full**, name the owning
+   session/branch/MR, and stop. Still write the trail file (a) — that part is unconditional and
+   costs nobody anything. Codified 2026-08-02 after a session gated its own abandoned branch,
+   found real issues that also applied to a parallel session's MR, and posted them onto that MR by
+   following this very step. See the `loose-ends` skill, "Open ends belong to a session". The one
+   exception is an explicit handoff from the owner ("review and comment on !72 for me") — noticing
+   the MR is not a handoff.
+
+   **If you do post to someone else's MR under an explicit handoff, omit the consolidated marker
+   below** unless you actually gated *that* MR's own diff. Posting the marker for a review run
+   against a different branch is precisely the false-pass the marker exists to prevent — and the
+   token is easy to leak accidentally: writing it verbatim in prose ("I omitted the `…` marker")
+   is enough for a grep-based gate to match. Describe it; don't spell it out.
+
 ## The clerk procedure — who posts what (explain this to the user)
 
-*(This is Procedure step 9(b) above, not a separate optional step — read together.)*
+*(This is Procedure step 9(b) above, not a separate optional step — read together. Its ownership
+qualifier applies to everything here: this whole procedure is for a PR/MR **this session owns**.
+For someone else's, hand the findings to the human owner and stop — items 1 and 2 below are exactly
+what you must NOT do on another session's MR.)*
 
 The external reviewers **structurally cannot** comment on a PR: they run in
 read-only sandboxes (codex) or sandboxed throwaway dirs (agy) and hold no
