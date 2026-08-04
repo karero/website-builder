@@ -301,8 +301,10 @@ out. Antigravity is worth adding on top if they want a third, independent
 model family and are comfortable with a less predictable free tier — it is
 not required. **If the current host is itself Codex, swap this
 recommendation: Codex CLI would be same-family and wouldn't satisfy the
-gate — recommend Antigravity (or ollama-cloud) as the main reviewer
-instead**, with local ollama as the same free backup either way.
+gate — recommend ollama-cloud (the script's standard automatic second reviewer)
+as the main reviewer instead**, with local ollama as the same free backup either
+way. Antigravity stays what it is everywhere else in this skill: an opt-in extra
+that spends a scarce credit, never the default recommendation.
 
 Ask which one(s) to set up, then proceed per tool below.
 
@@ -536,6 +538,22 @@ like-for-like replacement."*
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Deferring verification is legitimate; deferring a fix or a waiver never is.
+
+   **What "3 rounds" counts, since this is ambiguous the moment you need it.** The cap is
+   **per stable finding id** (point 4's id), not per calendar round: a finding first raised in
+   round 3 gets its own remediation-and-verification round before the cap can fire on it, and a
+   finding open across rounds 1–3 fails the gate even if that round found other, newer things.
+   **A redesign starts a NEW artifact and a new count.** When point 7 says stop patching and
+   redesign, the review of the redesign is round 1 of that new artifact, not round 4 of the cycle
+   it replaced — otherwise the cap would forbid reviewing the very rewrite it just demanded. Say
+   in the trail which artifact a round belongs to, so the count is never reconstructed by memory.
+
+   **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
+   `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
+   to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
+   a later round. Budget exhaustion may defer ONLY the second. A checkable claim with neither
+   status stays OPEN and blocking — running out of credits never converts an unchecked fix into a
+   done one. Record both statuses per finding; a trail that says only "fixed" does not say which.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
    while quality demonstrably rises each round. After every round, check three signals:
 
@@ -615,7 +633,12 @@ like-for-like replacement."*
    costs. The owner steers — they can stop, waive, redirect, or run a
    **manual round of their own**; a human review round is a first-class
    reviewer seat and goes in the trail like any other (reviewer: owner,
-   findings, dispositions). Never let rounds run silently back-to-back. Once
+   findings, dispositions). **It does not, however, satisfy cross-model
+   independence** — a human round contributes findings, but the Independence
+   rule's requirement of at least one successful CROSS-MODEL reviewer is about
+   model families and can only be met by a model. An owner round on top of a
+   same-family-only set leaves the gate degraded, needing the same explicit
+   waiver as before; it does not close it. Never let rounds run silently back-to-back. Once
    the standard pair (and any fresh-eyes pass) has reported, ASK — don't just
    stop — whether the owner wants anything more: a `--with-antigravity` round
    (spending one of the scarce credits), or an extra same-family **Fable**
