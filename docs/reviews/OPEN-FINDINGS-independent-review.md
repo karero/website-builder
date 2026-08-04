@@ -1,60 +1,80 @@
 # Open findings — `skills/independent-review/SKILL.md`
 
 Living tracker. Every row is a review finding that is **not** closed. Close a row by fixing or
-refuting it (BUG), or by fixing, refuting, or recording an owner waiver (RISK/NIT) — and delete
-the row, with the disposition recorded in that round's trail file.
+refuting it (BUG), or by fixing, refuting, or recording an owner waiver (RISK/NIT) — then delete
+the row, with the disposition recorded in that round's trail.
 
-Last updated after round 4 (2026-08-03). Reviewers to date: Codex `gpt-5.6-sol` (read-only),
-ollama-cloud `glm-5.2`, host fresh-eyes pass (Claude Opus 5). A third-family read
-(`kimi-k3:cloud`) was requested on the current state; if its findings landed after this file was
-written they are not yet reflected here.
+Last updated 2026-08-04, after the permission-table collapse. Reviewers to date: Codex
+`gpt-5.6-sol` (read-only), ollama-cloud `glm-5.2`, Kimi `kimi-k3:cloud`, and a host fresh-eyes
+pass (Claude Opus 5).
 
-## ⚠ Gate status: FAILED — 5 open BUGs
+## Gate status: no open BUGs — but NOT externally re-verified
 
-The section governing who may post a review, where the trail is written, and when the marker may
-be stamped is **not** in a shippable state. Commits `99c89e3` and `e45e5b9` each improved it and
-each introduced something new. Do not describe this skill as review-clean.
-
-## BUG — open, blocking
-
-| id | Location | Finding | Prescribed fix | Found |
-|---|---|---|---|---|
-| B4-1 | step 9 property table | The AUTHORSHIP row says it is established by "a handoff that names posting"; the paragraph below says a handoff "does not confer authorship". The central table contradicts itself. | Keep AUTHORSHIP purely factual (this session created the PR/MR). Add **POST AUTHORITY** = authorship OR an action-naming handoff. | r4, both reviewers |
-| B4-2 | step 9(b) | Gated on "THIS SESSION AUTHORED", which excludes handoff-authorized posting — but the clerk intro authorizes exactly that. Following the checklist literally means the authorized post never happens. | Gate 9(b) on POST AUTHORITY, with authorship as one way to obtain it. | r4, both reviewers |
-| B4-3 | clerk intro | The action-capability rule isn't enforced: a handoff naming "comment" silently expands into multiple raw comments, a consolidated comment, and potentially the certification marker. | Enumerate capabilities (`POST_REVIEW_COMMENTS`, `STAMP_GATE_MARKER`); require the handoff to cover each, or state that posting never entails certification unless separately named. | r4, Codex |
-| B4-4 | clerk item 2 | A PR/MR diff is not identified by source HEAD alone. The target/base branch can move while source SHA is unchanged — the merge diff changes and the marker keeps passing. | Capture and verify source SHA **plus** base SHA (or a platform diff/version id); stamp and check both. **Blocked on a decision** — differs GitLab vs GitHub, and `apreet-backend`'s `review-trail-posted-gate` job depends on the current single-SHA form. | r4, Codex (was r3 RISK, escalated) |
-| B4-5 | step 9 table | GATED-THIS-DIFF established by "the review ran against current HEAD" — local HEAD equality doesn't prove reviewers saw the PR's diff (wrong checkout, stale diff file, wrong base all pass). | Bind the reviewed artifact to the PR/MR identity and exact source/base revisions; record them with the captured reviewer input. **Same decision as B4-4.** | r4, Codex |
+All BUGs raised through the Kimi round are closed. **No reviewer has seen the applied result.**
+Kimi reviewed the *draft* and returned "ship with the listed fixes"; those fixes were then applied,
+so the committed text is one edit-generation ahead of anything any reviewer has read. Per the
+skill's own vocabulary: `locally_verified`, not `externally_reverified`. One more round would
+close that, and is the single highest-value thing left here.
 
 ## RISK — open
 
 | id | Location | Finding | Found |
 |---|---|---|---|
-| R4-1 | step 9 WRITE AUTHORITY | Conflates permissions that don't travel together: creating a branch ≠ authority over the worktree; creating a worktree ≠ authority to commit to its branch. Split into WORKTREE WRITE AUTHORITY and BRANCH COMMIT AUTHORITY. | r4, both |
-| R4-2 | 9(a) vs clerk item 3 | Item 3 still categorically describes the trail as "committed on the branch", so the compliant no-authority fallback cannot satisfy the clerk checklist. Make item 3 conditional. | r4, Codex |
-| R4-3 | clerk item 2 | "Every seat that participated in the verdict" is undefined for attempted-but-failed, degraded, manually excluded, or superseded seats — an implementation can omit a required seat by declaring non-participation. Persist a required-seat roster before execution. | r4, Codex |
-| R4-4 | clerk items 1–2 | After a moved-HEAD re-run, old raw comments aren't required to be superseded — authentic-looking findings for the wrong revision sit beside the new verdict. | r4, Codex |
-| R4-5 | clerk intro | "Stop" is ambiguous under the handoff exception. | r4, ollama |
-| R1-8 | onboarding step 2 | "Installed and authenticated" can route local-only ollama into the skip branch; `ollama list` doesn't prove a `:cloud` tag is signed in. Needs a concrete cloud-readiness probe. | r1, Codex |
-| R1-9 | Procedure step 1 | `grep` for secrets is too weak for customer data, encoded credentials, or creds in URLs; first-time owner approval goes stale as repo sensitivity changes. Needs real preflight tooling. | r1, Codex |
-| R1-10 | reviewer stack §3 / step 3 | The "fresh session" fallback has no enforceable way to create or verify isolation; on hosts without sub-agents it can silently degrade into the authoring context while still counting as fresh-eyes. | r1, Codex |
-| R1-11 | onboarding step 5 | Model-family confirmation depends on parsing human-oriented CLI output, with `agy`'s format admitted unconfirmed. Needs a maintained per-CLI compatibility table or a machine-readable probe. | r1, Codex |
+| R-CI | clerk item 2 | The local `(base, head)` capture is fixed, but the marker still stamps a single SHA and nothing names **which platform field a CI gate should compare** — GitLab and GitHub differ, and "the commit actually being merged" ≠ source head under squash or merge-commit flows. **Blocked on a cross-repo decision**: `apreet-backend`'s `review-trail-posted-gate` job depends on the current single-SHA form, so changing it is a two-repo change. | Codex r4, Kimi |
+| R-SEATS | clerk item 2 | "Every seat that participated in the verdict" is still undefined for attempted-but-failed, degraded, or manually excluded seats — an implementation can omit a required seat by declaring non-participation. Wants a required-seat roster persisted before execution. | Codex r4 |
+| R1-8 | onboarding step 2 | "Installed and authenticated" can route local-only ollama into the skip branch; `ollama list` doesn't prove a `:cloud` tag is signed in. Needs a concrete cloud-readiness probe. | Codex r1 |
+| R1-9 | Procedure step 1 | `grep` for secrets is too weak for customer data, encoded credentials, or creds in URLs; first-time owner approval goes stale as repo sensitivity changes. Needs real preflight tooling. | Codex r1 |
+| R1-10 | reviewer stack §3 / step 3 | The "fresh session" fallback has no enforceable way to create or verify isolation; on hosts without sub-agents it can silently degrade into the authoring context while still counting as fresh-eyes. | Codex r1 |
+| R1-11 | onboarding step 5 | Model-family confirmation depends on parsing human-oriented CLI output, with `agy`'s format admitted unconfirmed. Needs a maintained per-CLI compatibility table or a machine-readable probe. | Codex r1 |
 
 ## NIT — open
 
 | id | Location | Finding | Found |
 |---|---|---|---|
-| N4-1 | step 9 evidence paragraph | Reintroduces the bare word "ownership" ("'probably mine' is not ownership") in the very passage that eliminated it, inviting readers to re-collapse the properties. | r4, Codex |
-| N4-2 | step 9 WRITE AUTHORITY | Ambiguous "it" in the second establishment criterion. | r4, ollama |
-| N1-14 | clerk §1 vs §3 | Raw notes are posted verbatim to the PR, but the permanent trail keeps only dispositions — later audit depends on PR-comment survival. Decide: embed raw notes, link immutable comment ids, or store hashes plus a durable archive. | r1, Codex |
+| N1-14 | clerk §1 vs §3 | Raw notes are posted verbatim to the PR, but the permanent trail keeps only dispositions — later audit depends on PR-comment survival. Decide: embed raw notes, link immutable comment ids, or store hashes plus a durable archive. | Codex r1 |
 
-## Closed since round 1 — for context, do not re-litigate
+## Not a finding — deliberate follow-on work
 
-- 4 round-1 BUGs (marker/HEAD inversion, Antigravity-runs-by-default, "run every tier", the
-  unconditional trail write) — fixed in `99c89e3`, confirmed by round 3.
-- 3 round-2 BUGs in the proposed fixes (incomplete B4 closure, the wrong `git commit -a` claim,
-  the false "local ollama never runs automatically" claim) — fixed in `99c89e3`.
-- 2 round-3 BUGs (handoff→ownership over-grant, the CLEAN-seat re-run loophole) — the loophole
-  fixed in `e45e5b9` and confirmed; the over-grant is **re-opened** as B4-1/B4-2 above.
-- 4 round-1 findings fixed 2026-08-03: R6 (what "3 rounds" counts), R5 (`locally_verified` vs
-  `externally_reverified`), R12 (an owner round never satisfies cross-model), N13 (the Codex-host
-  recommendation no longer leads with scarce-credit Antigravity).
+- **A lint.** The permission table is now the single place that grants or denies, which is the
+  precondition for mechanically checking it. Candidate checks: no section other than the table
+  states a grant or a fallback; every `see X` cross-reference resolves; the marker token appears
+  exactly once. A lint catches *regression* of what is now correct — it would have found none of
+  the BUGs in this history, all of which were reasoning errors.
+- **Policy: changes to this file go through the gate.** Across five rounds every single one found
+  something real, including three that found defects in the immediately preceding round's fixes.
+  Nothing else here has that hit rate.
+
+## Closed — history, do not re-litigate
+
+**Round 1 (Codex)** — 4 BUGs: the marker's stamp-current-HEAD inversion, "every configured
+reviewer runs together" contradicting Antigravity opt-in, "run every tier", and the unconditional
+trail write. All fixed in `99c89e3`.
+
+**Round 2 (Codex + ollama)** — 3 BUGs in the *proposed* fixes: B4 closed only locally, a factually
+wrong `git commit -a` claim (it does not stage untracked files), and a false "local ollama never
+runs automatically" claim refuted against `independent_review.sh:112`. All fixed in `99c89e3`.
+
+**Round 3 (Codex + ollama)** — gate FAILED; step 7(c) oscillation fired. The fix for one finding
+had re-opened the hole another fix had just closed. Diagnosis: "ownership" was doing three jobs.
+Redesign in `e45e5b9`.
+
+**Round 4 (Codex + ollama)** — 5 BUGs, 2 of them introduced by the redesign itself. Codex
+prescribed splitting three properties into five.
+
+**Round 5 (Kimi)** — rejected that prescription and returned verdict (c): the taxonomy was stated
+normatively in five places and the defects had become *pairwise non-entailment among redundant
+statements*, so the cure was fewer normative statements, not more properties. Its prediction that
+patching would keep leaking was confirmed within the hour, in a fix that added a third statement
+about budget rather than reconciling the two that already conflicted.
+
+**Round 6 (Kimi, on the draft)** — "ship with the listed fixes". Caught a real safety hole the
+collapse had introduced: the generic atom-B definition would have let an owner instruction
+("stamp it, I eyeballed the diff") certify GATED-THIS-DIFF, losing the `ONLY` the old text had.
+Also caught that the count had fallen to four rather than one, that positional row references
+decay more silently than named ones, that `9(a)` sat outside the replacement range still naming an
+abolished term, and four pieces of coverage that survived only in the deleted restatements. All
+applied.
+
+**Round 1 wording items** fixed 2026-08-03: R6 (what "3 rounds" counts), R5 (`locally_verified` vs
+`externally_reverified`), R12 (an owner round never satisfies cross-model), N13 (the Codex-host
+recommendation no longer leads with scarce-credit Antigravity).

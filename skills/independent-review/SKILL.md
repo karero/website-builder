@@ -435,7 +435,7 @@ runs by default, even once it's set up**, because it spends one of your scarce
 credits and waits for you to ask — so if Codex is temporarily rate-limited,
 that round still runs with the ollama seat (cloud if it's available, local as a
 degraded fallback). **That keeps you fully covered only if a
-cross-model reviewer for this host is still available — if ollama is the
+cross-model reviewer for this host is still available — if LOCAL ollama is the
 only thing left, that round is a lighter-weight, degraded pass, not a full
 substitute** (same rule as everywhere else in this skill: LOCAL ollama alone
 never closes the gate on its own — signed-in ollama-cloud does). If review is
@@ -453,7 +453,8 @@ like-for-like replacement."*
    customer data) and get the owner's OK the first time a given repo's content
    is sent out. If the content must stay local, run the script with
    `--local-only` (skips codex/agy/paste entirely; local ollama only — the
-   script refuses to proceed if `OLLAMA_MODEL` is already set to a cloud tag,
+   script requires the EFFECTIVE ollama tag to be local: under `--local-only` the
+   `glm-5.2:cloud` default is never applied, and an explicitly-set cloud tag is refused outright,
    rather than silently sending content out) plus the tier-3 host fresh-eyes
    pass — tier 6 (paste into any model) is just as
    external as the CLIs and is excluded. A local-only verdict is inherently
@@ -533,11 +534,13 @@ like-for-like replacement."*
    bias that turns round 2 into a rubber stamp). Repeat until essentially
    clean. Stop conditions: (a) clean — done; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
-   — you may proceed once all known BUGs are *fixed or refuted* AND every RISK/NIT is
+   — you may stop ITERATING once all known BUGs are *fixed or refuted* AND every RISK/NIT is
    fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Deferring verification is legitimate; deferring a fix or a waiver never is.
+   **This governs whether to run another round, and nothing else** — in particular it has no
+   bearing on the consolidated marker, whose own rule lives in clerk item 2.
 
    **What "3 rounds" counts, since this is ambiguous the moment you need it.** The cap is
    **per stable finding id** (point 4's id), not per calendar round: a finding first raised in
@@ -547,13 +550,14 @@ like-for-like replacement."*
    redesign, the review of the redesign is round 1 of that new artifact, not round 4 of the cycle
    it replaced — otherwise the cap would forbid reviewing the very rewrite it just demanded. Say
    in the trail which artifact a round belongs to, so the count is never reconstructed by memory.
+   Re-gates forced by a moved diff (clerk item 2) do not count against the cap — they re-establish
+   coverage rather than iterating on findings.
 
    **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
    `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
    to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
-   a later round. Budget exhaustion may defer ONLY the second. A checkable claim with neither
-   status stays OPEN and blocking — running out of credits never converts an unchecked fix into a
-   done one. Record both statuses per finding; a trail that says only "fixed" does not say which.
+   a later round. A checkable claim with neither status stays OPEN and blocking. Record both per
+   finding; a trail that says only "fixed" does not say which.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
    while quality demonstrably rises each round. After every round, check three signals:
 
@@ -648,11 +652,11 @@ like-for-like replacement."*
    doing one is not doing the other, and skipping the second is the single most likely way this
    skill's real work goes invisible.
    (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md`, **wherever this session
-   has WRITE AUTHORITY** (defined below — for someone else's worktree the content is identical and
-   only the destination changes) — findings,
+   holds WORKTREE-WRITE AUTHORITY** (the permission table below — for someone else's worktree the
+   content is identical and only the destination changes) — findings,
    dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
    human round: who, and what they reviewed).
-   (b) **If the artifact is an actual PR/MR THIS SESSION AUTHORED** (a DIFF gate almost always is):
+   (b) **If you hold POST AUTHORITY on an actual PR/MR** (a DIFF gate almost always is):
    post the review *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one
    consolidated summary — **before merging, not after.** A trail file that merges into the repo is
    not a substitute: it's the permanent record for someone who already knows to look in
@@ -665,72 +669,72 @@ like-for-like replacement."*
    explicitly before calling the gate satisfied, don't rely on remembering the clerk-procedure
    section below on your own.
 
-   **⚠ Three different questions. Do not collapse them into one word.** Every recurring defect in
-   this section came from "ownership" doing three jobs at once, and each patch that reused the
-   overloaded word leaked somewhere new. The properties are ORTHOGONAL — check the one that
-   actually governs the action you are about to take:
+   ### ⚠ The permission table — the one place that GRANTS or DENIES
 
-   | Before you… | The property | Established ONLY by |
+   Every recurring defect in this section came from one word, "ownership", doing several jobs at
+   once, restated in five places that then drifted apart pairwise. So: this table is the only
+   place that grants or denies. Elsewhere you will find sentences that *name which property
+   governs* an action — those are pointers, and pointers are fine. What must never appear twice is
+   the grant itself, or a fallback. If you find a second statement of either, it is stale: delete
+   it, don't reconcile it. **Reference properties by NAME, never by row number, and append new
+   rows rather than renumbering** — a wrong number leaves no textual trace and no grep can find it.
+
+   | Action | Property required | Absent → do this instead |
    |---|---|---|
-   | post to a PR/MR — 9(b) | **AUTHORSHIP** — did THIS session create it? | a session record of creating that exact PR/MR; or a handoff that names posting |
-   | write the trail — 9(a) | **WRITE AUTHORITY** — may this session modify this worktree/branch? | this session created the worktree/branch; or the human owner authorized writing to it, in this session |
-   | stamp the consolidated marker | **GATED-THIS-DIFF** — did the reviewers see this PR/MR's current diff? | the review ran against current HEAD (clerk item 2) |
+   | Post review comments on a PR/MR — 9(b), clerk items 1–2 | **POST AUTHORITY** | Hand the consolidated findings to the human owner **in this session, in full**, name the owning session/branch/MR as far as you can establish it, and stop. |
+   | Create or edit the trail file in a worktree — 9(a) | **WORKTREE-WRITE AUTHORITY** | Write the same content where THIS session's own work durably lives — **not** a temp dir that gets cleaned, since the trail is the permanent record. If nowhere durable exists, hand it to the owner inline and say plainly that no durable trail was written. |
+   | Commit or push the trail onto a branch — clerk item 3 | **BRANCH-COMMIT AUTHORITY** | Leave it uncommitted in your own durable location. **Never in their worktree.** |
+   | Stamp the consolidated marker — clerk item 2 | **GATED-THIS-DIFF** | Do not stamp. Re-gate per clerk item 2 (which bounds the retries), or block. |
 
-   Authorship does not imply write authority. Write authority does not imply authorship. Neither
-   implies you gated the diff. A PLAN gate has no PR/MR at all — authorship is simply *not
-   applicable* there, while write authority still governs where the trail lands.
+   **Evidence — exactly two kinds, and one of them does not apply to GATED-THIS-DIFF.**
 
-   **Each property fails closed, independently.** If you cannot establish one, you do not have it.
-   Undeterminable is the common case, not the edge case — a worktree with no owner attribution, a
-   branch whose session was archived, a commit made in a primary checkout. Only affirmative
-   evidence of the creating action itself counts. A branch or SHA mentioned in some transcript, a
-   reflog timestamp that lines up with a session's last activity, or a project-local ownership
-   convention if your setup has one (e.g. a `ccd.owner` git config) are LEADS worth one cheap
-   check, never proof — a guess is not a check, and "probably mine" is not ownership.
+   - **Atom A — a record of the creating action itself.** For POST AUTHORITY, this session created
+     that exact PR/MR; for WORKTREE-WRITE, this session created that worktree; for BRANCH-COMMIT,
+     this session created that branch. For GATED-THIS-DIFF, the captured reviewer input recorded
+     against a `(base, head)` pair that still matches at post time — the capture may be an earlier
+     session's if its raw outputs and pair are quoted and the pair still matches.
+   - **Atom B — the human owner's instruction naming that action**, given in this session, or made
+     durably earlier (an issue comment, a standing instruction) and quoted verbatim and
+     re-confirmed here. "Review and comment on !72 for me" is atom B for POST AUTHORITY on !72 and
+     nothing else. If an action isn't named, ask.
+     **GATED-THIS-DIFF has no atom B.** No instruction — the owner's or anyone's — certifies that
+     reviewers saw a pair; only atom A does. An owner can waive a RISK. An owner cannot waive into
+     existence a review that never ran.
 
-   **A handoff grants the actions it NAMES, and nothing else.** "Review and comment on !72 for me"
-   authorizes posting a comment on !72. It does not confer authorship, does not grant write
-   authority over that branch, and therefore does not authorize committing a trail onto it. If the
-   handoff doesn't name an action, you don't have it — ask. Noticing an MR is not a handoff.
+   Leads are not evidence. A branch or SHA mentioned in some transcript, a reflog timestamp that
+   lines up with a session's last activity, a project-local convention if your setup has one (e.g.
+   a `ccd.owner` git config) — each is worth one cheap check to go find atom A or B, and proves
+   nothing alone. A guess is not a check.
 
-   **No authorship (and no handoff naming it) → do NOT post.** Someone else's MR is theirs to run,
-   and a review comment, however useful, is still writing into their work in progress. Hand the
-   consolidated findings to the human owner **in this session, in full**, name the owning
-   session/branch/MR as far as you can establish it, and stop. Codified 2026-08-02 after a session
+   **Three properties of the table, plus one audit duty.**
+
+   1. **Rows are independent.** Holding one grants nothing in another. Creating a branch is not
+      authority over the worktree it is checked out in; creating a worktree is not authority to
+      commit to its branch; neither bears on whether reviewers saw the diff.
+   2. **Every row fails closed.** No atom A and no atom B means you do not have the property.
+      Undeterminable is the common case, not the edge case — an unattributed worktree, an archived
+      session, a commit made in a primary checkout.
+   3. **Not applicable is not failure.** A PLAN gate has no PR/MR: POST AUTHORITY and
+      GATED-THIS-DIFF do not apply, while the two write properties still govern where the trail
+      lands.
+   4. **(Audit duty, not a property.)** For every gated action taken, the trail names the property
+      and the atom relied on — a session record, or the owner's instruction quoted verbatim.
+
+   **Why these rules exist** — non-normative; incidents, not instructions. 2026-08-02: a session
    gated its own abandoned branch, found real issues that also applied to a parallel session's MR,
-   and posted them onto that MR — **the behaviour this rule now prohibits.** See the `loose-ends`
-   skill, "Open ends belong to a session".
-
-   **No write authority → produce the trail anyway, elsewhere.** Recording it is unconditional;
-   the destination is not. Never create or modify files in a worktree you may not modify: a broad
-   `git add -A`/`git add .` sweeps a new untracked file into that session's next commit, and an
-   edit to a file they already track is swept by a plain `git commit -a` — the latter observed
-   2026-08-03, when one session's uncommitted edit landed inside another session's commit under an
-   unrelated message. Put it where this session's own work durably lives — its own repo's
-   `docs/reviews/`, or wherever this session keeps notes that outlive the conversation — NOT a
-   temp dir that gets cleaned, since clerk item 3 defines the trail as the permanent record. If no
-   durable location exists, hand the content to the owner inline and say plainly that no durable
-   trail was written.
-
-   **Did not gate this diff → do NOT stamp the consolidated marker**, even holding both other
-   properties. A handoff-authorized post is the common case, but so is any post where the review
-   actually ran against a different branch, a plan, or any artifact that wasn't this PR/MR's own
-   current diff. Stamping an ungated diff is precisely the false-pass the marker exists to
-   prevent. The token also leaks easily: a gate that greps for the BARE marker — the bypass
-   documented as fixed below — matches any note containing it, including prose explaining that you
-   deliberately left it out. The current marker+SHA form is narrower and would not match
-   placeholder prose, but don't bet on every repo's gate being the strict one. Describe the
-   marker; don't spell it out.
+   and posted them onto that MR — the behaviour POST AUTHORITY now prohibits. 2026-08-03: a
+   session's uncommitted edit to a tracked file was swept into another session's `git commit -a`
+   under an unrelated message, and a new untracked file is swept the same way by `git add -A` or
+   `git add .` — hence the two write properties. Round 1 of this skill's own review:
+   `apreet-backend`'s `review-trail-posted-gate` shipped matching a bare marker, which any note
+   containing the token would satisfy — hence GATED-THIS-DIFF, and the advice to describe the
+   marker rather than spell it out. See the `loose-ends` skill, "Open ends belong to a session".
 
 ## The clerk procedure — who posts what (explain this to the user)
 
-*(This is Procedure step 9(b) above, not a separate optional step — read together. Its AUTHORSHIP
-qualifier applies to everything here: this whole procedure is for a PR/MR **this session authored**.
-For someone else's, hand the findings to the human owner and stop — items 1 and 2 below are exactly
-what you must NOT do on another session's MR, UNLESS a handoff explicitly names posting, in which
-case 1 and 2 are authorized but item 2's marker still requires GATED-THIS-DIFF. Item 3's
-destination is governed by WRITE AUTHORITY, not by authorship — the three properties are separate,
-see the table in step 9.)*
+*(This is Procedure step 9(b) above, not a separate optional step — read together. **Which
+permission each item below requires, and what to do without it, is in step 9's permission table;
+this section does not restate it.**)*
 
 The external reviewers **structurally cannot** comment on a PR: they run in
 read-only sandboxes (codex) or sandboxed throwaway dirs (agy) and hold no
@@ -745,18 +749,23 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    reviewers, posted as the main PR comment. Begin the comment body with the
    literal line `<!-- independent-review:consolidated sha=<full commit SHA> -->`
    (an HTML comment — invisible when GitHub/GitLab renders it, but present in
-   the raw body the platform's API returns), where `<full commit SHA>` is the SHA whose diff the
-   reviewers ACTUALLY SAW. Capture it (`git rev-parse HEAD`) when the review starts, re-read it
-   immediately before posting, and stamp only when the two are equal. If HEAD moved, the review no
-   longer covers what would merge: re-run the gate against the new HEAD — **every seat that
-   participated in the verdict, including seats that came back CLEAN and including the tier-3
-   fresh-eyes pass, not just the external half** (a seat with no findings still has to have SEEN
-   the diff you are certifying) — rebuild the consolidated verdict from those re-runs alone rather
-   than mixing in old-HEAD findings, then re-check HEAD again, since it can move during the re-run
-   too; loop until the check passes. If re-running is impossible (credits exhausted, step 6(c)), do NOT stamp: the
-   gate stays blocked until a re-review of the current HEAD can run, exactly like any other
-   missing prerequisite under step 5. Never stamp a commit nobody reviewed — that is the same
-   false-pass in a different costume. This is a stable,
+   the raw body the platform's API returns), where `<full commit SHA>` is the **head of the
+   `(base, head)` pair the reviewers actually saw.** A PR/MR diff is a function of both: if the
+   target branch advances, the diff that will merge changes while head stays identical, and a
+   head-only marker keeps passing. **Fetch the target ref first** (a stale local ref makes both
+   recorded values wrong and the re-check will happily match them), then record
+   `git merge-base <target> HEAD` and `git rev-parse HEAD`. Re-read BOTH immediately before
+   posting and stamp only when both still match. If either moved, re-run the gate against the new
+   pair — **every seat that participated in the verdict, including seats that came back CLEAN and
+   including the tier-3 fresh-eyes pass, not just the external half** (a seat with no findings
+   still has to have SEEN the diff you are certifying) — rebuild the consolidated verdict from
+   those re-runs alone rather than mixing in old-pair findings, mark the superseded raw comments
+   as such, then re-check both values again, since either can move during a re-run. **Bound it at
+   two attempts**, then stop and surface an actively-moving branch rather than spending the round
+   on re-gates; these re-gates do not count against step 6(b)'s cap. If re-running is impossible,
+   do NOT stamp — the gate stays blocked until a re-review of the current pair can run, exactly
+   like any other missing prerequisite under step 5. **No seen pair, no stamp**, whatever the
+   budget says: a moved diff is not a fix awaiting re-verification. This is a stable,
    machine-checkable marker, not a nicety: it lets a repo wire a CI gate that
    checks "did a trail file land without a posted review *for the commit
    actually being merged*" by querying the PR/MR's notes for this exact
@@ -769,8 +778,10 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    drop the SHA suffix or reword the fixed text around it — a rebase or a
    later push is *supposed* to invalidate a prior post (post again against
    the new HEAD), not silently keep passing.
-3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch
-   **where you have write authority** —
+3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` — committed on the branch when step 9's
+   permission table permits, otherwise applying the fallback of each unsatisfied property and
+   recording that no in-repo copy was committed. Names, per gated action taken, the property and
+   the atom relied on —
    dispositions, refuted (rejected-with-reason) findings, pending waivers, reviewer
    versions. This is the record that survives PR-comment archaeology. Trails
    (and other internal working notes, e.g. plans) go under `docs/reviews/`,
