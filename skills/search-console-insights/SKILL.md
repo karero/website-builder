@@ -240,7 +240,7 @@ defaults to `de` (Munich). No key set → it exits cleanly; GSC/Bing are unaffec
    page's actual shipped `<meta description>`.** Google frequently discards the shipped
    description and auto-generates a snippet from body text instead — a "the description is too
    long/short, that's why CTR is low" diagnosis is unverified, and can be flatly wrong, until this
-   is checked. Confirmed live 2026-07-30 (apreet.com, both Codex and Kimi flagged the diagnosis as
+   is checked. Confirmed live 2026-07-30 (a real site, both Codex and Kimi flagged the diagnosis as
    unverified in review; the live check then showed one page's 318-char description fully
    discarded for a body-text auto-snippet, while a different page's real 145-char description WAS
    shown, truncated — two different pages, two different mechanisms, neither guessable from GSC
@@ -271,13 +271,12 @@ niche local queries, so treat it as a secondary signal.
 be added to Bing — `search-console-setup` covers that via "Import from Google Search
 Console".)
 
-**Status (2026-07-24):** `BING_API_KEY` is already set in `~/.config/gsc-insights/.env` —
-so a returning session should skip straight to using it, per Step 2's pattern. Connected
-sites (verified live via `GetFeeds`, all with a registered, successfully-crawled sitemap):
-apreet.com, genai-wednesday.de, m-squad.com. Note: Bing does **not** reliably auto-discover
-a sitemap from `robots.txt` the way Google does — if `GetFeeds` returns `{"d":[]}` for a
-site despite a correct `robots.txt` entry, submit the sitemap URL manually under
-Bing Webmaster Tools → **Sitemaps** (apreet.com needed this fix on 2026-07-24).
+**If `BING_API_KEY` is already set** in `~/.config/gsc-insights/.env` from a prior session,
+skip straight to using it, per Step 2's pattern — confirm with `GetFeeds` that connected sites
+still have a registered, successfully-crawled sitemap. Note: Bing does **not** reliably
+auto-discover a sitemap from `robots.txt` the way Google does — if `GetFeeds` returns `{"d":[]}`
+for a site despite a correct `robots.txt` entry, submit the sitemap URL manually under
+Bing Webmaster Tools → **Sitemaps** (needed for a real site, 2026-07-24).
 
 ```bash
 set -a; . ~/.config/gsc-insights/.env; set +a    # loads BING_API_KEY

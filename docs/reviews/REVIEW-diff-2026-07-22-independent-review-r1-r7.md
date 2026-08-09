@@ -19,7 +19,7 @@ convergence-check/rabbit-hole-detector logic), plus the frontmatter description.
 Rounds 1–6: tier 3 not run separately — same reasoning as the sibling `phased-plan-runner` review.
 Gate was cross-model, independence rule satisfied by tier 1 + 2.
 
-Round 7: run at Daniel's explicit request after the author had already decided to defer further
+Round 7: run at the owner's explicit request after the author had already decided to defer further
 rounds per Step 6(c). Same-family, not cross-model — supplements rounds 1–6's already-satisfied
 gate. Fed the raw diff + the strict review prompt only, no mention of prior findings, explicit
 instruction not to read any other file (this skill's own trail docs sit in the same repo and would
