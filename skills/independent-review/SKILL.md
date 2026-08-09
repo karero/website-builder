@@ -45,6 +45,44 @@ rounds caught 5 BUGs the author had shipped.
 - **DIFF gate** — reviews a branch/PR diff *before* merge. Catches test blind
   spots: a guard passing while the thing it protects regressed.
 
+### "It's only a docs row" is the wrong test — ask what the reader will DO
+
+(Codified 2026-08-03 after a single session sent five MRs through this gate and
+**every one came back with something real**, including two where the defect was
+in the artifact's *proposed fix* rather than its description.)
+
+The instinct that a BUGLOG row, a ledger row, or a runbook is "too small to
+review" is about the artifact's SIZE. The thing that matters is whether someone
+will later ACT on it without re-deriving it. A deferred-bug row's "suggested
+fix" field is a **delegated instruction**: months later, an implementer reads it,
+trusts it, and builds it. It is simultaneously the field the author reasons
+about least (the bug is already understood; the fix is an afterthought) and the
+one the reader trusts most. That asymmetry is where the defects were:
+
+- A row said "add the missing build steps to the CI job." The job was *manual*,
+  so the fix would not have closed the gap. Round 1 caught it.
+- The rewrite said "…and add a cross-project trigger." A triggered pipeline ran
+  the *automatic* job, still never the manual one. **Round 2 caught the same
+  class of error one level down** — which is the case for a verification round
+  after any BUG, not just a code one.
+
+Practical rule: **gate on consequence, not on diff size or file extension.** A
+row whose fix someone will implement, a runbook headed for a production session,
+a plan a stage agent will execute — all carry more downstream weight than a
+small code change that CI will catch anyway. Where a lighter gate is genuinely
+right, name the gate it got and why (Procedure step 9's trail does this), rather
+than skipping silently.
+
+**Corollary — send the code that CONSUMES the config, not just the config.**
+Reviewing a compose/env/infra diff in isolation reliably produces
+"this might be a silent no-op" and "this might fail indistinguishably" findings
+that the consuming source already answers. In the session above, BOTH reviewers
+independently raised exactly those two against a deploy-wiring diff, and both
+were refuted from twenty lines of the application code that reads the variable.
+That round cost a full standard pair to produce two speculations and two real
+NITs. Include the reading code in the artifact, or expect to spend the round
+refuting rather than fixing.
+
 ## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
 
 1. **Codex CLI** (`codex exec -s read-only`) — genuine read-only sandbox; model +
@@ -67,7 +105,9 @@ rounds caught 5 BUGs the author had shipped.
    Independence rule below). Offer it after presenting results, don't run it
    unasked.
 4. **Antigravity — OPT-IN ONLY, never automatic.** Gemini 3.1 Pro (High) via
-   the Antigravity CLI (`agy --sandbox -p`), free Antigravity login. The
+   the Antigravity CLI (`agy --sandbox --model "$AGY_MODEL" -p`, `AGY_MODEL` defaulting to
+   "Gemini 3.1 Pro (High)" — see Step 5 below for the full invocation and how to override it),
+   free Antigravity login. The
    owner's Antigravity free-tier credits are scarce and get spent only when
    explicitly worth it: pass `--with-antigravity` to the script, or the owner
    directly asks ("antigravity review", "agy review", "worth burning a
@@ -79,20 +119,26 @@ rounds caught 5 BUGs the author had shipped.
 6. **Any model, copy & paste** — the script emits the prompt; a human pastes it
    into whatever is available and feeds findings back.
 
-**PLAN gate default: ≥2 reviewers.** A plan is often high-stakes enough that
-"whichever one answered first" isn't enough independence — the script's
-un-flagged default runs the full Codex + ollama-cloud pair for a plan (see
-Procedure below). This is a *default*, not a floor: pass `--first-success`
-explicitly to get one reviewer instead, when the caller has already judged
-the artifact low-stakes enough not to need two (the script honors this, it
-does not override it — see the credit-cost tradeoff this represents). If a
+**The standard pair (Codex + ollama-cloud) is the un-flagged default for both gates** —
+DIFF included, not only PLAN; `--first-success` reduces either to a single reviewer.
+**PLAN additionally treats fewer than 2 as worth flagging**: a plan is often high-stakes
+enough that "whichever one answered first" isn't enough independence, so the script
+notes it explicitly (see Procedure below) whenever a plan lands with fewer than 2
+reviewers — DIFF gets no equivalent note. This is a default expectation, not a hard
+floor: passing `--first-success` on a plan is a caller's conscious choice to accept one
+reviewer instead (the script honors this, it does not override it — see the
+credit-cost tradeoff this represents). If a
 plan lands with only one reviewer's output for any reason — an explicit
 `--first-success` or a tier failing — treat the round as degraded *only if
 that wasn't the deliberate choice*, and say so either way.
 
-**Independence rule:** run every tier, but *classify* them — the tier matching
-the HOST agent's model family counts as the fresh-eyes seat, never as
-cross-model independence. **The gate is satisfied only when at least one
+**Independence rule:** *classify* every tier that actually ran — which tiers
+those are is decided by the reviewer stack above (the standard pair by default;
+Antigravity only on explicit opt-in; paste always manual; local ollama runs
+whenever `OLLAMA_MODEL` names a local tag, but never *closes the gate* on its
+own), and this rule governs how the ones that ran are scored, not how many to
+launch. The tier matching the HOST agent's model family counts as the
+fresh-eyes seat, never as cross-model independence. **The gate is satisfied only when at least one
 successful reviewer is cross-model (a different family than the host)**; if
 only same-family reviewers ran, the gate is degraded and needs an explicit
 owner waiver — codex reviewing codex-authored work shares the blind spots this
@@ -103,10 +149,11 @@ doesn't count as cross-model either), cross-model = Codex + ollama-cloud
 not needed to satisfy the gate since Codex or ollama-cloud already does).
 **Codex** — fresh-eyes = Codex, cross-model = ollama-cloud + Gemini + Claude.
 **Antigravity/Gemini** — fresh-eyes = Gemini, cross-model = Codex +
-ollama-cloud + Claude. On any non-Claude host the Anthropic seat is free via
-the Antigravity CLI — `AGY_MODEL="Claude Opus 4.6 (Thinking)"` (verified
-headless 2026-07-02; Claude Code itself has no free tier — Pro/API only — and
-the free claude.ai paste tier fits plans and small diffs at best).
+ollama-cloud + Claude. On any non-Claude host, an Anthropic seat may be
+reachable via the Antigravity CLI — see `references/setup-guide.md` for the
+current model tag, verification status, and free-tier caveat; it shares the
+same scarce-quota, opt-in-only rule as every other `agy` use in this skill,
+not a standing free lane.
 
 ## Onboarding — the agent runs this wizard on first use
 
@@ -228,8 +275,8 @@ Present the three options as a short, plain-language summary — pull the full
 comparison table from `references/setup-guide.md` if the user wants more
 detail, but lead with this, not the table:
 
-- **Codex CLI (OpenAI)** — free ChatGPT account, no payment. Of the two cloud
-  options, the more predictable free tier (see `references/setup-guide.md`
+- **Codex CLI (OpenAI)** — free ChatGPT account, no payment. Of the two
+  hosted-CLI options, the more predictable free tier (see `references/setup-guide.md`
   for what's currently known about its limits — pull the actual figures from
   there, don't restate a number from memory here).
 - **Antigravity (Google)** — free personal Gmail account, no payment. Just as
@@ -259,8 +306,10 @@ out. Antigravity is worth adding on top if they want a third, independent
 model family and are comfortable with a less predictable free tier — it is
 not required. **If the current host is itself Codex, swap this
 recommendation: Codex CLI would be same-family and wouldn't satisfy the
-gate — recommend Antigravity (or ollama-cloud) as the main reviewer
-instead**, with local ollama as the same free backup either way.
+gate — recommend ollama-cloud (the script's standard automatic second reviewer)
+as the main reviewer instead**, with local ollama as the same free backup either
+way. Antigravity stays what it is everywhere else in this skill: an opt-in extra
+that spends a scarce credit, never the default recommendation.
 
 Ask which one(s) to set up, then proceed per tool below.
 
@@ -293,9 +342,10 @@ don't paste all the commands at once.
 
 - 🤖 Give the exact install command for their OS (from
   `references/setup-guide.md`), one tool at a time.
-- 🤖 After each install, verify it actually landed (`command -v codex` /
-  `command -v agy` / `command -v ollama`) before declaring success — a
-  "looks done" claim without checking is exactly the kind of thing this
+- 🤖 After each install, verify it actually landed using check 1's `-f`/`-x`
+  test above (not a bare `command -v`, which check 1 itself says can match an
+  alias or function rather than the real binary) before declaring success —
+  a "looks done" claim without checking is exactly the kind of thing this
   skill exists to prevent elsewhere; don't do it here either.
 - 🤖 If a `PATH`/"command not found" issue comes up after an apparently
   successful install, try the standard fix (new terminal window) before
@@ -306,11 +356,16 @@ don't paste all the commands at once.
 **This is a machine-capability decision, not a preference — check before
 recommending.**
 
-- 🤖 Detect available RAM using the OS-appropriate command from
+- 🤖 Detect **total installed** RAM using the OS-appropriate command from
   `references/setup-guide.md` (`sysctl hw.memsize` on macOS, `systeminfo` or
-  Task Manager on Windows, `free -h` on Linux). If you can't run the command
-  directly (e.g. the user is on a different machine than the one you have
-  shell access to), ask them to run it and paste back the number.
+  Task Manager on Windows, `free -h` on Linux) — most of these print BOTH a
+  total and a free/available figure side by side; use the total one, not
+  the free/available one printed next to it. If the machine is under heavy
+  memory pressure from other apps, say so rather than silently dropping a
+  tier. If
+  you can't run the command directly (e.g. the user is on a different
+  machine than the one you have shell access to), ask them to run it and
+  paste back the number.
 - 🤖 Look up the matching row in the RAM → model table in
   `references/setup-guide.md` and recommend exactly ONE model tag — don't
   offer the full menu and make a non-technical user pick blind.
@@ -355,7 +410,11 @@ Gemini host specifically, `agy` only satisfies the gate if `AGY_MODEL` is
 overridden away from Gemini (e.g. to Claude); on every other host, `agy`'s
 Gemini default already satisfies it. If a fallback reviewer is needed
 because `agy`'s model can't be confirmed, apply the same one rule to pick
-it — Codex is cross-model everywhere except when the host is itself Codex.
+it — check whichever candidate's model family actually differs from the
+current host's, rather than defaulting to a fixed choice; on most hosts
+that resolves to Codex (cross-model everywhere except when the host is
+itself Codex), but it's a derived result of the rule, not a hardcoded
+default.
 
 Look for a model identifier in the test review's own output — the actual
 invocation's reported model, not a config file (a valid Codex install may
@@ -386,10 +445,12 @@ accurate about what "fallback" actually means:** *"Codex and Antigravity are
 free but not unlimited — you may occasionally hit a limit (see
 references/setup-guide.md for what's currently known about each). Here's
 what actually happens if you do, depending on how review is run: by
-default every configured reviewer runs together each time, so if Codex is
-temporarily rate-limited, that round still runs with whichever of
-Antigravity/ollama are set up. **That keeps you fully covered only if a
-cross-model reviewer for this host is still available — if ollama is the
+default Codex and ollama-cloud run together each time — **Antigravity never
+runs by default, even once it's set up**, because it spends one of your scarce
+credits and waits for you to ask — so if Codex is temporarily rate-limited,
+that round still runs with the ollama seat (cloud if it's available, local as a
+degraded fallback). **That keeps you fully covered only if a
+cross-model reviewer for this host is still available — if LOCAL ollama is the
 only thing left, that round is a lighter-weight, degraded pass, not a full
 substitute** (same rule as everywhere else in this skill: LOCAL ollama alone
 never closes the gate on its own — signed-in ollama-cloud does). If review is
@@ -405,9 +466,28 @@ like-for-like replacement."*
 1. **Data check before anything leaves the machine.** External reviewers are
    third-party services: grep the artifact for secrets (keys, tokens, passwords,
    customer data) and get the owner's OK the first time a given repo's content
-   is sent out. If the content must stay local, run the script with
+   is sent out **to each destination service, not just each named tool** —
+   Codex, ollama-cloud, and Antigravity are separate services with separate
+   consent, not one blanket "external reviewers are OK," and naming the tool
+   isn't always naming the destination: Antigravity with `AGY_MODEL` set to
+   a Claude tag routes content on to Anthropic too, a distinct destination
+   from Antigravity's own Gemini path, needing its own consent — and the
+   paste tier (tier 6) sends the same artifact to whatever service a human
+   pastes it into, chosen ad hoc, which needs the same per-destination
+   consent as any named provider, not a free pass for being manual. Record
+   the OK the way step 9's permission table records
+   an owner instruction (atom B: quoted verbatim). **Only a standing
+   instruction durably written in the repo persists across sessions** — a
+   later session can check for that and tell "owner consented for this
+   provider" from "nobody has asked yet." This session's own in-conversation
+   record is real consent for the current session, but per this file's own
+   durability standard (an in-session hand-off doesn't count as durable
+   anywhere else here either) it is invisible to a later one — that session
+   re-asks rather than assuming consent it cannot see. Adding a new provider
+   later needs its own consent, not an inherited one. If the content must stay local, run the script with
    `--local-only` (skips codex/agy/paste entirely; local ollama only — the
-   script refuses to proceed if `OLLAMA_MODEL` is already set to a cloud tag,
+   script requires the EFFECTIVE ollama tag to be local: under `--local-only` the
+   `glm-5.2:cloud` default is never applied, and an explicitly-set cloud tag is refused outright,
    rather than silently sending content out) plus the tier-3 host fresh-eyes
    pass — tier 6 (paste into any model) is just as
    external as the CLIs and is excluded. A local-only verdict is inherently
@@ -415,7 +495,14 @@ like-for-like replacement."*
 2. Run the external half (path relative to THIS skill's directory — after an
    install that is `<skills-root>/independent-review/scripts/…`):
    `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
-   — default runs the standard pair (Codex + ollama-cloud) and prints one
+   — `--plan`/`--diff` is optional: the script auto-detects from the input —
+   a `.diff`/`.patch` filename resolves to diff, anything else to plan, and
+   **stdin (`-`) has no filename to guess from at all, so it defaults to
+   diff** — that resolved value is the `<gate>` step 9(a)'s trail filename
+   uses. Pass the flag explicitly whenever the filename wouldn't guess
+   right, and always when piping a plan through stdin (a piped plan
+   otherwise silently loses the PLAN gate's <2-reviewers flag and gets
+   mis-named as a diff trail). Default runs the standard pair (Codex + ollama-cloud) and prints one
    section per reviewer; `--first-success` is the quick mode (for a `--plan`
    this deliberately drops from the default 2 reviewers to 1 — a conscious
    choice for lower-stakes plans, honored not overridden — see the reviewer
@@ -487,11 +574,30 @@ like-for-like replacement."*
    bias that turns round 2 into a rubber stamp). Repeat until essentially
    clean. Stop conditions: (a) clean — done; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
-   — you may proceed once all known BUGs are *fixed or refuted* AND every RISK/NIT is
+   — you may stop ITERATING once all known BUGs are *fixed or refuted* AND every RISK/NIT is
    fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Deferring verification is legitimate; deferring a fix or a waiver never is.
+   **This governs whether to run another round, and nothing else** — in particular it has no
+   bearing on the consolidated marker, whose own rule lives in clerk item 2.
+
+   **What "3 rounds" counts, since this is ambiguous the moment you need it.** The cap is
+   **per stable finding id** (point 4's id), not per calendar round: a finding first raised in
+   round 3 gets its own remediation-and-verification round before the cap can fire on it, and a
+   finding open across rounds 1–3 fails the gate even if that round found other, newer things.
+   **A redesign starts a NEW artifact and a new count.** When point 7 says stop patching and
+   redesign, the review of the redesign is round 1 of that new artifact, not round 4 of the cycle
+   it replaced — otherwise the cap would forbid reviewing the very rewrite it just demanded. Say
+   in the trail which artifact a round belongs to, so the count is never reconstructed by memory.
+   Re-gates forced by a moved diff (clerk item 2) do not count against the cap — they re-establish
+   coverage rather than iterating on findings.
+
+   **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
+   `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
+   to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
+   a later round. A checkable claim with neither status stays OPEN and blocking. Record both per
+   finding; a trail that says only "fixed" does not say which.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
    while quality demonstrably rises each round. After every round, check three signals:
 
@@ -571,7 +677,12 @@ like-for-like replacement."*
    costs. The owner steers — they can stop, waive, redirect, or run a
    **manual round of their own**; a human review round is a first-class
    reviewer seat and goes in the trail like any other (reviewer: owner,
-   findings, dispositions). Never let rounds run silently back-to-back. Once
+   findings, dispositions). **It does not, however, satisfy cross-model
+   independence** — a human round contributes findings, but the Independence
+   rule's requirement of at least one successful CROSS-MODEL reviewer is about
+   model families and can only be met by a model. An owner round on top of a
+   same-family-only set leaves the gate degraded, needing the same explicit
+   waiver as before; it does not close it. Never let rounds run silently back-to-back. Once
    the standard pair (and any fresh-eyes pass) has reported, ASK — don't just
    stop — whether the owner wants anything more: a `--with-antigravity` round
    (spending one of the scarce credits), or an extra same-family **Fable**
@@ -579,14 +690,39 @@ like-for-like replacement."*
    cross-model). Offer, don't run either unasked.
 9. **Close out — both halves, not just the trail file.** These are two separate artifacts;
    doing one is not doing the other, and skipping the second is the single most likely way this
-   skill's real work goes invisible.
-   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md` — findings,
+   skill's real work goes invisible. **Before either half: for each property the actions below
+   need, establish atom A; if absent, ask the owner for atom B; if that's not available either,
+   apply the table's fallback — except GATED-THIS-DIFF, which has no atom B at all (see Evidence
+   below): absent atom A, go straight to its fallback, never ask the owner to supply what the
+   evidence rules say they structurally cannot — an owner saying "yes it's reviewed, stamp it" is
+   exactly the bare-marker forgery this property exists to refuse.** Don't reach the table only
+   after already deciding to write — the
+   commonest case (your own primary checkout, where WORKTREE-WRITE authority is usually
+   undeterminable per the table's own examples) would otherwise silently divert every trail to a
+   fallback location with nobody having decided that on purpose.
+   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>-pr<N>.md`, where `<N>` is
+   this diff's PR/MR number, or `docs/reviews/REVIEW-<gate>-<date>-r<round>-<branch-slug>-<sha>.md`
+   when no PR/MR is open yet (branch name, lowercased, `/` and other non-alphanumerics collapsed
+   to a single `-`, plus `<sha>` — HEAD's abbreviated commit SHA, 7 hex chars). The SHA is not
+   decoration: the slug alone is lossy — `feature/x`, `feature-x`, and `feature_x` all collapse
+   to the same string, so two genuinely different branches can still collide on the exact
+   scenario this suffix exists to prevent. Two branches sharing both a slug AND a HEAD SHA is not
+   a realistic collision. **The suffix is mandatory even when no other session looks concurrently
+   active** — a bare `-r<round>.md` collides the moment two sessions both land on round 1 the
+   same day, and neither can tell from inside its own session whether another is running.
+   (Codified 2026-08-09: two independent same-day PR sessions in this repo each wrote a bare
+   `r4.md`, then separately a bare `r5.md`; both were only caught and resolved by hand at merge
+   time — see the addendum in `docs/reviews/REVIEW-diff-2026-08-09-r7.md`. Files already on disk
+   before this rule were left unrenamed; this changes the convention going forward only.) Write
+   it, **wherever this session
+   holds WORKTREE-WRITE AUTHORITY** (the permission table below — for someone else's worktree the
+   content is identical and only the destination changes) — findings,
    dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
    human round: who, and what they reviewed).
-   (b) **If the artifact is an actual PR/MR** (a DIFF gate almost always is): post the review
-   *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one consolidated
-   summary — **before merging, not after.** A trail file that merges into the repo is not a
-   substitute: it's the permanent record for someone who already knows to look in
+   (b) **If you hold POST AUTHORITY on an actual PR/MR** (a DIFF gate almost always is):
+   post the review *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one
+   consolidated summary — **before merging, not after.** A trail file that merges into the repo is
+   not a substitute: it's the permanent record for someone who already knows to look in
    `docs/reviews/`, but the PR/MR comment is what the repo owner, a teammate, or future-you
    actually sees first. Do this even when — especially when — the repo's own convention is "no
    human reviewers on this MR": that convention describes who approves, not whether the
@@ -596,9 +732,73 @@ like-for-like replacement."*
    explicitly before calling the gate satisfied, don't rely on remembering the clerk-procedure
    section below on your own.
 
+   ### ⚠ The permission table — the one place that GRANTS or DENIES
+
+   Every recurring defect in this section came from one word, "ownership", doing several jobs at
+   once, restated in five places that then drifted apart pairwise. So: this table is the only
+   place that grants or denies. Elsewhere you will find sentences that *name which property
+   governs* an action — those are pointers, and pointers are fine. What must never appear twice is
+   the grant itself, or a fallback. If you find a second statement of either, it is stale: delete
+   it, don't reconcile it. **Reference properties by NAME, never by row number, and append new
+   rows rather than renumbering** — a wrong number leaves no textual trace and no grep can find it.
+
+   | Action | Property required | Absent → do this instead |
+   |---|---|---|
+   | Post review comments on a PR/MR — 9(b), clerk items 1–2 | **POST AUTHORITY** | Hand the consolidated findings to the human owner **in this session, in full**, name the owning session/branch/MR as far as you can establish it, and stop. |
+   | Create or edit the trail file in a worktree — 9(a) | **WORKTREE-WRITE AUTHORITY** | Write the same content where THIS session's own work durably lives — **not** a temp dir that gets cleaned, since the trail is the permanent record. If nowhere durable exists, hand it to the owner inline and say plainly that no durable trail was written. |
+   | Commit or push the trail onto a branch — clerk item 3 | **BRANCH-COMMIT AUTHORITY** | Leave it uncommitted in your own durable location and record in the trail that no in-repo copy was committed. **Never in their worktree.** |
+   | Stamp the consolidated marker — clerk item 2 | **GATED-THIS-DIFF** | Do not stamp. Re-gate per clerk item 2 (which bounds the retries), or block. |
+
+   **Evidence — exactly two kinds, and one of them does not apply to GATED-THIS-DIFF.**
+
+   - **Atom A — a record of the creating action itself.** For POST AUTHORITY, this session created
+     that exact PR/MR; for WORKTREE-WRITE, this session created that worktree; for BRANCH-COMMIT,
+     this session created that branch. For GATED-THIS-DIFF, the captured reviewer input recorded
+     against a `(base, head)` pair that still matches at post time — the capture may be an earlier
+     session's if its raw outputs and pair are quoted and the pair still matches.
+   - **Atom B — the human owner's instruction naming that action**, given in this session, or made
+     durably earlier (an issue comment, a standing instruction) and quoted verbatim and
+     re-confirmed here. "Review and comment on !72 for me" is atom B for POST AUTHORITY on !72 and
+     nothing else. If an action isn't named, ask.
+     **GATED-THIS-DIFF has no atom B.** No instruction — the owner's or anyone's — certifies that
+     reviewers saw a pair; only atom A does. An owner can waive a RISK. An owner cannot waive into
+     existence a review that never ran.
+
+   Leads are not evidence. A branch or SHA mentioned in some transcript, a reflog timestamp that
+   lines up with a session's last activity, a project-local convention if your setup has one (e.g.
+   a `ccd.owner` git config) — each is worth one cheap check to go find atom A or B, and proves
+   nothing alone. A guess is not a check.
+
+   **Three properties of the table, plus one audit duty.**
+
+   1. **Rows are independent.** Holding one grants nothing in another. Creating a branch is not
+      authority over the worktree it is checked out in; creating a worktree is not authority to
+      commit to its branch; neither bears on whether reviewers saw the diff.
+   2. **Every row fails closed.** No atom A and no atom B means you do not have the property.
+      Undeterminable is the common case, not the edge case — an unattributed worktree, an archived
+      session, a commit made in a primary checkout.
+   3. **Not applicable is not failure.** A PLAN gate has no PR/MR: POST AUTHORITY and
+      GATED-THIS-DIFF do not apply, while the two write properties still govern where the trail
+      lands.
+   4. **(Audit duty, not a property.)** For every gated action taken, the trail names the property
+      and the atom relied on — a session record, or the owner's instruction quoted verbatim.
+
+   **Why these rules exist** — non-normative; incidents, not instructions. 2026-08-02: a session
+   gated its own abandoned branch, found real issues that also applied to a parallel session's MR,
+   and posted them onto that MR — the behaviour POST AUTHORITY now prohibits. 2026-08-03: a
+   session's uncommitted edit to a tracked file was swept into another session's `git commit -a`
+   under an unrelated message, and a new untracked file is swept the same way by `git add -A` or
+   `git add .` — hence the two write properties. Round 1 of this skill's own review:
+   `apreet-backend`'s `review-trail-posted-gate`, as originally implemented in its MR branch,
+   matched a bare marker that any note containing the token would satisfy — caught by round-1
+   review (Codex) before merge, so it never reached the shared branch in that state — hence
+   GATED-THIS-DIFF, and the advice to describe the marker rather than spell it out. See the `loose-ends` skill, "Open ends belong to a session".
+
 ## The clerk procedure — who posts what (explain this to the user)
 
-*(This is Procedure step 9(b) above, not a separate optional step — read together.)*
+*(This is Procedure step 9(b) above, not a separate optional step — read together. **Which
+permission each item below requires, and what to do without it, is in step 9's permission table;
+this section does not restate it.**)*
 
 The external reviewers **structurally cannot** comment on a PR: they run in
 read-only sandboxes (codex) or sandboxed throwaway dirs (agy) and hold no
@@ -613,10 +813,23 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    reviewers, posted as the main PR comment. Begin the comment body with the
    literal line `<!-- independent-review:consolidated sha=<full commit SHA> -->`
    (an HTML comment — invisible when GitHub/GitLab renders it, but present in
-   the raw body the platform's API returns), where `<full commit SHA>` is the
-   actual current HEAD of the branch/PR being reviewed at post time (`git rev-
-   parse HEAD` on the branch, right before posting — not the SHA the review
-   started against if the branch moved since). This is a stable,
+   the raw body the platform's API returns), where `<full commit SHA>` is the **head of the
+   `(base, head)` pair the reviewers actually saw.** A PR/MR diff is a function of both: if the
+   target branch advances, the diff that will merge changes while head stays identical, and a
+   head-only marker keeps passing. **Fetch the target ref first** (a stale local ref makes both
+   recorded values wrong and the re-check will happily match them), then record
+   `git merge-base <target> HEAD` and `git rev-parse HEAD`. Re-read BOTH immediately before
+   posting and stamp only when both still match. If either moved, re-run the gate against the new
+   pair — **every seat that participated in the verdict, including seats that came back CLEAN and
+   including the tier-3 fresh-eyes pass, not just the external half** (a seat with no findings
+   still has to have SEEN the diff you are certifying) — rebuild the consolidated verdict from
+   those re-runs alone rather than mixing in old-pair findings, mark the superseded raw comments
+   as such, then re-check both values again, since either can move during a re-run. **Bound it at
+   two attempts**, then stop and surface an actively-moving branch rather than spending the round
+   on re-gates; these re-gates do not count against step 6(b)'s cap. If re-running is impossible,
+   do NOT stamp — the gate stays blocked until a re-review of the current pair can run, exactly
+   like any other missing prerequisite under step 5. **No seen pair, no stamp**, whatever the
+   budget says: a moved diff is not a fix awaiting re-verification. This is a stable,
    machine-checkable marker, not a nicety: it lets a repo wire a CI gate that
    checks "did a trail file land without a posted review *for the commit
    actually being merged*" by querying the PR/MR's notes for this exact
@@ -629,7 +842,24 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    drop the SHA suffix or reword the fixed text around it — a rebase or a
    later push is *supposed* to invalidate a prior post (post again against
    the new HEAD), not silently keep passing.
-3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` committed on the branch —
+
+   **This discipline protects the posting moment, not indefinitely.** A push landing in the gap
+   between the final recheck and the POST call itself is not covered by "re-read immediately
+   before posting" alone — after posting, re-fetch the PR's head/diff-scope from the platform API
+   once more. **If only the SHA moved and the diff-scope is byte-identical** (a bare rebase, no
+   content change), re-post naming the new head — the findings still apply to the same code.
+   **If the diff-scope itself changed, do not re-stamp the new head with the findings you already
+   have** — that would certify code nobody reviewed, the exact failure this whole scheme exists to
+   prevent. Treat it like any other moved pair: re-run the gate per the recheck discipline above,
+   not a silent re-post. A target-branch advance *after* a successful, unmoved stamp
+   is a separate, currently open gap: the marker only names `head`, so it cannot encode that a
+   later advance happened. Closing it fully needs the marker to also carry `base` (or an
+   equivalent) — a cross-repo change, since this same job hardcodes a match against the current
+   single-SHA form. Left open rather than silently claimed solved, pending that two-repo decision.
+3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` — committed on the branch when step 9's
+   permission table's WORKTREE-WRITE and BRANCH-COMMIT rows both permit it; see the table for the
+   fallback when either doesn't. Names, per gated action taken, the property and
+   the atom relied on —
    dispositions, refuted (rejected-with-reason) findings, pending waivers, reviewer
    versions. This is the record that survives PR-comment archaeology. Trails
    (and other internal working notes, e.g. plans) go under `docs/reviews/`,
@@ -640,13 +870,24 @@ Capture reviewer output by **streaming to a file**, never by buffering it in a
 shell variable — a session teardown mid-run must leave the partial review on
 disk, not vaporize it.
 
-4. **Cleanup**: once items 1–3 are posted/committed, delete the run's
-   `$RAW_DIR` (path printed to stderr as `raw output: <dir>`) — it held the
-   full artifact content plus every reviewer's raw output (owner-only
-   permissions, but proprietary code sitting in `$TMPDIR` indefinitely serves
-   no purpose once items 1–3 have durably captured everything worth keeping).
-   Skip only if a verification round (Procedure step 6) still needs this
-   run's raw output.
+4. **Cleanup**: once items 1–3 are posted/committed **and a durable copy of the raw verbatim
+   output exists somewhere other than `$RAW_DIR`** — a posted PR comment (item 1) always counts,
+   since it's explicitly the reviewers' verbatim notes by its own definition above; a committed
+   trail file (item 3) counts **only if it actually includes the reviewers' verbatim text, not
+   just dispositions/summary** (item 3's own spec above names dispositions, refuted findings, and
+   waivers — verbatim text isn't automatic). This matters most for a PLAN gate, which has no
+   PR/MR (item 1 is N/A per step 9's own "not applicable is not failure" rule for PLAN gates) — if the trail alone doesn't carry the verbatim
+   output, copy `$RAW_DIR`'s raw text into it before deleting, rather than assuming the
+   dispositions are enough. An inline hand-off to the owner under one of step 9's
+   permission-table fallbacks does NOT count, since nothing durable landed anywhere — delete the run's
+   `$RAW_DIR` (path printed to stderr as `raw output: <dir>`) — it held the full artifact content
+   plus every reviewer's raw output (owner-only permissions, but proprietary code sitting in
+   `$TMPDIR` indefinitely serves no purpose once something durable has captured it). **If a
+   fallback fired and nothing durable landed, `$RAW_DIR` is the only verbatim copy that exists —
+   do not delete it.** Say so plainly ("raw output remains only in `$RAW_DIR` until you take
+   custody of it") and leave deletion to the owner. **Independently — a second, separate reason
+   to hold off, not the only one** — also skip deletion while a verification round (Procedure
+   step 6) still needs this run's raw output.
 
 ## The strict review prompt (both gates)
 

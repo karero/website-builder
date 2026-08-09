@@ -8,6 +8,15 @@ for each target keyword so you can see the competitors, the result *format*
 Google rewards (event aggregators vs. listicle guides), and your own true
 position (or absence).
 
+Also prints each result's rendered SNIPPET. Google frequently discards the
+shipped <meta description> and auto-generates a snippet from body text
+instead — confirmed live 2026-07-30 (apreet.com), where a "truncation caused
+0% CTR" diagnosis turned out to be flatly wrong for one page (the description
+was never shown at all) while holding for another (it was shown, truncated).
+ALWAYS compare the printed snippet against the actual shipped description
+before attributing a CTR gap to description wording — do not diagnose from
+GSC numbers alone.
+
 Providers (pluggable, both have a free tier):
   - serper  (default) — https://serper.dev  — 2,500 free searches, no card.
   - serpapi            — https://serpapi.com — 250 free searches / month.
@@ -66,7 +75,7 @@ def serper(keyword, gl, hl, num, key):
     data = r.json()
     return [
         {"position": o.get("position"), "title": o.get("title", ""),
-         "link": o.get("link", "")}
+         "link": o.get("link", ""), "snippet": o.get("snippet", "")}
         for o in data.get("organic", [])
     ]
 
@@ -83,7 +92,7 @@ def serpapi(keyword, gl, hl, num, key):
     out = []
     for o in data.get("organic_results", []):
         out.append({"position": o.get("position"), "title": o.get("title", ""),
-                    "link": o.get("link", "")})
+                    "link": o.get("link", ""), "snippet": o.get("snippet", "")})
     return out
 
 
@@ -127,15 +136,31 @@ def main():
             continue
 
         ours = None
+        our_snippet = ""
         for o in results[: args.num]:
             mark = ""
             if target in o["link"].lower():
                 mark = "  ← US"
                 ours = o["position"]
+                our_snippet = o.get("snippet", "")
             print(f"{o['position']:>2}. {o['title'][:70]}{mark}")
             print(f"    {o['link']}")
+            if o.get("snippet"):
+                print(f"    snippet: {o['snippet'][:160]}")
         if ours:
             print(f"\n→ {args.domain} ranks #{ours} for \"{kw}\".")
+            # The rendered snippet is frequently NOT the shipped <meta description> —
+            # Google auto-generates from body text a large share of the time. A CTR
+            # diagnosis built on "the description is too long/short" without checking
+            # this is unverified at best. Confirmed live 2026-07-30 (apreet.com): one
+            # page's real 318-char description was fully discarded for an auto-generated
+            # body-text snippet, while a different page's real (145-char) description WAS
+            # shown, truncated. Compare `our_snippet` above against the page's actual
+            # <meta description> by hand before concluding truncation (or anything else
+            # about the description) explains a CTR gap.
+            if our_snippet:
+                print(f"  Compare the snippet above against the page's actual <meta description> —\n"
+                      f"  do not assume they match.")
         else:
             print(f"\n→ {args.domain} NOT in Top {args.num} for \"{kw}\".")
 

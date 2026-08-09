@@ -236,6 +236,15 @@ defaults to `de` (Munich). No key set → it exits cleanly; GSC/Bing are unaffec
 3. **Find your gap.** Compare the ranking pages to yours — what do they cover that you don't?
 4. **Get listed.** If aggregators own the SERP, being *on* them (Meetup, Luma, dev.events) is
    half the battle, not just your own page.
+5. **MANDATORY before any CTR/snippet diagnosis: check the printed `snippet` field against the
+   page's actual shipped `<meta description>`.** Google frequently discards the shipped
+   description and auto-generates a snippet from body text instead — a "the description is too
+   long/short, that's why CTR is low" diagnosis is unverified, and can be flatly wrong, until this
+   is checked. Confirmed live 2026-07-30 (apreet.com, both Codex and Kimi flagged the diagnosis as
+   unverified in review; the live check then showed one page's 318-char description fully
+   discarded for a body-text auto-snippet, while a different page's real 145-char description WAS
+   shown, truncated — two different pages, two different mechanisms, neither guessable from GSC
+   numbers alone). Never finalize a title/description rewrite recommendation without this check.
 
 **Provider-agnostic — Serper is today's default, not a hard dependency.** A SERP API is a
 commodity; the script targets the *capability*, not one vendor, and free tiers shift over
@@ -246,8 +255,8 @@ time — so pick whatever's free/cheap when you set up:
   backbone (no free tier, ~$0.0006/SERP) once you outgrow the free ones.
 
 To add a provider: drop a `--provider <name>` branch into `serp_check.py` (its own API call →
-the same `{position, title, link}` shape) and read its key from the `.env`. If your provider
-ever kills its free tier, switch the flag — the rest of the skill is unchanged.
+the same `{position, title, link, snippet}` shape) and read its key from the `.env`. If your
+provider ever kills its free tier, switch the flag — the rest of the skill is unchanged.
 
 ## Bing Webmaster Tools — optional second source (Copilot/ChatGPT proxy)
 
@@ -261,6 +270,14 @@ niche local queries, so treat it as a secondary signal.
 → add it to `~/.config/gsc-insights/.env` as `BING_API_KEY=...`. (The site must already
 be added to Bing — `search-console-setup` covers that via "Import from Google Search
 Console".)
+
+**Status (2026-07-24):** `BING_API_KEY` is already set in `~/.config/gsc-insights/.env` —
+so a returning session should skip straight to using it, per Step 2's pattern. Connected
+sites (verified live via `GetFeeds`, all with a registered, successfully-crawled sitemap):
+apreet.com, genai-wednesday.de, m-squad.com. Note: Bing does **not** reliably auto-discover
+a sitemap from `robots.txt` the way Google does — if `GetFeeds` returns `{"d":[]}` for a
+site despite a correct `robots.txt` entry, submit the sitemap URL manually under
+Bing Webmaster Tools → **Sitemaps** (apreet.com needed this fix on 2026-07-24).
 
 ```bash
 set -a; . ~/.config/gsc-insights/.env; set +a    # loads BING_API_KEY
