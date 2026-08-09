@@ -1,7 +1,7 @@
 # Independent review — PLAN gate — round 7 — 2026-08-09
 
-Artifact: `skills/independent-review/SKILL.md`, PR #62 (website-builder), branch
-`karero/independent-review/ship-permission-table-and-fixes`.
+Artifact: `skills/independent-review/SKILL.md`, PR #62 (website-builder), the
+"ship-permission-table-and-fixes" branch.
 
 ## Reviewer
 
@@ -26,11 +26,11 @@ Data check: file grepped for secrets before leaving the machine — none found.
 
 | id | Sev | Finding | Disposition |
 |---|---|---|---|
-| K7-1 | BUG | Consolidated marker is head-only while the clerk procedure explains why that's insufficient after a target-branch advance | **fixed** `a485569` — did not change the marker format itself (cross-repo: `apreet-backend`'s `review-trail-posted-gate` job hardcodes a single-SHA match, already tracked as open finding R-CI); made the residual post-stamp gap explicit instead of implicitly claiming it solved |
+| K7-1 | BUG | Consolidated marker is head-only while the clerk procedure explains why that's insufficient after a target-branch advance | **fixed** `a485569` — did not change the marker format itself (cross-repo: a downstream repo's `review-trail-posted-gate` job hardcodes a single-SHA match, already tracked as open finding R-CI); made the residual post-stamp gap explicit instead of implicitly claiming it solved |
 | K7-2 | RISK | Clerk cleanup (item 4) can delete the only durable copy of raw reviewer output when a permission-table fallback fired | **fixed** `a485569` — cleanup now requires a durable copy exist elsewhere first; if not, says so and leaves deletion to the owner |
 | K7-3 | RISK | A dated, hardcoded Antigravity/Claude-seat capability claim sat in the skill body, against the file's own numbers-belong-in-setup-guide doctrine | **fixed** `a485569` — moved to `references/setup-guide.md` (new section), body now just points there |
 | K7-4 | RISK | Data-release consent (Procedure step 1) has no stated durable record and no per-provider scope | **fixed** `a485569` — recorded the same way as an owner instruction (atom B), scoped per provider |
-| K7-5 | BUG | Two retellings of the `apreet-backend` incident (permission-table intro vs. clerk item 2) disagree on whether the buggy job actually shipped | **fixed** `a485569` — aligned both to "caught by round-1 review before merge," matching what the real `.gitlab-ci.yml` comment documents happened |
+| K7-5 | BUG | Two retellings of the downstream-repo CI incident (permission-table intro vs. clerk item 2) disagree on whether the buggy job actually shipped | **fixed** `a485569` — aligned both to "caught by round-1 review before merge," matching what the real `.gitlab-ci.yml` comment documents happened |
 | K7-6 | RISK | The permission table's own "never restate a fallback" rule is violated one paragraph away, in clerk item 3's cleanup wording | **fixed** `a485569` — recording duty moved into the table's BRANCH-COMMIT cell; item 3 is now a pure pointer |
 | K7-7 | RISK | Trail-slug normalization (step 9a, this branch's own prior fix) is lossy — `feature/x` and `feature-x` both collapse to the same slug, reintroducing the exact collision it exists to prevent | **fixed** `e5d38d6` (same session, committed before this trail was written) — appended the 7-char abbreviated HEAD SHA to the fallback |
 | K7-8 | RISK | The commonest real case — your own primary checkout, where WORKTREE-WRITE is usually undeterminable — silently falls through to a fallback with no scheduled remedy in step 9's own checklist | **fixed** `a485569` — step 9 now opens with the atom-A / atom-B / fallback procedure explicitly, before either close-out half |

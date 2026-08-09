@@ -1,7 +1,7 @@
 # Independent review — DIFF gate — round 8 — 2026-08-09
 
 Artifact: `skills/independent-review/SKILL.md` + `references/setup-guide.md`, PR #62
-(website-builder), branch `karero/independent-review/ship-permission-table-and-fixes`.
+(website-builder), the "ship-permission-table-and-fixes" branch.
 Verification round on round 7's fixes, per this skill's own Procedure step 6.
 
 | base | head reviewed | head after fixes |

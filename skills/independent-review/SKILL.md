@@ -789,7 +789,7 @@ like-for-like replacement."*
    session's uncommitted edit to a tracked file was swept into another session's `git commit -a`
    under an unrelated message, and a new untracked file is swept the same way by `git add -A` or
    `git add .` — hence the two write properties. Round 1 of this skill's own review:
-   `apreet-backend`'s `review-trail-posted-gate`, as originally implemented in its MR branch,
+   A downstream repo's CI gate, as originally implemented in its MR branch,
    matched a bare marker that any note containing the token would satisfy — caught by round-1
    review (Codex) before merge, so it never reached the shared branch in that state — hence
    GATED-THIS-DIFF, and the advice to describe the marker rather than spell it out. See the `loose-ends` skill, "Open ends belong to a session".
@@ -835,8 +835,8 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    actually being merged*" by querying the PR/MR's notes for this exact
    marker+SHA pair, instead of matching bare prose that (a) can get reworded
    later or (b) would be satisfied by ANY note containing the marker,
-   including a stale one from an earlier round on a reused branch — apreet-
-   backend's `review-trail-posted-gate` job (`.gitlab-ci.yml`) originally
+   including a stale one from an earlier round on a reused branch — a
+   downstream repo's CI gate (a `.gitlab-ci.yml` job) originally
    shipped with the bare marker and exactly that bypass; round-1 review
    (Codex) caught it before merge. Once a gate depends on this marker, don't
    drop the SHA suffix or reword the fixed text around it — a rebase or a
@@ -854,7 +854,7 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    not a silent re-post. A target-branch advance *after* a successful, unmoved stamp
    is a separate, currently open gap: the marker only names `head`, so it cannot encode that a
    later advance happened. Closing it fully needs the marker to also carry `base` (or an
-   equivalent) — a cross-repo change, since this same job hardcodes a match against the current
+   equivalent) — a cross-repo change, since that same downstream job hardcodes a match against the current
    single-SHA form. Left open rather than silently claimed solved, pending that two-repo decision.
 3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` — committed on the branch when step 9's
    permission table's WORKTREE-WRITE and BRANCH-COMMIT rows both permit it; see the table for the

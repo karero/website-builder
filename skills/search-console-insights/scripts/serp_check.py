@@ -10,7 +10,7 @@ position (or absence).
 
 Also prints each result's rendered SNIPPET. Google frequently discards the
 shipped <meta description> and auto-generates a snippet from body text
-instead — confirmed live 2026-07-30 (apreet.com), where a "truncation caused
+instead — confirmed live 2026-07-30 (a real site), where a "truncation caused
 0% CTR" diagnosis turned out to be flatly wrong for one page (the description
 was never shown at all) while holding for another (it was shown, truncated).
 ALWAYS compare the printed snippet against the actual shipped description
@@ -152,7 +152,7 @@ def main():
             # The rendered snippet is frequently NOT the shipped <meta description> —
             # Google auto-generates from body text a large share of the time. A CTR
             # diagnosis built on "the description is too long/short" without checking
-            # this is unverified at best. Confirmed live 2026-07-30 (apreet.com): one
+            # this is unverified at best. Confirmed live 2026-07-30 (a real site): one
             # page's real 318-char description was fully discarded for an auto-generated
             # body-text snippet, while a different page's real (145-char) description WAS
             # shown, truncated. Compare `our_snippet` above against the page's actual
