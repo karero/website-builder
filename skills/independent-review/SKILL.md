@@ -358,9 +358,11 @@ recommending.**
 
 - 🤖 Detect **total installed** RAM using the OS-appropriate command from
   `references/setup-guide.md` (`sysctl hw.memsize` on macOS, `systeminfo` or
-  Task Manager on Windows, `free -h` on Linux) — these report what's
-  installed, not what's free right now; if the machine is under heavy memory
-  pressure from other apps, say so rather than silently dropping a tier. If
+  Task Manager on Windows, `free -h` on Linux) — most of these print BOTH a
+  total and a free/available figure side by side; use the total one, not
+  the free/available one printed next to it. If the machine is under heavy
+  memory pressure from other apps, say so rather than silently dropping a
+  tier. If
   you can't run the command directly (e.g. the user is on a different
   machine than the one you have shell access to), ask them to run it and
   paste back the number.
@@ -464,14 +466,25 @@ like-for-like replacement."*
 1. **Data check before anything leaves the machine.** External reviewers are
    third-party services: grep the artifact for secrets (keys, tokens, passwords,
    customer data) and get the owner's OK the first time a given repo's content
-   is sent out **to each provider** — Codex, ollama-cloud, and Antigravity are
-   separate services with separate consent, not one blanket "external
-   reviewers are OK." Record the OK the way step 9's permission table records
-   an owner instruction (atom B: quoted verbatim, durable — a standing
-   instruction in the repo, or this session's own record) so a later session
-   can tell "owner consented for this provider" from "nobody has asked yet"
-   instead of guessing. Adding a new provider later needs its own consent, not
-   an inherited one. If the content must stay local, run the script with
+   is sent out **to each destination service, not just each named tool** —
+   Codex, ollama-cloud, and Antigravity are separate services with separate
+   consent, not one blanket "external reviewers are OK," and naming the tool
+   isn't always naming the destination: Antigravity with `AGY_MODEL` set to
+   a Claude tag routes content on to Anthropic too, a distinct destination
+   from Antigravity's own Gemini path, needing its own consent — and the
+   paste tier (tier 6) sends the same artifact to whatever service a human
+   pastes it into, chosen ad hoc, which needs the same per-destination
+   consent as any named provider, not a free pass for being manual. Record
+   the OK the way step 9's permission table records
+   an owner instruction (atom B: quoted verbatim). **Only a standing
+   instruction durably written in the repo persists across sessions** — a
+   later session can check for that and tell "owner consented for this
+   provider" from "nobody has asked yet." This session's own in-conversation
+   record is real consent for the current session, but per this file's own
+   durability standard (an in-session hand-off doesn't count as durable
+   anywhere else here either) it is invisible to a later one — that session
+   re-asks rather than assuming consent it cannot see. Adding a new provider
+   later needs its own consent, not an inherited one. If the content must stay local, run the script with
    `--local-only` (skips codex/agy/paste entirely; local ollama only — the
    script requires the EFFECTIVE ollama tag to be local: under `--local-only` the
    `glm-5.2:cloud` default is never applied, and an explicitly-set cloud tag is refused outright,
@@ -482,11 +495,14 @@ like-for-like replacement."*
 2. Run the external half (path relative to THIS skill's directory — after an
    install that is `<skills-root>/independent-review/scripts/…`):
    `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
-   — `--plan`/`--diff` is optional: the script auto-detects from the input
-   (stdin `-`, or a `.diff`/`.patch` filename → diff; anything else → plan),
-   and that resolved value is the `<gate>` step 9(a)'s trail filename uses —
-   pass the flag explicitly whenever the filename wouldn't guess right.
-   Default runs the standard pair (Codex + ollama-cloud) and prints one
+   — `--plan`/`--diff` is optional: the script auto-detects from the input —
+   a `.diff`/`.patch` filename resolves to diff, anything else to plan, and
+   **stdin (`-`) has no filename to guess from at all, so it defaults to
+   diff** — that resolved value is the `<gate>` step 9(a)'s trail filename
+   uses. Pass the flag explicitly whenever the filename wouldn't guess
+   right, and always when piping a plan through stdin (a piped plan
+   otherwise silently loses the PLAN gate's <2-reviewers flag and gets
+   mis-named as a diff trail). Default runs the standard pair (Codex + ollama-cloud) and prints one
    section per reviewer; `--first-success` is the quick mode (for a `--plan`
    this deliberately drops from the default 2 reviewers to 1 — a conscious
    choice for lower-stakes plans, honored not overridden — see the reviewer
@@ -676,7 +692,11 @@ like-for-like replacement."*
    doing one is not doing the other, and skipping the second is the single most likely way this
    skill's real work goes invisible. **Before either half: for each property the actions below
    need, establish atom A; if absent, ask the owner for atom B; if that's not available either,
-   apply the table's fallback.** Don't reach the table only after already deciding to write — the
+   apply the table's fallback — except GATED-THIS-DIFF, which has no atom B at all (see Evidence
+   below): absent atom A, go straight to its fallback, never ask the owner to supply what the
+   evidence rules say they structurally cannot — an owner saying "yes it's reviewed, stamp it" is
+   exactly the bare-marker forgery this property exists to refuse.** Don't reach the table only
+   after already deciding to write — the
    commonest case (your own primary checkout, where WORKTREE-WRITE authority is usually
    undeterminable per the table's own examples) would otherwise silently divert every trail to a
    fallback location with nobody having decided that on purpose.
@@ -826,7 +846,12 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    **This discipline protects the posting moment, not indefinitely.** A push landing in the gap
    between the final recheck and the POST call itself is not covered by "re-read immediately
    before posting" alone — after posting, re-fetch the PR's head/diff-scope from the platform API
-   once more and re-post if it moved. A target-branch advance *after* a successful, unmoved stamp
+   once more. **If only the SHA moved and the diff-scope is byte-identical** (a bare rebase, no
+   content change), re-post naming the new head — the findings still apply to the same code.
+   **If the diff-scope itself changed, do not re-stamp the new head with the findings you already
+   have** — that would certify code nobody reviewed, the exact failure this whole scheme exists to
+   prevent. Treat it like any other moved pair: re-run the gate per the recheck discipline above,
+   not a silent re-post. A target-branch advance *after* a successful, unmoved stamp
    is a separate, currently open gap: the marker only names `head`, so it cannot encode that a
    later advance happened. Closing it fully needs the marker to also carry `base` (or an
    equivalent) — a cross-repo change, since this same job hardcodes a match against the current
@@ -846,16 +871,23 @@ shell variable — a session teardown mid-run must leave the partial review on
 disk, not vaporize it.
 
 4. **Cleanup**: once items 1–3 are posted/committed **and a durable copy of the raw verbatim
-   output exists somewhere other than `$RAW_DIR`** — a posted PR comment (item 1) or a committed
-   trail file (item 3) both count; an inline hand-off to the owner under one of step 9's
-   permission-table fallbacks does NOT, since nothing durable landed anywhere — delete the run's
+   output exists somewhere other than `$RAW_DIR`** — a posted PR comment (item 1) always counts,
+   since it's explicitly the reviewers' verbatim notes by its own definition above; a committed
+   trail file (item 3) counts **only if it actually includes the reviewers' verbatim text, not
+   just dispositions/summary** (item 3's own spec above names dispositions, refuted findings, and
+   waivers — verbatim text isn't automatic). This matters most for a PLAN gate, which has no
+   PR/MR (item 1 is N/A per step 9's own "not applicable is not failure" rule for PLAN gates) — if the trail alone doesn't carry the verbatim
+   output, copy `$RAW_DIR`'s raw text into it before deleting, rather than assuming the
+   dispositions are enough. An inline hand-off to the owner under one of step 9's
+   permission-table fallbacks does NOT count, since nothing durable landed anywhere — delete the run's
    `$RAW_DIR` (path printed to stderr as `raw output: <dir>`) — it held the full artifact content
    plus every reviewer's raw output (owner-only permissions, but proprietary code sitting in
    `$TMPDIR` indefinitely serves no purpose once something durable has captured it). **If a
    fallback fired and nothing durable landed, `$RAW_DIR` is the only verbatim copy that exists —
    do not delete it.** Say so plainly ("raw output remains only in `$RAW_DIR` until you take
-   custody of it") and leave deletion to the owner. Skip deletion only if a verification round
-   (Procedure step 6) still needs this run's raw output.
+   custody of it") and leave deletion to the owner. **Independently — a second, separate reason
+   to hold off, not the only one** — also skip deletion while a verification round (Procedure
+   step 6) still needs this run's raw output.
 
 ## The strict review prompt (both gates)
 
