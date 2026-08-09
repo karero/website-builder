@@ -651,7 +651,17 @@ like-for-like replacement."*
 9. **Close out — both halves, not just the trail file.** These are two separate artifacts;
    doing one is not doing the other, and skipping the second is the single most likely way this
    skill's real work goes invisible.
-   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>.md`, **wherever this session
+   (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>-pr<N>.md`, where `<N>` is
+   this diff's PR/MR number, or `docs/reviews/REVIEW-<gate>-<date>-r<round>-<branch-slug>.md`
+   (branch name, lowercased, `/` and other non-alphanumerics collapsed to a single `-`) when no
+   PR/MR is open yet. **The suffix is mandatory even when no other session looks concurrently
+   active** — a bare `-r<round>.md` collides the moment two sessions both land on round 1 the
+   same day, and neither can tell from inside its own session whether another is running.
+   (Codified 2026-08-09: two independent same-day PR sessions in this repo each wrote a bare
+   `r4.md`, then separately a bare `r5.md`; both were only caught and resolved by hand at merge
+   time — see the addendum in `docs/reviews/REVIEW-diff-2026-08-09-r7.md`. Files already on disk
+   before this rule were left unrenamed; this changes the convention going forward only.) Write
+   it, **wherever this session
    holds WORKTREE-WRITE AUTHORITY** (the permission table below — for someone else's worktree the
    content is identical and only the destination changes) — findings,
    dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
