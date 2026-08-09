@@ -173,6 +173,19 @@ benchmark — don't recommend it as a first choice. `granite-code` (IBM) is a
 reasonable niche pick only for legacy enterprise languages (COBOL, older
 Java) — not a general recommendation.
 
+## Getting a Claude/Anthropic reviewer on a non-Claude host
+
+When the assistant running this skill is itself Codex or Antigravity/Gemini, the Independence
+rule needs a different cross-model seat: Claude. The Antigravity CLI (`agy`) can reach one —
+`agy --model "Claude Opus 4.6 (Thinking)"` — via the same free Antigravity/Gemini login used for
+the Gemini seat elsewhere in this guide. Verified working headless as of 2026-07-02; re-verify
+before relying on it if this guide is old by then.
+
+This is **not** a separate free lane — it's the same `agy` CLI and the same scarce-quota,
+opt-in-only rule as every other Antigravity use in this skill (see SKILL.md's reviewer stack).
+Claude Code itself has no free tier (Pro/API only); the free claude.ai paste tier (tier 6, manual
+paste) fits a plan or a small diff at best.
+
 ## Verify before quoting a number
 
 Two things researched for this guide are explicitly **unstable and likely to
