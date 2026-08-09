@@ -652,9 +652,13 @@ like-for-like replacement."*
    doing one is not doing the other, and skipping the second is the single most likely way this
    skill's real work goes invisible.
    (a) Write the trail: `docs/reviews/REVIEW-<gate>-<date>-r<round>-pr<N>.md`, where `<N>` is
-   this diff's PR/MR number, or `docs/reviews/REVIEW-<gate>-<date>-r<round>-<branch-slug>.md`
-   (branch name, lowercased, `/` and other non-alphanumerics collapsed to a single `-`) when no
-   PR/MR is open yet. **The suffix is mandatory even when no other session looks concurrently
+   this diff's PR/MR number, or `docs/reviews/REVIEW-<gate>-<date>-r<round>-<branch-slug>-<sha>.md`
+   when no PR/MR is open yet (branch name, lowercased, `/` and other non-alphanumerics collapsed
+   to a single `-`, plus `<sha>` — HEAD's abbreviated commit SHA, 7 hex chars). The SHA is not
+   decoration: the slug alone is lossy — `feature/x`, `feature-x`, and `feature_x` all collapse
+   to the same string, so two genuinely different branches can still collide on the exact
+   scenario this suffix exists to prevent. Two branches sharing both a slug AND a HEAD SHA is not
+   a realistic collision. **The suffix is mandatory even when no other session looks concurrently
    active** — a bare `-r<round>.md` collides the moment two sessions both land on round 1 the
    same day, and neither can tell from inside its own session whether another is running.
    (Codified 2026-08-09: two independent same-day PR sessions in this repo each wrote a bare
