@@ -16,11 +16,17 @@ cd "$REPO_DIR"
 # docs/reviews/ holds internal review trails + plan artifacts — never handoff material.
 # docs/local/ is excluded from git entirely (.git/info/exclude) for private, never-shipped
 # notes — but zip -r is git-agnostic and would sweep it in anyway if it exists on disk.
+# node_modules/ is the same class of leak: gitignored (skills/new-website/templates/.gitignore),
+# so git itself never tracks it, but zip -r doesn't consult .gitignore either — if a template's
+# dependencies happen to be installed on the machine building the release (e.g. from a prior
+# `npm test`/`npm install` run), the whole tree ships in the handoff. Caught live 2026-08-09:
+# a stray node_modules from an unrelated earlier session balanced a 201-file zip into 9324 files
+# (185MB) before this exclusion existed.
 zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh \
-  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' >/dev/null
+  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
@@ -57,6 +63,13 @@ fi
 # Internal artifacts must never ship: fail loud if any slip past the exclusions.
 if grep -E '^docs/reviews/|^REVIEW-|^SKILL-PLAN-' <<<"$zipfiles" | head -5 | grep .; then
   echo "FAIL — internal review/plan artifacts leaked into the handoff zip (see above)."
+  exit 1
+fi
+# Belt-and-suspenders on the node_modules exclusion above: catch it here too rather than
+# trusting the -x glob alone (the docs/reviews/local exclusions get this same double-check).
+if grep -E '/node_modules/' <<<"$zipfiles" | head -5 | grep .; then
+  echo "FAIL — node_modules leaked into the handoff zip (see above) — was it installed locally"
+  echo "before building this release?"
   exit 1
 fi
 echo "zip integrity OK — all critical files present, no internal artifacts"
