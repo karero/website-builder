@@ -83,10 +83,12 @@ That round cost a full standard pair to produce two speculations and two real
 NITs. Include the reading code in the artifact, or expect to spend the round
 refuting rather than fixing.
 
-### PLAN gate precondition — can the plan report its own progress?
+### PLAN gate preconditions — two things to check before spending a round
 
 (Codified 2026-08-16, after a multi-day build cleared seven PLAN rounds and still
 left its owner unable to say which steps were finished.)
+
+#### 1. Can the plan report its own progress?
 
 **The HOST agent runs this check itself**, before the external pair goes out. It needs
 repo access, so the fresh-eyes seat — which receives only the artifact, per the
@@ -94,18 +96,29 @@ Reviewer stack below — structurally cannot perform it, and no external reviewe
 to ask.
 
 Two questions. **Does the plan, or a sibling document it names, have a place where each
-step's state is recorded?** And **is each step either backed by a reference a human can
-go and check — a commit, a pull request, a test run — or explicitly marked as not
-started yet?** A step whose state is an unsourced assertion is what this catches.
+step's state is recorded?** And **does every state claiming progress or completion carry
+a reference another person can actually open** — a commit SHA, a repository-qualified
+pull request, a durable test-run link? "Not started" is the one state needing no
+reference; every state asserting something happened does.
 
-If the answer is no, record it as a **RISK, not a NIT**, in the host's own findings and
-in the trail (Procedure step 9). **This does not gate the external round** — the
-standard pair still runs on the plan's content exactly as usual; don't spend the pair's
-attention on this finding, and don't hold the plan back from them over it. The concern
-is orthogonal to content quality: it's whether anyone can tell what's done once building
-starts. That cost lands weeks later, on the human, and it lands hardest on plans that
-PASS — a well-reviewed plan gets built over days, which is exactly when memory of
-progress fails and the conversation holding it is gone.
+If either answer is no, record it as a **RISK, not a NIT**, in the host's own findings
+and in the trail (Procedure step 9), and keep it out of the artifact sent to the
+external pair — including a verification round's prior-findings list, which would
+otherwise spend their attention on a host-only structural point. **This does not gate
+the external round**: the standard pair still runs on the plan's content exactly as
+usual, and the plan is never held back from them over it. The concern is orthogonal to
+content quality — it's whether anyone can tell what's done once building starts. That
+cost lands weeks later, on the human, and hardest on plans that PASS: a well-reviewed
+plan gets built over days, which is exactly when memory of progress fails and the
+conversation holding it is gone.
+
+**What this establishes, and what it does not.** It is a structural check at review
+time — the plan has somewhere to record state, and the convention demands a reference.
+It cannot tell you a row is *accurate*, and it cannot police updates during the build
+that follows: at review time most steps have not happened yet, and nothing here is
+watching weeks later. A tracker can still go stale by simply not being updated. Say that
+plainly rather than let the check imply coverage it does not have — the update rule
+below is what addresses staleness, and it binds whoever runs the build, not this gate.
 
 This prescribes no format. Whatever the project already uses is fine, on two conditions.
 The record lives **in the repo**, not in a chat log or a session's to-do list — both die
@@ -114,11 +127,13 @@ with the session, and a plan reviewed in one session is usually built in another
 pass afterwards: a tracker nobody updates goes stale silently, which is worse than
 having none, because it still reads as authoritative.
 
-**Corollary — a plan whose steps are still changing does not need another round yet.**
-It needs its open decisions closed first. If any finding from the last round was "this
-section depends on an undecided question", get that decision, let the document settle,
-then run the verification round on the result — Procedure step 6 still applies in full;
-this defers that round, it never replaces it. Re-reviewing a moving target is how a plan
+#### 2. Are the plan's own decisions settled?
+
+**A plan whose steps are still changing does not need another round yet.** It needs its
+open decisions closed first. If any finding from the last round was "this section
+depends on an undecided question", get that decision, let the document settle, then run
+the verification round on the result — Procedure step 6 still applies in full; this
+defers that round, it never replaces it. Re-reviewing a moving target is how a plan
 reaches round seven, and every round after the first grades a document that is no longer
 the plan.
 
