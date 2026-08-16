@@ -88,27 +88,39 @@ refuting rather than fixing.
 (Codified 2026-08-16, after a multi-day build cleared seven PLAN rounds and still
 left its owner unable to say which steps were finished.)
 
-Before sending a plan out, the HOST agent checks one structural thing no external
-reviewer will think to: **does the plan — or a sibling document it names — have a
-place where each step's state gets recorded, and does each state carry evidence a
-human can check** (a commit, a PR number, or an explicit "not started")?
+**The HOST agent runs this check itself**, before the external pair goes out. It needs
+repo access, so the fresh-eyes seat — which receives only the artifact, per the
+Reviewer stack below — structurally cannot perform it, and no external reviewer thinks
+to ask.
 
-If it doesn't, raise it in your own fresh-eyes pass as a **RISK, not a NIT**, and
-don't spend an external round on it. The reviewers grade the plan's *content*; this
-is about whether anyone can tell what's done once building starts. The cost lands
-weeks later, on the human, and it lands hardest on plans that PASS — a well-reviewed
-plan gets built over days, which is exactly when memory of progress fails and the
-conversation holding it is gone.
+Two questions. **Does the plan, or a sibling document it names, have a place where each
+step's state is recorded?** And **is each step either backed by a reference a human can
+go and check — a commit, a pull request, a test run — or explicitly marked as not
+started yet?** A step whose state is an unsourced assertion is what this catches.
 
-This prescribes no format. Whatever the project already uses is fine, as long as it
-lives **in the repo** rather than in a chat log or a session's to-do list — both die
-with the session, and a plan reviewed in one session is usually built in another.
+If the answer is no, record it as a **RISK, not a NIT**, in the host's own findings and
+in the trail (Procedure step 9). **This does not gate the external round** — the
+standard pair still runs on the plan's content exactly as usual; don't spend the pair's
+attention on this finding, and don't hold the plan back from them over it. The concern
+is orthogonal to content quality: it's whether anyone can tell what's done once building
+starts. That cost lands weeks later, on the human, and it lands hardest on plans that
+PASS — a well-reviewed plan gets built over days, which is exactly when memory of
+progress fails and the conversation holding it is gone.
 
-**Corollary — a plan whose steps keep changing does not need another round.** It
-needs its open decisions closed first. If any finding from the last round was "this
-section depends on an undecided question", stop and get that decision before spending
-another pair. Re-reviewing a moving target is how a plan reaches round seven, and
-every round after the first is grading a document that is no longer the plan.
+This prescribes no format. Whatever the project already uses is fine, on two conditions.
+The record lives **in the repo**, not in a chat log or a session's to-do list — both die
+with the session, and a plan reviewed in one session is usually built in another. And
+**updating a step's state is part of finishing that step**, never a separate bookkeeping
+pass afterwards: a tracker nobody updates goes stale silently, which is worse than
+having none, because it still reads as authoritative.
+
+**Corollary — a plan whose steps are still changing does not need another round yet.**
+It needs its open decisions closed first. If any finding from the last round was "this
+section depends on an undecided question", get that decision, let the document settle,
+then run the verification round on the result — Procedure step 6 still applies in full;
+this defers that round, it never replaces it. Re-reviewing a moving target is how a plan
+reaches round seven, and every round after the first grades a document that is no longer
+the plan.
 
 ## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
 
