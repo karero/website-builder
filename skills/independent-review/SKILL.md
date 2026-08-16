@@ -83,6 +83,33 @@ That round cost a full standard pair to produce two speculations and two real
 NITs. Include the reading code in the artifact, or expect to spend the round
 refuting rather than fixing.
 
+### PLAN gate precondition — can the plan report its own progress?
+
+(Codified 2026-08-16, after a multi-day build cleared seven PLAN rounds and still
+left its owner unable to say which steps were finished.)
+
+Before sending a plan out, the HOST agent checks one structural thing no external
+reviewer will think to: **does the plan — or a sibling document it names — have a
+place where each step's state gets recorded, and does each state carry evidence a
+human can check** (a commit, a PR number, or an explicit "not started")?
+
+If it doesn't, raise it in your own fresh-eyes pass as a **RISK, not a NIT**, and
+don't spend an external round on it. The reviewers grade the plan's *content*; this
+is about whether anyone can tell what's done once building starts. The cost lands
+weeks later, on the human, and it lands hardest on plans that PASS — a well-reviewed
+plan gets built over days, which is exactly when memory of progress fails and the
+conversation holding it is gone.
+
+This prescribes no format. Whatever the project already uses is fine, as long as it
+lives **in the repo** rather than in a chat log or a session's to-do list — both die
+with the session, and a plan reviewed in one session is usually built in another.
+
+**Corollary — a plan whose steps keep changing does not need another round.** It
+needs its open decisions closed first. If any finding from the last round was "this
+section depends on an undecided question", stop and get that decision before spending
+another pair. Re-reviewing a moving target is how a plan reaches round seven, and
+every round after the first is grading a document that is no longer the plan.
+
 ## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
 
 1. **Codex CLI** (`codex exec -s read-only`) — genuine read-only sandbox; model +
