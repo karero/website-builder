@@ -587,7 +587,9 @@ like-for-like replacement."*
 
    Audit the trail's own numbers yourself instead. Two runs have now paid for this — MR !916 (8
    rounds) and MR !944 (7 rounds), both `apreet-backend`, each with a late round that found nothing
-   but the trail auditing itself. The existing "scope it by RULE, not round number" guidance BOUNDS
+   but the trail auditing itself (on !944 that was round 6, whose two findings were both arithmetic
+   errors in the trail; the truncation incident cited further down is a different round of the same
+   MR, and the two are not the same event). The existing "scope it by RULE, not round number" guidance BOUNDS
    that loop; excluding the file PREVENTS it. **The trail must still be in the MR diff** — a repo CI
    gate may require it and clerk item 3 commits it — this is only about what reaches the reviewers.
 3. Run tier 3 (fresh-eyes) with the same strict prompt.
