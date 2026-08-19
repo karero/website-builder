@@ -573,6 +573,25 @@ like-for-like replacement."*
    stack above). Add `--with-antigravity` only when it's genuinely worth
    spending one of the owner's scarce Antigravity credits — never by default.
    Exit 4 = no reviewer ran = gate FAIL (never treat as clean).
+
+   **Build that artifact from the CHANGE, not from the whole diff — exclude `docs/reviews/`.** A
+   DIFF gate on a branch that already carries a trail file will otherwise send the trail to the
+   reviewers, and they will review it: its arithmetic, its finding counts, whether it describes the
+   round currently reading it. Those findings are real — an arithmetic error in a trail IS an error
+   — but they are about the review RECORD, not the change under review, and they arrive in rounds
+   that would not otherwise have happened. Generate the artifact with the trail excluded:
+
+   ```
+   git diff <base>...HEAD -- . ':(exclude)docs/reviews/'
+   ```
+
+   Audit the trail's own numbers yourself instead. Two runs have now paid for this — MR !916 (8
+   rounds) and MR !944 (7 rounds), both `apreet-backend`, each with a late round that found nothing
+   but the trail auditing itself (on !944 that was round 6, whose two findings were both arithmetic
+   errors in the trail; the truncation incident cited further down is a different round of the same
+   MR, and the two are not the same event). The existing "scope it by RULE, not round number" guidance BOUNDS
+   that loop; excluding the file PREVENTS it. **The trail must still be in the MR diff** — a repo CI
+   gate may require it and clerk item 3 commits it — this is only about what reaches the reviewers.
 3. Run tier 3 (fresh-eyes) with the same strict prompt.
 4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
    id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted, or
@@ -636,7 +655,13 @@ like-for-like replacement."*
    nothing new — and tell them the author expects clean **and that they must
    not oblige out of politeness** (expectation of cleanliness is exactly the
    bias that turns round 2 into a rubber stamp). Repeat until essentially
-   clean. Stop conditions: (a) clean — done; (b) 3 rounds with BUG/RISK still
+   clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO RISK — that
+   IS "clean", and it is the signal to stop, not an invitation to spend one more round chasing the
+   NITs it did return.** NIT-only rounds are where a gate quietly doubles in cost: each one returns
+   two or three more, because prose can always be tightened and a reviewer asked for findings will
+   find some. Fix or refute that round's NITs and close, without sending them back out. Re-read the
+   BUG/RISK-per-round series, not the raw finding count — a series like 5 → 2 → 2 → 1 → 0 has
+   already converged at the 0, whatever the NIT column says; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
    — you may stop ITERATING once all known BUGs are *fixed or refuted* AND every RISK/NIT is
    fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
@@ -933,6 +958,14 @@ The HOST agent is the clerk, and each artifact has a distinct job:
 Capture reviewer output by **streaming to a file**, never by buffering it in a
 shell variable — a session teardown mid-run must leave the partial review on
 disk, not vaporize it.
+
+**Read the whole file, never a tail of it.** The prompt asks for a RANKED list, so the severe end is
+at the TOP: piping a reviewer's output through `tail -n` hides exactly the findings the round was
+run for. Caught live on MR !944 — a round read through `tail -40` showed only its NITs; re-running
+it in full surfaced a BUG. The re-run also cost a second round AND produced a DIFFERENT list from
+the same model on the same input, so three findings acted on from the first sample went unlogged and
+a later round had to reconcile the trail's arithmetic. If output is too long to read at once, page
+through it from the top or write it to disk and read the file — never sample the end.
 
 4. **Cleanup**: once items 1–3 are posted/committed **and a durable copy of the raw verbatim
    output exists somewhere other than `$RAW_DIR`** — a posted PR comment (item 1) always counts,
