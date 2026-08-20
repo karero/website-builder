@@ -112,5 +112,21 @@ git push
 - **`git push` says "rejected"?** (on `main`) Someone/something updated the cloud copy — run
   `git pull` first, then `git push` again.
 
+`npm run ship` tells you which of these it is, and stops before publishing anything:
+
+- **"Couldn't reach GitHub"** or **"couldn't fetch from GitHub"?** Your internet, not your
+  site. Nothing was published. Wait a moment and run `npm run ship` again.
+- **"GitHub has changes that aren't on your computer yet"?** Someone (or another
+  computer) saved work you don't have. Run `git pull`, look at the site, then ship again —
+  publishing without it would put an **older** version live.
+- **"Publish blocked — 'production' has commits that 'main' doesn't have"?** The live
+  branch has history your preview doesn't. **Don't force anything** — ask for help. This
+  one is rare and worth a second pair of eyes.
+- **"The connection dropped part-way through the upload"?** Genuinely unclear whether it
+  landed, so the script won't guess. Just run `npm run ship` again: if it already landed,
+  git says "Everything up-to-date" and the checks carry on as normal.
+- **"The push failed, for a reason this script can't name"?** Read the error printed just
+  above it — most often your own tests failed, and the site is fine until you fix them.
+
 When in doubt, ask before you `npm run ship` / `git push` — those are the only two commands
 that change what the public sees.

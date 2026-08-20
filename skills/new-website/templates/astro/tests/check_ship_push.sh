@@ -20,6 +20,8 @@
 #
 # The scratch cwd deliberately has no astro.config.mjs: that stops ship.sh right
 # after the push, before it polls the live site, so the success cases stay offline.
+#
+# template-version: 0.20   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -48,7 +50,10 @@ case "$1" in
     n=$(( $(cat "$FAKE_DIR/fetches" 2>/dev/null || echo 0) + 1 ))
     echo "$n" > "$FAKE_DIR/fetches"
     if [ -s "$FAKE_DIR/fetchfail" ] && [ "$n" -le "$(cat "$FAKE_DIR/fetchfail")" ]; then
-      echo "ssh: connect to host github.com port 22: Operation timed out" >&2
+      # Default to a transport failure; a scenario can supply another reason instead,
+      # because WHY the fetch failed decides whether retrying makes any sense.
+      cat "$FAKE_DIR/fetcherr" >&2 2>/dev/null \
+        || echo "ssh: connect to host github.com port 22: Operation timed out" >&2
       exit 1
     fi ;;
   merge-base)
@@ -89,9 +94,11 @@ printf '#!/bin/sh\necho "STUB: curl must not run in this gate: $*" >&2\nexit 7\n
 # Stub tee: passes input through but writes no file, as a full temp filesystem would.
 printf '#!/bin/sh\ncat\nexit 1\n' > "$work/teefail/tee"; chmod +x "$work/teefail/tee"
 
-mark() { # mark <case> <marker> [content]; sets up a pre-flight condition
+mark() { # mark <case> <marker> [count]; sets up a pre-flight condition
+  # Defaults to 1 rather than empty: the fetch stub gates on a NON-EMPTY marker, so an
+  # omitted count would leave the scenario passing without ever failing a fetch.
   mkdir -p "$work/cases/$1"
-  printf '%s' "${3:-}" > "$work/cases/$1/$2"
+  printf '%s' "${3:-1}" > "$work/cases/$1/$2"
 }
 
 attempt() { # attempt <case> <n> <exit-status>; git's output for that attempt on stdin
@@ -116,9 +123,18 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
     echo "  (the automatic retry is only correct for a failure at connect time —"
     echo "   anything later has already paid for a full build and test run.)"; fail=1
   fi
-  if ! grep -qF "$marker" "$log"; then
+  # The wording matters: this script exists because the WRONG message was printed on a
+  # publish that failed for another reason. But these fragments are English, and this
+  # template is meant to be translated — SKILL.md calls a German-only site a normal
+  # answer. So the check stays hard by default and names its own escape hatch, rather
+  # than leaving a translated site with permanently red CI and no clue why.
+  if ! grep -qF "$marker" "$log" && [ "${SHIP_GATE_SKIP_WORDING:-0}" != 1 ]; then
     echo "✗ ship push gate [$name]: the owner was not told \"$marker\". Got:"
-    sed -n -E '/^(✗|⚠)/,$p' "$log" | sed 's/^/    /'; fail=1
+    sed -n -E '/^(✗|⚠)/,$p' "$log" | sed 's/^/    /'
+    echo "  (Translated ship.sh's messages? Update the fragments in this file, or run"
+    echo "   with SHIP_GATE_SKIP_WORDING=1 to check behaviour only. Exit codes and push"
+    echo "   counts are asserted either way.)"
+    fail=1
   fi
   # Whatever the verdict, git's own words must reach the owner — they are the one
   # part of the output that is never a guess.
@@ -140,6 +156,27 @@ To github.com:you/your-site.git
    1111111..2222222  main -> production
 EOF
 expect fetchblip 0 1 "✓ Pushed"
+# ...and exactly one retry, not more: the push scenarios pin their attempt count for the
+# same reason, since "how many times do we try" is a deliberate decision either way.
+if [ "$(cat "$work/cases/fetchblip/fetches")" != 2 ]; then
+  echo "✗ ship push gate [fetchblip]: $(cat "$work/cases/fetchblip/fetches") fetch attempt(s), expected 2"
+  fail=1
+fi
+
+# ...but a fetch that failed for a NON-network reason must stop at once. Retrying a
+# missing remote or expired credentials just adds a 5s wait to the same failure, and
+# announcing it as a network blip is the very misdiagnosis this script exists to stop.
+mark fetchbroken fetchfail 2
+mkdir -p "$work/cases/fetchbroken"
+cat > "$work/cases/fetchbroken/fetcherr" <<'EOF'
+fatal: 'origin' does not appear to be a git repository
+fatal: Could not read from remote repository
+EOF
+expect fetchbroken 1 0 "not for a network reason"
+if [ "$(cat "$work/cases/fetchbroken/fetches")" != 1 ]; then
+  echo "✗ ship push gate [fetchbroken]: $(cat "$work/cases/fetchbroken/fetches") fetch attempt(s), expected 1 (no retry)"
+  fail=1
+fi
 
 # --- your copy vs GitHub's: WHICH WAY they differ decides the advice ---------------
 # A plain `!=` cannot tell, and telling someone who is BEHIND to "git push" sends them
@@ -180,7 +217,7 @@ attempt sshtimeout 1 1 <<'EOF'
 ssh: connect to host github.com port 22: Operation timed out
 fatal: Could not read from remote repository.
 EOF
-expect sshtimeout 1 2 "Couldn't reach GitHub"
+expect sshtimeout 1 2 "not a branch problem"
 
 # --- a blip that clears: the retry is the whole point of classifying it ---------
 attempt sshthenok 1 1 <<'EOF'
@@ -214,12 +251,12 @@ kex_exchange_identification: Connection closed by remote host
 Connection closed by 140.82.121.4 port 22
 fatal: Could not read from remote repository.
 EOF
-expect kexclosed 1 2 "Couldn't reach GitHub"
+expect kexclosed 1 2 "not a branch problem"
 
 attempt dnsfail 1 1 <<'EOF'
 fatal: unable to access 'https://github.com/you/your-site.git/': Could not resolve host: github.com
 EOF
-expect dnsfail 1 2 "Couldn't reach GitHub"
+expect dnsfail 1 2 "not a branch problem"
 
 # --- dropped MID-transfer: the ref may already have landed, so no guessing ------
 # and no retry — by this point the pre-push gate has already run for real.
@@ -280,6 +317,6 @@ if [ "$(cat "$work/cases/okpush/pushes")" != "push origin main:production" ]; th
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: 20 publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
+  echo "✓ ship push gate: 21 publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
 fi
 exit "$fail"

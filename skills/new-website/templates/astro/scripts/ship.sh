@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
+#
+# template-version: 0.20
+#   The website-builder release this file came from. Sites get their copy at scaffold
+#   time and then diverge, so this is how you tell whether a site is current:
+#   `grep template-version scripts/ship.sh`. Bump it when this file changes.
 set -euo pipefail
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
@@ -19,16 +24,51 @@ fi
 # publish fails before it even starts. Retry once (these blips are brief), then stop
 # and say plainly what happened. The first attempt's stderr is hidden so a recovered
 # blip reads clean; the retry shows git's real error if it fails too.
-if ! git fetch -q origin 2>/dev/null; then
-  echo "… couldn't reach GitHub — retrying once."
-  sleep 5
-  if ! git fetch -q origin; then
+# One scratch file for git's stderr, reused by the push below, so there is a single
+# EXIT trap rather than two that would silently replace each other.
+git_log="$(mktemp)"
+trap 'rm -f "$git_log"' EXIT
+if ! git fetch -q origin 2>"$git_log"; then
+  # Only a NETWORK failure is worth a silent retry. A missing remote or expired
+  # credentials would fail again five seconds later, and calling that "a network blip"
+  # is the same misdiagnosis this script exists to stop making — so say it at once,
+  # with git's own error, instead of hiding it behind a wait.
+  #
+  # Order matters, exactly as it does in the push classifier below. A misconfigured
+  # remote ALSO ends in "fatal: Could not read from remote repository" — `git fetch`
+  # with a bad origin prints "does not appear to be a git repository" and then that
+  # line — so the not-a-network cases have to be taken out first, or the transport
+  # pattern claims them. (Caught by tests/check_ship_push.sh, not by inspection.)
+  if grep -qE "does not appear to be a git repository|Permission denied|Repository not found|could not read Username|Authentication failed" "$git_log"; then
+    fetch_is_network=0
+  elif grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$git_log" \
+    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$git_log"; then
+    fetch_is_network=1
+  else
+    # Unrecognised: don't retry. Same call the push classifier makes — an unknown
+    # failure is not evidence of a blip, and a wrong retry costs a wait and a lie.
+    fetch_is_network=0
+  fi
+  if [ "$fetch_is_network" = 1 ]; then
+    echo "⚠ Couldn't reach GitHub — retrying once."
+    sleep 5
+    if ! git fetch -q origin; then
+      echo ""
+      echo "✗ Publish stopped — couldn't fetch from GitHub, so nothing was checked."
+      echo "  Every check below this point needs a current view of what's on GitHub, so"
+      echo "  continuing could publish against stale information."
+      echo "  Nothing was published and you're still safely on 'main'."
+      echo "  This is almost always a network blip. Try again:  npm run ship"
+      exit 1
+    fi
+  else
+    cat "$git_log" >&2
     echo ""
-    echo "✗ Publish stopped — couldn't fetch from GitHub, so nothing was checked."
-    echo "  Every check below this point needs a current view of what's on GitHub, so"
-    echo "  continuing could publish against stale information."
+    echo "✗ Publish stopped — 'git fetch' failed, and not for a network reason."
+    echo "  git's own error is printed just above — that's the one to read. A missing"
+    echo "  'origin' remote and expired credentials both land here, and neither is"
+    echo "  fixed by trying again."
     echo "  Nothing was published and you're still safely on 'main'."
-    echo "  This is almost always a network blip. Try again:  npm run ship"
     exit 1
   fi
 fi
@@ -51,8 +91,10 @@ if [ "$(git rev-parse @)" != "$upstream" ]; then
     echo "✗ Your latest changes aren't uploaded yet. Run: git push"
   else
     echo "✗ Your copy and GitHub's have BOTH changed since they last matched."
-    echo "  Sort that out before publishing:  git pull  (then, if it mentions a"
-    echo "  'conflict', ask for help rather than guessing), then:  git push"
+    echo "  Sort that out before publishing:  git pull --no-rebase"
+    echo "  (--no-rebase because plain 'git pull' refuses to guess when both sides have"
+    echo "  moved.) If it then mentions a 'conflict', ask for help rather than guessing."
+    echo "  Once it's clean:  git push"
   fi
   exit 1
 fi
@@ -83,12 +125,10 @@ fi
 # can't honestly be called either way. So read git's own words and say which it was.
 # `tee` keeps every line — including the pre-push build and test output — on screen
 # while capturing it; nothing git says is swallowed either way.
-push_log="$(mktemp)"
-trap 'rm -f "$push_log"' EXIT
 push_tries=2
 kind=""
 for attempt in $(seq 1 "$push_tries"); do
-  if git push origin main:production 2>&1 | tee "$push_log"; then
+  if git push origin main:production 2>&1 | tee "$git_log"; then
     push_rc=0
   else
     # `tee` sits in this pipeline, so `pipefail` fires when TEE fails (a full temp
@@ -105,22 +145,22 @@ for attempt in $(seq 1 "$push_tries"); do
   # on bare phrases: the pre-push gate (a full build plus the test suite) writes into
   # this same log, so a failing test that quotes "rejected"/"fetch first" — or one that
   # reports "timed out" — must not be read as a divergence or as a dead network.
-  if grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected' "$push_log"; then
+  if grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected' "$git_log"; then
     # The check above ruled out a pre-existing divergence seconds ago, so this is the
     # narrow race it cannot cover: production moved WHILE this was publishing.
     kind=raced
-  elif grep -qE 'Permission denied|Repository not found' "$push_log"; then
+  elif grep -qE 'Permission denied|Repository not found' "$git_log"; then
     # An SSH key or access problem also ends in "Could not read from remote repository",
     # so take it out of the connectivity arms below: re-running changes nothing, and
     # "your network blipped" would be its own misdiagnosis.
     kind=other
-  elif grep -qE '^fatal: ([Tt]he remote end hung up|early EOF)' "$push_log"; then
+  elif grep -qE '^fatal: ([Tt]he remote end hung up|early EOF)' "$git_log"; then
     # Dropped MID-TRANSFER, which is a different animal: the connection was alive, so
     # GitHub may already have updated the branch before it died, and the pre-push gate
     # has already run. Don't retry it, and don't claim either way — see the message.
     kind=dropped
-  elif grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$push_log" \
-    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$push_log"; then
+  elif grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$git_log" \
+    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$git_log"; then
     kind=unreachable
   else
     kind=other
