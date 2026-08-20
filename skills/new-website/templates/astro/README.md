@@ -24,6 +24,7 @@ scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per pag
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links,llms-coverage}.spec.ts
+tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
