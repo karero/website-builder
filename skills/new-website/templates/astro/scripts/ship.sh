@@ -3,10 +3,20 @@
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
 # template-version: 0.20
-#   The website-builder release this file came from. Sites get their copy at scaffold
-#   time and then diverge, so this is how you tell whether a site is current:
-#   `grep template-version scripts/ship.sh`. Bump it when this file changes.
+#   The website-builder release this revision ships in. Sites get their copy at
+#   scaffold time and then diverge, so this is how you tell whether a site is current:
+#   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
+#   tests/check_ship_push.sh's marker in step — that test asserts the two agree.
 set -euo pipefail
+
+# The fetch below and the push further down have to answer the same question from git's
+# own words — "was that the network?" — so it gets ONE definition. Two copies of this
+# pattern would drift the first time a newly-seen failure is added to only one of them,
+# and the drift would be invisible: both greps still look plausible on their own.
+looks_like_network_failure() { # <file holding git's stderr>
+  grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$1" \
+    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$1"
+}
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" != "main" ]; then
@@ -21,11 +31,15 @@ fi
 # down, which answers a question about the REMOTE from a local ref. A stale ref would
 # let those answer confidently and wrongly. `set -e` would abort here on its own, but
 # with a raw git error and no guidance — the wrong ending for the most likely way a
-# publish fails before it even starts. Retry once (these blips are brief), then stop
-# and say plainly what happened. The first attempt's stderr is hidden so a recovered
-# blip reads clean; the retry shows git's real error if it fails too.
-# One scratch file for git's stderr, reused by the push below, so there is a single
-# EXIT trap rather than two that would silently replace each other.
+# publish fails before it even starts.
+#
+# So capture git's stderr and read it: a network failure is retried once and, if it
+# fails again, reported as a blip; anything else is printed in full and stops the
+# publish immediately, because retrying a missing remote or a dead credential just
+# adds five seconds to the same answer.
+#
+# One scratch file, reused by the push below, so there is a single EXIT trap rather
+# than two that would silently replace each other.
 git_log="$(mktemp)"
 trap 'rm -f "$git_log"' EXIT
 if ! git fetch -q origin 2>"$git_log"; then
@@ -39,10 +53,9 @@ if ! git fetch -q origin 2>"$git_log"; then
   # with a bad origin prints "does not appear to be a git repository" and then that
   # line — so the not-a-network cases have to be taken out first, or the transport
   # pattern claims them. (Caught by tests/check_ship_push.sh, not by inspection.)
-  if grep -qE "does not appear to be a git repository|Permission denied|Repository not found|could not read Username|Authentication failed" "$git_log"; then
+  if grep -qE 'does not appear to be a git repository|Permission denied|Repository not found|could not read Username|Authentication failed' "$git_log"; then
     fetch_is_network=0
-  elif grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$git_log" \
-    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$git_log"; then
+  elif looks_like_network_failure "$git_log"; then
     fetch_is_network=1
   else
     # Unrecognised: don't retry. Same call the push classifier makes — an unknown
@@ -62,7 +75,10 @@ if ! git fetch -q origin 2>"$git_log"; then
       exit 1
     fi
   else
-    cat "$git_log" >&2
+    # Same stream as the explanation below it: an owner capturing `npm run ship > log`
+    # to send to whoever is helping must not get "the error is printed just above"
+    # with nothing above it.
+    cat "$git_log"
     echo ""
     echo "✗ Publish stopped — 'git fetch' failed, and not for a network reason."
     echo "  git's own error is printed just above — that's the one to read. A missing"
@@ -159,8 +175,7 @@ for attempt in $(seq 1 "$push_tries"); do
     # GitHub may already have updated the branch before it died, and the pre-push gate
     # has already run. Don't retry it, and don't claim either way — see the message.
     kind=dropped
-  elif grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$git_log" \
-    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$git_log"; then
+  elif looks_like_network_failure "$git_log"; then
     kind=unreachable
   else
     kind=other

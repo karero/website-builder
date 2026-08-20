@@ -52,8 +52,11 @@ case "$1" in
     if [ -s "$FAKE_DIR/fetchfail" ] && [ "$n" -le "$(cat "$FAKE_DIR/fetchfail")" ]; then
       # Default to a transport failure; a scenario can supply another reason instead,
       # because WHY the fetch failed decides whether retrying makes any sense.
-      cat "$FAKE_DIR/fetcherr" >&2 2>/dev/null \
-        || echo "ssh: connect to host github.com port 22: Operation timed out" >&2
+      if [ -f "$FAKE_DIR/fetcherr" ]; then
+        cat "$FAKE_DIR/fetcherr" >&2
+      else
+        echo "ssh: connect to host github.com port 22: Operation timed out" >&2
+      fi
       exit 1
     fi ;;
   merge-base)
@@ -108,6 +111,18 @@ attempt() { # attempt <case> <n> <exit-status>; git's output for that attempt on
 }
 
 fail=0
+
+# The marker exists so a site can check whether its copy is current with one grep. Two
+# files carry it, so assert they agree rather than trusting a comment to keep them so.
+ship_version="$(sed -n 's/^# template-version: *//p' "$ship" | head -1)"
+gate_version="$(sed -n 's/^# template-version: *\([^ ]*\).*/\1/p' "$0" | head -1)"
+if [ "$ship_version" != "$gate_version" ]; then
+  echo "✗ ship push gate: template-version disagrees — ship.sh says '$ship_version',"
+  echo "  this file says '$gate_version'. Bump both, or a site grepping either one gets"
+  echo "  a different answer about how current it is."
+  fail=1
+fi
+
 expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   local name="$1" want_exit="$2" want_pushes="$3" marker="$4" extra="${5:-}"
   local dir="$work/cases/$name" log="$work/$name.log" path="$work/bin:$PATH" got_exit pushes
@@ -128,7 +143,12 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   # template is meant to be translated — SKILL.md calls a German-only site a normal
   # answer. So the check stays hard by default and names its own escape hatch, rather
   # than leaving a translated site with permanently red CI and no clue why.
-  if ! grep -qF "$marker" "$log" && [ "${SHIP_GATE_SKIP_WORDING:-0}" != 1 ]; then
+  # Anything but empty/0/false/no counts as "skip": someone reaching for this has
+  # already read a failure telling them to set it, and `=true` should not silently
+  # produce the identical red build a second time.
+  local skip_wording=0
+  case "${SHIP_GATE_SKIP_WORDING:-}" in ''|0|false|no) skip_wording=0 ;; *) skip_wording=1 ;; esac
+  if ! grep -qF "$marker" "$log" && [ "$skip_wording" = 0 ]; then
     echo "✗ ship push gate [$name]: the owner was not told \"$marker\". Got:"
     sed -n -E '/^(✗|⚠)/,$p' "$log" | sed 's/^/    /'
     echo "  (Translated ship.sh's messages? Update the fragments in this file, or run"
@@ -175,6 +195,20 @@ EOF
 expect fetchbroken 1 0 "not for a network reason"
 if [ "$(cat "$work/cases/fetchbroken/fetches")" != 1 ]; then
   echo "✗ ship push gate [fetchbroken]: $(cat "$work/cases/fetchbroken/fetches") fetch attempt(s), expected 1 (no retry)"
+  fail=1
+fi
+
+# ...and a fetch failure the classifier does NOT recognise stops too. An unknown
+# failure is not evidence of a blip, so it must not buy a retry — this is the branch
+# that decides an unfamiliar git error is reported rather than waited on.
+mark fetchweird fetchfail 2
+mkdir -p "$work/cases/fetchweird"
+cat > "$work/cases/fetchweird/fetcherr" <<'EOF'
+error: cannot lock ref 'refs/remotes/origin/main': is at 1111111 but expected 2222222
+EOF
+expect fetchweird 1 0 "not for a network reason"
+if [ "$(cat "$work/cases/fetchweird/fetches")" != 1 ]; then
+  echo "✗ ship push gate [fetchweird]: $(cat "$work/cases/fetchweird/fetches") fetch attempt(s), expected 1 (no retry)"
   fail=1
 fi
 
@@ -317,6 +351,6 @@ if [ "$(cat "$work/cases/okpush/pushes")" != "push origin main:production" ]; th
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: 21 publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
+  echo "✓ ship push gate: 22 publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
 fi
 exit "$fail"
