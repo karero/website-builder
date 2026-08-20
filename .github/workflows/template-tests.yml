@@ -24,6 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The template's publish classifier. It needs no build, no browser and no
+      # network, so it runs first and fails in about a second. This step is the only
+      # place it runs in THIS repo: the copy wired into the template's own ci.yml and
+      # pre-push hook executes inside a scaffolded site, never here — so without this,
+      # a regression in scripts/ship.sh would reach recipients with CI green.
+      - name: Publish classifier (scripts/ship.sh)
+        run: bash tests/check_ship_push.sh
       - uses: actions/setup-node@v4
         with:
           # The template pins its Node version; build/test on the same one Cloudflare uses.
