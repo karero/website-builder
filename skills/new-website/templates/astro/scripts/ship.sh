@@ -11,25 +11,162 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "✗ You have unsaved changes. Save + upload them first:"
   echo "    git add -A && git commit -m \"...\" && git push"; exit 1
 fi
-git fetch -q origin
+# Everything below needs an up-to-date view of the remote: the origin/production
+# existence check, the local-vs-GitHub comparison, and the divergence check further
+# down, which answers a question about the REMOTE from a local ref. A stale ref would
+# let those answer confidently and wrongly. `set -e` would abort here on its own, but
+# with a raw git error and no guidance — the wrong ending for the most likely way a
+# publish fails before it even starts. Retry once (these blips are brief), then stop
+# and say plainly what happened. The first attempt's stderr is hidden so a recovered
+# blip reads clean; the retry shows git's real error if it fails too.
+if ! git fetch -q origin 2>/dev/null; then
+  echo "… couldn't reach GitHub — retrying once."
+  sleep 5
+  if ! git fetch -q origin; then
+    echo ""
+    echo "✗ Publish stopped — couldn't fetch from GitHub, so nothing was checked."
+    echo "  Every check below this point needs a current view of what's on GitHub, so"
+    echo "  continuing could publish against stale information."
+    echo "  Nothing was published and you're still safely on 'main'."
+    echo "  This is almost always a network blip. Try again:  npm run ship"
+    exit 1
+  fi
+fi
 if ! git rev-parse --verify -q origin/production >/dev/null; then
   echo "✗ No 'production' branch on GitHub yet — this site isn't set up two-stage."; exit 1
 fi
-if [ "$(git rev-parse @)" != "$(git rev-parse '@{u}' 2>/dev/null || echo none)" ]; then
-  echo "✗ Your latest changes aren't uploaded yet. Run: git push"; exit 1
+# Your copy and GitHub's must match before publishing — but WHICH WAY they differ
+# decides what to do about it, and a plain `!=` can't tell. Telling someone whose copy
+# is BEHIND to "run git push" sends them to the one command that cannot help (and that
+# git will then reject), so ask which side moved and say the matching thing.
+upstream="$(git rev-parse '@{u}' 2>/dev/null || true)"
+if [ -z "$upstream" ]; then
+  echo "✗ This branch isn't connected to GitHub yet. Run: git push -u origin main"; exit 1
+fi
+if [ "$(git rev-parse @)" != "$upstream" ]; then
+  if git merge-base --is-ancestor @ "$upstream"; then
+    echo "✗ GitHub has changes that aren't on your computer yet — publishing now would"
+    echo "  put an OLDER version of the site live. Get them first:  git pull"
+  elif git merge-base --is-ancestor "$upstream" @; then
+    echo "✗ Your latest changes aren't uploaded yet. Run: git push"
+  else
+    echo "✗ Your copy and GitHub's have BOTH changed since they last matched."
+    echo "  Sort that out before publishing:  git pull  (then, if it mentions a"
+    echo "  'conflict', ask for help rather than guessing), then:  git push"
+  fi
+  exit 1
 fi
 
 echo "→ Publishing main → production. This goes LIVE."
 # Push main straight to the remote production branch — no local checkout, so a failure
 # (rejected push, red pre-push gate, network) never strands the owner on production.
-# Fast-forward only: if production has somehow diverged, this is rejected loudly rather
-# than silently publishing the wrong thing.
-if ! git push origin main:production; then
+#
+# Whether the branches diverged is a question that can be answered LOCALLY, from the
+# fetch above — so answer it before touching the network, instead of inferring it from
+# a failed push. That order is the whole point: a push fails for plenty of reasons that
+# have nothing to do with the branches, and reporting those as "production has commits
+# main doesn't" sends the owner hunting a conflict that isn't there, while warning them
+# off the one thing that actually works — running it again. Seen in production: an SSH
+# timeout to github.com printed the divergence message while production was simply two
+# commits behind main and cleanly fast-forwardable.
+if ! git merge-base --is-ancestor origin/production main; then
   echo ""
-  echo "✗ Publish rejected — 'production' has commits that 'main' doesn't have."
+  echo "✗ Publish blocked — 'production' has commits that 'main' doesn't have."
   echo "  (e.g. it was published from elsewhere, or kept history from an older ship flow.)"
   echo "  Nothing was published and you're still safely on 'main'. Do NOT force-push —"
   echo "  ask for help to reconcile the two branches."
+  exit 1
+fi
+# Divergence is settled above, so what remains is either a transport failure or a red
+# pre-push gate — and those don't want the same response. A dead network wants "run it
+# again"; a red gate wants "read the test output"; a connection that dies mid-upload
+# can't honestly be called either way. So read git's own words and say which it was.
+# `tee` keeps every line — including the pre-push build and test output — on screen
+# while capturing it; nothing git says is swallowed either way.
+push_log="$(mktemp)"
+trap 'rm -f "$push_log"' EXIT
+push_tries=2
+kind=""
+for attempt in $(seq 1 "$push_tries"); do
+  if git push origin main:production 2>&1 | tee "$push_log"; then
+    push_rc=0
+  else
+    # `tee` sits in this pipeline, so `pipefail` fires when TEE fails (a full temp
+    # filesystem) on a push that actually succeeded — and "nothing was published" after
+    # the site has gone live is the worst thing this script could say. Read git's own
+    # status, not the pipeline's.
+    push_rc="${PIPESTATUS[0]}"
+  fi
+  if [ "$push_rc" = 0 ]; then
+    kind=ok
+    break
+  fi
+  # Classify from git's own words, anchored on the LINES git actually emits rather than
+  # on bare phrases: the pre-push gate (a full build plus the test suite) writes into
+  # this same log, so a failing test that quotes "rejected"/"fetch first" — or one that
+  # reports "timed out" — must not be read as a divergence or as a dead network.
+  if grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected' "$push_log"; then
+    # The check above ruled out a pre-existing divergence seconds ago, so this is the
+    # narrow race it cannot cover: production moved WHILE this was publishing.
+    kind=raced
+  elif grep -qE 'Permission denied|Repository not found' "$push_log"; then
+    # An SSH key or access problem also ends in "Could not read from remote repository",
+    # so take it out of the connectivity arms below: re-running changes nothing, and
+    # "your network blipped" would be its own misdiagnosis.
+    kind=other
+  elif grep -qE '^fatal: ([Tt]he remote end hung up|early EOF)' "$push_log"; then
+    # Dropped MID-TRANSFER, which is a different animal: the connection was alive, so
+    # GitHub may already have updated the branch before it died, and the pre-push gate
+    # has already run. Don't retry it, and don't claim either way — see the message.
+    kind=dropped
+  elif grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$push_log" \
+    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$push_log"; then
+    kind=unreachable
+  else
+    kind=other
+  fi
+  # Only a failure at CONNECT time is worth retrying, and only that one is cheap: git
+  # connects to the remote before it runs the pre-push hook, so the build and the tests
+  # never ran. Every other case would fail the same way two minutes later.
+  if [ "$kind" != unreachable ] || [ "$attempt" -ge "$push_tries" ]; then break; fi
+  echo ""
+  echo "⚠ Couldn't reach GitHub. Nothing was published — retrying in 5s ($((attempt+1))/$push_tries)…"
+  sleep 5
+done
+
+if [ "$kind" != ok ]; then
+  echo ""
+  case "$kind" in
+    raced)
+      echo "✗ 'production' moved while this was publishing, so GitHub refused the push."
+      echo "  Nothing was published and you're still safely on 'main'. Do NOT force-push —"
+      echo "  run it again, and the check at the start will look at the new state and tell"
+      echo "  you where things stand:"
+      echo "    npm run ship"
+      ;;
+    unreachable)
+      echo "✗ Couldn't reach GitHub — a network or SSH problem, not a branch problem."
+      echo "  Nothing was published and you're still safely on 'main' ($push_tries tries;"
+      echo "  git's own error is printed above). Nothing to reconcile, nothing to fix —"
+      echo "  wait a moment, then run it again:"
+      echo "    npm run ship"
+      ;;
+    dropped)
+      echo "✗ The connection to GitHub dropped part-way through the upload."
+      echo "  git's own error is printed above. This one is genuinely unclear — the"
+      echo "  upload may or may not have completed — so this script won't guess."
+      echo "  Run it again:"
+      echo "    npm run ship"
+      echo "  If it already landed, git says 'Everything up-to-date' and the live-site"
+      echo "  checks run as normal."
+      ;;
+    *)
+      echo "✗ The push failed, for a reason this script can't name."
+      echo "  git's own error is printed above — that's the one to read. A red pre-push"
+      echo "  gate (the build or the tests) lands here too and prints its failure above."
+      echo "  Nothing was published and you're still safely on 'main'."
+      ;;
+  esac
   exit 1
 fi
 echo "✓ Pushed. Cloudflare is building the live site now."

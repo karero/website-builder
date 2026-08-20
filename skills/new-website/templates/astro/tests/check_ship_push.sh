@@ -1,0 +1,285 @@
+#!/usr/bin/env bash
+# Regression guard for the push classifier in scripts/ship.sh.
+#
+# Nothing else exercises ship.sh — its only real workout is an actual publish, which
+# is exactly why its failure messages were wrong three times before this existed. The
+# worst of them: a transient `ssh: connect to host github.com port 22: Operation timed
+# out` was reported as "'production' has commits that 'main' doesn't have … Do NOT
+# force-push", sending the owner hunting for a divergence that did not exist, when the
+# right move was simply to run it again. Every scenario below is a failure someone
+# actually hit, or one a review of the fix found hiding inside it.
+#
+# Divergence itself is now decided locally, before the network, by
+# `git merge-base --is-ancestor origin/production main` — deterministic, so it needs
+# no test beyond "it blocks and never pushes". What is still prose-matching is the
+# TRANSPORT half behind it, and that is exactly the kind of code that rots silently:
+# an edited regex still runs, still exits, and only lies the next time a publish
+# fails. This drives the real ship.sh with a stubbed `git` on PATH and
+# asserts, per scenario, the exit code, how many pushes were attempted (the retry
+# is only correct for connect-time failures) and which message the owner gets.
+#
+# The scratch cwd deliberately has no astro.config.mjs: that stops ship.sh right
+# after the push, before it polls the live site, so the success cases stay offline.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ship="$PWD/scripts/ship.sh"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/bin" "$work/teefail" "$work/cwd" "$work/cases"
+
+# Stub git: canned answers for ship.sh's pre-flight checks, scripted push outcomes.
+# Every push is logged so a scenario can assert the refspec as well as the count.
+cat > "$work/bin/git" <<'STUB'
+#!/bin/bash
+SHA=1111111111111111111111111111111111111111
+UP="$(cat "$FAKE_DIR/upstream" 2>/dev/null || echo "$SHA")"
+case "$1" in
+  rev-parse)
+    case "$*" in
+      *"--abbrev-ref HEAD"*) echo main ;;
+      # `@{u}` is the branch's GitHub counterpart: absent on a branch never pushed,
+      # and a DIFFERENT commit when the two have moved apart.
+      *"@{u}"*) [ -f "$FAKE_DIR/noupstream" ] && exit 1; echo "$UP" ;;
+      *) echo "$SHA" ;;
+    esac ;;
+  status) ;;
+  fetch)
+    n=$(( $(cat "$FAKE_DIR/fetches" 2>/dev/null || echo 0) + 1 ))
+    echo "$n" > "$FAKE_DIR/fetches"
+    if [ -s "$FAKE_DIR/fetchfail" ] && [ "$n" -le "$(cat "$FAKE_DIR/fetchfail")" ]; then
+      echo "ssh: connect to host github.com port 22: Operation timed out" >&2
+      exit 1
+    fi ;;
+  merge-base)
+    # The argument ORDER carries the meaning here: reversing the two refs inverts the
+    # check and would let a diverged production be published. A stub that answers any
+    # invocation would keep this gate green through exactly that edit, so refuse
+    # anything else loudly instead of answering it.
+    case "$*" in
+      "merge-base --is-ancestor origin/production main")
+        [ -f "$FAKE_DIR/diverged" ] && exit 1 || exit 0 ;;
+      "merge-base --is-ancestor @ "*)      # is your copy an ancestor of GitHub's? (behind)
+        [ -f "$FAKE_DIR/behind" ] && exit 0 || exit 1 ;;
+      "merge-base --is-ancestor "*" @")    # is GitHub's an ancestor of yours? (ahead)
+        [ -f "$FAKE_DIR/ahead" ] && exit 0 || exit 1 ;;
+      *) echo "STUB: unexpected merge-base invocation: git $*" >&2; exit 3 ;;
+    esac ;;
+  push)
+    echo "$*" >> "$FAKE_DIR/pushes"
+    n="$(wc -l < "$FAKE_DIR/pushes" | tr -d ' ')"
+    [ -f "$FAKE_DIR/$n.out" ] || n=1
+    cat "$FAKE_DIR/$n.out" >&2
+    exit "$(cat "$FAKE_DIR/$n.code")" ;;
+esac
+STUB
+chmod +x "$work/bin/git"
+
+# Stub sleep: the retry path waits 5s, which this gate should not pay for.
+printf '#!/bin/sh\nexit 0\n' > "$work/bin/sleep"; chmod +x "$work/bin/sleep"
+
+# Stub curl: this gate must never touch the network. Today the success cases stop
+# before ship.sh's live-site poll only because the scratch cwd has no astro.config.mjs
+# — an implicit property of how ship.sh looks up the URL, not something this test
+# controls. Make it explicit: if that lookup ever becomes repo-relative or gains a
+# default, this stub is what stops 24 no-delay requests hitting the production site on
+# every push, and turns it into a loud failure instead.
+printf '#!/bin/sh\necho "STUB: curl must not run in this gate: $*" >&2\nexit 7\n' > "$work/bin/curl"; chmod +x "$work/bin/curl"
+
+# Stub tee: passes input through but writes no file, as a full temp filesystem would.
+printf '#!/bin/sh\ncat\nexit 1\n' > "$work/teefail/tee"; chmod +x "$work/teefail/tee"
+
+mark() { # mark <case> <marker> [content]; sets up a pre-flight condition
+  mkdir -p "$work/cases/$1"
+  printf '%s' "${3:-}" > "$work/cases/$1/$2"
+}
+
+attempt() { # attempt <case> <n> <exit-status>; git's output for that attempt on stdin
+  mkdir -p "$work/cases/$1"
+  cat > "$work/cases/$1/$2.out"
+  echo "$3" > "$work/cases/$1/$2.code"
+}
+
+fail=0
+expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
+  local name="$1" want_exit="$2" want_pushes="$3" marker="$4" extra="${5:-}"
+  local dir="$work/cases/$name" log="$work/$name.log" path="$work/bin:$PATH" got_exit pushes
+  [ -n "$extra" ] && path="$extra:$path"
+  rm -f "$dir/pushes" "$dir/fetches"; : > "$dir/pushes"
+  ( cd "$work/cwd" && FAKE_DIR="$dir" PATH="$path" bash "$ship" > "$log" 2>&1 ) && got_exit=0 || got_exit=$?
+  pushes="$(wc -l < "$dir/pushes" | tr -d ' ')"
+  if [ "$got_exit" != "$want_exit" ]; then
+    echo "✗ ship push gate [$name]: exit $got_exit, expected $want_exit"; fail=1
+  fi
+  if [ "$pushes" != "$want_pushes" ]; then
+    echo "✗ ship push gate [$name]: $pushes push attempt(s), expected $want_pushes"
+    echo "  (the automatic retry is only correct for a failure at connect time —"
+    echo "   anything later has already paid for a full build and test run.)"; fail=1
+  fi
+  if ! grep -qF "$marker" "$log"; then
+    echo "✗ ship push gate [$name]: the owner was not told \"$marker\". Got:"
+    sed -n -E '/^(✗|⚠)/,$p' "$log" | sed 's/^/    /'; fail=1
+  fi
+  # Whatever the verdict, git's own words must reach the owner — they are the one
+  # part of the output that is never a guess.
+  if [ -f "$dir/1.out" ] && ! grep -qF "$(head -1 "$dir/1.out")" "$log"; then
+    echo "✗ ship push gate [$name]: git's own error was swallowed."; fail=1
+  fi
+}
+
+# --- the fetch that everything below depends on -----------------------------------
+# Every check that follows reads the remote through a local ref, so a failed fetch must
+# stop the publish rather than let them answer confidently from stale information.
+mark fetchfail fetchfail 2
+expect fetchfail 1 0 "couldn't fetch from GitHub"
+
+# ...and a fetch that only blipped must NOT stop it: that is what the retry is for.
+mark fetchblip fetchfail 1
+attempt fetchblip 1 0 <<'EOF'
+To github.com:you/your-site.git
+   1111111..2222222  main -> production
+EOF
+expect fetchblip 0 1 "✓ Pushed"
+
+# --- your copy vs GitHub's: WHICH WAY they differ decides the advice ---------------
+# A plain `!=` cannot tell, and telling someone who is BEHIND to "git push" sends them
+# to the one command that cannot help. These three assert the direction is read.
+mark behind upstream 2222222222222222222222222222222222222222
+mark behind behind
+expect behind 1 0 "GitHub has changes that aren't on your computer yet"
+
+mark ahead upstream 2222222222222222222222222222222222222222
+mark ahead ahead
+expect ahead 1 0 "Your latest changes aren't uploaded yet"
+
+mark bothmoved upstream 2222222222222222222222222222222222222222
+expect bothmoved 1 0 "BOTH changed"
+
+# --- a brand-new site whose branch has never been pushed --------------------------
+mark noupstream noupstream
+expect noupstream 1 0 "isn't connected to GitHub yet"
+
+# --- a genuine divergence: answered locally, so NO push is attempted ------------
+# This is the case the scary message is written for, and the check that decides it
+# runs off the fetch above — before the network, so a transport failure can never be
+# mistaken for it. Zero push attempts is the assertion that matters here.
+mkdir -p "$work/cases/diverged"; : > "$work/cases/diverged/diverged"
+expect diverged 1 0 "Publish blocked"
+
+# --- production moves DURING the publish: the race the local check can't cover ---
+attempt raced 1 1 <<'EOF'
+To github.com:you/your-site.git
+ ! [rejected]        main -> production (non-fast-forward)
+error: failed to push some refs to 'github.com:you/your-site.git'
+hint: Updates were rejected because the tip of your current branch is behind
+EOF
+expect raced 1 1 "moved while this was publishing"
+
+# --- the 2026-08-20 incident, verbatim: must NOT read as a divergence -----------
+attempt sshtimeout 1 1 <<'EOF'
+ssh: connect to host github.com port 22: Operation timed out
+fatal: Could not read from remote repository.
+EOF
+expect sshtimeout 1 2 "Couldn't reach GitHub"
+
+# --- a blip that clears: the retry is the whole point of classifying it ---------
+attempt sshthenok 1 1 <<'EOF'
+ssh: connect to host github.com port 22: Operation timed out
+fatal: Could not read from remote repository.
+EOF
+attempt sshthenok 2 0 <<'EOF'
+To github.com:you/your-site.git
+   16bf04a..5e78e56  main -> production
+EOF
+expect sshthenok 0 2 "✓ Pushed"
+
+# --- the retry connects, and then the gate goes red: `kind` must be reassigned ---
+# The only path where the classification changes between loop iterations. Getting it
+# wrong means a red test suite reported as "couldn't reach GitHub, run it again".
+attempt blipthengate 1 1 <<'EOF'
+ssh: connect to host github.com port 22: Operation timed out
+fatal: Could not read from remote repository.
+EOF
+attempt blipthengate 2 1 <<'EOF'
+▶ pre-push gate: tests…
+  Error: page.goto: Timeout 30000ms exceeded. Navigation timed out.
+  42 tests, 1 failed
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect blipthengate 1 2 "can't name"
+
+# --- other transports, same verdict --------------------------------------------
+attempt kexclosed 1 1 <<'EOF'
+kex_exchange_identification: Connection closed by remote host
+Connection closed by 140.82.121.4 port 22
+fatal: Could not read from remote repository.
+EOF
+expect kexclosed 1 2 "Couldn't reach GitHub"
+
+attempt dnsfail 1 1 <<'EOF'
+fatal: unable to access 'https://github.com/you/your-site.git/': Could not resolve host: github.com
+EOF
+expect dnsfail 1 2 "Couldn't reach GitHub"
+
+# --- dropped MID-transfer: the ref may already have landed, so no guessing ------
+# and no retry — by this point the pre-push gate has already run for real.
+attempt dropped 1 1 <<'EOF'
+Writing objects: 100% (7/7), 640 bytes | 640.00 KiB/s, done.
+error: RPC failed; curl 56 Recv failure: Connection reset by peer
+fatal: the remote end hung up unexpectedly
+EOF
+expect dropped 1 1 "may or may not have completed"
+
+# --- a red pre-push gate is not a network problem and not a divergence ----------
+attempt hookfail 1 1 <<'EOF'
+▶ pre-push gate: tests…
+  Error: page.goto: Timeout 30000ms exceeded. Navigation timed out.
+  42 tests, 1 failed
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect hookfail 1 1 "can't name"
+
+# --- and a red gate whose OUTPUT quotes git advice still isn't a divergence -----
+# This is why the patterns are anchored to the lines git itself emits: the gate's
+# build and test output lands in the same log the classifier reads.
+attempt gatequotesgit 1 1 <<'EOF'
+▶ pre-push gate: tests…
+  ✘ 12 [chromium] › tests/tone.spec.ts:52:3 › tone — no banned phrasing on /blog/git-for-beginners
+    Error: banned phrase found. Page text was:
+      "…if your push is rejected, fetch first, then push again…"
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect gatequotesgit 1 1 "can't name"
+
+# --- an access problem: real, but "run it again" would be its own misdiagnosis --
+attempt nokey 1 1 <<'EOF'
+git@github.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+EOF
+expect nokey 1 1 "can't name"
+
+# --- a clean publish -----------------------------------------------------------
+attempt okpush 1 0 <<'EOF'
+To github.com:you/your-site.git
+   16bf04a..5e78e56  main -> production
+EOF
+expect okpush 0 1 "✓ Pushed"
+
+# ...and the same push when tee fails. `tee` sits in the pipeline, so pipefail
+# reports a SUCCESSFUL push as a failure unless git's own status is read.
+# Announcing "nothing was published" after the site has gone live is the worst
+# lie this script can tell, so it gets its own case.
+expect okpush 0 1 "✓ Pushed" "$work/teefail"
+
+# --- nothing but main:production may ever be pushed to the live branch ----------
+if [ "$(cat "$work/cases/okpush/pushes")" != "push origin main:production" ]; then
+  echo "✗ ship push gate: ship.sh pushed '$(cat "$work/cases/okpush/pushes")',"
+  echo "  expected exactly 'push origin main:production' — a local checkout of"
+  echo "  production is what the no-checkout push exists to avoid."
+  fail=1
+fi
+
+if [ "$fail" -eq 0 ]; then
+  echo "✓ ship push gate: 20 publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
+fi
+exit "$fail"

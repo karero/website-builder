@@ -27,6 +27,15 @@ set -e
 #   fi
 # done
 
+# First, because it needs neither the build nor a browser nor the network: it drives
+# scripts/ship.sh against a stubbed git and checks that a failed publish is diagnosed
+# correctly. Nothing else exercises that script — its only other workout is an actual
+# publish, when a wrong message is most expensive.
+if [ -f tests/check_ship_push.sh ]; then
+  echo "▶ pre-push gate: publish classifier…"
+  bash tests/check_ship_push.sh
+fi
+
 echo "▶ pre-push gate: building…"
 npm run build
 

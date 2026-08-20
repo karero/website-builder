@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Needs no build, no browser and no network, so it runs first and fails in ~1s.
+      # The pre-push hook runs it too, but a hook is bypassable with --no-verify and
+      # is absent in a clone that has not run `npm install` yet.
+      - name: Publish classifier (scripts/ship.sh)
+        run: bash tests/check_ship_push.sh
       - uses: actions/setup-node@v4
         with:
           node-version: 22
