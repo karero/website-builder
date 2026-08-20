@@ -13,6 +13,18 @@ set -euo pipefail
 # own words — "was that the network?" — so it gets ONE definition. Two copies of this
 # pattern would drift the first time a newly-seen failure is added to only one of them,
 # and the drift would be invisible: both greps still look plausible on their own.
+# The mirror of the function below, and just as load-bearing: these all END in
+# "fatal: Could not read from remote repository", so without taking them out first the
+# network pattern claims them and the owner is told to just run it again. Host-key
+# failures are the case that makes this a security matter and not only an annoyance —
+# a changed host key can mean a machine-in-the-middle, and "try again" is the worst
+# possible advice for it. (Both classifiers pre-filtered, but with DIFFERENT lists,
+# until an independent review pointed out the drift the shared function below was
+# extracted to prevent.)
+looks_like_local_or_auth_failure() { # <file holding git's stderr>
+  grep -qE 'does not appear to be a git repository|Permission denied|Repository not found|could not read Username|Authentication failed|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED' "$1"
+}
+
 looks_like_network_failure() { # <file holding git's stderr>
   grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$1" \
     || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$1"
@@ -53,7 +65,7 @@ if ! git fetch -q origin 2>"$git_log"; then
   # with a bad origin prints "does not appear to be a git repository" and then that
   # line — so the not-a-network cases have to be taken out first, or the transport
   # pattern claims them. (Caught by tests/check_ship_push.sh, not by inspection.)
-  if grep -qE 'does not appear to be a git repository|Permission denied|Repository not found|could not read Username|Authentication failed' "$git_log"; then
+  if looks_like_local_or_auth_failure "$git_log"; then
     fetch_is_network=0
   elif looks_like_network_failure "$git_log"; then
     fetch_is_network=1
@@ -161,14 +173,21 @@ for attempt in $(seq 1 "$push_tries"); do
   # on bare phrases: the pre-push gate (a full build plus the test suite) writes into
   # this same log, so a failing test that quotes "rejected"/"fetch first" — or one that
   # reports "timed out" — must not be read as a divergence or as a dead network.
-  if grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected' "$git_log"; then
+  if grep -q '▶ pre-push gate' "$git_log" && ! grep -q '✓ pre-push gate passed' "$git_log"; then
+    # FIRST, because it decides whether anything else in this log came from git at all.
+    # The gate ran and did not pass, so the push never reached the network: every other
+    # arm below is about what the REMOTE said, and the remote never got a word in.
+    # Anchoring a pattern to the start of a line proves its shape, never its author —
+    # this is the only check here that establishes provenance.
+    kind=other
+  elif grep -qE '^ *! \[rejected\].*\((non-fast-forward|fetch first|stale info)\)|^hint: Updates were rejected' "$git_log"; then
     # The check above ruled out a pre-existing divergence seconds ago, so this is the
     # narrow race it cannot cover: production moved WHILE this was publishing.
     kind=raced
-  elif grep -qE 'Permission denied|Repository not found' "$git_log"; then
-    # An SSH key or access problem also ends in "Could not read from remote repository",
-    # so take it out of the connectivity arms below: re-running changes nothing, and
-    # "your network blipped" would be its own misdiagnosis.
+  elif looks_like_local_or_auth_failure "$git_log"; then
+    # An SSH key, host-key or access problem also ends in "Could not read from remote
+    # repository", so take it out of the connectivity arms below: re-running changes
+    # nothing, and "your network blipped" would be its own misdiagnosis.
     kind=other
   elif grep -qE '^fatal: ([Tt]he remote end hung up|early EOF)' "$git_log"; then
     # Dropped MID-TRANSFER, which is a different animal: the connection was alive, so
