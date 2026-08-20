@@ -112,7 +112,8 @@ git push
 - **`git push` says "rejected"?** (on `main`) Someone/something updated the cloud copy — run
   `git pull` first, then `git push` again.
 
-`npm run ship` tells you which of these it is, and stops before publishing anything:
+`npm run ship` names which of these it is, and stops before publishing anything. The
+ones you're most likely to meet:
 
 - **"Couldn't reach GitHub"** or **"couldn't fetch from GitHub"?** Your internet, not your
   site. Nothing was published. Wait a moment and run `npm run ship` again.
@@ -122,11 +123,23 @@ git push
 - **"Publish blocked — 'production' has commits that 'main' doesn't have"?** The live
   branch has history your preview doesn't. **Don't force anything** — ask for help. This
   one is rare and worth a second pair of eyes.
-- **"The connection dropped part-way through the upload"?** Genuinely unclear whether it
+- **"The connection to GitHub dropped part-way through the upload"?** Genuinely unclear whether it
   landed, so the script won't guess. Just run `npm run ship` again: if it already landed,
   git says "Everything up-to-date" and the checks carry on as normal.
 - **"The push failed, for a reason this script can't name"?** Read the error printed just
   above it — most often your own tests failed, and the site is fine until you fix them.
+- **"Your copy and GitHub's have BOTH changed"?** You edited here, something else edited
+  there. Run `git pull --no-rebase` (the flag matters — a plain `git pull` refuses to
+  guess when both sides moved), and if it mentions a **conflict**, ask for help rather
+  than guessing. Then `git push`, then ship.
+- **"'production' moved while this was publishing"?** Rare, and harmless: something
+  published between the check and the upload. Run `npm run ship` again — it re-checks
+  and will tell you plainly if anything is actually wrong.
+- **"'git fetch' failed, and not for a network reason"?** Not a blip — running it again
+  won't help. Read git's own error printed above it; a missing connection to GitHub or
+  an expired login both land here.
+- **"This branch isn't connected to GitHub yet"?** A brand-new site that has never been
+  uploaded. Run `git push -u origin main` once, then ship.
 
 When in doubt, ask before you `npm run ship` / `git push` — those are the only two commands
 that change what the public sees.

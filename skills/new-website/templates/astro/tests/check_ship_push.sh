@@ -43,6 +43,7 @@ case "$1" in
       # `@{u}` is the branch's GitHub counterpart: absent on a branch never pushed,
       # and a DIFFERENT commit when the two have moved apart.
       *"@{u}"*) [ -f "$FAKE_DIR/noupstream" ] && exit 1; echo "$UP" ;;
+      *"--verify -q origin/production"*) [ -f "$FAKE_DIR/noprod" ] && exit 1; echo "$SHA" ;;
       *) echo "$SHA" ;;
     esac ;;
   status) ;;
@@ -79,6 +80,11 @@ case "$1" in
     [ -f "$FAKE_DIR/$n.out" ] || n=1
     cat "$FAKE_DIR/$n.out" >&2
     exit "$(cat "$FAKE_DIR/$n.code")" ;;
+  *)
+    # No silent success for a subcommand nobody taught this stub. An unmatched `case`
+    # exits 0 with empty output, which is exactly the "still runs, still exits, only
+    # lies" rot this file exists to catch — so refuse loudly instead.
+    echo "STUB: unexpected git invocation: git $*" >&2; exit 3 ;;
 esac
 STUB
 chmod +x "$work/bin/git"
@@ -114,16 +120,28 @@ fail=0
 
 # The marker exists so a site can check whether its copy is current with one grep. Two
 # files carry it, so assert they agree rather than trusting a comment to keep them so.
-ship_version="$(sed -n 's/^# template-version: *//p' "$ship" | head -1)"
-gate_version="$(sed -n 's/^# template-version: *\([^ ]*\).*/\1/p' "$0" | head -1)"
-if [ "$ship_version" != "$gate_version" ]; then
+# The SAME extraction on both sides: written differently, a trailing comment on one
+# marker line would make the two "disagree" over no real drift. And both must be
+# non-empty, or deleting both markers would satisfy the check that exists to prove
+# they are there.
+version_of() { sed -n 's/^# template-version: *\([^ ]*\).*/\1/p' "$1" | head -1; }
+ship_version="$(version_of "$ship")"
+gate_version="$(version_of "$0")"
+if [ -z "$ship_version" ] || [ -z "$gate_version" ]; then
+  echo "✗ ship push gate: a template-version marker is missing (ship.sh: '$ship_version',"
+  echo "  this file: '$gate_version'). The marker is how a site checks whether its copy"
+  echo "  is current; without it that check silently answers nothing."
+  fail=1
+elif [ "$ship_version" != "$gate_version" ]; then
   echo "✗ ship push gate: template-version disagrees — ship.sh says '$ship_version',"
   echo "  this file says '$gate_version'. Bump both, or a site grepping either one gets"
   echo "  a different answer about how current it is."
   fail=1
 fi
 
+checked=0
 expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
+  checked=$((checked + 1))
   local name="$1" want_exit="$2" want_pushes="$3" marker="$4" extra="${5:-}"
   local dir="$work/cases/$name" log="$work/$name.log" path="$work/bin:$PATH" got_exit pushes
   [ -n "$extra" ] && path="$extra:$path"
@@ -158,8 +176,19 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   fi
   # Whatever the verdict, git's own words must reach the owner — they are the one
   # part of the output that is never a guess.
-  if [ -f "$dir/1.out" ] && ! grep -qF "$(head -1 "$dir/1.out")" "$log"; then
-    echo "✗ ship push gate [$name]: git's own error was swallowed."; fail=1
+  for fixture in "$dir/1.out" "$dir/fetcherr"; do
+    # fetcherr as well as the push output: checking only the push fixtures left the
+    # non-network fetch path free to stop printing git's error with this guard green.
+    if [ -f "$fixture" ] && ! grep -qF "$(head -1 "$fixture")" "$log"; then
+      echo "✗ ship push gate [$name]: git's own error was swallowed ($(basename "$fixture"))."; fail=1
+    fi
+  done
+  # B10: the success cases stay offline because the scratch cwd has no astro.config.mjs
+  # — an emergent property of ship.sh's URL lookup, not a contract. Assert the poll
+  # never starts, so a future change that reaches it fails here rather than issuing
+  # real requests at the live site, whatever tool it reaches for.
+  if [ "$want_exit" = 0 ] && grep -q "Verifying the live site" "$log"; then
+    echo "✗ ship push gate [$name]: the live-site poll started — this gate must stay offline."; fail=1
   fi
 }
 
@@ -229,6 +258,54 @@ expect bothmoved 1 0 "BOTH changed"
 # --- a brand-new site whose branch has never been pushed --------------------------
 mark noupstream noupstream
 expect noupstream 1 0 "isn't connected to GitHub yet"
+
+# --- a two-stage site that isn't set up as one: the guard must be able to fire ----
+mark noprod noprod
+expect noprod 1 0 "isn't set up two-stage"
+
+# --- a changed host key is a SECURITY signal, never a blip to retry ---------------
+# Both of these end in "fatal: Could not read from remote repository", so without the
+# pre-filter the network arm claims them and tells the owner to just run it again —
+# which for a possible machine-in-the-middle is the worst advice available.
+attempt hostkey 1 1 <<'EOF'
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+Host key verification failed.
+fatal: Could not read from remote repository.
+EOF
+expect hostkey 1 1 "can't name"
+
+# --- an HTTPS credential failure: the fetch path filtered it, the push path did not
+attempt httpsauth 1 1 <<'EOF'
+fatal: Authentication failed for 'https://github.com/you/your-site.git/'
+fatal: Could not read from remote repository.
+EOF
+expect httpsauth 1 1 "can't name"
+
+# --- provenance: a line's SHAPE is not its AUTHOR --------------------------------
+# The gate's output shares this log with git's. Anchoring proves a line looks like a
+# transport error or a rejection; only the gate's own markers prove who wrote it. If
+# the gate ran and did not pass, the push never reached the network.
+attempt gatequotesssh 1 1 <<'EOF'
+▶ pre-push gate: tests…
+  ✘ 7 [chromium] › tests/links.spec.ts:9:3 › the docs page's git troubleshooting block renders
+    Error: expected page to contain the sample error, got:
+ssh: connect to host github.com port 22: Operation timed out
+  42 tests, 1 failed
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect gatequotesssh 1 1 "can't name"
+
+attempt gatequoteshint 1 1 <<'EOF'
+▶ pre-push gate: tests…
+  ✘ 8 [chromium] › tests/tone.spec.ts:52:3 › no banned phrasing on /blog/git-for-beginners
+    Error: banned phrase found. Page text was:
+hint: Updates were rejected because the tip of your current branch is behind
+  42 tests, 1 failed
+error: failed to push some refs to 'github.com:you/your-site.git'
+EOF
+expect gatequoteshint 1 1 "can't name"
 
 # --- a genuine divergence: answered locally, so NO push is attempted ------------
 # This is the case the scary message is written for, and the check that decides it
@@ -351,6 +428,6 @@ if [ "$(cat "$work/cases/okpush/pushes")" != "push origin main:production" ]; th
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: 22 publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, clean)"
 fi
 exit "$fail"
