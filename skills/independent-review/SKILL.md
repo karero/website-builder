@@ -585,10 +585,10 @@ like-for-like replacement."*
    git diff <base>...HEAD -- . ':(exclude)docs/reviews/'
    ```
 
-   Audit the trail's own numbers yourself instead. Two runs have now paid for this — MR !916 (8
-   rounds) and MR !944 (7 rounds), both `apreet-backend`, each with a late round that found nothing
-   but the trail auditing itself (on !944 that was round 6, whose two findings were both arithmetic
-   errors in the trail; the truncation incident cited further down is a different round of the same
+   Audit the trail's own numbers yourself instead. Two runs have now paid for this — two MRs on the same
+   internal backend repo, one of 8 rounds and one of 7, each with a late round that found nothing
+   but the trail auditing itself (on the 7-round MR that was round 6, whose two findings were both
+   arithmetic errors in the trail; the truncation incident cited further down is a different round of the same
    MR, and the two are not the same event). The existing "scope it by RULE, not round number" guidance BOUNDS
    that loop; excluding the file PREVENTS it. **The trail must still be in the MR diff** — a repo CI
    gate may require it and clerk item 3 commits it — this is only about what reaches the reviewers.
@@ -1009,7 +1009,7 @@ disk, not vaporize it.
 
 **Read the whole file, never a tail of it.** The prompt asks for a RANKED list, so the severe end is
 at the TOP: piping a reviewer's output through `tail -n` hides exactly the findings the round was
-run for. Caught live on MR !944 — a round read through `tail -40` showed only its NITs; re-running
+run for. Caught live on the 7-round MR above — a round read through `tail -40` showed only its NITs; re-running
 it in full surfaced a BUG. The re-run also cost a second round AND produced a DIFFERENT list from
 the same model on the same input, so three findings acted on from the first sample went unlogged and
 a later round had to reconcile the trail's arithmetic. If output is too long to read at once, page
