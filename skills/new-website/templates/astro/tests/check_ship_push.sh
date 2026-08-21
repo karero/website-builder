@@ -416,13 +416,43 @@ fatal: Could not read from remote repository.
 EOF
 expect permdenied 1 1 "can't name"
 
-# --- an RPC/send-pack disconnect is MID-TRANSFER: don't retry, don't guess --------
-attempt rpcdrop 1 1 <<'EOF'
+# --- mid-transfer disconnects, one alternative per fixture so either breaking shows
+attempt rpconly 1 1 <<'EOF'
 Enumerating objects: 12, done.
 error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly
+EOF
+expect rpconly 1 1 "may or may not have completed"
+
+attempt sendpackonly 1 1 <<'EOF'
+Writing objects: 100% (7/7), done.
 send-pack: unexpected disconnect while reading sideband packet
 EOF
-expect rpcdrop 1 1 "may or may not have completed"
+expect sendpackonly 1 1 "may or may not have completed"
+
+# --- "error: RPC failed" is an UMBRELLA: HTTP 401/403 wear it too, and they are not
+# transient. Requiring curl's own error number after the semicolon tells them apart.
+# 413 rather than 403 on purpose: a 403 also prints "Authentication failed", which the
+# auth arm catches anyway, so it would not isolate this. A payload-too-large has no auth
+# line at all — with the umbrella pattern it read as a mid-transfer drop.
+attempt rpc413 1 1 <<'EOF'
+error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413
+EOF
+expect rpc413 1 1 "can't name"
+
+# --- a persistent protocol fault is a configuration problem, not a blip -----------
+attempt protocolfault 1 1 <<'EOF'
+fatal: protocol error: bad line length character: Inva
+EOF
+expect protocolfault 1 1 "can't name"
+
+# --- the credential wording that had no fixture. It guards the arm rather than proving
+# the new alternative: "Authentication failed" on the next line already matched.
+attempt badcreds 1 1 <<'EOF'
+remote: Invalid username or password.
+fatal: Authentication failed for 'https://github.com/you/your-site.git/'
+fatal: Could not read from remote repository.
+EOF
+expect badcreds 1 1 "can't name"
 
 # --- a clean publish -----------------------------------------------------------
 attempt okpush 1 0 <<'EOF'
