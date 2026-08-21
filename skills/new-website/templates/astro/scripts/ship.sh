@@ -215,6 +215,19 @@ for attempt in $(seq 1 "$push_tries"); do
 done
 
 if [ "$kind" != ok ]; then
+  # EVERY message below says two things, and a new arm must say both: what went wrong,
+  # and WHAT STATE YOU ARE IN NOW. The cause alone is only half an answer — someone who
+  # has just been told "the connection dropped" still doesn't know whether their site
+  # changed, whether anything needs undoing, or what is safe to run next.
+  #
+  # Better still, where it is possible: LEAVE NO STATE TO DESCRIBE. This script gets
+  # that for free — it pushes main:production without checking anything out, so a
+  # failure cannot leave a half-finished local merge behind. A sibling project's deploy
+  # script (apreet.com) does need a local merge, and the lesson came from there: after a
+  # failed push it now restores the branch to its pre-merge tip rather than explaining
+  # the drift, because a state that no longer exists needs no explanation and cannot
+  # trip the next run. Prefer undoing to documenting; document only what you cannot undo
+  # — which is why `dropped` below refuses to guess instead of asserting.
   echo ""
   case "$kind" in
     raced)
