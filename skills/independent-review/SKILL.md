@@ -659,7 +659,13 @@ like-for-like replacement."*
    IS "clean", and it is the signal to stop, not an invitation to spend one more round chasing the
    NITs it did return.** NIT-only rounds are where a gate quietly doubles in cost: each one returns
    two or three more, because prose can always be tightened and a reviewer asked for findings will
-   find some. Fix or refute that round's NITs and close, without sending them back out. Re-read the
+   find some. Fix or refute that round's NITs and close, without sending them back out. **A NIT you FIX
+   changes the artifact, so the thing you close on is not the thing that came back clean** —
+   record those fixes as `locally_verified` (point 6's own two statuses) and note in the trail
+   that the closing edits were not externally re-verified, the same admission (c) makes for the
+   same reason. Refusing this costs another full round and defeats (a2); leaving it unsaid
+   claims a coverage the gate did not have. A NIT that is refused or waived edits nothing and
+   needs neither. Re-read the
    BUG/RISK-per-round series, not the raw finding count — a series like 5 → 2 → 2 → 1 → 0 has
    already converged at the 0, whatever the NIT column says; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**

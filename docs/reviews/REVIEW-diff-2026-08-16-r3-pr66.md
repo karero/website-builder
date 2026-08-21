@@ -13,9 +13,9 @@ list for grading, wide-context diff, anti-rubber-stamp instruction.
 
 ## Round-2 findings — status against revised text
 
-All 6 confirmed **LANDED** by both reviewers independently (GLM marked the
-evidence-durability NIT PARTIAL pending its own residual point, folded into
-N2 below). No oscillation.
+Five confirmed **LANDED** by both reviewers independently. The sixth — the
+evidence-durability NIT — GLM marked **PARTIAL**, pending a residual point that
+is folded into N2 below and closed there. No oscillation.
 
 ## New findings (against round-2's own fix text)
 
@@ -29,14 +29,15 @@ N2 below). No oscillation.
 ## Convergence — decision to stop
 
 4 new findings (2 RISK / 2 NIT), all against round-2's own fix text — still
-point-7(b)-passing, still no oscillation. All BUG-severity findings closed
-as of round 1; rounds 2–3 found RISK/NIT only.
+point-7(b)-passing, still no oscillation. Round 2 raised one BUG and closed it;
+BUG-severity findings end there, and round 3 found RISK/NIT only.
 
 **Stopping here rather than running round 4.** This pattern (fresh findings
 each round, all on newly-written text) can continue indefinitely on prose —
 each pass will keep finding a sharper phrasing of something already fixed.
-Three rounds on a 45-line docs addition, with every BUG closed since round
-1 and no regression across two verification passes, is past where "gate on
+Three rounds on a docs addition that grew from 27 lines to 45 across those
+rounds, with every BUG closed by round 2 and no regression across two
+verification passes, is past where "gate on
 consequence, not diff size" (this skill's own rule) keeps paying for itself.
 Not a hard stop-condition per point 7 (no regression, no plateau, no
 majority-repeat-ground) — a judgment call, stated here rather than made
@@ -45,10 +46,16 @@ closure.
 
 ## Net across all 3 rounds
 
-17 findings raised (5 BUG, 6 RISK, 6 NIT) — 13 fixed directly, 2 declined
-with reasons stated (both independently judged defensible by the next
-round's reviewers), 2 were reviewers confirming those declines held. Zero
-findings waived. Zero silently dropped.
+17 findings raised (4 BUG, 6 RISK, 7 NIT) — **all 17 fixed**, per the
+per-round tables: r1 seven (3 BUG / 2 RISK / 2 NIT), r2 six (1 BUG / 2 RISK /
+3 NIT), r3 four (2 RISK / 2 NIT). Zero findings waived. Zero silently dropped.
+
+Separately from those findings, **two reviewer SUGGESTIONS were declined** with
+reasons stated (r1's "Not adopted" list: a status taxonomy and a stable step-ID
+requirement, both refused because the section deliberately prescribes no format),
+and round 2's two reviewers independently judged both declines defensible
+(round 3 does not revisit them). They
+were never numbered findings and are not counted among the 17.
 
 ## Author fresh-eyes pass
 
