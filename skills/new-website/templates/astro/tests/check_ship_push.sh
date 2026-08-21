@@ -21,7 +21,7 @@
 # The scratch cwd deliberately has no astro.config.mjs: that stops ship.sh right
 # after the push, before it polls the live site, so the success cases stay offline.
 #
-# template-version: 0.20   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.21   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ship="$PWD/scripts/ship.sh"
