@@ -21,7 +21,7 @@
 # The scratch cwd deliberately has no astro.config.mjs: that stops ship.sh right
 # after the push, before it polls the live site, so the success cases stay offline.
 #
-# template-version: 0.20   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.21   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -405,6 +405,54 @@ git@github.com: Permission denied (publickey).
 fatal: Could not read from remote repository.
 EOF
 expect nokey 1 1 "can't name"
+
+# --- GitHub's ACTUAL permission wording, which says neither "Permission denied" ---
+# nor anything network-ish. It ends in "Could not read from remote repository" like
+# every other access failure, so before the auth list covered it the network arm
+# claimed it and retried. Found by review after the list was in four repos.
+attempt permdenied 1 1 <<'EOF'
+ERROR: Permission to you/your-site.git denied to someone-else.
+fatal: Could not read from remote repository.
+EOF
+expect permdenied 1 1 "can't name"
+
+# --- mid-transfer disconnects, one alternative per fixture so either breaking shows
+attempt rpconly 1 1 <<'EOF'
+Enumerating objects: 12, done.
+error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly
+EOF
+expect rpconly 1 1 "may or may not have completed"
+
+attempt sendpackonly 1 1 <<'EOF'
+Writing objects: 100% (7/7), done.
+send-pack: unexpected disconnect while reading sideband packet
+EOF
+expect sendpackonly 1 1 "may or may not have completed"
+
+# --- "error: RPC failed" is an UMBRELLA: HTTP 401/403 wear it too, and they are not
+# transient. Requiring curl's own error number after the semicolon tells them apart.
+# 413 rather than 403 on purpose: a 403 also prints "Authentication failed", which the
+# auth arm catches anyway, so it would not isolate this. A payload-too-large has no auth
+# line at all — with the umbrella pattern it read as a mid-transfer drop.
+attempt rpc413 1 1 <<'EOF'
+error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413
+EOF
+expect rpc413 1 1 "can't name"
+
+# --- a persistent protocol fault is a configuration problem, not a blip -----------
+attempt protocolfault 1 1 <<'EOF'
+fatal: protocol error: bad line length character: Inva
+EOF
+expect protocolfault 1 1 "can't name"
+
+# --- the credential wording that had no fixture. It guards the arm rather than proving
+# the new alternative: "Authentication failed" on the next line already matched.
+attempt badcreds 1 1 <<'EOF'
+remote: Invalid username or password.
+fatal: Authentication failed for 'https://github.com/you/your-site.git/'
+fatal: Could not read from remote repository.
+EOF
+expect badcreds 1 1 "can't name"
 
 # --- a clean publish -----------------------------------------------------------
 attempt okpush 1 0 <<'EOF'

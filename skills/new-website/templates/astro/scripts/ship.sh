@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.20
+# template-version: 0.21
 #   The website-builder release this revision ships in. Sites get their copy at
 #   scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -22,12 +22,18 @@ set -euo pipefail
 # until an independent review pointed out the drift the shared function below was
 # extracted to prevent.)
 looks_like_local_or_auth_failure() { # <file holding git's stderr>
-  grep -qE 'does not appear to be a git repository|Permission denied|Repository not found|could not read Username|Authentication failed|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED' "$1"
+  # "Permission to <repo> denied to <user>" is GitHub's actual wording and does NOT
+  # contain "Permission denied" — it fell through to the network test, matched the
+  # generic "Could not read from remote repository" there, and was retried as a blip.
+  # Caught by an independent review after this list had been copied into other repos,
+  # which is exactly why it is one definition per repo and not one per call site.
+  grep -qE 'does not appear to be a git repository|Permission denied|Permission to [^[:space:]]+ denied|Repository not found|could not read Username|Authentication failed|remote: Invalid username or password|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED' "$1"
 }
 
 looks_like_network_failure() { # <file holding git's stderr>
   grep -qE '^(ssh: connect to host |Connection (closed|reset) by |fatal: Could not read from remote repository)' "$1" \
-    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$1"
+    || grep -qE '^fatal: unable to access .*(Could not resolve host|Failed to connect|Connection (timed out|refused|reset)|Operation timed out|Recv failure|Send failure|Empty reply)' "$1" \
+    || grep -qE '^(error: RPC failed; curl [0-9]+|fatal: early EOF|send-pack: unexpected disconnect|fatal: [Tt]he remote end hung up)' "$1"
 }
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
@@ -189,10 +195,15 @@ for attempt in $(seq 1 "$push_tries"); do
     # repository", so take it out of the connectivity arms below: re-running changes
     # nothing, and "your network blipped" would be its own misdiagnosis.
     kind=other
-  elif grep -qE '^fatal: ([Tt]he remote end hung up|early EOF)' "$git_log"; then
-    # Dropped MID-TRANSFER, which is a different animal: the connection was alive, so
-    # GitHub may already have updated the branch before it died, and the pre-push gate
-    # has already run. Don't retry it, and don't claim either way — see the message.
+  elif grep -qE '^(fatal: ([Tt]he remote end hung up|early EOF)|error: RPC failed; curl [0-9]+|send-pack: unexpected disconnect)' "$git_log"; then
+    # Dropped MID-TRANSFER: the connection was alive, so GitHub may already have taken
+    # the update. Note WHY this doesn't retry, because the obvious reason is wrong — a
+    # repeated non-force push of the same ref IS idempotent (it lands, or says
+    # "Everything up-to-date", or is rejected if someone else moved the branch), so a
+    # retry would be safe. It is not free: the pre-push gate has already run by this
+    # point, so retrying spends another full build and test run on a state nobody can
+    # describe yet. Handing that call to the owner, with a re-run that self-diagnoses in
+    # one line, costs less than guessing on their behalf.
     kind=dropped
   elif looks_like_network_failure "$git_log"; then
     kind=unreachable
@@ -209,6 +220,18 @@ for attempt in $(seq 1 "$push_tries"); do
 done
 
 if [ "$kind" != ok ]; then
+  # EVERY message below says two things, and a new arm must say both: what went wrong,
+  # and WHAT STATE YOU ARE IN NOW. The cause alone is only half an answer — someone who
+  # has just been told "the connection dropped" still doesn't know whether their site
+  # changed, whether anything needs undoing, or what is safe to run next.
+  #
+  # Better still, where it is possible: LEAVE NO STATE TO DESCRIBE. This script gets
+  # that for free — it pushes main:production without checking anything out, so a
+  # failure cannot leave a half-finished local merge behind. A deploy script that DOES
+  # need a local merge should restore the branch to its pre-merge tip after a failed
+  # push rather than explain the drift: a state that no longer exists needs no
+  # explanation and cannot trip the next run. Prefer undoing to documenting; document
+  # only what you cannot undo — which is why `dropped` below refuses to guess.
   echo ""
   case "$kind" in
     raced)
