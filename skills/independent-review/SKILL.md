@@ -945,6 +945,48 @@ The HOST agent is the clerk, and each artifact has a distinct job:
    later advance happened. Closing it fully needs the marker to also carry `base` (or an
    equivalent) — a cross-repo change, since that same downstream job hardcodes a match against the current
    single-SHA form. Left open rather than silently claimed solved, pending that two-repo decision.
+
+   **When a re-gate's own trigger is itself prose (a fix commit's wording, a trail file), scope the
+   re-run narrow rather than skip it.** Judging a diff "too small/wordy to bother re-gating" by eye
+   is the exact shortcut this rule exists to close off — nothing in "diff-scope changed" carves out
+   an exception for comments or docs. Instead, tell every seat the diff changes only prose, and to
+   flag ONLY a factual contradiction or misleading claim against the code/behavior it describes —
+   not style, tone, or phrasing preference. A clean result on that narrow prompt IS the re-gate:
+   real evidence of convergence, not a shortcut around running one. Two incidents on the same
+   review track show why: an *un-scoped* re-review once re-litigated committed trail prose through
+   rounds 6–9 of one PR — ~40 findings, zero contract defects — before a narrow scope ended it in
+   one more pass. A second PR hit the same failure from a different trigger (fix commits repeatedly
+   moving the head) and the same fix converged it: 5 passes, 22 findings, ending on one
+   explicitly-scoped pass that came back clean. And prose diffs are where real findings live, not
+   just noise: on a third PR, a re-gate round caught its own prior round's fix overstating a claim
+   ("ran in production" for something that had only run in a test environment) — proof a fix round
+   can introduce a new problem, not just resolve the old one — and the very next round then skipped
+   that same check on its own fixes, reasoning the diff was "just wording." Don't make that call
+   from the diff's size; run the narrow pass and let it tell you.
+
+   **What "prose-only" means, who decides, and which way it fails.** The clerk classifies,
+   from a changed-file/hunk inventory of the pair — never by eye. Prose-only means every
+   hunk in the pair is prose: Markdown body text, or comment text in a code file. A hunk
+   touching code is not prose, and neither is a fenced snippet, a YAML or config block, a
+   shell command, or a generated file — those are instructions someone will run or rely
+   on. A mixed commit is not prose-only either. **Anything you are unsure about is code:**
+   the asymmetry is the whole point. Misclassifying prose as code costs one wasted round;
+   misclassifying code as prose narrows every seat away from the code and then stamps it
+   under the full GATED-THIS-DIFF ceremony — a review that never happened, produced by
+   following the procedure rather than by cutting a corner. What makes the narrow scope
+   safe when the inventory IS clean is carry-over, so state it rather than leaving it
+   implied: every code hunk in the pair was gated in the round it entered and has not moved
+   since. Say the classification in the scoping instruction, and ask the seats to challenge
+   it if what they receive contradicts it — a seat that can see code in a diff it was told
+   is prose is the last check before the stamp.
+
+   **Send the full pair, and prepend the scope to the unchanged strict prompt.** Every seat
+   gets the same artifact any other re-gate would send it — not the prose delta alone. The
+   scoping instruction is prepended to the strict review prompt, which is otherwise
+   untouched: the BUG/RISK/NIT ranking still applies, reviewers simply do not raise style,
+   tone, or phrasing under this scope. Sending only the delta would leave atom A —
+   "captured reviewer input recorded against a `(base, head)` pair" — describing something
+   the seats were never given.
 3. **Trail** (permanent): `docs/reviews/REVIEW-*.md` — committed on the branch when step 9's
    permission table's WORKTREE-WRITE and BRANCH-COMMIT rows both permit it; see the table for the
    fallback when either doesn't. Names, per gated action taken, the property and
