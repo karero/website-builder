@@ -406,6 +406,24 @@ fatal: Could not read from remote repository.
 EOF
 expect nokey 1 1 "can't name"
 
+# --- GitHub's ACTUAL permission wording, which says neither "Permission denied" ---
+# nor anything network-ish. It ends in "Could not read from remote repository" like
+# every other access failure, so before the auth list covered it the network arm
+# claimed it and retried. Found by review after the list was in four repos.
+attempt permdenied 1 1 <<'EOF'
+ERROR: Permission to you/your-site.git denied to someone-else.
+fatal: Could not read from remote repository.
+EOF
+expect permdenied 1 1 "can't name"
+
+# --- an RPC/send-pack disconnect is MID-TRANSFER: don't retry, don't guess --------
+attempt rpcdrop 1 1 <<'EOF'
+Enumerating objects: 12, done.
+error: RPC failed; curl 92 HTTP/2 stream 5 was not closed cleanly
+send-pack: unexpected disconnect while reading sideband packet
+EOF
+expect rpcdrop 1 1 "may or may not have completed"
+
 # --- a clean publish -----------------------------------------------------------
 attempt okpush 1 0 <<'EOF'
 To github.com:you/your-site.git
