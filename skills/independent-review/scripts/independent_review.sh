@@ -397,6 +397,15 @@ run_agy() {
   { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || return 1
   out="$(cat "$RAW_DIR/agy.out")"
   looks_like_review "$out" || return 1
+  # PROMPT_PORTABLE asks this tier to open with a MODE line declaring whether it could actually
+  # inspect files. That is a PROMPT-level contract with no enforcement, so check it here: a missing
+  # MODE line means the tier ignored the contract and its verification claims are unattributable.
+  # Warned rather than rejected — the review may still be useful, but silence about it would let a
+  # self-declaration the prompt paid for quietly stop meaning anything.
+  case "$out" in
+    MODE:*|*"MODE: INSPECTED"*|*"MODE: TEXT-ONLY"*) : ;;
+    *) echo "agy tier: no MODE line — cannot tell whether it inspected files or reviewed text only; treat its verified/wrong verdicts as unattributed." >&2 ;;
+  esac
   printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "$model" "$out"
 }
 run_ollama() {
@@ -407,39 +416,34 @@ run_ollama() {
   local tmp="$RAW_DIR/ollama.out" rc
   ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || return 1
-  printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
-  # Plain ANSI-stripping is not enough: ollama's own word-wrap redraw ("cursor
+    # Plain ANSI-stripping is not enough: ollama's own word-wrap redraw ("cursor
   # back N" + "erase to end of line", emitted even when stdout is a file, not
   # a tty) only ERASES on a real terminal — a dumb strip leaves the erased
   # fragment's characters behind as garbled text (e.g. "resc" then "rescue").
-  # Emulate the erase: drop the last N chars of the current line for that pair,
-  # clamped so it can never reach back past the preceding newline.
+  # Emulate the erase: drop the last N CHARACTERS of the current line for that
+  # pair, clamped so it can never reach back past the preceding newline.
   #
-  # -CSD makes that "chars" mean CODE POINTS rather than BYTES. Without it, length/rindex/substr
-  # count bytes while the terminal counted columns, so an erase landing on a multi-byte character
-  # sliced it in half. Reproduced: "abc§" + ESC[1D ESC[K + "X" produced `61 62 63 c2 58` — a
-  # dangling 0xc2 — which is INVALID UTF-8. Real captured reviews carried exactly that pattern
-  # (§ is 2 bytes and by far the commonest multi-byte character in reviewed documents, which are
-  # full of section references); grep then treated the output as binary and awk aborted with
-  # "multibyte conversion failure".
+  # Decoding is EXPLICIT and STRICT rather than via -C. Two reasons, both found by review:
+  #   1. Counting. Without a decode, length/rindex/substr count BYTES while the terminal counted
+  #      columns, so an erase landing on a multi-byte character sliced it in half. Reproduced:
+  #      "abc§" + ESC[1D ESC[K + "X" yielded `61 62 63 c2 58` — a dangling 0xc2, invalid UTF-8.
+  #      Real captured reviews carried exactly that (§ is 2 bytes and the commonest multi-byte
+  #      character in reviewed documents); grep then treated output as binary and awk aborted.
+  #   2. Validation. `-C` selects perl's LAX :utf8 layer, which does not validate — malformed
+  #      upstream bytes flow through, and regex operations over them can EMIT further garbage.
+  #      FB_CROAK rejects them instead, so corruption is reported rather than propagated.
   #
-  # KNOWN RESIDUAL, not fixed here (round-2 review, both reviewers): code points are still not
-  # COLUMNS. A CJK ideograph or emoji is one code point and two columns; a combining accent is a
-  # second code point occupying zero columns. So the erase count can still be off for such text.
-  # What -CSD buys is the difference in FAILURE MODE: the output stays valid UTF-8 and stays
-  # machine-readable, instead of corrupting the encoding and breaking every downstream tool.
-  # A complete fix needs wcwidth/grapheme-cluster widths, or an Ollama transport that emits no
-  # redraw stream at all (the sibling ollama-review skill uses the HTTP API for this reason) —
-  # both larger changes than this one, and neither is warranted by the observed failures so far.
-  #
-  # SECOND RESIDUAL (round-2 review, glm-5.3-flash — Codex did not raise this): -C selects perl's
-  # LAX :utf8 layer, not the validating :encoding(UTF-8). Malformed bytes arriving FROM ollama are
-  # therefore passed through rather than rejected. Left as-is deliberately: every corruption
-  # actually observed originated in this emulator's own byte arithmetic, not upstream, so strict
-  # decoding would add substitution behaviour without fixing anything seen in practice. Revisit if
-  # invalid UTF-8 ever appears in output that this emulator did not touch.
-  perl -CSD -0777 -ne '
-    my $s = $_; my $out = "";
+  # KNOWN RESIDUAL: code points are still not COLUMNS. A CJK ideograph is one code point and two
+  # columns; a combining accent is a code point occupying none. The erase count can still be off
+  # for such text — but the output stays valid UTF-8 and machine-readable, which is the property
+  # that matters downstream. A complete fix needs wcwidth/grapheme widths, or an ollama transport
+  # emitting no redraw stream at all (the sibling ollama-review skill uses the HTTP API for this).
+  local filtered="$RAW_DIR/ollama.filtered" prc
+  perl -0777 -ne '
+    use Encode qw(decode encode FB_CROAK);
+    my $s = eval { decode("UTF-8", $_, FB_CROAK) };
+    if (!defined $s) { print STDERR "ollama output is not valid UTF-8 — refusing to filter it\n"; exit 3; }
+    my $out = "";
     while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[0-9;?]*[A-Za-z])/gc) {
       if (defined $1) { $out .= $1; next; }
       next unless defined $2;
@@ -448,8 +452,17 @@ run_ollama() {
       $n = $line_len if $n > $line_len;
       substr($out, length($out) - $n, $n, "") if $n > 0;
     }
-    print $out;
-  ' "$tmp"
+    print encode("UTF-8", $out);
+  ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
+  # The filter's exit status was previously discarded, and the section header was printed BEFORE
+  # it ran — so a filter failure produced a header with broken or empty output that still counted
+  # as a successful tier. Stage first, check, and only then emit anything.
+  if [ $prc -ne 0 ] || [ ! -s "$filtered" ]; then
+    echo "ollama tier: output filter failed (exit $prc) — treating the tier as failed, see $RAW_DIR/ollama.err" >&2
+    return 1
+  fi
+  printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
+  cat "$filtered"
   # tier 5 (local) = sanity pass, NEVER the sole gate — EXCEPT in --local-only mode,
   # where the owner explicitly traded strength for privacy (mode is marked degraded).
   # Returns 1 here means "policy rejection" (a real review WAS produced and
