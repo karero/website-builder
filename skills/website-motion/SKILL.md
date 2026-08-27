@@ -30,6 +30,16 @@ reveal is noise. The count-up needs numbers a visitor should stop and read
 **Prerequisite:** `website-qa` green first. This adds a test file to that suite
 and changes how the a11y gate runs.
 
+> ### The class names below are examples, not the scaffold's
+>
+> `.section-title`, `.section-subtitle`, `.hero-stat-number` and `.hero` appear
+> **zero times** in `new-website`'s Astro templates. They come from a real site
+> this was extracted from. Nothing here works until you point every selector at
+> your own markup — the CSS, the two scripts, and the `CONFIG` block at the top
+> of `templates/motion.spec.ts`. The spec skips with a stated reason when a
+> selector is left empty, so an unconfigured copy reports "not applicable"
+> instead of failing in a way that looks like a product bug.
+
 ---
 
 ## 0. The one-line check that is not motion
@@ -37,9 +47,11 @@ and changes how the a11y gate runs.
 Before adding anything, measure the hero:
 
 ```js
-const h = document.querySelector('.hero');
-({ vh: innerHeight, heroHeight: h.getBoundingClientRect().height,
-   nextSectionVisible: innerHeight - h.nextElementSibling.getBoundingClientRect().top })
+const h = document.querySelector('.hero');           // your hero's selector
+({ vh: innerHeight,
+   heroHeight: h?.getBoundingClientRect().height ?? null,
+   nextSectionVisible: h?.nextElementSibling
+     ? innerHeight - h.nextElementSibling.getBoundingClientRect().top : null })
 ```
 
 If `min-height: 100vh` is *binding* — the hero's own content is shorter than the
@@ -62,7 +74,17 @@ unreachable.** Three rules, in priority order.
    or one landing mid-page, must see the finished page. The script adds the
    hiding class itself, and only to elements currently below the fold.
 2. **`prefers-reduced-motion: reduce` ends with everything visible and nothing
-   moving** — including animations that predate this skill.
+   moving** — including animations that predate this skill. **The Astro scaffold
+   ships `html { scroll-behavior: smooth }` with no override**, so this is a
+   step you must actually perform, not a property you inherit:
+
+   ```css
+   /* AFTER the rules it overrides — see §6, this is the whole trap */
+   @media (prefers-reduced-motion: reduce) {
+     html { scroll-behavior: auto; }
+     /* plus any ambient animation this site runs */
+   }
+   ```
 3. **Print is a third state.** It never scrolls, so `IntersectionObserver` never
    fires and a revealed heading prints blank.
 
@@ -131,29 +153,57 @@ list items and paragraphs is the AI-generated-site tell.
 
 ```js
 (function () {
-  var nums = document.querySelectorAll('.hero-stat-number');
+  var nums = document.querySelectorAll('.hero-stat-number');   // your selector
   if (!nums.length || !('IntersectionObserver' in window)) return;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   function countUp(el) {
+    // Writing textContent flattens child markup permanently — a styled
+    // <span>+</span> inside the number would not survive the animation.
+    if (el.children.length) return;
+
     var finalText = el.textContent.trim();
-    // Integers only, optional thousands separators and a trailing "+". These are
-    // public claims; a decimal like "4.9" would strip to 49 and animate up to a
-    // number the site does not actually claim.
-    if (!/^\d+(?:,\d{3})*\+?$/.test(finalText)) return;
-    var target = parseInt(finalText.replace(/[^0-9]/g, ''), 10);
-    var suffix = finalText.replace(/[0-9,]/g, '');
+    // Digits, an optional group separator ("," in en, "." in de), an optional
+    // trailing symbol. Everything else is left exactly as authored: these are
+    // published claims, and "4.9" must never animate up to 49.
+    var parts = finalText.match(/^(\d{1,3}(?:([.,])\d{3})*|\d+)(\D*)$/);
+    if (!parts) return;
+    var target = parseInt(parts[1].replace(/\D/g, ''), 10);
+    var groupSep = parts[2] || '';
+    var suffix = parts[3] || '';
+
+    // Mirror the AUTHORED grouping rather than a runtime locale. The frozen
+    // width below is measured from the authored string, so rendering "1,200"
+    // where the page says "1.200" — or grouping a number the page left
+    // ungrouped — is a different width, which is the exact row-shove the
+    // freeze exists to prevent.
+    function render(v) {
+      var digits = String(v);
+      return (groupSep ? digits.replace(/\B(?=(\d{3})+(?!\d))/g, groupSep) : digits) + suffix;
+    }
+
     // Freeze the box first. "0+" is far narrower than "1,200+", and the stat is
     // usually sized by its number rather than its label, so an unfrozen count
     // shoves the whole row sideways every frame.
     el.style.minWidth = el.getBoundingClientRect().width + 'px';
+    var done = false;
+    function settle() {
+      done = true;
+      el.textContent = finalText;
+      el.style.minWidth = '';
+    }
+    // A print fired mid-count would capture an intermediate figure — a number
+    // the site does not claim. Contract rule 3 covers the reveal; this is the
+    // count-up's half of it.
+    window.addEventListener('beforeprint', settle);
+
     var started = performance.now();
     function frame(now) {
+      if (done) return;
       var t = Math.min((now - started) / 1400, 1);
-      el.textContent = Math.round(target * (1 - Math.pow(1 - t, 3)))
-        .toLocaleString('en-US') + suffix;
+      el.textContent = render(Math.round(target * (1 - Math.pow(1 - t, 3))));
       if (t < 1) requestAnimationFrame(frame);
-      else { el.textContent = finalText; el.style.minWidth = ''; }
+      else settle();
     }
     requestAnimationFrame(frame);
   }
@@ -176,7 +226,9 @@ numbers and the animation only ever replaces them temporarily.
 `display: inline`, the freeze is a silent no-op and the row still jumps. Check
 the computed value, or set `display: inline-block`.
 
----
+**Run both scripts after the DOM is parsed** — `defer`, a module, or at the end
+of `<body>`. In a synchronous `<head>` script the query returns nothing and both
+effects are silently dead.
 
 ## 4. The a11y gate has to change, or it gets quietly weaker
 
@@ -197,14 +249,26 @@ for (const path of PAGES) {
     // …unchanged
 ```
 
-> **`test.use({ reducedMotion: 'reduce' })` is not a substitute.** Measured on
-> Playwright 1.60 against the toolkit's config: the `test.use` form was accepted
-> without complaint and the page's `matchMedia` still reported `no-preference`,
-> while `page.emulateMedia` and `browser.newContext` both worked in the same run.
-> That contradicts how the option is documented and the mechanism was not
-> established — so treat it as a measurement, not a rule, and **re-measure
-> `matchMedia` before trusting either form.** A gate that silently does nothing
-> is worse than no gate.
+> **`test.use({ reducedMotion: 'reduce' })` may not be a substitute.** Measured
+> once, on Playwright **1.60**, against **a different repo's config** — not this
+> toolkit's, whose lockfile currently resolves 1.61.1. There, the `test.use` form
+> was accepted without complaint while the page's `matchMedia` still reported
+> `no-preference`; `page.emulateMedia` and `browser.newContext` both worked in the
+> same run. That contradicts how the option is documented, and the mechanism was
+> never established, so treat it as one measurement rather than a rule about
+> Playwright. `emulateMedia` is used here because it is the form that was actually
+> observed to work.
+
+Whichever form you use, **prove it reached the browser**, because the failure is
+silent — and a per-test call is one forgotten line away from a page that quietly
+keeps the weakened gate:
+
+```ts
+// Canary. Without it, a gate that does nothing looks exactly like a gate.
+expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches),
+  'reduced motion never reached the browser — the a11y gate is not deterministic')
+  .toBe(true);
+```
 
 ---
 
@@ -215,15 +279,21 @@ here rather than in the `new-website` Astro overlay on purpose: that overlay is
 copied into every scaffold, and this spec asserts an effect a fresh site does
 not have — it would fail on day one of every new project.
 
-It asserts the four things the contract promises, and each one has already caught
-a real bug:
+Each row below exists because of a specific way the contract breaks. The right-hand
+column is what the assertion is for, not a claim about how often it has fired:
 
 | assertion | the bug it catches |
 |---|---|
 | No heading is invisible after a full scroll-through | the whole failure mode this skill guards against |
-| Under reduced motion nothing is hidden **and no animation is running** | an override placed *before* the rule it overrides — same specificity, so the original wins and the fix is a no-op |
+| Nothing above the fold is hidden at load | a heading that visibly flashes out and fades back in |
+| Reveal targets are visible under `media: print` | the print override being deleted or mis-ordered |
+| Under reduced motion nothing is hidden, **nothing is animating**, and the `.reveal` rule is force-applied to prove the CSS itself yields | an ambient animation ignoring the preference; and an override placed *before* the rule it overrides — same specificity, so the original wins and the fix is a silent no-op |
 | Stat numbers settle on their published values | someone editing the figures in HTML |
-| The effect actually engages at load | the effect silently dying while every other spec still passes |
+
+The forced-class step in row 4 is not belt-and-braces. Under reduced motion the
+reveal's JS bails, so the hiding class is never added and the stylesheet is never
+exercised — without forcing it on, that row would pass with the CSS override
+broken.
 
 **A "nothing animates" test must cover the page's other animations too** — an
 ambient hero glow, `scroll-behavior: smooth`. Asserting only your own effect
@@ -246,12 +316,18 @@ gate.
   for the element to stop moving and a looping element never does. Drive the
   mouse by coordinate (`page.mouse.move`) instead.
 - **Sampling a looping animation flakes at the wrap.** A single before/after pair
-  across a 90s loop fails roughly one run in ninety when the window straddles the
-  restart. Sample several intervals and take a majority.
+  measures one window against the loop period — a 1s sample of a 90s loop lands on
+  the restart, where position jumps forward, about one run in ninety. Sample
+  several intervals and take a majority; only one of them can contain the wrap.
 - **Adding a heading changes heading order.** A new section heading between the
   last content heading and the footer's can skip a level. `heading-order` is an
   axe *best-practice* rule, so a WCAG-tagged gate will not catch it — check it
   by hand once, or accept that it is ungated and say so.
+- **What this spec does NOT cover.** It runs at one viewport, so wrapping and
+  section placement on mobile are unchecked — the below-fold set differs there.
+  And the toolkit's `template-tests.yml` triggers only on
+  `skills/new-website/templates/astro/**`, so this template is not exercised by
+  CI at all; it was verified by running it against a real site instead.
 - **A preview pane may report `visibilityState: "hidden"`.** Where it does,
   `IntersectionObserver` never fires, CSS transitions freeze at their start
   value, and deep-scroll screenshots come back blank. None of this reproduces a

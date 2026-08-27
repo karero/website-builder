@@ -255,7 +255,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the eighteen always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. The always-on set is the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
