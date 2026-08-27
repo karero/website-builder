@@ -174,6 +174,8 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
 
     total_clicks = sum(int(r["clicks"]) for r in top_queries)
     total_impr = sum(int(r["impressions"]) for r in top_queries)
+    total_clicks_pages = sum(int(r["clicks"]) for r in top_pages)
+    total_impr_pages = sum(int(r["impressions"]) for r in top_pages)
 
     # --- Honest emptiness check (Rule 12) ---------------------------------
     if not top_queries:
@@ -187,8 +189,24 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                      f"> without the filter to compare.\n")
         return "\n".join(L)
 
-    L.append(f"**Totals (across returned query rows):** {total_clicks} clicks, "
-             f"{total_impr} impressions.\n")
+    # GSC's query-dimensioned report anonymizes/omits rare long-tail queries
+    # on low-volume sites, so its own row sum understates the real total. The
+    # page-dimensioned report doesn't hit that same anonymization, so its sum
+    # is the trustworthy site-wide figure. Print both, clearly labeled, and
+    # flag it plainly when they disagree — silently picking the query-level
+    # number here is exactly the mistake this check exists to prevent (it
+    # invalidated a headline "% of site-wide traffic" claim in a real,
+    # externally-reviewed proposal before being caught, 2026-08-27).
+    L.append(f"**Site-wide total (page-level report — use this):** "
+             f"{total_clicks_pages} clicks, {total_impr_pages} impressions.\n")
+    L.append(f"_Query-level report, for reference only (undercounts rare queries "
+             f"on thin sites): {total_clicks} clicks, {total_impr} impressions "
+             f"across returned query rows._\n")
+    if total_impr_pages > 0 and abs(total_impr_pages - total_impr) / total_impr_pages > 0.10:
+        L.append(f"> ⚠️ **These two totals disagree by more than 10%** — a sign GSC is "
+                 f"anonymizing/dropping rare queries from the query-level report on this "
+                 f"site. Use the page-level total above for any \"site-wide\" claim, and "
+                 f"never compute a percentage against the query-level number.\n")
 
     # --- Target keywords ---------------------------------------------------
     L.append("## Target keywords — where we stand\n")

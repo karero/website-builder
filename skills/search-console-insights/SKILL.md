@@ -22,7 +22,7 @@ description: >
   search visibility", "track my rankings over time", "schedule weekly tracking", "track my
   SEO automatically", "weekly SEO report".
 metadata:
-  version: 1.3.0
+  version: 1.4.0
 ---
 
 # Search Console insights
@@ -176,6 +176,62 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
 3. **(Phase 2, optional)** free Serper key at https://serper.dev →
    `export SERPER_API_KEY=...` (or a SerpApi key → `export SERPAPI_KEY=...`).
 
+## Reading the numbers — from GSC data to a conclusion
+
+Pulling the report is the easy part. Turning it into a correct diagnosis is where
+mistakes actually happen — every rule below was a real, costly error caught in a live
+site's data (2026-08-27: it silently invalidated a headline "% of site-wide traffic"
+claim in an externally-reviewed proposal before being caught). Apply these before
+stating any conclusion, not just when something looks off.
+
+1. **Site-wide totals: use the page-level report, not the query-level one.**
+   `gsc_query.py` now prints both, clearly labeled, and warns when they disagree by
+   more than 10% — but the *reason* matters for judgment calls it can't automate:
+   GSC's query-dimensioned report anonymizes/drops rare long-tail queries on a
+   low-volume site, so its row sum silently undercounts. The page-dimensioned report
+   doesn't hit that same anonymization. **Always quote the page-level total as "the"
+   site-wide figure; the query-level one is a reference number only, never a
+   denominator.**
+2. **A percentage claim must name its denominator, and it must be the right one.**
+   "123 impressions is 32% of site-wide traffic" is only as correct as the number
+   underneath it. Before writing a percentage into a report or a recommendation,
+   state explicitly which total (page-level site-wide, or one specific page's own
+   impressions) it's computed against — a reader should never have to guess.
+3. **CTR only means something together with position — read them as a pair:**
+   - **Position ≤5, CTR near 0%:** a real snippet problem. This is the trigger
+     condition for the mandatory SERP-snippet check below (#5) — do that before
+     touching the title or description.
+   - **Position 6–15, low CTR:** could be a snippet problem or a format/relevance
+     mismatch for that position. Check what's actually ranking around you (Phase 2)
+     before assuming a copy fix is the answer.
+   - **Position >20:** not a CTR problem yet. Rewriting the title rarely helps here —
+     the page isn't relevant/authoritative enough to be seen as an option at all.
+   - **Under ~20 total impressions, at any position:** too thin to diagnose. Say so —
+     "insufficient volume to conclude anything yet" is a correct, honest answer.
+4. **Before crediting or blaming a change, cross-check GSC against the site's own
+   analytics tool (Plausible/GA), not GSC alone.** GSC counts what Google *served* and
+   what got *clicked in the SERP* — it says nothing about what happened after the
+   click. If GSC shows real clicks on a page in a window but the analytics tool shows
+   zero matching visits, that's a real discrepancy (ad blockers, a missing tracking
+   snippet, bot/automated clicks) worth resolving before treating GSC clicks alone as
+   proof a change worked, or treating zero analytics visits alone as proof it didn't.
+   Check the tracking snippet is actually present in the page's rendered HTML
+   (`curl` the live URL) before concluding the gap is behavioral rather than a bug.
+5. **MANDATORY before any CTR/snippet diagnosis:** the same live-SERP-snippet check
+   documented under Phase 2 below applies here too — a "the description is too
+   long/short" theory is unverified until you've seen what Google is actually
+   rendering for that query.
+
+**Worked example (generalized from a real case).** A report showed "123 impressions,
+32% of sitewide traffic" for one query, using the query-level total (384 impressions)
+as the denominator. The page-level total was actually 1,071 impressions — the real
+site-wide figure. Recomputed correctly, that query was ~11.5% of true site-wide
+traffic, and a *far* more precise, defensible number was available anyway: 123 of the
+*target page's own* 150 impressions (~82%) — a page-relative figure needs no
+site-wide denominator at all, and says more. When a conclusion can be stated relative
+to the one page being discussed rather than the whole site, prefer that — it's harder
+to get wrong and more useful to the reader.
+
 ## Phase 1 — GSC data (free, high-signal)
 
 ```bash
@@ -192,7 +248,10 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
 - First run opens a browser for consent; the refresh token is cached at
   `~/.config/gsc-insights/token.json` (chmod 600) so later runs are silent.
 
-The report leads with three actionable sections (then top-queries / top-pages tables):
+The report opens with **two site-wide totals** (page-level = the real figure,
+query-level = reference only, flagged if they disagree by >10% — see "Reading the
+numbers" above for why both exist), then three actionable sections (then top-queries /
+top-pages tables):
 
 1. **Target keywords — where we stand.** Best-matching query, avg position,
    impressions, clicks, CTR for each `--keywords` term (or "no impressions yet").
