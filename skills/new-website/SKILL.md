@@ -10,7 +10,8 @@ description: >
   copying the website-* skills + the three SEO-depth skills (ai-seo,
   schema-markup, seo-audit) + site-architecture + the marketing skills it
   delegates to (customer-research, copywriting, image) + outgoing-link-audit +
-  internal-link-audit + website-permissions + search-console-setup INTO the project's skills dir
+  internal-link-audit + website-permissions + search-console-setup +
+  business-listings-setup INTO the project's skills dir
   (`.claude/skills`, or `.agents/skills` for a Codex install — see `$PROJECT_SKILLS_DIR`)
   so the repo is self-contained for a third party. Default stack Astro → GitHub → Cloudflare
   Pages. Use at the very start of any new site. Trigger phrases: "new website",
@@ -178,6 +179,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 10b | Internal-link sweep — orphaned + thin pages (run if the site grew past a handful of pages) | **`internal-link-audit`** |
 | 11 | Launch & handoff: schema/sitemap/robots, deploy, hand over | **this skill** §4 |
 | 12 | Post-launch: register with Google Search Console + Bing, submit sitemap, enable IndexNow | **`search-console-setup`** |
+| 13 | Post-launch: claim Google Business Profile + Bing Places, verify `sameAs` profiles resolve — **only if the site is a claimable entity** (see §4a) | **`business-listings-setup`** |
 
 Work out **positioning** (step 2) *before* any content or SEO — it decides what the
 copy is even trying to say. Build the Content Guide (step 3) *before* writing page
@@ -255,18 +257,22 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the twenty always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-one always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
-   receiving party. The always-on set is the seven
+   receiving party. "Always-on" here means always **copied** into the project, not
+   necessarily always **run**: `business-listings-setup` travels with every repo but
+   only executes when §4a's gate says the site is a claimable entity — it still needs
+   to be in the repo so a later session can run it once that's true. The always-on set is the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
    `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,
    `image` — plus `outgoing-link-audit` (external link sweep), `internal-link-audit`
    (orphan/thin-page sweep), `og-images` (per-page share cards),
    `website-permissions` (allowlist),
-   `search-console-setup` (post-launch GSC/Bing/IndexNow), and `website-motion`
-   (optional polish — copied so the recipient can opt in later; it never runs on
-   its own):
+   `search-console-setup` (post-launch GSC/Bing/IndexNow),
+   `business-listings-setup` (post-launch Business Profile/Bing Places/
+   `sameAs` — gated per §4a), and `website-motion` (optional polish — copied so
+   the recipient can opt in later; it never runs on its own):
    ```bash
    mkdir -p "$PROJECT_SKILLS_DIR"
    cp -R "$SKILLS_ROOT"/website-positioning \
@@ -288,6 +294,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/og-images \
          "$SKILLS_ROOT"/website-permissions \
          "$SKILLS_ROOT"/search-console-setup \
+         "$SKILLS_ROOT"/business-listings-setup \
          "$SKILLS_ROOT"/website-motion \
          "$PROJECT_SKILLS_DIR"/
    ```
@@ -436,6 +443,20 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
       Hints toggle). Register the production domain only — never a preview host.
+- [ ] **Business listings claimed, if applicable** (`business-listings-setup`,
+      §4a): `sameAs` verification done for any named entity; directories claimed
+      **where a suitable one exists for the category** — "no relevant directory
+      found" is a valid, non-blocking outcome, same as GBP/Bing ineligibility, not
+      a gap to keep chasing; Google Business Profile and Bing Places live **only
+      if the entity actually qualifies** (real address or in-person service —
+      `business-listings-setup` §1 step 0's own check) — "not eligible" is a
+      valid, non-blocking outcome for an online-only entity, distinct from
+      "skipped by owner choice"; every `sameAs` URL in schema is either
+      confirmed live (200) or manually verified in a logged-out browser (for
+      anything the automated fetch left unverified — a bot-block, a 5xx, or a
+      redirect to a different domain), and points at the
+      entity's real profile — a platform that blocks automated fetches is not
+      itself a reason to remove an entry.
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`, and a `README.md` with
       the decision answers + "how to add a page / run tests / deploy".
@@ -486,6 +507,35 @@ URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatic
 - If a 404 does get cached anyway: ask the owner to run the single-URL purge in the
   Cloudflare dashboard (a human-only step — the agent has no dashboard access; path above),
   then re-verify.
+
+## 4a. Business listings — ask, but only if the site is a claimable entity
+
+`business-listings-setup` claims category directories and verifies the site's
+`sameAs` schema resolves — both apply to any named entity. Google Business
+Profile and Bing Places are narrower: they need a real address customers visit,
+or staff who travel to serve customers, which the skill's own §1 checks. Naming
+the entity is enough to run the skill; it is not enough to guarantee a Google/Bing
+profile will follow, and the ask below says so. Gate it the same way as the
+outgoing-link sweep in §3a: check a condition, then let the user choose rather
+than assuming.
+
+- **The site has no claimable identity at all** (a personal blog with no
+  business or professional practice behind it, a resource hub with no identity
+  of its own) → there is nothing to claim. Say so and **skip silently** — do not
+  ask. A sole proprietor or consultant who trades under their own name (a
+  photographer, a freelancer) still counts as a named entity here — the test is
+  "is there a business or practice to claim," not "is the name different from a
+  person's."
+- **The site represents a named, real-world entity** (an event series, a studio, a
+  local business, a community or organization with its own name) → ask whether to
+  run it now — e.g. *"This looks like a named entity (`<name>`) that could claim
+  directory listings and verify its schema profiles. It may also qualify for a
+  Google Business Profile if it has a real address or serves customers in
+  person — the skill checks that itself. Want to set this up now? It needs a few
+  clicks from you at each platform — I'll draft everything else."* — options
+  **Run it now (recommended)** / **Skip — I'll do it later**. If they say run it,
+  invoke the `business-listings-setup` skill; otherwise note it as a post-launch
+  follow-up alongside `search-console-setup`.
 
 ## Notes
 

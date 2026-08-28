@@ -239,7 +239,7 @@ skills/            the suite skills (canonical)
                    testimonials, qa, review, permissions
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
-  search-console-setup   (bundled deps)
+  search-console-setup, business-listings-setup   (bundled deps)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
