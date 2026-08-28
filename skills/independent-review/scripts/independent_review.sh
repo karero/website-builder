@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # independent_review.sh — external-model half of the `independent-review` gate.
-# DEFAULT STANDARD PAIR = Codex CLI + ollama-cloud (glm-5.2:cloud) — both run
+# DEFAULT STANDARD PAIR = Codex CLI + ollama-cloud (glm-5.3-flash:cloud) — both run
 # every time (or the first that succeeds with --first-success), and their
 # ranked BUG/RISK/NIT reviews print. The skill ALSO runs a host fresh-eyes pass
 # (tier 3 — whatever model family the host agent is) and consolidates.
@@ -49,7 +49,7 @@
 #   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
 #                                    e.g. CODEX_MODEL=gpt-5.6-sol for a hard case or a
 #                                    long plan. Does not touch config.toml's daily driver.
-#   OLLAMA_MODEL   (glm-5.2:cloud)   ollama model for the standard second reviewer —
+#   OLLAMA_MODEL   (glm-5.3-flash:cloud)  ollama model for the standard second reviewer —
 #                                    defaults to the owner's signed-in ollama-cloud model;
 #                                    override to point at a different cloud/local tag.
 #   AGY_MODEL      (Gemini 3.1 Pro (High))  Antigravity CLI model, used only when
@@ -107,9 +107,9 @@ is_cloud_ollama_tag() {
 # The standard second reviewer is the owner's signed-in ollama-cloud model — no
 # env var needed to get the default duo (Codex + ollama-cloud) working.
 # NOT defaulted in --local-only mode: that mode's whole point is nothing
-# leaves the machine, and glm-5.2:cloud is a network call by definition —
+# leaves the machine, and glm-5.3-flash:cloud is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
-[ "$LOCAL_ONLY" = "1" ] || OLLAMA_MODEL="${OLLAMA_MODEL:-glm-5.2:cloud}"
+[ "$LOCAL_ONLY" = "1" ] || OLLAMA_MODEL="${OLLAMA_MODEL:-glm-5.3-flash:cloud}"
 # Skipping the DEFAULT above isn't enough on its own: a caller-supplied
 # OLLAMA_MODEL already pointing at a cloud tag (e.g. left exported from an
 # earlier non-local-only run in the same shell) would otherwise still trigger
@@ -515,7 +515,7 @@ cat >&2 <<'EOF'
 # Standard pair (default, no flags needed if both are set up):
 #   codex           # OpenAI Codex CLI (bundled in the ChatGPT VS Code extension) — preferred;
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
-#   ollama          # local daemon + `ollama signin` for the glm-5.2:cloud default tag
+#   ollama          # local daemon + `ollama signin` for the glm-5.3-flash:cloud default tag
 # Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
 # (or WITH_ANTIGRAVITY=1) to spend one this run:
 #   brew install antigravity-cli    # `agy` — Gemini 3.1 Pro (High), free Antigravity login

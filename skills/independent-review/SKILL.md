@@ -154,8 +154,10 @@ the plan.
    `CODEX_MODEL=gpt-5.6-sol` for a harder case or a long plan — config.toml's
    reasoning-effort setting still applies on top, since the override only touches
    the model key.
-2. **ollama cloud** (`OLLAMA_MODEL`, defaults to `glm-5.2:cloud`) — the standard
+2. **ollama cloud** (`OLLAMA_MODEL`, defaults to `glm-5.3-flash:cloud`) — the standard
    second reviewer, runs automatically alongside Codex with no env var needed.
+   `glm-5.2:cloud` is **not retired** — it still works and is still a valid
+   `OLLAMA_MODEL` — it is simply no longer the default.
    Override to a different tag if a specific case warrants it.
 3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
    `double-knuth` skill) with NO shared context: give it only the artifact and
@@ -305,7 +307,7 @@ Independence rule above, a reviewer only satisfies the gate if it's
 **cross-model relative to the CURRENT host**, not just "installed" — ollama
 LOCAL never satisfies it regardless of host (tier 5 — sanity pass only), but
 ollama CLOUD (a signed-in `:cloud`-tagged model, e.g. the default
-`glm-5.2:cloud`) DOES count, same as Codex/Antigravity — it's tier 2, part of
+`glm-5.3-flash:cloud`) DOES count, same as Codex/Antigravity — it's tier 2, part of
 the standard default pair (see Reviewer stack above), not tier 5. Which cloud
 tool(s) count as cross-model depends on what's running this wizard: on a
 Claude Code host, Codex and/or ollama-cloud and/or Antigravity all count; on
@@ -349,7 +351,7 @@ detail, but lead with this, not the table:
   report of severe lockouts) from `references/setup-guide.md` and say it
   plainly — don't undersell it, and don't guess at numbers not in that file.
 - **ollama** — free either way, two distinct modes:
-  - *Cloud* (e.g. the default `glm-5.2:cloud`) — needs a one-time `ollama
+  - *Cloud* (e.g. the default `glm-5.3-flash:cloud`) — needs a one-time `ollama
     signin` (free, no payment) but nothing beyond that; runs on Ollama's own
     servers, so it DOES leave the machine. This is the script's actual
     standard second reviewer — sharp enough to satisfy the gate on its own,
@@ -551,7 +553,7 @@ like-for-like replacement."*
    later needs its own consent, not an inherited one. If the content must stay local, run the script with
    `--local-only` (skips codex/agy/paste entirely; local ollama only — the
    script requires the EFFECTIVE ollama tag to be local: under `--local-only` the
-   `glm-5.2:cloud` default is never applied, and an explicitly-set cloud tag is refused outright,
+   `glm-5.3-flash:cloud` default is never applied, and an explicitly-set cloud tag is refused outright,
    rather than silently sending content out) plus the tier-3 host fresh-eyes
    pass — tier 6 (paste into any model) is just as
    external as the CLIs and is excluded. A local-only verdict is inherently
