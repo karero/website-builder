@@ -35,20 +35,31 @@ const CONFIG = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // opacity alone is not "visible": a refactor to visibility/display hides too, so
-// every check below tests all three. The probe is repeated inside each evaluate
-// rather than shared — code crossing Playwright's browser boundary cannot close
-// over a helper defined out here.
+// every check below tests all three. Only opacity EXACTLY 0 counts as hidden —
+// `< 1` would fail a design that legitimately sets a heading to opacity .85, and
+// the reveal's hidden state is exactly 0 anyway. The probe is repeated inside each
+// evaluate rather than shared: code crossing Playwright's browser boundary cannot
+// close over a helper defined out here.
 async function hiddenTargets(page: Page): Promise<string[]> {
   return page.locator(CONFIG.revealTargets).evaluateAll((els) =>
     els.filter((el) => {
       const s = getComputedStyle(el);
-      return s.display === 'none' || s.visibility !== 'visible' || parseFloat(s.opacity) < 1;
+      return s.display === 'none' || s.visibility !== 'visible' || parseFloat(s.opacity) === 0;
     }).map((e) => (e.textContent ?? '').trim().slice(0, 40)));
 }
 
-test.beforeEach(() => {
+test.beforeEach(async ({ page }) => {
   test.skip(!CONFIG.revealTargets,
     "CONFIG.revealTargets is empty — point it at this site's headings");
+  // The shipped defaults are examples, and they match nothing on a fresh
+  // scaffold. Without this, an unconfigured copy runs every test against zero
+  // elements: "no hidden headings" is trivially true, so the file reports green
+  // while proving nothing at all — the worst possible outcome for a guard.
+  await page.goto('/');
+  const matched = await page.locator(CONFIG.revealTargets).count();
+  test.skip(matched === 0,
+    `CONFIG.revealTargets ("${CONFIG.revealTargets}") matched no elements — ` +
+    'these are example class names; set them to this site\'s own.');
 });
 
 test.describe('with motion enabled', () => {
@@ -64,7 +75,7 @@ test.describe('with motion enabled', () => {
     const { belowFold, hiddenTotal, hiddenAboveFold } = await page.evaluate((sel) => {
       const hiddenNow = (el: Element) => {
         const s = getComputedStyle(el);
-        return s.display === 'none' || s.visibility !== 'visible' || parseFloat(s.opacity) < 1;
+        return s.display === 'none' || s.visibility !== 'visible' || parseFloat(s.opacity) === 0;
       };
       const els = [...document.querySelectorAll(sel)];
       const above = els.filter((e) => e.getBoundingClientRect().top < window.innerHeight);
@@ -88,7 +99,10 @@ test.describe('with motion enabled', () => {
 
     await page.evaluate(async () => {
       document.documentElement.style.scrollBehavior = 'auto';
-      for (let y = 0; y < document.body.scrollHeight; y += 300) {
+      // Step by viewport, not a fixed 300px: on a tall page a short heading can sit
+      // between two fixed samples and never be intersecting when one is taken.
+      const step = Math.max(200, window.innerHeight * 0.8);
+      for (let y = 0; y < document.body.scrollHeight; y += step) {
         window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior });
         await new Promise((r) => setTimeout(r, 25));
       }
@@ -137,36 +151,54 @@ test.describe('with reduced motion', () => {
 
     expect(await hiddenTargets(page), 'content hidden despite reduced motion').toEqual([]);
 
-    // Enumerated, not named. Listing specific selectors only catches animations
-    // you already thought of, and throws on a site that does not have them.
-    // getAnimations finds every running one, pseudo-elements included.
-    await page.waitForTimeout(600); // let any legitimate transition finish
-    const running = await page.evaluate((allowed) =>
-      document.getAnimations({ subtree: true })
-        .filter((a) => a.playState === 'running')
+    // scroll-behavior is not an animation, so getAnimations below cannot see it.
+    // It has to be asserted on its own or a smooth-scrolling page passes while
+    // sitting idle — which is exactly the scaffold's default.
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior),
+      'smooth scrolling still on under reduced motion').toBe('auto');
+
+    // Enumerated, not named: listing selectors only catches animations you already
+    // thought of, and throws on a site that lacks them. Note document.getAnimations()
+    // takes NO arguments — it is already document-wide, pseudo-elements included;
+    // the {subtree:true} option belongs to Element.getAnimations().
+    const enumerate = () => page.evaluate((allowed) =>
+      document.getAnimations()
+        .filter((a) => a.playState === 'running' || a.playState === 'pending')
         .map((a) => {
+          // animationName/transitionProperty live on CSSAnimation/CSSTransition,
+          // which is what Chromium returns. On an engine that returns plain
+          // Animation objects these all read "unnamed" — still caught, just not
+          // individually nameable, so motionExceptions would not filter them.
           const anim = a as Animation & { animationName?: string; transitionProperty?: string };
           return anim.animationName ?? anim.transitionProperty ?? 'unnamed';
         })
         .filter((name) => !allowed.includes(name)),
       CONFIG.motionExceptions);
-    expect(running, 'still animating under reduced motion').toEqual([]);
+
+    // Immediately AND after settling: a forbidden animation shorter than the
+    // settle delay would otherwise finish before anyone looked.
+    expect(await enumerate(), 'animating at load under reduced motion').toEqual([]);
+    await page.waitForTimeout(600); // let any legitimate transition finish
+    expect(await enumerate(), 'still animating under reduced motion').toEqual([]);
 
     // Neither assertion above can catch a mis-ordered CSS override on its own:
     // the reveal's JS bails under reduce, so the hiding class is never added and
     // the stylesheet path is never exercised. Force it on to prove the CSS
     // itself honours the preference.
     const forced = await page.evaluate((sel) => {
-      const el = document.querySelector(sel.split(',')[0].trim());
+      // The whole selector, not just its first comma-separated part: a config
+      // whose first selector matches nothing would otherwise skip this silently.
+      const el = document.querySelector(sel);
       if (!el) return null;
       el.classList.add('reveal');
-      const opacity = getComputedStyle(el).opacity;
+      const s = getComputedStyle(el);
+      const state = { display: s.display, visibility: s.visibility, opacity: s.opacity };
       el.classList.remove('reveal');
-      return opacity;
+      return state;
     }, CONFIG.revealTargets);
-    if (forced !== null) {
-      expect(forced, 'the .reveal rule still hides under reduced motion — is the override ' +
-        'placed BEFORE the rule it overrides?').toBe('1');
-    }
+    expect(forced, 'no reveal target found to force the CSS path against').not.toBeNull();
+    expect(forced, 'the .reveal rule still hides under reduced motion — is the override ' +
+      'placed BEFORE the rule it overrides?')
+      .toEqual({ display: forced!.display, visibility: 'visible', opacity: '1' });
   });
 });
