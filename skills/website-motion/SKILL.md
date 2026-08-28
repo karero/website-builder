@@ -185,12 +185,15 @@ list items and paragraphs is the AI-generated-site tell.
     // Freeze the box first. "0+" is far narrower than "1,200+", and the stat is
     // usually sized by its number rather than its label, so an unfrozen count
     // shoves the whole row sideways every frame.
+    // Remember any inline min-width already on the element — blanking it on
+    // settle would quietly undo a later styling change someone else made.
+    var priorMinWidth = el.style.minWidth;
     el.style.minWidth = el.getBoundingClientRect().width + 'px';
     var done = false;
     function settle() {
       done = true;
       el.textContent = finalText;
-      el.style.minWidth = '';
+      el.style.minWidth = priorMinWidth;
     }
     // A print fired mid-count would capture an intermediate figure — a number
     // the site does not claim. Contract rule 3 covers the reveal; this is the
@@ -239,7 +242,10 @@ rather than a snippet in `website-design-system`.
 it considers invisible.** Their colour contrast silently stops being checked. The
 suite stays green and the gate is weaker than it was the day before.
 
-Force reduced motion in `a11y.spec.ts` so axe always sees the finished page:
+Force reduced motion in `a11y.spec.ts` so axe always sees the finished page. The
+snippet below assumes that file's `for (const path of PAGES)` shape — adjust it to
+whatever loop or fixture your suite actually uses. The `emulateMedia` call before
+`goto`, and the canary under it, are the load-bearing parts:
 
 ```ts
 for (const path of PAGES) {
@@ -287,7 +293,7 @@ column is what the assertion is for, not a claim about how often it has fired:
 | No heading is invisible after a full scroll-through | the whole failure mode this skill guards against |
 | Nothing above the fold is hidden at load | a heading that visibly flashes out and fades back in |
 | Reveal targets are visible under `media: print` | the print override being deleted or mis-ordered |
-| Under reduced motion nothing is hidden, **nothing is animating**, and the `.reveal` rule is force-applied to prove the CSS itself yields | an ambient animation ignoring the preference; and an override placed *before* the rule it overrides — same specificity, so the original wins and the fix is a silent no-op |
+| Under reduced motion nothing is hidden, `scroll-behavior` is `auto`, **nothing is animating**, and the `.reveal` rule is force-applied to prove the CSS itself yields | an ambient animation ignoring the preference; smooth scrolling left on; and an override placed *before* the rule it overrides — same specificity, so the original wins and the fix is a silent no-op |
 | Stat numbers settle on their published values | someone editing the figures in HTML |
 
 The forced-class step in row 4 is not belt-and-braces. Under reduced motion the
@@ -323,6 +329,14 @@ gate.
   last content heading and the footer's can skip a level. `heading-order` is an
   axe *best-practice* rule, so a WCAG-tagged gate will not catch it — check it
   by hand once, or accept that it is ungated and say so.
+- **`document.getAnimations()` takes no arguments.** It is already document-wide,
+  pseudo-elements included; the `{ subtree: true }` option belongs to
+  `Element.getAnimations()`. Passing it is ignored at runtime and fails a strict
+  TypeScript check — a copied test that will not compile.
+- **Animation names are Chromium-shaped.** `animationName` / `transitionProperty`
+  live on `CSSAnimation` / `CSSTransition`. An engine returning plain `Animation`
+  objects still gets caught, but every entry reads `unnamed`, so
+  `motionExceptions` cannot filter individual ones.
 - **What this spec does NOT cover.** It runs at one viewport, so wrapping and
   section placement on mobile are unchecked — the below-fold set differs there.
   And the toolkit's `template-tests.yml` triggers only on
