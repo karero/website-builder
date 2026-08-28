@@ -1,18 +1,15 @@
 ---
 name: business-listings-setup
 description: >
-  Post-launch: claim Google Business Profile, Bing Places, and category directories,
-  then verify the `sameAs` profiles already in the site's schema actually resolve.
-  The action skill for E-E-A-T's Authoritativeness component (owned by
-  `website-content-guide`): other pages linking to or citing you are what search and
-  AI answer engines read as one signal of authority, among several that feed
-  visibility.
-  Human-in-the-loop, same shape as `search-console-setup` — the agent drafts every
-  value, the owner clicks. Run after launch, alongside `search-console-setup`.
-  Trigger phrases: "claim my Google Business Profile", "Google Maps listing",
-  "Bing Places", "business listings", "off-site authority", "how do I get
-  authority", "improve E-E-A-T", "authoritativeness is thin", "where should I be
-  listed", "sameAs profiles", "boost my search authority".
+  Post-launch: claim Google Business Profile, Bing Places, and category
+  directories, then verify the `sameAs` profiles already in schema actually
+  resolve. The action skill for E-E-A-T's Authoritativeness component (owned
+  by `website-content-guide`): other pages linking to or citing you are one
+  signal search and AI answer engines read as authority. Human-in-the-loop,
+  same shape as `search-console-setup` — the agent drafts every value, the
+  owner clicks. Trigger phrases: "claim my Google Business Profile", "Google
+  Maps listing", "Bing Places", "business listings", "improve E-E-A-T",
+  "authoritativeness is thin", "sameAs profiles".
 ---
 
 # Business listings + off-site authority
