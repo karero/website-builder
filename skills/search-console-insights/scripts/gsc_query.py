@@ -230,21 +230,31 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
         L.append(f"_Query-level report, for reference only (undercounts rare queries "
                  f"on thin sites, across returned rows): {total_clicks} clicks, "
                  f"{total_impr} impressions._\n")
-        mismatch = abs(total_impr_pages - total_impr) / total_impr_pages
-        if mismatch > TOTALS_MISMATCH_THRESHOLD:
+        # top_pages being non-empty only means the list has rows, not that they
+        # sum to nonzero impressions/clicks (e.g. every returned row reports 0
+        # for this window/filter) -- guard each division rather than assume it.
+        # Checked on both metrics, not impressions alone: a site can have
+        # matching impressions but wildly different clicks (0 vs. 20 is a
+        # real, silent disagreement impressions-only would miss entirely).
+        impr_mismatch = (abs(total_impr_pages - total_impr) / total_impr_pages) if total_impr_pages > 0 else 0
+        clicks_mismatch = (abs(total_clicks_pages - total_clicks) / total_clicks_pages) if total_clicks_pages > 0 else 0
+        flagged_metrics = [name for name, m in (("impressions", impr_mismatch), ("clicks", clicks_mismatch))
+                            if m > TOTALS_MISMATCH_THRESHOLD]
+        if flagged_metrics:
             threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
-            if total_impr_pages > total_impr:
-                L.append(f"> ⚠️ **These two totals disagree by more than {threshold_pct}** — a "
-                         f"sign GSC is anonymizing/dropping rare queries from the "
-                         f"query-level report on this site. Use the page-level total "
-                         f"above for any \"site-wide\" claim, and never compute a "
-                         f"percentage against the query-level number.\n")
+            metrics_str = " and ".join(flagged_metrics)
+            if total_impr_pages >= total_impr:
+                L.append(f"> ⚠️ **{metrics_str.capitalize()} disagree by more than "
+                         f"{threshold_pct}** — a sign GSC is anonymizing/dropping rare "
+                         f"queries from the query-level report on this site. Use the "
+                         f"page-level total above for any \"site-wide\" claim, and never "
+                         f"compute a percentage against the query-level number.\n")
             else:
-                L.append(f"> ⚠️ **These two totals disagree by more than {threshold_pct}, and "
-                         f"unusually the query-level total is the larger one** — this "
-                         f"isn't the normal anonymization pattern. Treat both numbers "
-                         f"with caution and re-run before quoting either as a "
-                         f"site-wide figure.\n")
+                L.append(f"> ⚠️ **{metrics_str.capitalize()} disagree by more than "
+                         f"{threshold_pct}, and unusually the query-level total is the "
+                         f"larger one** — this isn't the normal anonymization pattern. "
+                         f"Treat both numbers with caution and re-run before quoting "
+                         f"either as a site-wide figure.\n")
 
     # --- Target keywords ---------------------------------------------------
     L.append("## Target keywords — where we stand\n")
@@ -283,11 +293,17 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
          and r["impressions"] >= LOW_CTR_MIN_IMPRESSIONS],
         key=lambda r: r["impressions"], reverse=True,
     )
-    L.append("## Good position, low CTR — title/meta rewrite targets\n")
+    L.append("## Good position, low CTR — title/meta rewrite candidates\n")
     if low_ctr:
         L.append(fmt_rows(low_ctr, "Page", limit=15))
-        L.append("\n→ Hand these to `copywriting` (title) + `website-seo-geo` "
-                 "(meta-description limits).")
+        L.append("\n_Position and CTR here are page-level averages across every query that "
+                 "landed on the page, not one query's numbers -- pull the query-level rows "
+                 "for a candidate page before diagnosing which specific query has the "
+                 "snippet problem._"
+                 "\n\n→ Before rewriting: check the live SERP snippet (`serp_check.py`) "
+                 "against the page's actual shipped meta description (mandatory, see "
+                 "\"Reading the numbers\" in SKILL.md). Then hand off to `copywriting` "
+                 "(title) + `website-seo-geo` (meta-description limits).")
     else:
         L.append("_None flagged (need pages ranking ≤10 with CTR <2% and ≥20 impr)._")
     L.append("")

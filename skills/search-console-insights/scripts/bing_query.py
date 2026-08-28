@@ -166,10 +166,25 @@ def build_report(site, rows, kw_matches, page_rows=None):
                  f"{tot_i_pages} impressions.\n")
         L.append(f"_Query-level, for reference only: {tot_c} clicks, {tot_i} "
                  f"impressions across {len(rows)} queries._\n")
-        if tot_i_pages > 0 and abs(tot_i_pages - tot_i) / tot_i_pages > TOTALS_MISMATCH_THRESHOLD:
-            L.append(f"> ⚠️ These two totals disagree by more than "
-                     f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}% — use the page-level total "
-                     f"above, not the query-level one, for any \"site-wide\" claim.\n")
+        # Checked on both metrics, not impressions alone -- same reasoning as
+        # gsc_query.py's build_report.
+        impr_mismatch = (abs(tot_i_pages - tot_i) / tot_i_pages) if tot_i_pages > 0 else 0
+        clicks_mismatch = (abs(tot_c_pages - tot_c) / tot_c_pages) if tot_c_pages > 0 else 0
+        flagged = [name for name, m in (("impressions", impr_mismatch), ("clicks", clicks_mismatch))
+                   if m > TOTALS_MISMATCH_THRESHOLD]
+        if flagged:
+            threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
+            metrics_str = " and ".join(flagged).capitalize()
+            if tot_i_pages >= tot_i:
+                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct} — use "
+                         f"the page-level total above, not the query-level one, for any "
+                         f"\"site-wide\" claim.\n")
+            else:
+                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct}, and "
+                         f"unusually the query-level total is the larger one — this isn't "
+                         f"the pattern you'd expect from anonymization. Treat both numbers "
+                         f"with caution and re-run before quoting either as a site-wide "
+                         f"figure.\n")
 
     L.append("## Target keywords — where we stand on Bing\n")
     for kw, m in kw_matches:

@@ -3,7 +3,7 @@
 **When invoked and the user is NOT yet connected** (no token at
 `~/.config/gsc-insights/token.json`), do **not** dump commands. Walk the user through
 it like a friendly wizard, in the order below. Assume a non-technical site owner who
-has never heard of an "API". Do the heavy lifting yourself; clearly flag the 3 things
+has never heard of an "API". Do the heavy lifting yourself; clearly flag which steps
 only they can do.
 
 ### Step 1 — Sell the benefit FIRST (before asking for anything)

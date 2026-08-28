@@ -58,7 +58,7 @@ a guided **onboarding** (next section), so a non-technical owner never touches t
 read `references/onboarding.md` and follow its wizard exactly — do not dump raw setup
 commands at what's usually a non-technical site owner. It sells the benefit first, asks
 before doing anything, checks what's already done so a returning user is never
-re-onboarded, and hands off the 3 steps only a human can click through inside Google's
+re-onboarded, and hands off the steps only a human can click through inside Google's
 console. Once connected, skip straight to "Once connected — how to use it" below.
 
 ## Once connected — how to use it
@@ -136,7 +136,9 @@ stating any conclusion, not just when something looks off.
    low-volume site, so its row sum silently undercounts. The page-dimensioned report
    doesn't hit that same anonymization. **Always quote the page-level total as "the"
    site-wide figure; the query-level one is a reference number only, never a
-   denominator.**
+   denominator.** (This skill is built for a low-volume site -- see the "Low-volume
+   playbook" below. Both reports are capped at 25,000 rows per pull; on a genuinely
+   large property the page-level total is itself a floor, not exhaustive.)
 2. **A percentage claim must name its denominator, and it must be the right one.**
    "123 impressions is 32% of site-wide traffic" is only as correct as the number
    underneath it. Before writing a percentage into a report or a recommendation,
