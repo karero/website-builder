@@ -52,59 +52,14 @@ a guided **onboarding** (next section), so a non-technical owner never touches t
 > says so honestly rather than pretending there's nothing to optimize. Re-run weekly —
 > Phase 1 is the part that compounds.
 
-## Onboarding — the agent runs this wizard on first use
+## Onboarding — first use only
 
-**When invoked and the user is NOT yet connected** (no token at
-`~/.config/gsc-insights/token.json`), do **not** dump commands. Walk the user through
-it like a friendly wizard, in the order below. Assume a non-technical site owner who
-has never heard of an "API". Do the heavy lifting yourself; clearly flag the 3 things
-only they can do.
-
-### Step 1 — Sell the benefit FIRST (before asking for anything)
-In 3–4 plain sentences, tell them what they get and why ~10 minutes is worth it:
-- *"Google Search Console is **free** and shows the **real** words people typed into
-  Google to find your site, exactly where you rank for each, and how often you get
-  clicked — data no guesswork keyword tool has."*
-- *"Once connected, I can tell you in seconds: the keywords you're **almost** on page 1
-  for (your fastest wins), the pages that get seen but not clicked (a quick title fix),
-  and — with a free add-on — who's beating you in the Top 10."*
-- *"It's **read-only** and free. The one-time setup is ~10 minutes — I do most of it;
-  you do three clicks inside Google's console that I'm not allowed to do for you."*
-
-Then ask **"Want to connect it now?"** and only continue on a yes.
-
-### Step 2 — Check what's already done; ask only for what's missing
-So a returning user is never re-onboarded:
-- token at `~/.config/gsc-insights/token.json` → **already connected**, skip to Step 5.
-- `~/.config/gsc-insights/client_secret.json` exists → creds done; just venv + first run.
-- venv at `~/.config/gsc-insights/venv` exists → deps done.
-
-### Step 3 — The human-only steps ( 🧑 **you do this** )
-You cannot click inside Google's console. Hand these over **one at a time** and wait —
-do not paste all five at once. Reassure them it's one-time. **Console UI labels are
-localized** — if the owner's Google account language isn't English, translate the
-quoted labels for them (German: *APIs und Dienste → Bibliothek*, *Anmeldedaten →
-Anmeldedaten erstellen → OAuth-Client-ID*, *Computeranwendung*, *Testnutzer*):
-- 🧑 a. Open https://console.cloud.google.com → create or pick any project.
-- 🧑 b. **APIs & Services → Library** → search & **enable "Google Search Console API"**.
-- 🧑 c. **APIs & Services → Google Auth Platform → Audience** → add your Google email
-       as a **Test user** (the "OAuth consent screen" was renamed Google Auth Platform).
-- 🧑 d. **APIs & Services → Credentials → Create credentials → OAuth client ID →
-       Desktop app → Create → Download JSON**.
-- 🧑 e. Tell me where it downloaded (usually `~/Downloads`).
-
-### Step 4 — Your steps ( 🤖 **I do this** )
-- 🤖 Move their JSON to `~/.config/gsc-insights/client_secret.json`.
-- 🤖 Build the venv + install deps (see "One-time setup" below).
-- 🤖 Run `gsc_query.py` once — **a browser opens for their single consent click**, then
-  the token caches and every future run is silent.
-
-### Step 5 — Confirm the connection in plain words
-After the first successful run: *"✅ Connected — Google confirms you own `<site>`
-(access: `<permissionLevel>`)."* If the property is freshly verified and the report is
-near-empty, **say so honestly** — data accrues over days; that's not a failure.
-
-### Step 6 — THEN teach them how to use it (next section). Don't skip this.
+**If the user is NOT yet connected** (no token at `~/.config/gsc-insights/token.json`),
+read `references/onboarding.md` and follow its wizard exactly — do not dump raw setup
+commands at what's usually a non-technical site owner. It sells the benefit first, asks
+before doing anything, checks what's already done so a returning user is never
+re-onboarded, and hands off the 3 steps only a human can click through inside Google's
+console. Once connected, skip straight to "Once connected — how to use it" below.
 
 ## Once connected — how to use it
 
@@ -138,19 +93,9 @@ Serper quota); run `track.sh` for the over-time trend. After the first combined 
 connected site, **offer weekly auto-tracking** (see "Weekly auto-tracking") so the trend
 builds itself.
 
-What comes back, in plain terms:
-- **Default (free, instant):** Google + Bing position per keyword, side by side, plus
-  connect-the-missing-source nudges.
-- **Phase 1 (free, instant):** each keyword + its current Google position, the
-  near-page-1 *quick wins*, and the *seen-but-not-clicked* pages to retitle.
-- **Phase 2 (optional, free):** the live Top 10 for a keyword and where they sit — set
-  up a free Serper key once (see Phase 2 below) to unlock it.
-- **Bing (optional, free):** the same keyword/position report from Bing — a proxy for
-  Copilot/ChatGPT visibility. Even simpler to connect (one API key) — see "Bing
-  Webmaster Tools" below.
-
-Re-running **weekly** is the whole point — rankings move, and this report is how they
-watch the needle.
+(See "Capabilities at a glance" above for what each source returns.) Re-running
+**weekly** is the whole point — rankings move, and this report is how they watch the
+needle.
 
 ## One-time setup (human-in-the-loop)
 
@@ -331,8 +276,9 @@ be added to Bing — `search-console-setup` covers that via "Import from Google 
 Console".)
 
 **If `BING_API_KEY` is already set** in `~/.config/gsc-insights/.env` from a prior session,
-skip straight to using it, per Step 2's pattern — confirm with `GetFeeds` that connected sites
-still have a registered, successfully-crawled sitemap. Note: Bing does **not** reliably
+skip straight to using it (same "don't re-onboard what's already done" principle as GSC's
+own connection check) — confirm with `GetFeeds` that connected sites still have a
+registered, successfully-crawled sitemap. Note: Bing does **not** reliably
 auto-discover a sitemap from `robots.txt` the way Google does — if `GetFeeds` returns `{"d":[]}`
 for a site despite a correct `robots.txt` entry, submit the sitemap URL manually under
 Bing Webmaster Tools → **Sitemaps** (needed for a real site, 2026-07-24).
