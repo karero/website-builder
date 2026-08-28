@@ -156,8 +156,11 @@ the plan.
    the model key.
 2. **ollama cloud** (`OLLAMA_MODEL`, defaults to `glm-5.3-flash:cloud`) — the standard
    second reviewer, runs automatically alongside Codex with no env var needed.
-   `glm-5.2:cloud` is **not retired** — it still works and is still a valid
-   `OLLAMA_MODEL` — it is simply no longer the default.
+   `glm-5.2:cloud` remains a **permitted override**, not a retired tag: nothing
+   here rejects it. Whether it still *resolves* is Ollama's to decide, not this
+   skill's — it worked when checked on 2026-08-28, and that is a dated
+   observation, not a standing guarantee. Confirm with a real review before
+   recommending it to anyone.
    Override to a different tag if a specific case warrants it.
 3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
    `double-knuth` skill) with NO shared context: give it only the artifact and
