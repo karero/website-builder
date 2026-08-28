@@ -22,7 +22,7 @@ description: >
   search visibility", "track my rankings over time", "schedule weekly tracking", "track my
   SEO automatically", "weekly SEO report".
 metadata:
-  version: 1.3.0
+  version: 1.4.0
 ---
 
 # Search Console insights
@@ -52,59 +52,14 @@ a guided **onboarding** (next section), so a non-technical owner never touches t
 > says so honestly rather than pretending there's nothing to optimize. Re-run weekly —
 > Phase 1 is the part that compounds.
 
-## Onboarding — the agent runs this wizard on first use
+## Onboarding — first use only
 
-**When invoked and the user is NOT yet connected** (no token at
-`~/.config/gsc-insights/token.json`), do **not** dump commands. Walk the user through
-it like a friendly wizard, in the order below. Assume a non-technical site owner who
-has never heard of an "API". Do the heavy lifting yourself; clearly flag the 3 things
-only they can do.
-
-### Step 1 — Sell the benefit FIRST (before asking for anything)
-In 3–4 plain sentences, tell them what they get and why ~10 minutes is worth it:
-- *"Google Search Console is **free** and shows the **real** words people typed into
-  Google to find your site, exactly where you rank for each, and how often you get
-  clicked — data no guesswork keyword tool has."*
-- *"Once connected, I can tell you in seconds: the keywords you're **almost** on page 1
-  for (your fastest wins), the pages that get seen but not clicked (a quick title fix),
-  and — with a free add-on — who's beating you in the Top 10."*
-- *"It's **read-only** and free. The one-time setup is ~10 minutes — I do most of it;
-  you do three clicks inside Google's console that I'm not allowed to do for you."*
-
-Then ask **"Want to connect it now?"** and only continue on a yes.
-
-### Step 2 — Check what's already done; ask only for what's missing
-So a returning user is never re-onboarded:
-- token at `~/.config/gsc-insights/token.json` → **already connected**, skip to Step 5.
-- `~/.config/gsc-insights/client_secret.json` exists → creds done; just venv + first run.
-- venv at `~/.config/gsc-insights/venv` exists → deps done.
-
-### Step 3 — The human-only steps ( 🧑 **you do this** )
-You cannot click inside Google's console. Hand these over **one at a time** and wait —
-do not paste all five at once. Reassure them it's one-time. **Console UI labels are
-localized** — if the owner's Google account language isn't English, translate the
-quoted labels for them (German: *APIs und Dienste → Bibliothek*, *Anmeldedaten →
-Anmeldedaten erstellen → OAuth-Client-ID*, *Computeranwendung*, *Testnutzer*):
-- 🧑 a. Open https://console.cloud.google.com → create or pick any project.
-- 🧑 b. **APIs & Services → Library** → search & **enable "Google Search Console API"**.
-- 🧑 c. **APIs & Services → Google Auth Platform → Audience** → add your Google email
-       as a **Test user** (the "OAuth consent screen" was renamed Google Auth Platform).
-- 🧑 d. **APIs & Services → Credentials → Create credentials → OAuth client ID →
-       Desktop app → Create → Download JSON**.
-- 🧑 e. Tell me where it downloaded (usually `~/Downloads`).
-
-### Step 4 — Your steps ( 🤖 **I do this** )
-- 🤖 Move their JSON to `~/.config/gsc-insights/client_secret.json`.
-- 🤖 Build the venv + install deps (see "One-time setup" below).
-- 🤖 Run `gsc_query.py` once — **a browser opens for their single consent click**, then
-  the token caches and every future run is silent.
-
-### Step 5 — Confirm the connection in plain words
-After the first successful run: *"✅ Connected — Google confirms you own `<site>`
-(access: `<permissionLevel>`)."* If the property is freshly verified and the report is
-near-empty, **say so honestly** — data accrues over days; that's not a failure.
-
-### Step 6 — THEN teach them how to use it (next section). Don't skip this.
+**If the user is NOT yet connected** (no token at `~/.config/gsc-insights/token.json`),
+read `references/onboarding.md` and follow its wizard exactly — do not dump raw setup
+commands at what's usually a non-technical site owner. It sells the benefit first, asks
+before doing anything, checks what's already done so a returning user is never
+re-onboarded, and hands off the steps only a human can click through inside Google's
+console. Once connected, skip straight to "Once connected — how to use it" below.
 
 ## Once connected — how to use it
 
@@ -138,19 +93,9 @@ Serper quota); run `track.sh` for the over-time trend. After the first combined 
 connected site, **offer weekly auto-tracking** (see "Weekly auto-tracking") so the trend
 builds itself.
 
-What comes back, in plain terms:
-- **Default (free, instant):** Google + Bing position per keyword, side by side, plus
-  connect-the-missing-source nudges.
-- **Phase 1 (free, instant):** each keyword + its current Google position, the
-  near-page-1 *quick wins*, and the *seen-but-not-clicked* pages to retitle.
-- **Phase 2 (optional, free):** the live Top 10 for a keyword and where they sit — set
-  up a free Serper key once (see Phase 2 below) to unlock it.
-- **Bing (optional, free):** the same keyword/position report from Bing — a proxy for
-  Copilot/ChatGPT visibility. Even simpler to connect (one API key) — see "Bing
-  Webmaster Tools" below.
-
-Re-running **weekly** is the whole point — rankings move, and this report is how they
-watch the needle.
+(See "Capabilities at a glance" above for what each source returns.) Re-running
+**weekly** is the whole point — rankings move, and this report is how they watch the
+needle.
 
 ## One-time setup (human-in-the-loop)
 
@@ -176,6 +121,64 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
 3. **(Phase 2, optional)** free Serper key at https://serper.dev →
    `export SERPER_API_KEY=...` (or a SerpApi key → `export SERPAPI_KEY=...`).
 
+## Reading the numbers — from GSC data to a conclusion
+
+Pulling the report is the easy part. Turning it into a correct diagnosis is where
+mistakes actually happen — every rule below was a real, costly error caught in a live
+site's data (2026-08-27: it silently invalidated a headline "% of site-wide traffic"
+claim in an externally-reviewed proposal before being caught). Apply these before
+stating any conclusion, not just when something looks off.
+
+1. **Site-wide totals: use the page-level report, not the query-level one.**
+   `gsc_query.py` now prints both, clearly labeled, and warns when they disagree by
+   more than 10% — but the *reason* matters for judgment calls it can't automate:
+   GSC's query-dimensioned report anonymizes/drops rare long-tail queries on a
+   low-volume site, so its row sum silently undercounts. The page-dimensioned report
+   doesn't hit that same anonymization. **Always quote the page-level total as "the"
+   site-wide figure; the query-level one is a reference number only, never a
+   denominator.** (This skill is built for a low-volume site -- see the "Low-volume
+   playbook" below. Both reports are capped at 25,000 rows per pull; on a genuinely
+   large property the page-level total is itself a floor, not exhaustive.)
+2. **A percentage claim must name its denominator, and it must be the right one.**
+   "123 impressions is 32% of site-wide traffic" is only as correct as the number
+   underneath it. Before writing a percentage into a report or a recommendation,
+   state explicitly which total (page-level site-wide, or one specific page's own
+   impressions) it's computed against — a reader should never have to guess.
+3. **CTR only means something together with position — read them as a pair:**
+   - **Position ≤5, CTR near 0%:** a real snippet problem. This is the trigger
+     condition for the mandatory SERP-snippet check below (#5) — do that before
+     touching the title or description.
+   - **Position 6–15, low CTR:** could be a snippet problem or a format/relevance
+     mismatch for that position. Check what's actually ranking around you (Phase 2)
+     before assuming a copy fix is the answer.
+   - **Position >20:** not a CTR problem yet. Rewriting the title rarely helps here —
+     the page isn't relevant/authoritative enough to be seen as an option at all.
+   - **Under ~20 total impressions, at any position:** too thin to diagnose. Say so —
+     "insufficient volume to conclude anything yet" is a correct, honest answer.
+4. **Before crediting or blaming a change, cross-check GSC against the site's own
+   analytics tool (Plausible/GA), not GSC alone.** GSC counts what Google *served* and
+   what got *clicked in the SERP* — it says nothing about what happened after the
+   click. If GSC shows real clicks on a page in a window but the analytics tool shows
+   zero matching visits, that's a real discrepancy (ad blockers, a missing tracking
+   snippet, bot/automated clicks) worth resolving before treating GSC clicks alone as
+   proof a change worked, or treating zero analytics visits alone as proof it didn't.
+   Check the tracking snippet is actually present in the page's rendered HTML
+   (`curl` the live URL) before concluding the gap is behavioral rather than a bug.
+5. **MANDATORY before any CTR/snippet diagnosis:** the same live-SERP-snippet check
+   documented under Phase 2 below applies here too — a "the description is too
+   long/short" theory is unverified until you've seen what Google is actually
+   rendering for that query.
+
+**Worked example (generalized from a real case).** A report showed "123 impressions,
+32% of sitewide traffic" for one query, using the query-level total (384 impressions)
+as the denominator. The page-level total was actually 1,071 impressions — the real
+site-wide figure. Recomputed correctly, that query was ~11.5% of true site-wide
+traffic, and a *far* more precise, defensible number was available anyway: 123 of the
+*target page's own* 150 impressions (~82%) — a page-relative figure needs no
+site-wide denominator at all, and says more. When a conclusion can be stated relative
+to the one page being discussed rather than the whole site, prefer that — it's harder
+to get wrong and more useful to the reader.
+
 ## Phase 1 — GSC data (free, high-signal)
 
 ```bash
@@ -192,7 +195,10 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
 - First run opens a browser for consent; the refresh token is cached at
   `~/.config/gsc-insights/token.json` (chmod 600) so later runs are silent.
 
-The report leads with three actionable sections (then top-queries / top-pages tables):
+The report opens with **two site-wide totals** (page-level = the real figure,
+query-level = reference only, flagged if they disagree by >10% — see "Reading the
+numbers" above for why both exist), then three actionable sections (then top-queries /
+top-pages tables):
 
 1. **Target keywords — where we stand.** Best-matching query, avg position,
    impressions, clicks, CTR for each `--keywords` term (or "no impressions yet").
@@ -272,8 +278,9 @@ be added to Bing — `search-console-setup` covers that via "Import from Google 
 Console".)
 
 **If `BING_API_KEY` is already set** in `~/.config/gsc-insights/.env` from a prior session,
-skip straight to using it, per Step 2's pattern — confirm with `GetFeeds` that connected sites
-still have a registered, successfully-crawled sitemap. Note: Bing does **not** reliably
+skip straight to using it (same "don't re-onboard what's already done" principle as GSC's
+own connection check) — confirm with `GetFeeds` that connected sites still have a
+registered, successfully-crawled sitemap. Note: Bing does **not** reliably
 auto-discover a sitemap from `robots.txt` the way Google does — if `GetFeeds` returns `{"d":[]}`
 for a site despite a correct `robots.txt` entry, submit the sitemap URL manually under
 Bing Webmaster Tools → **Sitemaps** (needed for a real site, 2026-07-24).

@@ -38,6 +38,8 @@ except ImportError:
 API = "https://ssl.bing.com/webmaster/api.svc/json"
 # Striking distance = ranking on roughly page 1-2 but not yet Top 10.
 STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
+# Same threshold and rationale as gsc_query.py's TOTALS_MISMATCH_THRESHOLD.
+TOTALS_MISMATCH_THRESHOLD = 0.10  # 10%
 
 
 def eprint(*a):
@@ -135,16 +137,54 @@ def build_report(site, rows, kw_matches, page_rows=None):
     L = [f"# Bing Webmaster insights — {site}", "",
          "_Bing aggregates the last ~6 months (no date range). Volume is much smaller "
          "than Google, but Bing's index feeds Copilot/ChatGPT._", ""]
-    if not rows:
+    if not rows and not page_rows:
         L.append("> ⚠️ **No Bing query rows.** Either the site is newly added, has little "
                  "Bing traffic yet, or the API key / siteUrl is wrong. Confirm the property "
                  "is verified in Bing Webmaster Tools and that `--site` is the exact URL "
                  "registered there (https, trailing slash as shown in Bing).")
         return "\n".join(L)
 
+    # Same query-vs-page reconciliation as gsc_query.py's build_report, and for
+    # the same reason: GetQueryStats and GetPageStats are independent API calls
+    # (see main()), so a total computed from queries alone can miss real
+    # traffic the page-level pull still has, or vice versa. Silently trusting
+    # one side is exactly the mistake the GSC fix (2026-08-27) exists to
+    # prevent, and this script had the identical gap.
     tot_c = sum(int(r["clicks"]) for r in rows)
     tot_i = sum(int(r["impressions"]) for r in rows)
-    L.append(f"**Totals:** {tot_c} clicks, {tot_i} impressions across {len(rows)} queries.\n")
+    tot_c_pages = sum(int(r["clicks"]) for r in page_rows)
+    tot_i_pages = sum(int(r["impressions"]) for r in page_rows)
+    if not page_rows:
+        L.append(f"**Totals (query-level, page-level unavailable this run):** {tot_c} "
+                 f"clicks, {tot_i} impressions across {len(rows)} queries.\n")
+    elif not rows:
+        L.append(f"**Totals (page-level, query-level unavailable this run):** "
+                 f"{tot_c_pages} clicks, {tot_i_pages} impressions across "
+                 f"{len(page_rows)} pages.\n")
+    else:
+        L.append(f"**Totals (page-level — use this):** {tot_c_pages} clicks, "
+                 f"{tot_i_pages} impressions.\n")
+        L.append(f"_Query-level, for reference only: {tot_c} clicks, {tot_i} "
+                 f"impressions across {len(rows)} queries._\n")
+        # Checked on both metrics, not impressions alone -- same reasoning as
+        # gsc_query.py's build_report.
+        impr_mismatch = (abs(tot_i_pages - tot_i) / tot_i_pages) if tot_i_pages > 0 else 0
+        clicks_mismatch = (abs(tot_c_pages - tot_c) / tot_c_pages) if tot_c_pages > 0 else 0
+        flagged = [name for name, m in (("impressions", impr_mismatch), ("clicks", clicks_mismatch))
+                   if m > TOTALS_MISMATCH_THRESHOLD]
+        if flagged:
+            threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
+            metrics_str = " and ".join(flagged).capitalize()
+            if tot_i_pages >= tot_i:
+                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct} — use "
+                         f"the page-level total above, not the query-level one, for any "
+                         f"\"site-wide\" claim.\n")
+            else:
+                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct}, and "
+                         f"unusually the query-level total is the larger one — this isn't "
+                         f"the pattern you'd expect from anonymization. Treat both numbers "
+                         f"with caution and re-run before quoting either as a site-wide "
+                         f"figure.\n")
 
     L.append("## Target keywords — where we stand on Bing\n")
     for kw, m in kw_matches:

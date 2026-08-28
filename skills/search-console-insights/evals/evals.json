@@ -66,6 +66,19 @@
         "On first run, states there is no prior data yet rather than inventing a trend"
       ],
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "My GSC report shows 123 impressions for one query and a query-level total of 384 impressions site-wide, but the page-level table's rows actually sum to 1,071. Which total should I use, and is 'this query is 32% of site-wide traffic' a correct claim? Also, one of my pages ranks position 4 with 0% CTR at 150 impressions — what does that mean, and what should I check before rewriting its title?",
+      "expected_output": "Should identify the page-level total (1,071) as the true site-wide figure and the query-level total (384) as an anonymized undercount that should never be used as a denominator, correcting the '32% of site-wide' claim to roughly 11.5% (123/1,071) or, better, framing it against the target page's own impressions instead. Should recognize position ~4 with ~0% CTR as a real snippet problem (not a ranking problem) per the position/CTR framework, and say the mandatory next step is checking the live SERP snippet (via serp_check.py) against the page's actual shipped meta description before writing any title/description rewrite.",
+      "assertions": [
+        "Identifies the page-level total as the correct site-wide figure, not the query-level total",
+        "Flags the query-level total as an anonymized undercount, not a valid denominator",
+        "Corrects or reframes the 32%-of-sitewide claim (recomputes against 1,071, or reframes as a page-relative percentage instead)",
+        "Recognizes position ~4 + ~0% CTR as a snippet problem per the position/CTR framework, not a ranking problem",
+        "States the live-SERP-snippet check (serp_check.py) is mandatory before recommending a title/description rewrite"
+      ],
+      "files": []
     }
   ]
 }
