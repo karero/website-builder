@@ -46,8 +46,11 @@ Sibling skills (run in order, each usable on its own):
 liveness sweep (only relevant once the site links out); `internal-link-audit` — the
 internal-linking sweep that finds orphaned + thin pages and suggests where to cross-link
 (run after adding a batch of pages); `website-permissions` — install + safely extend the
-repo's permission allowlist (fewer prompts, same guardrails); and `search-console-setup`
-— post-launch GSC + Bing registration + IndexNow.
+repo's permission allowlist (fewer prompts, same guardrails); `search-console-setup`
+— post-launch GSC + Bing registration + IndexNow; and `website-motion` — an OPTIONAL
+polish layer (stat count-up + section-heading reveal) for sites with a long scrolling
+homepage, plus the reduced-motion contract and the a11y-gate change that keep motion
+from silently hiding content. `website-motion` is never run by default: ask for it.
 
 ## 1. Decision interview (answer before any code)
 
@@ -252,7 +255,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the eighteen always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. The always-on set is the seven
    `website-*` siblings, the three SEO-depth skills they delegate to —
@@ -261,7 +264,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `image` — plus `outgoing-link-audit` (external link sweep), `internal-link-audit`
    (orphan/thin-page sweep), `og-images` (per-page share cards),
    `website-permissions` (allowlist),
-   and `search-console-setup` (post-launch GSC/Bing/IndexNow):
+   `search-console-setup` (post-launch GSC/Bing/IndexNow), and `website-motion`
+   (optional polish — copied so the recipient can opt in later; it never runs on
+   its own):
    ```bash
    mkdir -p "$PROJECT_SKILLS_DIR"
    cp -R "$SKILLS_ROOT"/website-positioning \
@@ -283,6 +288,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/og-images \
          "$SKILLS_ROOT"/website-permissions \
          "$SKILLS_ROOT"/search-console-setup \
+         "$SKILLS_ROOT"/website-motion \
          "$PROJECT_SKILLS_DIR"/
    ```
    The global copies stay the updateable source of truth; the project copies are
