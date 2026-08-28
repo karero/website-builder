@@ -44,6 +44,9 @@ STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
 # A page in a good position that few people click = title/meta problem.
 LOW_CTR_MAX_POSITION = 10.0
 LOW_CTR_THRESHOLD = 0.02  # 2%
+# How far apart the page-level and query-level totals can be before it's worth
+# flagging as likely query-report anonymization rather than normal noise.
+TOTALS_MISMATCH_THRESHOLD = 0.10  # 10%
 LOW_CTR_MIN_IMPRESSIONS = 20
 
 
@@ -172,13 +175,14 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     L.append(f"\n_Window: {start} → {end} ({days} days){country_note}. Permission: "
              f"{perm_level or 'unknown'}._\n")
 
-    total_clicks = sum(int(r["clicks"]) for r in top_queries)
-    total_impr = sum(int(r["impressions"]) for r in top_queries)
-    total_clicks_pages = sum(int(r["clicks"]) for r in top_pages)
-    total_impr_pages = sum(int(r["impressions"]) for r in top_pages)
-
     # --- Honest emptiness check (Rule 12) ---------------------------------
-    if not top_queries:
+    # Gated on BOTH reports being empty: query-level and page-level rows come
+    # from two independent API calls (see main()) and can diverge — one can
+    # be genuinely empty (GSC's own anonymization, a transient hiccup) while
+    # the other still has real data. Bailing out on top_queries alone would
+    # discard real page-level traffic and wrongly tell the reader there's
+    # nothing to see.
+    if not top_queries and not top_pages:
         L.append("> ⚠️ **No Search Analytics rows in this window.**\n>\n"
                  "> This is expected for a property verified recently — GSC only\n"
                  "> collects data *forward from verification*, with a ~2–3 day lag,\n"
@@ -189,24 +193,58 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                      f"> without the filter to compare.\n")
         return "\n".join(L)
 
+    total_clicks = sum(int(r["clicks"]) for r in top_queries)
+    total_impr = sum(int(r["impressions"]) for r in top_queries)
+    total_clicks_pages = sum(int(r["clicks"]) for r in top_pages)
+    total_impr_pages = sum(int(r["impressions"]) for r in top_pages)
+
     # GSC's query-dimensioned report anonymizes/omits rare long-tail queries
-    # on low-volume sites, so its own row sum understates the real total. The
-    # page-dimensioned report doesn't hit that same anonymization, so its sum
-    # is the trustworthy site-wide figure. Print both, clearly labeled, and
-    # flag it plainly when they disagree — silently picking the query-level
-    # number here is exactly the mistake this check exists to prevent (it
-    # invalidated a headline "% of site-wide traffic" claim in a real,
-    # externally-reviewed proposal before being caught, 2026-08-27).
-    L.append(f"**Site-wide total (page-level report — use this):** "
-             f"{total_clicks_pages} clicks, {total_impr_pages} impressions.\n")
-    L.append(f"_Query-level report, for reference only (undercounts rare queries "
-             f"on thin sites): {total_clicks} clicks, {total_impr} impressions "
-             f"across returned query rows._\n")
-    if total_impr_pages > 0 and abs(total_impr_pages - total_impr) / total_impr_pages > 0.10:
-        L.append(f"> ⚠️ **These two totals disagree by more than 10%** — a sign GSC is "
-                 f"anonymizing/dropping rare queries from the query-level report on this "
-                 f"site. Use the page-level total above for any \"site-wide\" claim, and "
-                 f"never compute a percentage against the query-level number.\n")
+    # on low-volume sites, so its own row sum can understate the real total.
+    # The page-dimensioned report doesn't hit that same anonymization, so its
+    # sum is normally the trustworthy site-wide figure — but the two reports
+    # are independent API calls (see main()) and either can come back empty
+    # on its own, so "prefer page-level" only holds when page-level actually
+    # has rows. Silently picking a number here, in either direction, is
+    # exactly the mistake this check exists to prevent (it invalidated a
+    # headline "% of site-wide traffic" claim in a real, externally-reviewed
+    # proposal before being caught, 2026-08-27).
+    if not top_pages:
+        L.append(f"> ⚠️ **Page-level report returned no rows this window, though "
+                 f"query-level data exists.** Falling back to the query-level total — "
+                 f"it can undercount rare queries on a thin site, so treat this as a "
+                 f"floor, not a confirmed total.\n")
+        L.append(f"**Site-wide total (query-level report, page-level unavailable this "
+                 f"run):** {total_clicks} clicks, {total_impr} impressions, across "
+                 f"returned query rows.\n")
+    elif not top_queries:
+        L.append(f"> ⚠️ **Query-level report returned no rows this window, though "
+                 f"page-level data exists.** The \"Target keywords\" section below will "
+                 f"show every keyword as \"no impressions yet\" — that reflects missing "
+                 f"query-level detail this run, not necessarily zero real traffic.\n")
+        L.append(f"**Site-wide total (page-level report):** {total_clicks_pages} clicks, "
+                 f"{total_impr_pages} impressions, across returned page rows.\n")
+    else:
+        L.append(f"**Site-wide total (page-level report, across returned rows — use "
+                 f"this):** {total_clicks_pages} clicks, {total_impr_pages} "
+                 f"impressions.\n")
+        L.append(f"_Query-level report, for reference only (undercounts rare queries "
+                 f"on thin sites, across returned rows): {total_clicks} clicks, "
+                 f"{total_impr} impressions._\n")
+        mismatch = abs(total_impr_pages - total_impr) / total_impr_pages
+        if mismatch > TOTALS_MISMATCH_THRESHOLD:
+            threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
+            if total_impr_pages > total_impr:
+                L.append(f"> ⚠️ **These two totals disagree by more than {threshold_pct}** — a "
+                         f"sign GSC is anonymizing/dropping rare queries from the "
+                         f"query-level report on this site. Use the page-level total "
+                         f"above for any \"site-wide\" claim, and never compute a "
+                         f"percentage against the query-level number.\n")
+            else:
+                L.append(f"> ⚠️ **These two totals disagree by more than {threshold_pct}, and "
+                         f"unusually the query-level total is the larger one** — this "
+                         f"isn't the normal anonymization pattern. Treat both numbers "
+                         f"with caution and re-run before quoting either as a "
+                         f"site-wide figure.\n")
 
     # --- Target keywords ---------------------------------------------------
     L.append("## Target keywords — where we stand\n")
