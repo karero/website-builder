@@ -1,27 +1,19 @@
 ---
 name: search-console-insights
 description: >
-  Pull and act on Google Search Console DATA for a verified site — the monitor &
-  optimize step that sits downstream of search-console-setup (which only registers
-  the property). Uses the free GSC Search Analytics API (OAuth desktop flow,
-  read-only) to report where target keywords rank, striking-distance queries (avg
-  position ~8-20 = fastest Top-10 wins), and high-impression/low-CTR pages flagged
-  for snippet/SERP investigation (a title/meta rewrite is the outcome only when the
-  live-SERP check shows a snippet problem you control). Optional free competitive-SERP layer (Serper, fallback SerpApi)
-  shows who actually holds the Top 10 for a keyword you don't rank for yet, plus an
-  optional Bing Webmaster Tools source (simple API key) as a Copilot/ChatGPT-visibility
-  proxy. Ships Python scripts (scripts/gsc_query.py, scripts/serp_check.py,
-  scripts/bing_query.py); needs one-time API creds. On first use it runs a guided
-  ONBOARDING for non-technical owners — explains the benefit, walks the human-only
-  Google-console clicks, confirms the connection, then teaches how to use it. Trigger
-  phrases: "show my Search Console data", "GSC insights", "GSC data", "connect my
-  Search Console", "connect GSC", "set up Search Console insights", "start tracking my
-  rankings", "onboard Search Console", "top queries", "where do I rank", "where do we
-  rank for", "striking distance keywords", "quick SEO wins", "why is my CTR low", "which
-  pages to optimize", "competitor Top 10 for", "who ranks for", "am I in the Top 10
-  for", "how do I rank on Bing", "Bing Webmaster data", "Copilot visibility", "ChatGPT
-  search visibility", "track my rankings over time", "schedule weekly tracking", "track my
-  SEO automatically", "weekly SEO report".
+  Pull and act on Google Search Console DATA for a verified site — the
+  monitor-and-optimize step downstream of search-console-setup. Free GSC Search
+  Analytics API (OAuth, read-only): where target keywords rank, striking-distance
+  queries (pos ~8-20), and high-impression/low-CTR pages flagged for snippet/SERP
+  investigation (title/meta rewrite only if the live-SERP check shows a snippet
+  problem you control). Optional free add-ons: the live competitor Top-10 via a
+  SERP API, and Bing Webmaster Tools as a Copilot/ChatGPT-visibility proxy. First
+  use runs a guided onboarding for non-technical owners. Trigger phrases: "GSC
+  insights", "Search Console data", "connect GSC", "onboard Search Console",
+  "where do I rank", "top queries", "striking distance keywords", "quick SEO
+  wins", "why is my CTR low", "which pages to optimize", "who ranks for",
+  "competitor Top 10", "how do I rank on Bing", "Copilot visibility", "ChatGPT
+  search visibility", "track my rankings over time", "weekly SEO report".
 metadata:
   version: 1.5.0
 ---
