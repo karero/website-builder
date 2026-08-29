@@ -163,8 +163,11 @@ push to `main` (or they do), state it explicitly — never let a preview read as
 > live yet.** When it looks right, run `npm run ship` to publish to `<live-domain>`.
 
 Only after `npm run ship` (or the merge into `production`) **and** the Cloudflare production
-build finishes is it actually live at `<live-domain>` — confirm that separately ("✅ now
-live at …"). On a **single-stage** site there is no preview: say plainly that the push **is
+build finishes is it actually live at `<live-domain>`. After `npm run ship` prints
+"✓ LIVE — verified" (it polls `/build.txt` until the live site serves the new SHA), announce
+it live on that result — no manual re-check needed. For a plain merge into `production` — or
+when ship reports it could not verify — confirm manually before announcing ("✅ now live
+at …"). On a **single-stage** site there is no preview: say plainly that the push **is
 going live now**. Deliver these announcements in the owner's language, like everything else
 you say to them.
 
