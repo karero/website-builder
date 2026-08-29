@@ -4,7 +4,8 @@ name: clean
 # independent-review's pipeline files — that skill is model-agnostic and lets the
 # owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh) —
 # or if a skill's frontmatter description exceeds the 1024-char skill-spec hard limit
-# (see scripts/check_skill_budgets.sh; SKILL.md length > 500 lines warns, never fails).
+# (see scripts/check_skill_budgets.sh; pre-existing overages are pinned in a shrink-only
+# allowlist there, and SKILL.md length > 500 lines warns, never fails).
 on:
   push:
   pull_request:
