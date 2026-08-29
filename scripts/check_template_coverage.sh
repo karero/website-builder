@@ -84,13 +84,68 @@ if in_bucket "$TEMPLATE_ASTRO_DIR/definitely-not-a-real-file.txt" "$TEMPLATE_TRA
   echo "Fix the matcher before trusting the scan."
   exit 1
 fi
+# Same both-directions check for the two reverse-validation primitives below: existence
+# testing and the process_tests_stamp mapping-arm lookup.
+if [ ! -e "$WN" ]; then
+  echo "FAIL — self-test: [ -e ] misses a file that definitely exists ($WN). Fix before trusting the scan."
+  exit 1
+fi
+if [ -e "$TEMPLATE_ASTRO_DIR/definitely-not-a-real-file.txt" ]; then
+  echo "FAIL — self-test: [ -e ] matched a path that doesn't exist. Fix before trusting the scan."
+  exit 1
+fi
+if ! grep -qF "skills/new-website/templates/astro/playwright.config.ts)" "$WN"; then
+  echo "FAIL — self-test: mapping lookup misses a case arm that definitely exists"
+  echo "(playwright.config.ts). Fix before trusting the scan."
+  exit 1
+fi
+if grep -qF "skills/new-website/templates/astro/definitely-not-a-real-file.txt)" "$WN"; then
+  echo "FAIL — self-test: mapping lookup matched a case arm that doesn't exist. Fix before"
+  echo "trusting the scan."
+  exit 1
+fi
+
+[ -d "$TEMPLATE_ASTRO_DIR" ] || { echo "FAIL — $TEMPLATE_ASTRO_DIR does not exist; the template moved."; exit 1; }
+
+# Reverse validation — coverage is otherwise only one-way (every discovered file must
+# hit a bucket), which would silently let a stale/misspelled bucket entry (pointing at
+# nothing) or a TEMPLATE_TRACKED file with no process_tests_stamp switch-case arm sit
+# there indefinitely. A tracked file with no matching case falls through to that
+# switch's `*)` default, which prints the raw repo path instead of the site's actual
+# in-site path — the exact "silently wrong, not silently missing" mirror of the bug
+# this guard exists to catch.
+stale_entries=()
+for entry in $TEMPLATE_TRACKED $SITE_OWNED $SITE_SOURCE; do
+  [ -e "$entry" ] || stale_entries+=("$entry")
+done
+missing_mapping=()
+for entry in $TEMPLATE_TRACKED; do
+  [ -d "$entry" ] && continue   # directory entries (tests/) are handled by a wildcard case
+  grep -qF "$entry)" "$WN" || missing_mapping+=("$entry")
+done
+if [ "${#stale_entries[@]}" -gt 0 ]; then
+  echo "FAIL — ${#stale_entries[@]} bucket entry/entries point at a path that no longer exists:"
+  printf '    %s\n' "${stale_entries[@]}"
+  echo "Remove or fix the entry in $WN (TEMPLATE_TRACKED/SITE_OWNED) or this script (SITE_SOURCE)."
+  exit 1
+fi
+if [ "${#missing_mapping[@]}" -gt 0 ]; then
+  echo "FAIL — ${#missing_mapping[@]} TEMPLATE_TRACKED file(s) have no process_tests_stamp"
+  echo "switch-case arm in $WN, so a drift report would fall through to its default case"
+  echo "and print the raw repo path instead of the site's in-site path:"
+  printf '    %s\n' "${missing_mapping[@]}"
+  echo "Add a case arm for each, mapping it to the site's actual copy path."
+  exit 1
+fi
 
 [ -d "$TEMPLATE_ASTRO_DIR" ] || { echo "FAIL — $TEMPLATE_ASTRO_DIR does not exist; the template moved."; exit 1; }
 
 # Discover files, never hardcode a list — that's the whole point of this guard.
+# Symlinks count too (-o -type l): a symlink dropped under the template with no real
+# bucket entry would otherwise pass silently, defeating the "every file" invariant.
 FILES=()
 while IFS= read -r f; do FILES+=("$f"); done < <(
-  find "$TEMPLATE_ASTRO_DIR" -type f ! -name .DS_Store | sort
+  find "$TEMPLATE_ASTRO_DIR" \( -type f -o -type l \) ! -name .DS_Store | sort
 )
 if [ "${#FILES[@]}" -lt 1 ]; then
   echo "FAIL — no files found under $TEMPLATE_ASTRO_DIR; find/path broke or the dir moved."
