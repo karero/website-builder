@@ -28,19 +28,23 @@ FIELDS = ["date", "source", "keyword", "query", "position", "impressions", "clic
 def append_rows(csv_path, items):
     """Append rows (list of dicts keyed by FIELDS) — write the header if new.
 
-    An existing file whose header predates FIELDS is migrated first (full
-    header rewritten, legacy rows padded with empty values, via a temp file
-    + atomic replace). A legacy row's blank config then genuinely differs
-    from a new row's recorded config, so the trend's ‡ flag fires on the
-    first post-migration comparison instead of being silently dead."""
+    An existing file carrying the ONE legacy 7-column header this tool ever
+    wrote is migrated first (full header rewritten, legacy rows padded with
+    empty values, via a temp file + atomic replace) — read with utf-8-sig so
+    a BOM from a spreadsheet re-save can't break the header match. A legacy
+    row's blank config then genuinely differs from a new row's recorded
+    config, so the trend's ‡ flag fires on the first post-migration
+    comparison instead of being silently dead. Any OTHER unrecognized header
+    is left untouched (never rewritten — it isn't ours to reshape) with a
+    stderr note; a zero-byte file counts as new."""
     csv_path = os.path.expanduser(csv_path)
-    new = not os.path.exists(csv_path)
+    new = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
     os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
     if not new:
-        with open(csv_path, newline="") as f:
+        with open(csv_path, newline="", encoding="utf-8-sig") as f:
             header = next(csv.reader(f), None)
-        if header and header != FIELDS:
-            with open(csv_path, newline="") as f:
+        if header == FIELDS[:7]:
+            with open(csv_path, newline="", encoding="utf-8-sig") as f:
                 old_rows = list(csv.DictReader(f))
             tmp = csv_path + ".tmp"
             with open(tmp, "w", newline="") as f:
@@ -49,6 +53,10 @@ def append_rows(csv_path, items):
                 for old in old_rows:
                     w.writerow({k: (old.get(k) or "") for k in FIELDS})
             os.replace(tmp, csv_path)
+        elif header != FIELDS:
+            print(f"note: unrecognized history header in {csv_path} — file left "
+                  f"as-is; the appended config columns may not be readable there",
+                  file=sys.stderr)
     with open(csv_path, "a", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         if new:
@@ -135,8 +143,9 @@ def print_trend(csv_path):
         # recorded one deliberately counts as a change.
         if prev is not None and cfg_now != cfg_prev:
             move += " ‡"
-            legend["‡"] = ("‡ the tracked window/country changed between runs — "
-                           "positions are not comparable across the change")
+            legend["‡"] = ("‡ the tracked window/country changed — or the earlier "
+                           "row predates the config columns (previously "
+                           "unrecorded); positions not comparable across it")
         if src == "bing" and prev is not None:
             legend["bing"] = ("bing rows: positions are ~6-month aggregates — "
                               "week-over-week moves are damped and lag")

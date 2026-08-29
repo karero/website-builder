@@ -223,7 +223,7 @@ def build_report(site, rows, kw_matches, page_rows=None):
         [r for r in page_rows if r["position"] <= 10 and r["clicks"] == 0 and r["impressions"] >= 2],
         key=lambda r: r["impressions"], reverse=True,
     )
-    L.append("\n## Pages seen on Bing but not clicked (title/snippet targets)\n")
+    L.append("\n## Pages seen on Bing but not clicked (snippet/SERP investigation targets)\n")
     L.append(fmt(seen_unclicked, 15, key="page", label="Page") if seen_unclicked
              else "_None (need a page ranking ≤10 with 0 clicks and ≥2 impressions)._")
 

@@ -315,9 +315,9 @@ pulls a **28-day window** (`GSC_TRACK_DAYS` overrides) so week-over-week moves a
 actually visible — a 90-day window would smooth them away — and it marks moves that
 aren't real rank changes: `≠` = the best-matching query changed between runs, `~` = a
 compared side has under 10 impressions (noise), `‡` = the tracked window or country
-filter changed between runs (recorded in the CSV, so the trend flags its own config
-breaks; rows from before this schema existed can't be flagged — treat the first move
-after any window change as not comparable). The first run just seeds the history —
+filter changed between runs, or the earlier row predates the config columns (both
+recorded in the CSV, so the trend flags its own config breaks; only a move between
+two pre-schema runs leaves no record to flag). The first run just seeds the history —
 re-run **every 1–2 weeks** to watch the needle. (Each query script also takes
 `--csv <path>` to append on its own; `python scripts/_history.py <csv>` reprints the
 trend without a new pull.)

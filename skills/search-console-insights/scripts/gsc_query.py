@@ -8,7 +8,9 @@ surfaces the highest-leverage things:
 
   1. Where each TARGET keyword currently ranks (or "not yet ranking").
   2. Striking-distance queries (avg position ~8-20) — the fastest Top-10 wins.
-  3. High-impression / low-CTR pages — title & meta-description rewrite targets.
+  3. High-impression / low-CTR pages — snippet/SERP investigation targets
+     (a title/meta rewrite only after the live-SERP check confirms a
+     controllable snippet problem).
   4. On demand, query<->page attribution: --page <url> (which queries land on a
      page) and --query "<q>" (which pages serve a query) — so attribution and
      cannibalization are read from data, never guessed from separate tables.
@@ -47,7 +49,8 @@ STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
 # An average position over a handful of impressions is noise, not a win — don't
 # rank such rows as opportunities (they're still counted, never silently dropped).
 STRIKING_MIN_IMPRESSIONS = 5
-# A page in a good position that few people click = title/meta problem.
+# A page in a good position that few people click = snippet OR SERP-context
+# problem — the mandatory live-SERP check decides which.
 LOW_CTR_MAX_POSITION = 10.0
 LOW_CTR_THRESHOLD = 0.02  # 2%
 # How far a dimensioned sum may drift from the property-level total before it's
@@ -205,6 +208,11 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     total_clicks_pages = sum(int(r["clicks"]) for r in top_pages)
     total_impr_pages = sum(int(r["impressions"]) for r in top_pages)
     dims_total = total_clicks + total_impr + total_clicks_pages + total_impr_pages
+    # At the row cap a sum is possibly-truncated: "ceiling"/"anonymization"
+    # claims must soften, since a truncated sum has no guaranteed relation
+    # to the property total.
+    q_capped = len(top_queries) >= ROW_LIMIT
+    p_capped = len(top_pages) >= ROW_LIMIT
 
     # --- Honest emptiness check (Rule 12) ---------------------------------
     # Gated on every pull carrying zero DATA (not merely zero rows): the
@@ -292,10 +300,11 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
             if under:
                 cov = (f"; query rows cover {total_impr / st_impr:.0%} of impressions"
                        if "impressions" in under and st_impr > 0 else "")
+                cause = ("GSC is anonymizing rare queries on this site"
+                         + (" and/or the row cap truncated the pull" if q_capped else ""))
                 L.append(f"> ⚠️ **The query-level sum diverges below the property "
-                         f"total ({' and '.join(under)}{cov})** — GSC is anonymizing "
-                         f"rare queries on this site. Individual query rows are fine; "
-                         f"their sum is not a total.\n")
+                         f"total ({' and '.join(under)}{cov})** — {cause}. Individual "
+                         f"query rows are fine; their sum is not a total.\n")
             if q_over:
                 L.append(f"> ⚠️ **The query-level sum runs above the property total "
                          f"({' and '.join(q_over)}) — the unexpected direction** "
@@ -312,9 +321,18 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
         else:
             L.append(f"> ⚠️ **Property-level totals unavailable this run.**\n")
         if top_pages:
-            L.append(f"**Site-wide (page-level sum, ceiling — counts each of your "
-                     f"pages separately when several share one results page):** "
-                     f"{total_clicks_pages} clicks, {total_impr_pages} impressions.\n")
+            if p_capped:
+                L.append(f"**Site-wide (page-level sum, row-capped — partial, bounds "
+                         f"unknown):** {total_clicks_pages} clicks, "
+                         f"{total_impr_pages} impressions.\n")
+            else:
+                L.append(f"**Site-wide (page-level sum, ceiling — counts each of "
+                         f"your pages separately when several share one results "
+                         f"page):** {total_clicks_pages} clicks, "
+                         f"{total_impr_pages} impressions.\n")
+        elif q_capped:
+            L.append(f"**Site-wide (query-level sum, row-capped — partial, bounds "
+                     f"unknown):** {total_clicks} clicks, {total_impr} impressions.\n")
         else:
             L.append(f"**Site-wide (query-level sum, floor — undercounts rare "
                      f"queries on a thin site):** {total_clicks} clicks, "
