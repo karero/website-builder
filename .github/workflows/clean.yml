@@ -3,9 +3,9 @@ name: clean
 # suite (see scripts/check_clean.sh), if a concrete model name/tag creeps into
 # independent-review's pipeline files — that skill is model-agnostic and lets the
 # owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh) —
-# or if a skill's frontmatter description exceeds the 1024-char skill-spec hard limit
-# (see scripts/check_skill_budgets.sh; pre-existing overages are pinned in a shrink-only
-# allowlist there, and SKILL.md length > 500 lines warns, never fails).
+# or if a skill's frontmatter description exceeds the skill-spec hard limit — limit
+# values, the shrink-only allowlist for pre-existing overages, and the warn-only
+# SKILL.md line budget all live in scripts/check_skill_budgets.sh.
 on:
   push:
   pull_request:
@@ -26,5 +26,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check per-skill size budgets (description ≤ 1024 chars)
+      - name: Check per-skill size budgets (description hard limit)
         run: bash scripts/check_skill_budgets.sh

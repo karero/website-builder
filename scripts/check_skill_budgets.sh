@@ -12,7 +12,7 @@
 # Added 2026-08-29 after the skill-debloat review (finding D15): one description
 # had silently grown ~60% past the hard limit with nothing in place to catch it.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."; exit 1; }
 
 DESC_HARD=1024
 DESC_WARN=900
@@ -25,7 +25,9 @@ MIN_SKILLS=10
 # if it never merges, to whoever picks the debt up). Each entry is removed in
 # the same PR that lands its skill's trim — the stale-entry FAIL below enforces
 # that. Caps are the YAML-parsed value lengths (see desc_of), verified against
-# a real YAML parser on 2026-08-29.
+# a real YAML parser on 2026-08-29, and each pin must EQUAL the current value:
+# a trim lowers the pin in the same change, so regrowth under a stale cap has
+# nowhere to hide. One entry per skill; duplicates FAIL.
 ALLOW_OVER=(
   "search-console-insights=1603"
   "website-review=1313"
@@ -54,18 +56,22 @@ fi
 chars() { printf '%s' "$1" | LC_ALL="$UTF8_LOCALE" wc -m | tr -d '[:space:]'; }
 
 # Print the YAML-parsed frontmatter description of a SKILL.md, exactly as a
-# real YAML parser would return it: single-line plain/quoted scalars verbatim
-# (quotes stripped), folded blocks (`>`/`>-`) with lines joined by spaces and
-# blank lines as newlines, literal blocks (`|`/`|-`) likewise — the space-vs-
-# newline difference is one character either way, so counts are unaffected —
-# and clip chomping (`>`/`|`) contributes its trailing newline. Anything else
-# comes back EMPTY so the caller fails loud instead of measuring a truncated
-# string: a continuation line after a single-line scalar (multi-line
-# plain/quoted style), keep chomping (`>+`/`|+`), or a block header beyond the
-# four bare forms (indentation indicators like `>2`, trailing comments).
-# Quoted-scalar escapes and trailing `#` comments on plain scalars are counted
-# as content — an over-count only, so the error direction is conservative (can
-# false-FAIL near the boundary, never false-pass).
+# real YAML parser would return it, for the shapes this suite uses:
+#   - single-line plain/quoted scalars, verbatim (outer quotes stripped);
+#   - block scalars `>` `>-` `|` `|-` with a uniform indent: folded joins
+#     lines with spaces and turns each blank line into a newline, literal
+#     joins every line with a newline (plus one per blank line), and clip
+#     chomping (`>`/`|`) contributes its trailing newline.
+# Every other shape is REFUSED — output is empty and the caller fails loud
+# instead of measuring a truncated or under-counted string: multi-line
+# plain/quoted scalars (an indented continuation after the value line, blank
+# lines included), keep chomping (`>+`/`|+`), block headers beyond the four
+# bare forms (indentation indicators like `>2`, trailing comments), blank
+# lines before a block's first content line, and any block line whose indent
+# differs from the first content line's. Residual over-counts (quoted-scalar
+# escapes, trailing `#` comments on plain scalars, kept trailing spaces on
+# block lines) err conservative: they can false-FAIL near the boundary, never
+# false-pass.
 #
 # The output can END IN A NEWLINE (clip chomping), which $(...) strips — every
 # caller must capture with the x-sentinel idiom:
@@ -76,26 +82,36 @@ desc_of() {
     NR==1 { if ($0 ~ /^---[ \t\r]*$/) infm=1; next }
     infm==0 { exit }
     captured==1 {
-      if ($0 ~ /^[ \t]+[^ \t]/) desc=""
+      if ($0 ~ /^[ \t\r]*$/) next
+      if ($0 ~ /^[ \t]/) desc=""
       exit
     }
     /^---[ \t\r]*$/ { exit }
     mode=="block" {
       if ($0 ~ /^[ \t\r]*$/) { blanks++; next }
       if ($0 !~ /^[ \t]/) { exit }
-      line=$0; sub(/^[ \t]+/,"",line); sub(/[ \t\r]+$/,"",line)
+      match($0, /^[ \t]+/)
+      if (desc=="") {
+        if (blanks>0) { desc=""; exit }
+        indent=RLENGTH
+      } else if (RLENGTH!=indent) { desc=""; exit }
+      line=substr($0, RLENGTH+1); sub(/\r$/,"",line)
       if (desc!="") {
-        if (blanks>0) { while (blanks-- > 0) desc=desc "\n" } else desc=desc " "
+        if (lit) { n=blanks+1; while (n-- > 0) desc=desc "\n" }
+        else if (blanks>0) { while (blanks-- > 0) desc=desc "\n" }
+        else desc=desc " "
       }
       desc=desc line; blanks=0
       next
     }
     /^description:/ {
       val=$0; sub(/^description:[ \t]*/,"",val); sub(/[ \t\r]+$/,"",val)
-      if (val==">"  || val=="|")  { mode="block"; clip=1; next }
-      if (val==">-" || val=="|-") { mode="block"; clip=0; next }
+      if (val==">")  { mode="block"; lit=0; clip=1; next }
+      if (val==">-") { mode="block"; lit=0; clip=0; next }
+      if (val=="|")  { mode="block"; lit=1; clip=1; next }
+      if (val=="|-") { mode="block"; lit=1; clip=0; next }
       a=substr(val,1,1)
-      if (a==">" || a=="|") { desc=""; exit }
+      if (a==">" || a=="|") { exit }
       if (length(val)>=2) {
         z=substr(val,length(val),1)
         if ((a==sq && z==sq) || (a==dq && z==dq)) val=substr(val,2,length(val)-2)
@@ -103,7 +119,8 @@ desc_of() {
       desc=val; captured=1; next
     }
     END {
-      if (mode=="block" && clip==1 && desc!="") desc=desc "\n"
+      if (desc !~ /[^ \t\n\r]/) desc=""
+      else if (mode=="block" && clip==1) desc=desc "\n"
       printf "%s", desc
     }
   ' "$1"
@@ -112,9 +129,16 @@ desc_of() {
 # Verdict for one skill description against the budgets and its optional
 # allowlist entry. Prints findings; bumps the fails/warns/allowed_over globals.
 # Kept as a function so the self-test below can drive the enforcement logic
-# directly.
+# directly. Both numbers are validated first: without `set -e`, a garbled len
+# or cap would otherwise make every [ -gt ] test silently false and pass the
+# gate.
 judge_desc() { # <skill> <len> <allowed:yes|no> <cap>
   local skill=$1 len=$2 allowed=$3 cap=$4
+  case "$len" in
+    ''|*[!0-9]*)
+      echo "FAIL — $skill: measured description length '$len' is not a number — chars()/locale breakage; fix the script."
+      fails=1; return ;;
+  esac
   if [ "$allowed" = yes ]; then
     case "$cap" in
       ''|*[!0-9]*)
@@ -130,8 +154,11 @@ judge_desc() { # <skill> <len> <allowed:yes|no> <cap>
     elif [ "$len" -gt "$cap" ]; then
       echo "FAIL — $skill: description grew to ${len} chars, past its pinned ALLOW_OVER cap of ${cap} — allowlisted descriptions may only shrink."
       fails=1
+    elif [ "$len" -lt "$cap" ]; then
+      echo "FAIL — $skill: description shrank to ${len} chars — lower its ALLOW_OVER pin to ${len} in this same change (a stale higher cap would let it regrow unnoticed)."
+      fails=1
     else
-      echo "warn — $skill: description ${len} chars, over the ${DESC_HARD} hard limit but allowlisted (pinned ≤ ${cap}; see the tracking note in this script)."
+      echo "warn — $skill: description ${len} chars, over the ${DESC_HARD} hard limit but allowlisted (pinned at ${cap}; see the tracking note in this script)."
       warns=1; allowed_over=$((allowed_over+1))
     fi
   elif [ "$len" -gt "$DESC_HARD" ]; then
@@ -147,16 +174,19 @@ judge_desc() { # <skill> <len> <allowed:yes|no> <cap>
 # is worse than none. Exact-equality assertions catch both under- and
 # over-extraction; the em-dash fixture catches byte-instead-of-char counting;
 # the judge_desc calls catch enforcement regressions (dead pins, inverted
-# comparisons, boundary drift). Only the stale/unknown-entry loop at the bottom
-# is not driven here — it was hand-verified and is plain set logic.
+# comparisons, boundary drift). Not driven here (hand-verified plain logic):
+# the MIN_SKILLS floor, the missing-SKILL.md sweep, the SKILL.md line count,
+# and the stale/unknown/duplicate-entry loop.
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/skill-budgets-selftest.XXXXXX") || {
   echo "FAIL — self-test: could not create a temp dir."; exit 1; }
 trap 'rm -rf "$TMP"' EXIT
 st_fail() { echo "FAIL — self-test: $1. Fix the script before trusting the scan."; exit 1; }
-# Character count of a fixture's description. Counts are computed HERE, inside
-# one function, because a nested $(...) around the description itself would
-# strip the clip-chomp trailing newline the sentinel just preserved.
-st_len() { local out; out=$(desc_of "$1"; printf x); out=${out%x}; chars "$out"; }
+# Both helpers preserve a trailing newline in the description: st_len counts
+# inside one function, st_read hands the exact string back in the ST global —
+# a bare $(desc_of …) in an assertion would strip the very newline (or reduce
+# a lone-newline regression to empty) that the assertion exists to catch.
+st_len()  { local out; out=$(desc_of "$1"; printf x); out=${out%x}; chars "$out"; }
+st_read() { ST=$(desc_of "$1"; printf x); ST=${ST%x}; }
 
 cat > "$TMP/plain.md" <<'EOF'
 ---
@@ -197,6 +227,15 @@ description: |
   three
 ---
 EOF
+cat > "$TMP/literal-blank.md" <<'EOF'
+---
+name: t
+description: |
+  a
+
+  c
+---
+EOF
 cat > "$TMP/folded-utf8.md" <<'EOF'
 ---
 name: t
@@ -218,6 +257,14 @@ description: first line
   silently-truncated continuation
 ---
 EOF
+cat > "$TMP/multiline-plain-blank.md" <<'EOF'
+---
+name: t
+description: first line
+
+  continuation after a blank line
+---
+EOF
 cat > "$TMP/block-indicator.md" <<'EOF'
 ---
 name: t
@@ -232,29 +279,46 @@ description: >+
   never measured
 ---
 EOF
+cat > "$TMP/block-lead-blank.md" <<'EOF'
+---
+name: t
+description: >
+
+  text
+---
+EOF
+cat > "$TMP/block-indent-jump.md" <<'EOF'
+---
+name: t
+description: >
+  text
+    deeper-indented line
+---
+EOF
 printf -- '---\r\nname: t\r\ndescription: abc\r\n---\r\n' > "$TMP/crlf.md"
 
 n=$(st_len "$TMP/plain.md")
 [ "$n" -eq 5 ] || st_fail "plain description counted $n chars, expected 5"
 n=$(st_len "$TMP/quoted.md")
 [ "$n" -eq 7 ] || st_fail "quoted description counted $n chars, expected 7 (quotes stripped)"
-[ "$(desc_of "$TMP/folded-strip.md")" = "one two three" ] || \
+st_read "$TMP/folded-strip.md"
+[ "$ST" = "one two three" ] || \
   st_fail "strip-chomped folded description parsed wrong, expected exactly 'one two three'"
 n=$(st_len "$TMP/folded-clip.md")
 [ "$n" -eq 14 ] || st_fail "clip-chomped folded description counted $n chars, expected 14 (13 + trailing newline)"
 n=$(st_len "$TMP/literal-clip.md")
-[ "$n" -eq 14 ] || st_fail "literal block counted $n chars, expected 14 — space-vs-newline join must be count-neutral"
+[ "$n" -eq 14 ] || st_fail "literal block counted $n chars, expected 14 — newline joins broke"
+n=$(st_len "$TMP/literal-blank.md")
+[ "$n" -eq 5 ] || st_fail "literal block with a blank line counted $n chars, expected 5 (a+2 newlines+c+newline)"
 n=$(st_len "$TMP/folded-utf8.md")
 [ "$n" -eq 8 ] || st_fail "em-dash description counted $n chars, expected 8 — counting bytes, not characters?"
 n=$(st_len "$TMP/crlf.md")
 [ "$n" -eq 3 ] || st_fail "CRLF file counted $n chars, expected 3 — CR handling broke"
-[ -z "$(desc_of "$TMP/nodesc.md")" ] || st_fail "missing description did not come back empty"
-[ -z "$(desc_of "$TMP/multiline-plain.md")" ] || \
-  st_fail "multi-line plain description was silently truncated instead of coming back empty"
-[ -z "$(desc_of "$TMP/block-indicator.md")" ] || \
-  st_fail "unrecognized block header (>2) was measured as a scalar instead of coming back empty"
-[ -z "$(desc_of "$TMP/keep-chomp.md")" ] || \
-  st_fail "keep chomping (>+) was measured instead of refused"
+for fx in nodesc multiline-plain multiline-plain-blank block-indicator keep-chomp \
+          block-lead-blank block-indent-jump; do
+  st_read "$TMP/$fx.md"
+  [ -z "$ST" ] || st_fail "$fx.md was measured instead of refused (got '$ST')"
+done
 
 fails=0 warns=0 allowed_over=0
 judge_desc t 899  no  ""     >/dev/null
@@ -267,10 +331,16 @@ judge_desc t 1024 no  ""     >/dev/null
 fails=0 warns=0
 judge_desc t 1025 no  ""     >/dev/null
 [ "$fails" -eq 1 ] || st_fail "over-limit description did not fail"
+fails=0 warns=0
+judge_desc t "" no ""        >/dev/null
+[ "$fails" -eq 1 ] || st_fail "non-numeric measured length did not fail (gate would silently pass)"
 fails=0 warns=0 allowed_over=0
-judge_desc t 1500 yes 1600   >/dev/null
+judge_desc t 1600 yes 1600   >/dev/null
 [ "$fails" -eq 0 ] && [ "$warns" -eq 1 ] && [ "$allowed_over" -eq 1 ] || \
-  st_fail "allowlisted under-cap description did not warn cleanly"
+  st_fail "allowlisted at-pin description did not warn cleanly"
+fails=0 warns=0
+judge_desc t 1500 yes 1600   >/dev/null
+[ "$fails" -eq 1 ] || st_fail "description shrunk below its pin did not fail (stale cap would allow regrowth)"
 fails=0 warns=0
 judge_desc t 1700 yes 1600   >/dev/null
 [ "$fails" -eq 1 ] || st_fail "description grown past its pin did not fail"
@@ -310,6 +380,10 @@ for f in "${FILES[@]}"; do
   allowed=no cap=""
   for entry in ${ALLOW_OVER[@]+"${ALLOW_OVER[@]}"}; do
     if [ "${entry%%=*}" = "$skill" ]; then
+      if [ "$allowed" = yes ]; then
+        echo "FAIL — $skill: duplicate ALLOW_OVER entries — keep exactly one."
+        fails=1
+      fi
       allowed=yes; cap=${entry#*=}
       [ "$cap" = "$entry" ] && cap=""   # entry has no '=' at all
       allow_seen="$allow_seen$skill "
@@ -318,7 +392,7 @@ for f in "${FILES[@]}"; do
 
   desc=$(desc_of "$f"; printf x); desc=${desc%x}
   if [ -z "$desc" ]; then
-    echo "FAIL — $skill: no measurable frontmatter description (missing, or a YAML style this parser refuses — see desc_of)."
+    echo "FAIL — $skill: no measurable frontmatter description (missing, a leading BOM, or a YAML style this parser refuses — see desc_of)."
     fails=1; continue
   fi
   judge_desc "$skill" "$(chars "$desc")" "$allowed" "$cap"
