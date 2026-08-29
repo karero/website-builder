@@ -297,14 +297,6 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/website-motion \
          "$PROJECT_SKILLS_DIR"/
    ```
-   **Sanity check** (always, right after copying) — confirm nothing was copied
-   as a symlink:
-   ```bash
-   find "$PROJECT_SKILLS_DIR" -maxdepth 1 -type l
-   # Must print nothing. Any output means a skill copied as a symlink, not a
-   # real directory — the handoff repo would ship broken links back to this
-   # machine. Re-run the copy for the listed name(s) with cp -RL.
-   ```
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
 
@@ -320,6 +312,16 @@ Assemble the project at `<site>/` so it travels without any global setup:
    # its Phase 2 instruction is "run astro-i18n-setup when translations are
    # ready", which can't resolve if the skill was never copied.
    cp -RL "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   ```
+
+   **Sanity check** (always, once all copying above — the primary batch AND
+   any conditional skills — is complete) — confirm nothing was copied as a
+   symlink:
+   ```bash
+   find "$PROJECT_SKILLS_DIR" -maxdepth 1 -type l
+   # Must print nothing. Any output means a skill copied as a symlink, not a
+   # real directory — the handoff repo would ship broken links back to this
+   # machine. Re-run the copy for the listed name(s) with cp -RL.
    ```
 
    **Stamp the copies** (always, after ALL skills are copied) — records which suite
