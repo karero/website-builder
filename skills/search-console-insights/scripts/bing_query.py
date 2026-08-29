@@ -38,6 +38,10 @@ except ImportError:
 API = "https://ssl.bing.com/webmaster/api.svc/json"
 # Striking distance = ranking on roughly page 1-2 but not yet Top 10.
 STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
+# Same rationale as gsc_query.py: an average position over a handful of
+# impressions is noise, not a win (Bing aggregates ~6 months, so the bar
+# still filters out one-off appearances).
+STRIKING_MIN_IMPRESSIONS = 5
 # Same threshold and rationale as gsc_query.py's TOTALS_MISMATCH_THRESHOLD.
 TOTALS_MISMATCH_THRESHOLD = 0.10  # 10%
 
@@ -147,9 +151,10 @@ def build_report(site, rows, kw_matches, page_rows=None):
     # Same query-vs-page reconciliation as gsc_query.py's build_report, and for
     # the same reason: GetQueryStats and GetPageStats are independent API calls
     # (see main()), so a total computed from queries alone can miss real
-    # traffic the page-level pull still has, or vice versa. Silently trusting
-    # one side is exactly the mistake the GSC fix (2026-08-27) exists to
-    # prevent, and this script had the identical gap.
+    # traffic the page-level pull still has, or vice versa. Unlike GSC, Bing's
+    # API offers no property-level (dimensionless) total, so BOTH sums are
+    # proxies: the page-level one is the better of the two but still counts
+    # each page separately when several share one results page.
     tot_c = sum(int(r["clicks"]) for r in rows)
     tot_i = sum(int(r["impressions"]) for r in rows)
     tot_c_pages = sum(int(r["clicks"]) for r in page_rows)
@@ -162,8 +167,9 @@ def build_report(site, rows, kw_matches, page_rows=None):
                  f"{tot_c_pages} clicks, {tot_i_pages} impressions across "
                  f"{len(page_rows)} pages.\n")
     else:
-        L.append(f"**Totals (page-level — use this):** {tot_c_pages} clicks, "
-                 f"{tot_i_pages} impressions.\n")
+        L.append(f"**Totals (page-level sum — the better proxy, but a ceiling: it "
+                 f"counts each page separately when several share one results "
+                 f"page):** {tot_c_pages} clicks, {tot_i_pages} impressions.\n")
         L.append(f"_Query-level, for reference only: {tot_c} clicks, {tot_i} "
                  f"impressions across {len(rows)} queries._\n")
         # Checked on both metrics, not impressions alone -- same reasoning as
@@ -176,9 +182,10 @@ def build_report(site, rows, kw_matches, page_rows=None):
             threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
             metrics_str = " and ".join(flagged).capitalize()
             if tot_i_pages >= tot_i:
-                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct} — use "
-                         f"the page-level total above, not the query-level one, for any "
-                         f"\"site-wide\" claim.\n")
+                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct} — "
+                         f"prefer the page-level sum, and remember both are proxies "
+                         f"(Bing has no property-level total): avoid computing any "
+                         f"\"site-wide\" percentage from Bing numbers at all.\n")
             else:
                 L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct}, and "
                          f"unusually the query-level total is the larger one — this isn't "
@@ -197,12 +204,19 @@ def build_report(site, rows, kw_matches, page_rows=None):
                  + (f" _(+{len(m) - 1} related)_" if len(m) > 1 else ""))
     L.append("")
 
+    in_range = [r for r in rows
+                if STRIKING_MIN <= r["position"] <= STRIKING_MAX and r["impressions"] > 0]
     striking = sorted(
-        [r for r in rows if STRIKING_MIN <= r["position"] <= STRIKING_MAX and r["impressions"] > 0],
+        [r for r in in_range if r["impressions"] >= STRIKING_MIN_IMPRESSIONS],
         key=lambda r: r["impressions"], reverse=True,
     )
+    thin = len(in_range) - len(striking)
     L.append("## Striking-distance queries on Bing (pos ~8–20)\n")
     L.append(fmt(striking, 20) if striking else "_None in range._")
+    if thin:
+        L.append(f"\n_{thin} more in-range quer{'y' if thin == 1 else 'ies'} under "
+                 f"{STRIKING_MIN_IMPRESSIONS} impressions not listed — too thin to "
+                 f"call wins (still in the top-queries table below)._")
 
     # Good-position-but-no-clicks pages (Bing's volume is tiny, so the bar is low).
     seen_unclicked = sorted(

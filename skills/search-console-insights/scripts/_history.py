@@ -39,6 +39,13 @@ def _pos(row):
         return None
 
 
+def _impr(row):
+    try:
+        return int(row.get("impressions", "") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def print_trend(csv_path):
     csv_path = os.path.expanduser(csv_path)
     if not os.path.exists(csv_path):
@@ -53,6 +60,7 @@ def print_trend(csv_path):
             continue  # skip a malformed/partial row instead of crashing the whole trend
         groups[(src, kw)].append(r)
 
+    legend = {}
     print(f"{'source':5}  {'keyword':30}  {'prev':>5}  {'now':>5}  move")
     print(f"{'-'*5}  {'-'*30}  {'-'*5}  {'-'*5}  {'-'*10}")
     for (src, kw), rs in sorted(groups.items()):
@@ -72,7 +80,24 @@ def print_trend(csv_path):
             move = "▼ dropped out"
         else:
             move = "—"
+        # A "movement" that compares two DIFFERENT matched queries, or averages
+        # over a handful of impressions, is not a rank change — mark it so the
+        # arrow can't be over-read (the "AI Resources dropped -3.1" class of
+        # misread: the matcher had switched queries, on 2-5 impressions).
+        q_now, q_prev = (now.get("query") or ""), ((prev or {}).get("query") or "")
+        if prev is not None and q_now and q_prev and q_now != q_prev:
+            move += " ≠"
+            legend["≠"] = ("≠ best-matching query changed between runs — "
+                           "not the same query's movement")
+        if prev is not None and max(_impr(now), _impr(prev)) < 10:
+            move += " ~"
+            legend["~"] = "~ under 10 impressions — movement is noise at this volume"
+        if src == "bing":
+            legend["b"] = ("bing positions aggregate ~6 months — week-over-week "
+                           "moves are damped and lag")
         print(f"{src:5}  {kw[:30]:30}  {pf:>5}  {nf:>5}  {move}")
+    for note in legend.values():
+        print(f"  {note}")
 
 
 if __name__ == "__main__":

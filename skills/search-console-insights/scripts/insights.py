@@ -144,6 +144,12 @@ def main():
     if notes:
         print("\n**Where the engines disagree:**")
         print("\n".join(notes))
+        country_bit = (f" and the --country {args.country} filter (Google only)"
+                       if args.country else "")
+        print(f"\n_Caveat: the two columns are not the same measurement — Google "
+              f"covers your {args.days}-day window{country_bit}; Bing is a ~6-month "
+              f"global aggregate. A disagreement can be window or geography, not "
+              f"ranking._")
 
     # Suggest connecting whatever's missing (all free).
     sugg = []

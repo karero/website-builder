@@ -18,7 +18,7 @@ and the German **"AI Treffen in München"**, but the playbook is general.
 | Target keyword "no impressions yet" | Google isn't surfacing us at all — content/relevance gap, or property too new | Make/strengthen a dedicated page for the term; confirm it's indexed in GSC |
 | Target keyword avg pos 11–20 | On page 2 — striking distance | Strengthen the existing page: title match, internal links, depth, freshness |
 | Striking-distance table has rows | Fastest wins available | Prioritise these over chasing brand-new terms |
-| Page ranks ≤10 but CTR <2% | Seen, not clicked — title/meta problem, **not** a ranking problem | Rewrite title + meta description (`copywriting` + `website-seo-geo`) |
+| Page ranks ≤10 but CTR <2% | Seen, not clicked — a snippet **or SERP-context** problem, not a ranking problem | Live-SERP check first (mandatory — SKILL.md "Reading the numbers"), then rewrite title + meta description (`copywriting` + `website-seo-geo`) |
 
 Striking distance first: moving pos 12 → 8 is far cheaper than 50 → 8, and the
 impression data proves there's real demand.
