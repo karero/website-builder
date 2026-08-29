@@ -46,7 +46,7 @@ lost the ollama slot to a parallel session and was retried); r5 closing on 795bb
 
 **Open items at closure**:
 - **C16** (round 1, NIT): GitHub `::warning::`/`::error::` annotations — recommendation
-  to decline for sibling-gate consistency; needs Daniel's sign-off (the one finding
+  to decline for sibling-gate consistency; needs the owner's sign-off (the one finding
   neither fixed nor refuted).
 - The four ALLOW_OVER pins are owned by whoever lands each skill's description trim
   (the in-flight skill-debloat thread first); the stale-pin FAIL enforces the handoff.

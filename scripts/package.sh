@@ -16,17 +16,20 @@ cd "$REPO_DIR"
 # docs/reviews/ holds internal review trails + plan artifacts — never handoff material.
 # docs/local/ is excluded from git entirely (.git/info/exclude) for private, never-shipped
 # notes — but zip -r is git-agnostic and would sweep it in anyway if it exists on disk.
-# node_modules/ is the same class of leak: gitignored (skills/new-website/templates/.gitignore),
-# so git itself never tracks it, but zip -r doesn't consult .gitignore either — if a template's
-# dependencies happen to be installed on the machine building the release (e.g. from a prior
-# `npm test`/`npm install` run), the whole tree ships in the handoff. Caught live 2026-08-09:
-# a stray node_modules from an unrelated earlier session balanced a 201-file zip into 9324 files
-# (185MB) before this exclusion existed.
+# node_modules/, .astro/, __pycache__/, and test-results/ are the same class of leak: all
+# gitignored (skills/new-website/templates/.gitignore + root .gitignore), so git itself never
+# tracks them, but zip -r doesn't consult .gitignore either — if a template's build/test/install
+# byproducts happen to exist on the machine building the release (e.g. from a prior `npm
+# test`/`npm install`/`npm run build`/pytest run against the real template tree instead of a
+# scratch clone), the whole tree ships in the handoff. Caught live 2026-08-09: a stray
+# node_modules from an unrelated earlier session balanced a 201-file zip into 9324 files (185MB)
+# before that exclusion existed; caught live 2026-08-29 (v0.23 release prep) for the other three.
 zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
-  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' >/dev/null
+  -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
+     '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
