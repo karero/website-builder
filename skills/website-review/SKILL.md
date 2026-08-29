@@ -106,6 +106,8 @@ recommendation, never to pick unasked.
   knowing the edit happened.
 - Nothing silently unshipped (two-stage sites): `git log origin/production..origin/main` empty,
   or the gap is a conscious decision — and the last `npm run ship` ended "✓ LIVE — verified".
+  Any deploy you run or announce follows the site's `PUBLISHING.md` § "For AI assistants —
+  deploy-time guardrails" (preview-vs-live announcements + the cached-404 rule).
 
 ## Pass 2 — completeness + cross-file/skill consistency
 - **Routes:** every `src/pages/**` route is in `tests/_helpers.ts` `PAGES` (and vice-versa;

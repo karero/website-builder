@@ -28,7 +28,8 @@ Everything needed is bundled here:
   assembly manual.
 - `templates/SETUP.md` — accounts (GitHub + Cloudflare) + tools + the bootstrap.
 - `templates/PUBLISHING.md` — plain-English "how to publish" for the owner
-  (`commit`/`push`/`branch` explained + step-by-step per publish model).
+  (`commit`/`push`/`branch` explained + step-by-step per publish model), plus the
+  assistant-facing **deploy-time guardrails** (§4).
 - `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
   permission allowlist to copy into the repo.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
@@ -51,7 +52,7 @@ from silently hiding content. `website-motion` is never run by default: ask for 
 ## 1. Decision interview (answer before any code)
 
 **Conduct the interview — and ALL user-facing guidance throughout this pipeline
-(explanations, the §3a link-sweep question, the §4 preview-vs-live announcement,
+(explanations, the §3a link-sweep question, the §4 preview-vs-live announcements,
 error walk-throughs) — in the language the user writes in.** A German owner gets
 the whole journey in German; the skill files themselves stay English. The
 verbatim message templates below are content specs, not required English wording.
@@ -242,7 +243,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    prompt (it still asks for `rm -rf`, `git push --force`, `wrangler … delete`, `gh repo delete`):
    ```bash
    cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .          # all tools — receiving party can set up too
-   cp "$SKILLS_ROOT"/new-website/templates/PUBLISHING.md .     # plain-English "how to publish" for the owner
+   cp "$SKILLS_ROOT"/new-website/templates/PUBLISHING.md .     # owner "how to publish" + assistant deploy guardrails
    # Claude Code only:
    mkdir -p .claude
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
@@ -370,10 +371,12 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 
 ## 4. Launch & handoff checklist
 
-### Deploy-time guardrails — `references/launch-guardrails.md`
+### Deploy-time guardrails — `templates/PUBLISHING.md` § "For AI assistants — deploy-time guardrails"
 
-Read the reference in full before the FIRST deploy, when a brand-new page goes
-live, and when a live URL looks stale; this summary covers routine pushes.
+That section is the single source of truth — §3 copies `PUBLISHING.md` into every site, so
+the post-handoff agent carries it too (the scaffolded README's deploy section points there).
+Read it in full before the FIRST deploy, when a brand-new page goes live, and when a live
+URL looks stale; this summary covers routine pushes.
 **Always announce whether a push is PREVIEW or LIVE** (two-stage sites: "this
 is NOT live yet" + the preview URL on every push to `main`; live only after
 `npm run ship` AND the production build finishes). **Never request — or
@@ -381,7 +384,7 @@ announce — a brand-new page's URL on the live domain before its build is
 Active**: the first request — the owner clicking your announcement counts —
 caches a 404 at the edge that only a manual dashboard purge clears. Verify on
 the hash deployment URL until Active, touch the bare canonical URL last, and
-hold GSC Request Indexing until then.
+hold Search Console Request Indexing until then.
 
 - [ ] All QA green: `npm test`.
 - [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
@@ -437,7 +440,10 @@ hold GSC Request Indexing until then.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
       Non-English-speaking owner? Translate `PUBLISHING.md` in-session first (e.g. save
       as `PUBLISHING.de.md`, or replace the copy) — it is the owner's PERMANENT reference,
-      unlike your conversational guidance, and the shipped template is English.
+      unlike your conversational guidance, and the shipped template is English. Any
+      translation or replacement MUST keep the "For AI assistants — deploy-time
+      guardrails" section (translated is fine, dropped is not — it is the post-handoff
+      agent's only copy of those rules).
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
@@ -451,8 +457,9 @@ hold GSC Request Indexing until then.
       relevant directory found" and "not eligible" are valid, non-blocking
       outcomes — distinct from "skipped by owner choice".
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
-      `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`, and a `README.md` with
-      the decision answers + "how to add a page / run tests / deploy".
+      `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
+      `PUBLISHING.md` (with its "For AI assistants" guardrails section intact), and a
+      `README.md` with the decision answers + "how to add a page / run tests / deploy".
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity
 

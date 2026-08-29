@@ -74,6 +74,10 @@ live fast with zero dashboard time.
 5. **Revoke when done** — once the site is live, tell the owner to delete the token
    (My Profile → API Tokens → ⋯ → Delete), or let the expiry retire it. Don't leave a live
    token lying around. And never drive these changes through blind screen control.
+6. **The deploy-time guardrails apply from this very first deploy** — the preview-vs-live
+   announcements and the cached-404 rule in `templates/PUBLISHING.md` § "For AI
+   assistants — deploy-time guardrails" (see the pointer in SKILL.md §4). The first
+   request a brand-new custom domain sees is the one the edge caches.
 
 ### Commands you run (token in env)
 
