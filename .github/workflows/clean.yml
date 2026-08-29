@@ -1,6 +1,8 @@
 name: clean
 # Fails the build if any personal name, contact info, or credential enters the skill
-# suite. The suite is a handoff artifact and must stay generic. See scripts/check_clean.sh.
+# suite (see scripts/check_clean.sh), or if independent-review's hand-maintained model
+# default drifts out of sync across its own doc/script references (see
+# scripts/check_model_defaults.sh).
 on:
   push:
   pull_request:
@@ -11,3 +13,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Scan skills for names / contact info / credentials
         run: bash scripts/check_clean.sh
+  model-defaults:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check independent-review's model default is consistent
+        run: bash scripts/check_model_defaults.sh
