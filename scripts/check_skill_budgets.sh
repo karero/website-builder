@@ -170,11 +170,22 @@ desc_of() {
       if (val ~ /^[-+]?([0-9][0-9_]*(\.[0-9_]*)?|\.[0-9_]+)([eE][-+]?[0-9]+)?$/) { exit }
       if (val ~ /^[-+]?0[xXoObB][0-9a-fA-F_]+$/) { exit }
       if (lv ~ /^[-+]?\.(inf|nan)$/) { exit }
+      # YAML 1.1 sexagesimals (5:30 resolves to 330) and timestamps. Both are
+      # anchored whole-token so ordinary prose that merely opens with a date
+      # or a clock time still measures. Intervals are spelled out, not {n},
+      # for mawk (the ubuntu-latest default awk).
+      if (val ~ /^[-+]?[0-9][0-9_]*(:[0-5]?[0-9])+([.][0-9]*)?$/) { exit }
       if (val ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]?-[0-9][0-9]?$/) { exit }
+      if (val ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]?-[0-9][0-9]?[Tt ][0-9][0-9]?:[0-9][0-9]:[0-9][0-9]([.][0-9]*)?( ?([Zz]|[-+][0-9][0-9]?(:[0-9][0-9])?))?$/) { exit }
       if (val ~ /^[-?:]([ \t]|$)/) { exit }
       if (val ~ /:[ \t]/) { exit }
       desc=val; captured=1; next
     }
+    # A description-shaped key the capture rule above declined (`description:x`
+    # with no separating space, the `description :` / quoted-key spellings).
+    # Skipping it would let a LATER valid key be measured in a document a real
+    # loader rejects outright, so refuse loudly instead.
+    $0 ~ dupre { desc=""; exit }
     END {
       if (desc !~ /[^ \t\n\r]/) desc=""
       else if (wasblock && clip==1) desc=desc "\n"
@@ -428,6 +439,31 @@ name: t
 description: 2026-08-29
 ---
 EOF
+cat > "$TMP/sexagesimal.md" <<'EOF'
+---
+name: t
+description: 5:30
+---
+EOF
+cat > "$TMP/timestamp-value.md" <<'EOF'
+---
+name: t
+description: 2026-08-29T10:00:00Z
+---
+EOF
+cat > "$TMP/malformed-then-valid.md" <<'EOF'
+---
+name: t
+description:x
+description: a later valid key a real loader would never reach
+---
+EOF
+cat > "$TMP/time-starts-string.md" <<'EOF'
+---
+name: t
+description: 5:30 is when the build runs
+---
+EOF
 cat > "$TMP/date-starts-string.md" <<'EOF'
 ---
 name: t
@@ -463,10 +499,13 @@ n=$(st_len "$TMP/quoted-colon.md")
 [ "$n" -eq 4 ] || st_fail "quoted value containing colon-space counted $n chars, expected 4 — quote path must bypass the plain-scalar refusals"
 n=$(st_len "$TMP/date-starts-string.md")
 [ "$n" -eq 45 ] || st_fail "plain string starting with a date counted $n chars, expected 45 — whole-token refusals must not fire on real descriptions"
+n=$(st_len "$TMP/time-starts-string.md")
+[ "$n" -eq 27 ] || st_fail "plain string starting with a clock time counted $n chars, expected 27 — the sexagesimal refusal must stay whole-token"
 for fx in nodesc multiline-plain multiline-plain-blank block-indicator keep-chomp \
           block-lead-blank block-indent-jump block-tab-indent block-wide-blank alias \
           duplicate-key dup-alt-spelling plain-colon plain-seq unterminated-quote \
-          comment-value null-value numeric-value flow-starter colon-no-space date-only; do
+          comment-value null-value numeric-value flow-starter colon-no-space date-only \
+          sexagesimal timestamp-value malformed-then-valid; do
   st_read "$TMP/$fx.md"
   [ -z "$ST" ] || st_fail "$fx.md was measured instead of refused (got '$ST')"
 done
