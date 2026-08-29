@@ -170,8 +170,13 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > pinned: list its name in `<skills_dir>/REFRESH-KEEP` (one per line, `#` comments)
 > and `--refresh` will never touch it — reports mark it "(pinned)". Plain
 > `make whats-new` shows the suite's recent skill changes.
-> Template test files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md` and
-> `playwright.config.ts`) are **frozen one-time copies**, not vendored skills —
+> Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
+> `playwright.config.ts`, `functions/_middleware.ts`, `.github/workflows/ci.yml`,
+> `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
+> `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
+> `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
+> `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, and `.nvmrc`) are
+> **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
@@ -241,6 +246,8 @@ skills/            the suite skills (canonical)
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
   search-console-setup, business-listings-setup   (bundled deps)
+  website-motion   (optional polish — count-ups + scroll reveals with the
+                   reduced-motion contract; copied to every site, never runs unasked)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
@@ -252,6 +259,7 @@ scripts/
   package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
+  check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
 docs/
   ANTIGRAVITY.md   using the suite with Google Antigravity
@@ -305,7 +313,7 @@ The suite is a handoff artifact, so it must carry **no personal names, contact i
 credentials**.
 
 ```bash
-make check       # PII/secrets scan + model-agnostic guard + per-skill size budgets
+make check       # PII/secrets + model-agnostic + template coverage + per-skill size budgets
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
