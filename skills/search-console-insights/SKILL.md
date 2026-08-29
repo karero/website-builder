@@ -127,13 +127,14 @@ Pulling the report is the easy part; the diagnosis is where mistakes happen. Eve
 rule below was a real interpretation error caught in a live site's data. Apply them
 before stating any conclusion, not just when something looks off.
 
-1. **Only the property-level figure is a site-wide total.** The report prints three,
-   labeled: **property-level** (no dimension — one impression per results page; the
-   only valid site-wide denominator), the **page-level sum** (counts each of your
-   pages separately when several share one results page — brand sitelinks inflate
-   it), and the **query-level sum** (anonymization drops rare queries — undercounts
-   on thin sites). The script warns when they disagree; never promote either sum to
-   "the" total.
+1. **Only the property-level figure is a site-wide total.** The report prints up to
+   three, labeled: **property-level** (no dimension — one impression per results
+   page; the only valid site-wide denominator), the **page-level sum** (counts each
+   of your pages separately when several share one results page — brand sitelinks
+   inflate it), and the **query-level sum** (anonymization drops rare queries —
+   undercounts on thin sites). The script warns when they disagree by >10% and
+   labels any fallback a floor/ceiling; never promote either sum to "the" total.
+   (Both sums also cap at 25,000 rows per pull; the property-level row does not.)
 2. **A percentage or comparison must name its denominator AND its window.** State
    which total it is computed against, and which date range and report it came from.
    Never compare numbers from different windows or sources (a 28-day GSC pull vs
@@ -173,8 +174,9 @@ before stating any conclusion, not just when something looks off.
 query-level sum (384) as its denominator — an anonymization-shrunk number. But the
 "corrected" claim quoted the page-level sum (1,071) as the truth, which overcounts the
 other way. The defensible number needed no site-wide denominator at all: 123 of the
-target page's own 150 impressions (~82%). Page-relative framing is harder to get wrong
-and more useful.
+target page's own 150 impressions (~82%) — with the query→page mapping confirmed via
+the `--query` drill-down (rule 5), not assumed. Page-relative framing is harder to get
+wrong and more useful.
 
 ## Phase 1 — GSC data (free, high-signal)
 
@@ -192,10 +194,10 @@ and more useful.
 - First run opens a browser for consent; the refresh token is cached at
   `~/.config/gsc-insights/token.json` (chmod 600) so later runs are silent.
 
-The report opens with **three site-wide totals** (property-level = the denominator;
-page-level and query-level sums as labeled references, flagged when they disagree by
->10% — see "Reading the numbers" above for why each differs), then three actionable
-sections (then top-queries / top-pages tables):
+The report opens with **up to three site-wide totals** (property-level = the
+denominator; page-level and query-level sums as labeled references, flagged when they
+disagree by >10% — see "Reading the numbers" above for why each differs), then three
+actionable sections (then top-queries / top-pages tables):
 
 1. **Target keywords — where we stand.** Best-matching query, avg position,
    impressions, clicks, CTR for each `--keywords` term (or "no impressions yet").
@@ -308,10 +310,13 @@ bash scripts/track.sh example.com "AI Events Munich,AI Meetups Munich,AI Treffen
 Output is a per-keyword trend (**lower position = better; ▲ = improved**). The tracker
 pulls a **28-day window** (`GSC_TRACK_DAYS` overrides) so week-over-week moves are
 actually visible — a 90-day window would smooth them away — and it marks moves that
-aren't real rank changes: `≠` = the best-matching query changed between runs, `~` =
-under 10 impressions (noise). The first run just seeds the history — re-run **every
-1–2 weeks** to watch the needle. (Each query script also takes `--csv <path>` to append
-on its own; `python scripts/_history.py <csv>` reprints the trend without a new pull.)
+aren't real rank changes: `≠` = the best-matching query changed between runs, `~` = a
+compared side has under 10 impressions (noise). Changing the window (including
+upgrading from the old 90-day tracker) shifts the recorded positions once — treat the
+first post-change move as not comparable. The first run just seeds the history —
+re-run **every 1–2 weeks** to watch the needle. (Each query script also takes
+`--csv <path>` to append on its own; `python scripts/_history.py <csv>` reprints the
+trend without a new pull.)
 
 ## Weekly auto-tracking (opt-in, per site) — offer this
 

@@ -80,21 +80,26 @@ def print_trend(csv_path):
             move = "▼ dropped out"
         else:
             move = "—"
-        # A "movement" that compares two DIFFERENT matched queries, or averages
-        # over a handful of impressions, is not a rank change — mark it so the
-        # arrow can't be over-read (the "AI Resources dropped -3.1" class of
-        # misread: the matcher had switched queries, on 2-5 impressions).
+        # A "movement" that compares two DIFFERENT matched queries, or leans on
+        # a handful of impressions on EITHER side, is not a rank change — mark
+        # it so the arrow can't be over-read (the "AI Resources dropped -3.1"
+        # class of misread: the matcher had switched queries, on 2-5
+        # impressions). min() over the position-bearing sides, not max(): a
+        # fat-prev/thin-now move is exactly the case the marker exists for.
         q_now, q_prev = (now.get("query") or ""), ((prev or {}).get("query") or "")
         if prev is not None and q_now and q_prev and q_now != q_prev:
             move += " ≠"
             legend["≠"] = ("≠ best-matching query changed between runs — "
                            "not the same query's movement")
-        if prev is not None and max(_impr(now), _impr(prev)) < 10:
+        imprs = [_impr(r) for r in (now, prev)
+                 if r is not None and _pos(r) is not None]
+        if prev is not None and imprs and min(imprs) < 10:
             move += " ~"
-            legend["~"] = "~ under 10 impressions — movement is noise at this volume"
-        if src == "bing":
-            legend["b"] = ("bing positions aggregate ~6 months — week-over-week "
-                           "moves are damped and lag")
+            legend["~"] = ("~ a compared side has under 10 impressions — "
+                           "movement is noise at this volume")
+        if src == "bing" and prev is not None:
+            legend["bing"] = ("bing rows: positions are ~6-month aggregates — "
+                              "week-over-week moves are damped and lag")
         print(f"{src:5}  {kw[:30]:30}  {pf:>5}  {nf:>5}  {move}")
     for note in legend.values():
         print(f"  {note}")

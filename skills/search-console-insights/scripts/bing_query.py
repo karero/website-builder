@@ -216,7 +216,8 @@ def build_report(site, rows, kw_matches, page_rows=None):
     if thin:
         L.append(f"\n_{thin} more in-range quer{'y' if thin == 1 else 'ies'} under "
                  f"{STRIKING_MIN_IMPRESSIONS} impressions not listed — too thin to "
-                 f"call wins (still in the top-queries table below)._")
+                 f"call wins (still counted in the totals; the top-queries table "
+                 f"shows the top 25)._")
 
     # Good-position-but-no-clicks pages (Bing's volume is tiny, so the bar is low).
     seen_unclicked = sorted(

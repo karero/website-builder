@@ -4,7 +4,7 @@ gsc_query.py — Phase 1 of the search-console-insights skill.
 
 Pulls Google Search Console *Search Analytics* data (queries, pages, CTR,
 average position) via the official API and writes a Markdown report that
-surfaces the three highest-leverage things:
+surfaces the highest-leverage things:
 
   1. Where each TARGET keyword currently ranks (or "not yet ranking").
   2. Striking-distance queries (avg position ~8-20) — the fastest Top-10 wins.
@@ -141,7 +141,11 @@ def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""
     if query_str:
         filters.append({"dimension": "query", "expression": query_str})
     if filters:
-        body["dimensionFilterGroups"] = [{"filters": filters}]
+        # groupType "and" is GSC's effective behavior for multiple filters
+        # (verified empirically 2026-08-29: country+page returned the
+        # intersection, not the union) — stated explicitly so nobody has to
+        # re-litigate the API default.
+        body["dimensionFilterGroups"] = [{"groupType": "and", "filters": filters}]
     resp = service.searchanalytics().query(siteUrl=site, body=body).execute()
     return resp.get("rows", [])
 
@@ -247,33 +251,49 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
         if refs:
             L.append("_For reference only, never as a denominator: "
                      + "; ".join(refs) + "._\n")
-        if (st_impr > 0 and top_pages
-                and (total_impr_pages - st_impr) / st_impr > TOTALS_MISMATCH_THRESHOLD):
-            L.append("> ⚠️ **The page-level sum runs >10% above the property total** — "
-                     "several of your pages often appear in the same results page "
-                     "(typically brand sitelinks). A percentage computed against the "
-                     "page-level sum understates every share.\n")
-        if (st_impr > 0 and top_queries
-                and (st_impr - total_impr) / st_impr > TOTALS_MISMATCH_THRESHOLD):
-            L.append(f"> ⚠️ **Query rows cover only {total_impr / st_impr:.0%} of "
-                     f"property impressions** — GSC is anonymizing rare queries on "
-                     f"this site. Individual query rows are fine; their sum is not a "
-                     f"total.\n")
-    elif top_pages:
-        L.append(f"> ⚠️ **Property-level totals unavailable this run.** Falling back "
-                 f"to the page-level sum — it counts each of your pages separately "
-                 f"when several share one results page, so treat it as a ceiling, "
-                 f"not a confirmed total.\n")
-        L.append(f"**Site-wide (page-level sum, ceiling):** {total_clicks_pages} "
-                 f"clicks, {total_impr_pages} impressions.\n")
+        # Both metrics, not impressions alone: page-sum clicks should track the
+        # property's clicks closely (a click is attributed to one URL), so a
+        # clicks-only divergence is a real, silent anomaly worth flagging too.
+        if top_pages:
+            over = [m for m, sum_v, prop_v in (("impressions", total_impr_pages, st_impr),
+                                               ("clicks", total_clicks_pages, st_clicks))
+                    if prop_v > 0 and (sum_v - prop_v) / prop_v > TOTALS_MISMATCH_THRESHOLD]
+            if over:
+                L.append(f"> ⚠️ **The page-level sum runs >10% above the property total "
+                         f"({' and '.join(over)})** — several of your pages often appear "
+                         f"in the same results page (typically brand sitelinks). A "
+                         f"percentage computed against the page-level sum understates "
+                         f"every share.\n")
+        if top_queries:
+            under = [m for m, sum_v, prop_v in (("impressions", total_impr, st_impr),
+                                                ("clicks", total_clicks, st_clicks))
+                     if prop_v > 0 and (prop_v - sum_v) / prop_v > TOTALS_MISMATCH_THRESHOLD]
+            if under:
+                cov = (f"; query rows cover {total_impr / st_impr:.0%} of impressions"
+                       if st_impr > 0 else "")
+                L.append(f"> ⚠️ **The query-level sum runs >10% below the property "
+                         f"total ({' and '.join(under)}{cov})** — GSC is anonymizing "
+                         f"rare queries on this site. Individual query rows are fine; "
+                         f"their sum is not a total.\n")
     else:
-        L.append(f"> ⚠️ **Property-level and page-level reports returned nothing "
-                 f"this run, though query-level data exists.** The query-level sum "
-                 f"undercounts rare queries on a thin site — treat it as a floor, "
-                 f"not a confirmed total.\n")
-        L.append(f"**Site-wide (query-level sum, floor):** {total_clicks} clicks, "
-                 f"{total_impr} impressions.\n")
-    if top_pages and not top_queries:
+        # Property-level didn't deliver — distinguish an explicit zero row
+        # (the pulls disagree outright) from no row at all (pull unavailable).
+        if site_total is not None:
+            L.append(f"> ⚠️ **Property-level total returned 0 clicks / 0 impressions "
+                     f"while the dimensioned reports below have data** — the "
+                     f"independent pulls disagree outright; re-pull before quoting "
+                     f"any of these as a total.\n")
+        else:
+            L.append(f"> ⚠️ **Property-level totals unavailable this run.**\n")
+        if top_pages:
+            L.append(f"**Site-wide (page-level sum, ceiling — counts each of your "
+                     f"pages separately when several share one results page):** "
+                     f"{total_clicks_pages} clicks, {total_impr_pages} impressions.\n")
+        else:
+            L.append(f"**Site-wide (query-level sum, floor — undercounts rare "
+                     f"queries on a thin site):** {total_clicks} clicks, "
+                     f"{total_impr} impressions.\n")
+    if not top_queries:
         L.append(f"> ⚠️ **Query-level report returned no rows this window.** The "
                  f"\"Target keywords\" section below will show every keyword as \"no "
                  f"impressions yet\" — that reflects missing query-level detail this "
@@ -313,7 +333,8 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
         L.append(f"\n_{thin} more in-range quer{'y' if thin == 1 else 'ies'} under "
                  f"{STRIKING_MIN_IMPRESSIONS} impressions not listed as wins — an "
                  f"average position over a handful of impressions is noise, not a "
-                 f"signal (they still appear in the top-queries data)._")
+                 f"signal (still counted in the totals; the top-queries table shows "
+                 f"the top 25)._")
     L.append("")
 
     # --- Low-CTR pages -----------------------------------------------------
@@ -348,9 +369,11 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                      "page). Rare queries can still be anonymized away, so rows here "
                      "may not sum to the page's total impressions._")
         else:
-            L.append("_No query rows for this page in the window — its queries may "
-                     "all be too rare to survive anonymization, even when the page "
-                     "itself shows impressions._")
+            L.append("_No query rows for this page in the window. The `--page` "
+                     "filter is an exact URL match — compare against the top-pages "
+                     "table first (https vs http, trailing slash, www) — and rare "
+                     "queries can also be anonymized away even when the page itself "
+                     "shows impressions._")
         L.append("")
     if query_term:
         L.append(f"## Pages serving \"{query_term}\"\n")
@@ -435,15 +458,29 @@ def main():
         # No dimensions → the property-level totals row (the true site-wide figure).
         totals_rows = query(service, args.site, s_start, s_end, [], country=args.country)
         site_total = totals_rows[0] if totals_rows else None
-        page_drill = (query(service, args.site, s_start, s_end, ["query"],
-                            country=args.country, page=args.page)
-                      if args.page else None)
-        query_drill = (query(service, args.site, s_start, s_end, ["page"],
-                             country=args.country, query_str=args.query)
-                       if args.query else None)
     except Exception as e:  # noqa: BLE001
         eprint(f"Search Analytics query failed: {e}")
         sys.exit(1)
+
+    # Drill-downs degrade on their own — a malformed --page/--query must not
+    # cost the reader the base report. On failure the section is omitted
+    # (clearing the term below), not rendered as a misleading "no rows".
+    page_drill = query_drill = None
+    page_url, query_term = args.page, args.query
+    if args.page:
+        try:
+            page_drill = query(service, args.site, s_start, s_end, ["query"],
+                               country=args.country, page=args.page)
+        except Exception as e:  # noqa: BLE001
+            eprint(f"--page drill-down failed (continuing without it): {e}")
+            page_url = ""
+    if args.query:
+        try:
+            query_drill = query(service, args.site, s_start, s_end, ["page"],
+                                country=args.country, query_str=args.query)
+        except Exception as e:  # noqa: BLE001
+            eprint(f"--query drill-down failed (continuing without it): {e}")
+            query_term = ""
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
     kw_matches = match_keywords(top_queries, keywords) if keywords else []
@@ -467,8 +504,8 @@ def main():
     report = build_report(args.site, s_start, s_end, top_queries, top_pages,
                           kw_matches, perm_level, args.days, country=args.country,
                           site_total=site_total,
-                          page_drill=page_drill, page_url=args.page,
-                          query_drill=query_drill, query_term=args.query)
+                          page_drill=page_drill, page_url=page_url,
+                          query_drill=query_drill, query_term=query_term)
     print(report)
     if args.out:
         Path(args.out).write_text(report)
