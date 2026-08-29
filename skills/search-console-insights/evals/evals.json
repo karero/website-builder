@@ -19,12 +19,12 @@
     {
       "id": 2,
       "prompt": "Where do I rank for 'AI events in Munich'? And what are my quickest SEO wins?",
-      "expected_output": "Should run gsc_query.py (via the venv) for the verified property with the keyword, and report the keyword's current average position plus the striking-distance queries (avg position ~8-20) as the fastest Top-10 wins. Should also surface high-impression/low-CTR pages as title/meta targets. Should honestly state if the property is too new / near-empty rather than inventing data.",
+      "expected_output": "Should run gsc_query.py (via the venv) for the verified property with the keyword, and report the keyword's current average position plus the striking-distance queries (avg position ~8-20) as the fastest Top-10 wins. Should also surface high-impression/low-CTR pages as snippet/SERP investigation targets (title/meta rewrites only after the live-SERP check). Should honestly state if the property is too new / near-empty rather than inventing data.",
       "assertions": [
         "Runs gsc_query.py through the venv python",
         "Reports the target keyword's average position",
         "Surfaces striking-distance queries (pos ~8-20) as quick wins",
-        "Flags high-impression / low-CTR pages as title/meta targets",
+        "Flags high-impression / low-CTR pages as snippet/SERP investigation targets, not automatic title/meta rewrites",
         "Honestly reports a near-empty property instead of fabricating data"
       ],
       "files": []
@@ -45,11 +45,11 @@
     {
       "id": 4,
       "prompt": "My site gets very little traffic. How should I actually use this data to improve?",
-      "expected_output": "Should apply the low-volume playbook: track POSITION and impressions rather than clicks (clicks are noisy at low volume); convert striking-distance queries one at a time; fix titles for queries that rank but don't get clicked; mine the unexpected queries the site already appears for; and use the SERP + Bing layers to find weak-competition / long-tail / other-language terms. Should recommend re-measuring every 1-2 weeks, not daily, and comparing windows.",
+      "expected_output": "Should apply the low-volume playbook: track POSITION and impressions rather than clicks (clicks are noisy at low volume); convert striking-distance queries one at a time; fix titles for queries that rank but don't get clicked (after the live-SERP check confirms a controllable snippet problem); mine the unexpected queries the site already appears for; and use the SERP + Bing layers to find weak-competition / long-tail / other-language terms. Should recommend re-measuring every 1-2 weeks, not daily, and comparing windows.",
       "assertions": [
         "Says to track position/impressions, not clicks, at low volume",
         "Recommends converting striking-distance queries one at a time",
-        "Recommends fixing titles for ranked-but-unclicked queries",
+        "Recommends the live-SERP check before fixing titles for ranked-but-unclicked queries",
         "Suggests mining unexpected/long-tail queries the site already appears for",
         "Recommends a weekly/biweekly cadence rather than daily"
       ],

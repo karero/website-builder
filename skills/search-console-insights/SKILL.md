@@ -5,8 +5,9 @@ description: >
   optimize step that sits downstream of search-console-setup (which only registers
   the property). Uses the free GSC Search Analytics API (OAuth desktop flow,
   read-only) to report where target keywords rank, striking-distance queries (avg
-  position ~8-20 = fastest Top-10 wins), and high-impression/low-CTR pages that need
-  title/meta rewrites. Optional free competitive-SERP layer (Serper, fallback SerpApi)
+  position ~8-20 = fastest Top-10 wins), and high-impression/low-CTR pages flagged
+  for snippet/SERP investigation (a title/meta rewrite is the outcome only when the
+  live-SERP check shows a snippet problem you control). Optional free competitive-SERP layer (Serper, fallback SerpApi)
   shows who actually holds the Top 10 for a keyword you don't rank for yet, plus an
   optional Bing Webmaster Tools source (simple API key) as a Copilot/ChatGPT-visibility
   proxy. Ships Python scripts (scripts/gsc_query.py, scripts/serp_check.py,
@@ -374,8 +375,9 @@ to work it like this:
    real, attributable win.
 3. **Fix titles for queries you already rank for but nobody clicks.** Ranking ≤10 with ~0
    clicks = a *snippet-or-SERP* problem, not a ranking problem — and it's higher ROI at low
-   volume than chasing new terms. Run the mandatory live-SERP check first, then rewrite the
-   title/meta (→ `copywriting` + `website-seo-geo`).
+   volume than chasing new terms. Run the mandatory live-SERP check first; rewrite the
+   title/meta only if it shows a snippet problem you control (→ `copywriting` +
+   `website-seo-geo`).
 4. **Mine the queries you never targeted.** The top-queries table surfaces terms you
    *accidentally* rank for (speaker names, adjacent topics, "claude code munich"). On a
    thin site these are gold — real demand. Build or expand a section around the ones that

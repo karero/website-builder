@@ -10,9 +10,11 @@ position week-over-week" from a manual eyeball into one command.
 
 CSV columns: date, source, keyword, query, position, impressions, clicks,
 window, country. The last two record the pull's configuration so the trend
-can refuse to draw an arrow across a config change; they were appended to
-the schema (2026-08-29) — rows appended to an older CSV still align, since
-new fields only ever go on the END, but readers of that file won't see them.
+can flag a move that compares two different configs; they were appended to
+the schema (2026-08-29). append_rows() migrates an older-header CSV in
+place before appending — without that, the extra columns land past the old
+header and DictReader silently drops them, killing the flag for exactly
+the histories the window change affects.
 """
 import csv
 import collections
@@ -24,10 +26,29 @@ FIELDS = ["date", "source", "keyword", "query", "position", "impressions", "clic
 
 
 def append_rows(csv_path, items):
-    """Append rows (list of dicts keyed by FIELDS) — write the header if new."""
+    """Append rows (list of dicts keyed by FIELDS) — write the header if new.
+
+    An existing file whose header predates FIELDS is migrated first (full
+    header rewritten, legacy rows padded with empty values, via a temp file
+    + atomic replace). A legacy row's blank config then genuinely differs
+    from a new row's recorded config, so the trend's ‡ flag fires on the
+    first post-migration comparison instead of being silently dead."""
     csv_path = os.path.expanduser(csv_path)
     new = not os.path.exists(csv_path)
     os.makedirs(os.path.dirname(csv_path) or ".", exist_ok=True)
+    if not new:
+        with open(csv_path, newline="") as f:
+            header = next(csv.reader(f), None)
+        if header and header != FIELDS:
+            with open(csv_path, newline="") as f:
+                old_rows = list(csv.DictReader(f))
+            tmp = csv_path + ".tmp"
+            with open(tmp, "w", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction="ignore")
+                w.writeheader()
+                for old in old_rows:
+                    w.writerow({k: (old.get(k) or "") for k in FIELDS})
+            os.replace(tmp, csv_path)
     with open(csv_path, "a", newline="") as f:
         w = csv.DictWriter(f, fieldnames=FIELDS)
         if new:
@@ -109,7 +130,10 @@ def print_trend(csv_path):
                            "movement is noise at this volume")
         cfg_now = (now.get("window") or "", now.get("country") or "")
         cfg_prev = (((prev or {}).get("window")) or "", ((prev or {}).get("country")) or "")
-        if prev is not None and cfg_now != cfg_prev and any(cfg_now + cfg_prev):
+        # Unequal tuples imply at least one non-empty side, so inequality
+        # alone is the whole test — an unknown (legacy-blank) config vs a
+        # recorded one deliberately counts as a change.
+        if prev is not None and cfg_now != cfg_prev:
             move += " ‡"
             legend["‡"] = ("‡ the tracked window/country changed between runs — "
                            "positions are not comparable across the change")

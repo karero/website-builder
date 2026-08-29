@@ -184,17 +184,12 @@ def build_report(site, rows, kw_matches, page_rows=None):
         if flagged:
             threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
             metrics_str = " and ".join(flagged).capitalize()
-            if tot_i_pages >= tot_i:
-                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct} — "
-                         f"prefer the page-level sum, and remember both are proxies "
-                         f"(Bing has no property-level total): avoid computing any "
-                         f"\"site-wide\" percentage from Bing numbers at all.\n")
-            else:
-                L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct}, and "
-                         f"unusually the query-level total is the larger one — this isn't "
-                         f"the pattern you'd expect from anonymization. Treat both numbers "
-                         f"with caution and re-run before quoting either as a site-wide "
-                         f"figure.\n")
+            # Direction-neutral on purpose: with no property-level truth to
+            # anchor on, picking a "right" side per metric would just guess.
+            L.append(f"> ⚠️ {metrics_str} disagree by more than {threshold_pct} "
+                     f"between the two Bing pulls — both are proxies (Bing has no "
+                     f"property-level total), so avoid computing any \"site-wide\" "
+                     f"percentage from Bing numbers at all.\n")
 
     L.append("## Target keywords — where we stand on Bing\n")
     for kw, m in kw_matches:
@@ -215,7 +210,8 @@ def build_report(site, rows, kw_matches, page_rows=None):
     )
     thin = len(in_range) - len(striking)
     L.append("## Striking-distance queries on Bing (pos ~8–20)\n")
-    L.append(fmt(striking, 20) if striking else "_None in range._")
+    L.append(fmt(striking, 20) if striking
+             else "_None in range" + (" with enough impressions to trust" if thin else "") + "._")
     if thin:
         L.append(f"\n_{thin} more in-range quer{'y' if thin == 1 else 'ies'} under "
                  f"{STRIKING_MIN_IMPRESSIONS} impressions not listed — too thin to "

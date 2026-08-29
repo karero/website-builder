@@ -264,22 +264,26 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                 return abs(sum_v - prop_v) / prop_v > TOTALS_MISMATCH_THRESHOLD
             return sum_v > 0
         if top_pages:
-            metrics = (("impressions", total_impr_pages, st_impr),
-                       ("clicks", total_clicks_pages, st_clicks))
-            over = [m for m, s, p in metrics if _div(s, p) and s >= p]
-            below = [m for m, s, p in metrics if _div(s, p) and s < p]
-            if over:
+            # Sitelinks explain exactly one pattern: IMPRESSIONS inflated
+            # above a positive property figure. Clicks attribute to one URL
+            # (the sums should match), and a zero or below-property figure
+            # isn't multi-page counting — those get the anomaly message.
+            if (st_impr > 0 and
+                    (total_impr_pages - st_impr) / st_impr > TOTALS_MISMATCH_THRESHOLD):
                 L.append(f"> ⚠️ **The page-level sum diverges above the property "
-                         f"total ({' and '.join(over)})** — several of your pages "
-                         f"often appear in the same results page (typically brand "
+                         f"total (impressions)** — several of your pages often "
+                         f"appear in the same results page (typically brand "
                          f"sitelinks). A percentage computed against the page-level "
                          f"sum understates every share.\n")
-            if below:
-                L.append(f"> ⚠️ **The page-level sum runs below the property total "
-                         f"({' and '.join(below)}) — the unexpected direction** "
-                         f"(row-cap truncation, or transient divergence between the "
-                         f"independent pulls). Treat both numbers with caution this "
-                         f"run.\n")
+            anom = [m for m, s, p in (("impressions", total_impr_pages, st_impr),
+                                      ("clicks", total_clicks_pages, st_clicks))
+                    if _div(s, p) and not (m == "impressions" and p > 0 and s > p)]
+            if anom:
+                L.append(f"> ⚠️ **The page-level sum diverges from the property "
+                         f"total ({' and '.join(anom)}) in a way sitelinks can't "
+                         f"explain** — row-cap truncation, or transient divergence "
+                         f"between the independent pulls. Treat both numbers with "
+                         f"caution this run.\n")
         if top_queries:
             metrics = (("impressions", total_impr, st_impr),
                        ("clicks", total_clicks, st_clicks))
@@ -287,7 +291,7 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
             q_over = [m for m, s, p in metrics if _div(s, p) and s > p]
             if under:
                 cov = (f"; query rows cover {total_impr / st_impr:.0%} of impressions"
-                       if st_impr > 0 else "")
+                       if "impressions" in under and st_impr > 0 else "")
                 L.append(f"> ⚠️ **The query-level sum diverges below the property "
                          f"total ({' and '.join(under)}{cov})** — GSC is anonymizing "
                          f"rare queries on this site. Individual query rows are fine; "
@@ -317,7 +321,7 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                      f"{total_impr} impressions.\n")
     if len(top_pages) >= ROW_LIMIT or len(top_queries) >= ROW_LIMIT:
         L.append(f"> ⚠️ **A dimensioned pull hit the {ROW_LIMIT}-row cap** — that "
-                 f"sum is partial, and truncation (not just anonymization) can "
+                 f"sum may be partial, and truncation (not just anonymization) can "
                  f"explain gaps against the property total.\n")
     if not top_queries:
         L.append(f"> ⚠️ **Query-level report returned no rows this window.** The "
@@ -411,9 +415,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
             L.append(fmt_rows(query_drill, "Page", limit=15))
             if sum(1 for r in query_drill if r["impressions"] > 0) > 1:
                 L.append("\n_More than one page draws impressions for this exact "
-                         "query. That can be cannibalization — or several of your "
-                         "pages legitimately sharing one results page (sitelinks), "
-                         "or URLs alternating over the window. Compare their "
+                         "query. That can be benign — several of your pages sharing "
+                         "one results page (sitelinks), or URLs alternating over "
+                         "the window — or it can be cannibalization. Compare their "
                          "positions and intents before concluding; if it is "
                          "cannibalization, ask which page Google prefers and whether "
                          "it's the one you'd pick._")
