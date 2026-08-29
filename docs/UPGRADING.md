@@ -18,7 +18,8 @@ content or design change), and confirm they want it now rather than later.
 ## Steps
 
 1. **Bump the dependency.** In `package.json`, change `"astro": "^6.0.0"` (or whatever's
-   currently pinned) to `"astro": "^7.1.0"`. Run `npm install` to regenerate
+   currently pinned) to `"astro": "^7.2.9"` (the floor the template currently ships). Run
+   `npm install` to regenerate
    `package-lock.json`. Commit the lockfile — CI uses `npm ci`, which needs it.
 
 2. **Do NOT bump `typescript` to `^7` in the same change.** Astro's own type-checker

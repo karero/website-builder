@@ -46,8 +46,9 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    On **npm ≥11.16**, `install` prints "packages have install scripts not yet covered"
    for scripts it hasn't been told to trust — per npm's own docs this is currently
    advisory only (the scripts still run; a future npm release will start blocking them),
-   but approve the two Astro needs now to silence the warning and be ready ahead of that:
-   `npm approve-scripts esbuild && npm approve-scripts sharp`.
+   but approve the one Astro needs now to silence the warning and be ready ahead of that:
+   `npm approve-scripts esbuild`. (sharp no longer has an install script — since 0.35 it
+   ships prebuilt binaries, so it needs no approval.)
 4. Set the real domain in `astro.config.mjs` (`site:`) and `src/config.ts`
    (`SITE.url`, name, theme color, analytics — and check `PROD_BRANCH` matches the
    branch Cloudflare Pages will call "Production", or analytics never loads).

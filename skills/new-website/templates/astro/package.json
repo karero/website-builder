@@ -33,7 +33,6 @@
   },
   "allowScripts": {
     "esbuild@0.28.1": true,
-    "sharp@0.35.4": true,
     "fsevents@2.3.2": true,
     "fsevents@2.3.3": true
   }
