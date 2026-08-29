@@ -11,10 +11,11 @@ description: >
   depth" decision for website work — when this free default suffices vs. an
   owner-approved single external reviewer for genuinely higher-stakes changes
   (its "Review depth" section has the rule). Trigger phrases: "double-knuth",
-  "review the site", "site review", "final review before launch", "review
-  this page", "did adding the page break anything", "consistency check the
-  site", "how much review does this need", "do I need a second opinion on
-  this", "should I use independent-review for this".
+  "double knuth the site", "review the site", "site review", "final review
+  before launch", "review this page", "did adding the page break anything",
+  "consistency check the site", "audit the site code", "how much review does
+  this need", "do I need a second opinion on this", "should I use
+  independent-review for this".
 ---
 
 # Website review — Double-Knuth (correctness + consistency)

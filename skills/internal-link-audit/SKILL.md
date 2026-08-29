@@ -9,9 +9,9 @@ description: >
   `site-architecture`'s internal-linking strategy. The judgment-side
   complement to the offline `tests/orphans.spec.ts` gate. Run before a
   release, after adding pages, or when GSC reports orphaned/low-coverage
-  pages. Trigger phrases: "internal link audit", "orphaned pages", "internal
-  linking", "which pages link to nothing", "fix orphan pages", "improve
-  internal links", "cross-link the comparison pages".
+  pages. Trigger phrases: "internal link audit", "orphaned pages", "are any
+  pages orphaned", "internal linking", "which pages link to nothing", "fix
+  orphan pages", "improve internal links", "cross-link the comparison pages".
 ---
 
 # Internal Link Audit

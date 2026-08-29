@@ -2,9 +2,9 @@
 
 Read from SKILL.md's "PLAN gate preconditions" section, which summarizes the two
 checks; this file carries the complete rationale, scope, and — just as important —
-what each check does NOT establish. "Procedure step N", "the clerk procedure",
-"the Reviewer stack", and "item 3" (a Reviewer-stack entry) below all refer to
-SKILL.md.
+what each check does NOT establish. "Procedure step N", "the Reviewer stack", and
+"item 3" (a Reviewer-stack entry) below refer to SKILL.md; "the clerk procedure"
+refers to `references/closeout.md`.
 
 (Codified 2026-08-16, after a multi-day build cleared seven PLAN rounds and still
 left its owner unable to say which steps were finished.)

@@ -10,8 +10,8 @@ description: >
   in §3) so the repo is self-contained for a third party. Default stack
   Astro → GitHub → Cloudflare Pages. Use at the very start of any new site.
   Trigger phrases: "new website", "start a new site", "scaffold a website",
-  "spin up a site", "build a new website", "website starter", "which stack
-  for this site".
+  "spin up a site", "build a new website", "set up a new web project",
+  "website starter", "which stack for this site".
 ---
 
 # New website — orchestrator
