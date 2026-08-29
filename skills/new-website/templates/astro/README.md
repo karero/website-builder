@@ -114,4 +114,7 @@ wins over the auto-slug and never drifts.
 Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
 project settings set the **production branch to `production`** (must equal
 `PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every `*.pages.dev`
-host is noindexed by the function).
+host is noindexed by the function). AI assistant deploying or announcing a
+deploy: read `PUBLISHING.md` § "For AI assistants — deploy-time guardrails"
+first (preview-vs-live announcements + the cached-404 rule) — every time, not
+just the first.

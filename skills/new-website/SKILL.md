@@ -34,8 +34,7 @@ Everything needed is bundled here:
 - `templates/SETUP.md` — accounts (GitHub + Cloudflare) + tools + the bootstrap.
 - `templates/PUBLISHING.md` — plain-English "how to publish" for the owner
   (`commit`/`push`/`branch` explained + step-by-step per publish model), plus the
-  assistant-facing **deploy-time guardrails** (preview-vs-live announcements, the
-  cached-404 rule) that ship with every site — see §4.
+  assistant-facing **deploy-time guardrails** (§4).
 - `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
   permission allowlist to copy into the repo.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
@@ -58,8 +57,8 @@ from silently hiding content. `website-motion` is never run by default: ask for 
 ## 1. Decision interview (answer before any code)
 
 **Conduct the interview — and ALL user-facing guidance throughout this pipeline
-(explanations, the §3a link-sweep question, the preview-vs-live announcements of
-§4's deploy guardrails, error walk-throughs) — in the language the user writes in.** A German owner gets
+(explanations, the §3a link-sweep question, the §4 preview-vs-live announcements,
+error walk-throughs) — in the language the user writes in.** A German owner gets
 the whole journey in German; the skill files themselves stay English. The verbatim
 message templates below are content specs, not required English wording — deliver
 them in the user's language.
@@ -440,7 +439,10 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
       Non-English-speaking owner? Translate `PUBLISHING.md` in-session first (e.g. save
       as `PUBLISHING.de.md`, or replace the copy) — it is the owner's PERMANENT reference,
-      unlike your conversational guidance, and the shipped template is English.
+      unlike your conversational guidance, and the shipped template is English. Any
+      translation or replacement MUST keep the "For AI assistants — deploy-time
+      guardrails" section (translated is fine, dropped is not — it is the post-handoff
+      agent's only copy of those rules).
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
@@ -460,22 +462,19 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       entity's real profile — a platform that blocks automated fetches is not
       itself a reason to remove an entry.
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
-      `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`, and a `README.md` with
-      the decision answers + "how to add a page / run tests / deploy".
+      `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
+      `PUBLISHING.md` (with its "For AI assistants" guardrails section intact), and a
+      `README.md` with the decision answers + "how to add a page / run tests / deploy".
 
 ### Deploy-time guardrails (every deploy, pre- and post-handoff)
 
 Two standing rules govern every deploy: **always announce whether a pushed change is on the
-PREVIEW or LIVE** (a non-technical owner can't tell the URLs apart), and **never request or
-announce a brand-new page's URL on the live domain before its production build is Active**
-(the edge caches the first response it sees — a premature request caches a 404 that only a
-manual dashboard purge clears). The full rules — the announcement wording, which URL to
-quote, the Active-check and cache-bust procedure, the Request-Indexing caveat, and the purge
-path — live in `templates/PUBLISHING.md` § "For AI assistants — deploy-time guardrails",
-which §3 copies into every site as `PUBLISHING.md`, so the agent serving the site
-post-handoff carries them too. Follow them from the build's FIRST deploy onwards — read that
-section before deploying, not just before handing off. (A `pages.dev` URL is also the signal
-you deployed to **Pages**, not a Worker — see `references/CLOUDFLARE_FIRST_DEPLOY.md`.)
+PREVIEW or LIVE**, and **never request or announce a brand-new page's URL on the live domain
+before its production build is Active** (the cached-404 rule). The full rules live in
+`templates/PUBLISHING.md` § "For AI assistants — deploy-time guardrails" — the single
+source of truth, copied into every site by §3 so the post-handoff agent carries them too
+(the scaffolded README's deploy section points there). Read that section before the build's
+FIRST deploy, not just before handing off.
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity
 

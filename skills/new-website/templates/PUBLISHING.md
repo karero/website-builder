@@ -148,9 +148,11 @@ that change what the public sees.
 
 ## For AI assistants — deploy-time guardrails
 
-*This section is written for an AI assistant working in this repo. Owner: you can skim it —
-it explains why the assistant is careful with links. Assistant: these rules apply to
-**every** publish, from the site's first deploy on, not just while it was being built.*
+*This section is written for an AI assistant working in this repo — from here on, "you"
+means the assistant. Owner: you can skim it; it explains why the assistant is careful with
+links. Assistant: these rules apply to **every** publish, from the site's first deploy on,
+not just while it was being built. If this file ever gets translated or rewritten for the
+owner, this section must survive the rewrite — translating it is fine, dropping it is not.*
 
 ### Always say whether it's PREVIEW or LIVE
 
@@ -171,8 +173,11 @@ you say to them.
 per-deploy hash URL `<hash>.<project>.pages.dev`. The hash URL is ugly but **immutable**, so
 keep it as a **backup**: when an alias looks **stale** (cache/propagation lag, or it's still
 serving an older build), the hash URL pins the exact fresh deployment and confirms the new
-build is up. Whichever you quote, **open it and confirm it loads** rather than reporting it
-blind.
+build is up. For a **brand-new page**, though, the next section wins: until the production
+build is Active, the page exists only on the hash URL. Whichever URL you quote, **open it
+and confirm it loads** rather than reporting it blind — and note it for the project.
+(A `pages.dev` URL is also the signal you deployed to **Pages**, not a Worker — if a deploy
+ever prints a `*.workers.dev` URL, stop: you published the wrong project type.)
 
 ### Never request a page on the live domain before its build is Active
 
@@ -189,9 +194,9 @@ URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatic
   the *previous* deployment, so a brand-new path 404s there no matter how you request it.
   Check Active status without touching the live domain: `wrangler pages deployment list`,
   the `<project>.pages.dev` alias (Cloudflare's own domain, outside the zone cache), or
-  ask the owner — never poll the live custom domain by hand to see whether the build is
-  done. (`npm run ship`'s own check is safe: it polls `/build.txt` — a path that exists in
-  every build — with a cache-bust.) Once Active, check the live domain with a
+  ask the owner — NEVER poll the live custom domain to see whether the build is done.
+  (`npm run ship`'s built-in check is the one exception: it polls `/build.txt` — a path
+  that exists in every build — with a cache-bust.) Once Active, check the live domain with a
   `?cb=<anything>` cache-bust first (under default cache settings that is a distinct cache
   key, so it cannot poison the bare URL).
 - Touch the **bare canonical URL last**, after Active — and only then tell the owner the
