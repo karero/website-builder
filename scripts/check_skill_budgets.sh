@@ -41,7 +41,6 @@ MIN_SKILLS=20
 # visible text — that is correct, do not "fix" it. One entry per skill;
 # duplicates FAIL.
 ALLOW_OVER=(
-  "search-console-insights=1716"
 )
 
 # The limit counts characters, not bytes — the descriptions are full of
