@@ -2,7 +2,7 @@ name: clean
 # Fails the build if any personal name, contact info, or credential enters the skill
 # suite (see scripts/check_clean.sh), or if a concrete model name/tag creeps into
 # independent-review's pipeline files — that skill is model-agnostic and lets the
-# owner's own CLI config/signin choose the models (see scripts/check_model_defaults.sh).
+# owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh).
 on:
   push:
   pull_request:
@@ -18,4 +18,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check independent-review stays model-agnostic
-        run: bash scripts/check_model_defaults.sh
+        run: bash scripts/check_model_agnostic.sh

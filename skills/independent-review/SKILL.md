@@ -6,12 +6,15 @@ description: >
   scripts/independent_review.sh — the standard pair (Codex + your signed-in ollama-cloud model)
   runs automatically; Antigravity/Gemini only on explicit opt-in
   (--with-antigravity), its credits are scarce. Consolidate a ranked
-  BUG/RISK/NIT list and BLOCK until every finding is fixed, refuted, or
-  owner-waived. Use BEFORE building from any non-trivial plan, BEFORE merging
-  any non-trivial PR, and whenever asked for a "codex review", "gemini
-  review", "adversarial review", "cross-model review", "independent review",
-  "review before I merge", or to "set up AI code review" — first use runs a
-  guided onboarding wizard for non-technical users.
+  BUG/RISK/NIT list and BLOCK until every BUG is fixed or refuted and every
+  RISK/NIT is fixed, refuted, or owner-waived. Use BEFORE building from any
+  non-trivial plan, BEFORE merging any non-trivial PR, and whenever asked for
+  a "codex review", "gemini review", "antigravity review", "agy review",
+  "adversarial review", "cross-model review", "independent review", "get a
+  second model to review", "review before I merge", "which review tool
+  should I use", or to "set up AI code review" / "set up codex, ollama, or
+  antigravity for review" — first use runs a guided onboarding wizard for
+  non-technical users.
 ---
 
 # Independent review — the cross-model gate

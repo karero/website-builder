@@ -25,7 +25,7 @@ cd "$REPO_DIR"
 zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
-  scripts/whats-new.sh \
+  scripts/whats-new.sh scripts/check_model_agnostic.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' >/dev/null
 
 echo "built $OUT/website-builder.zip"
@@ -43,6 +43,7 @@ REQUIRED=(
   scripts/check_clean.sh
   scripts/package.sh
   scripts/whats-new.sh
+  scripts/check_model_agnostic.sh
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md

@@ -99,7 +99,7 @@ is_cloud_ollama_tag() {
   # ollama-review/SKILL.md already uses: `grep -v ':cloud$'` to list local
   # models) — NOT a bare "*cloud*" substring, which would misclassify a
   # genuinely local model merely named with "cloud" in it (e.g. a pulled
-  # community model "cloudcoder:7b") as cloud, wrongly refusing it under
+  # community model named "cloudcoder") as cloud, wrongly refusing it under
   # --local-only and, worse, wrongly letting it satisfy the cross-model gate
   # outside --local-only. Caught via a real Codex DIFF-gate review, 2026-07-16.
   case "$1" in
@@ -114,9 +114,25 @@ is_cloud_ollama_tag() {
 # NOT auto-detected in --local-only mode: that mode's whole point is nothing
 # leaves the machine, and every ':cloud' tag is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
-if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ] && command -v ollama >/dev/null 2>&1; then
-  OLLAMA_MODEL="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -m1 ':cloud$' || true)"
-  [ -n "$OLLAMA_MODEL" ] || echo "note: no OLLAMA_MODEL set and no ':cloud' model in 'ollama list' — the ollama tier will be skipped ('ollama signin' plus a cloud model enables it, or set OLLAMA_MODEL explicitly)." >&2
+if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
+  if command -v ollama >/dev/null 2>&1; then
+    cloud_tags="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep ':cloud$' || true)"
+    OLLAMA_MODEL="$(printf '%s\n' "$cloud_tags" | head -1)"
+    if [ -z "$OLLAMA_MODEL" ]; then
+      echo "note: no OLLAMA_MODEL set and no ':cloud' model in 'ollama list' — the ollama tier will be skipped ('ollama signin' plus a cloud model enables it, or set OLLAMA_MODEL explicitly)." >&2
+    else
+      # Say which tag was picked — silently switching reviewers when a second
+      # cloud tag appears would defeat the trail's record of who reviewed.
+      n_cloud="$(printf '%s\n' "$cloud_tags" | grep -c . || true)"
+      if [ "$n_cloud" -gt 1 ]; then
+        echo "note: $n_cloud ':cloud' models in 'ollama list' — auto-using the first, '$OLLAMA_MODEL'. Set OLLAMA_MODEL to choose a different one." >&2
+      else
+        echo "note: auto-detected ollama-cloud model '$OLLAMA_MODEL' from 'ollama list' (set OLLAMA_MODEL to override)." >&2
+      fi
+    fi
+  else
+    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer)." >&2
+  fi
 fi
 # Skipping the DEFAULT above isn't enough on its own: a caller-supplied
 # OLLAMA_MODEL already pointing at a cloud tag (e.g. left exported from an
@@ -421,7 +437,7 @@ run_agy() {
     MODE:*|*"MODE: INSPECTED"*|*"MODE: TEXT-ONLY"*) : ;;
     *) echo "agy tier: no MODE line — cannot tell whether it inspected files or reviewed text only; treat its verified/wrong verdicts as unattributed." >&2 ;;
   esac
-  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default model}" "$out"
+  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per onboarding Step 5}" "$out"
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly

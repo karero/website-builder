@@ -181,8 +181,8 @@ Independence rule already lists cross-model options that don't require Claude at
 Codex host, ollama-cloud or Gemini both satisfy the gate alone. Claude is an *additional* option,
 not a requirement: useful when you specifically want a third, distinct model family in the mix,
 or when the other options are unavailable or rate-limited. The Antigravity CLI (`agy`) can reach one —
-`AGY_MODEL="<a Claude model from 'agy models'>" agy --sandbox --model "$AGY_MODEL" -p` — matching
-the onboarding reference's canonical invocation (its Step 5) exactly, via the same free
+`AGY_MODEL="<a Claude model from 'agy models'>" agy --sandbox --model "$AGY_MODEL" -p` — the
+invocation shape onboarding Step 5 describes, via the same free
 Antigravity/Gemini login used for the Gemini seat elsewhere in this guide. Confirm the model
 family from the run's own output, per that same Step 5 rule — the confirmed family, not an
 assumed default, is what satisfies the gate. Verified working headless as of 2026-07-02;
