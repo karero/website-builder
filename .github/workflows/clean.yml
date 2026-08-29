@@ -1,8 +1,8 @@
 name: clean
 # Fails the build if any personal name, contact info, or credential enters the skill
-# suite (see scripts/check_clean.sh), or if independent-review's hand-maintained model
-# default drifts out of sync across its own doc/script references (see
-# scripts/check_model_defaults.sh).
+# suite (see scripts/check_clean.sh), or if a concrete model name/tag creeps into
+# independent-review's pipeline files — that skill is model-agnostic and lets the
+# owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh).
 on:
   push:
   pull_request:
@@ -17,5 +17,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check independent-review's model default is consistent
-        run: bash scripts/check_model_defaults.sh
+      - name: Check independent-review stays model-agnostic
+        run: bash scripts/check_model_agnostic.sh

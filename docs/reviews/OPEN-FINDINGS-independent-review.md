@@ -4,17 +4,24 @@ Living tracker. Every row is a review finding that is **not** closed. Close a ro
 refuting it (BUG), or by fixing, refuting, or recording an owner waiver (RISK/NIT) — then delete
 the row, with the disposition recorded in that round's trail.
 
-Last updated 2026-08-04, after the permission-table collapse. Reviewers to date: Codex
+Last updated 2026-08-29, after the model-agnosticism round added B-TAGCLASS below.
+Previous update 2026-08-04, after the permission-table collapse. Reviewers to date: Codex
 `gpt-5.6-sol` (read-only), ollama-cloud `glm-5.2`, Kimi `kimi-k3:cloud`, and a host fresh-eyes
 pass (Claude Opus 5).
 
-## Gate status: no open BUGs — but NOT externally re-verified
+## Gate status: one open BUG (B-TAGCLASS, pre-existing + deferred); earlier BUGs closed but NOT externally re-verified
 
 All BUGs raised through the Kimi round are closed. **No reviewer has seen the applied result.**
 Kimi reviewed the *draft* and returned "ship with the listed fixes"; those fixes were then applied,
 so the committed text is one edit-generation ahead of anything any reviewer has read. Per the
 skill's own vocabulary: `locally_verified`, not `externally_reverified`. One more round would
 close that, and is the single highest-value thing left here.
+
+## BUG — open (pre-existing, deferred out of the 2026-08-29 agnosticism PR)
+
+| id | Location | Finding | Found |
+|---|---|---|---|
+| B-TAGCLASS | `independent_review.sh` `is_cloud_ollama_tag()` + setup-guide RAM table | The `*:120b`/`*:405b`/`*:480b` arms classify locality by size suffix, but the tag alone underdetermines it: a locally-pulled `gpt-oss:120b` (the RAM table's own 96 GB+ recommendation) is refused under `--local-only`, and set explicitly outside it would count as gate-eligible cloud. Needs locality derived from ollama metadata (which store the tag actually resolves in), with ONE classifier shared by auto-detect, local-only enforcement, and gate eligibility. Pre-existing (suffix arms predate the agnosticism change); deferred because the fix is a design change, not a scrub. | Codex 2026-08-29 |
 
 ## RISK — open
 
