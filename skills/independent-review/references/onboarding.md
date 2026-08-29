@@ -5,6 +5,14 @@ the CURRENT host** is installed and working. "The Reviewer stack", "the
 Independence rule", and numbered "Procedure step N" references below refer to
 SKILL.md.
 
+## Contents
+- Step 1 — Sell the benefit first
+- Step 2 — Check what's already there
+- Step 3 — Help them choose
+- Step 4 — The human-only steps (4a — your steps · 4b — ollama: pick the model from RAM)
+- Step 5 — Confirm it's actually working
+- Step 6 — Teach them how to use it
+
 
 **Everything below assumes a Claude Code host (the common case), where both
 Codex and Antigravity are cross-model and either one satisfies the gate.**

@@ -4,19 +4,14 @@ description: >
   Orchestrates building a NEW website end-to-end, from insights to launch-ready
   and handoff-ready. Self-contained: it runs the stack decision interview,
   sequences the website-* skills + existing marketing skills in order, and
-  scaffolds the project from its own templates/ (Astro starter overlay +
-  a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage test suite + GDPR privacy page draft +
-  setup + permission allowlist),
-  copying the website-* skills + the three SEO-depth skills (ai-seo,
-  schema-markup, seo-audit) + site-architecture + the marketing skills it
-  delegates to (customer-research, copywriting, image) + outgoing-link-audit +
-  internal-link-audit + website-permissions + search-console-setup +
-  business-listings-setup INTO the project's skills dir
-  (`.claude/skills`, or `.agents/skills` for a Codex install — see `$PROJECT_SKILLS_DIR`)
-  so the repo is self-contained for a third party. Default stack Astro → GitHub → Cloudflare
-  Pages. Use at the very start of any new site. Trigger phrases: "new website",
-  "start a new site", "scaffold a website", "spin up a site", "build a new
-  website", "set up a new web project", "website starter", "which stack for this site".
+  scaffolds the project from its own templates/ (Astro starter overlay + full
+  QA test suite + GDPR privacy draft + owner docs + permission allowlist),
+  copying the bundled skill set into the project's skills dir (full copy list
+  in §3) so the repo is self-contained for a third party. Default stack
+  Astro → GitHub → Cloudflare Pages. Use at the very start of any new site.
+  Trigger phrases: "new website", "start a new site", "scaffold a website",
+  "spin up a site", "build a new website", "set up a new web project",
+  "website starter", "which stack for this site".
 ---
 
 # New website — orchestrator
@@ -59,9 +54,8 @@ from silently hiding content. `website-motion` is never run by default: ask for 
 **Conduct the interview — and ALL user-facing guidance throughout this pipeline
 (explanations, the §3a link-sweep question, the §4 preview-vs-live announcements,
 error walk-throughs) — in the language the user writes in.** A German owner gets
-the whole journey in German; the skill files themselves stay English. The verbatim
-message templates below are content specs, not required English wording — deliver
-them in the user's language.
+the whole journey in German; the skill files themselves stay English. The
+verbatim message templates below are content specs, not required English wording.
 
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
@@ -377,6 +371,21 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 
 ## 4. Launch & handoff checklist
 
+### Deploy-time guardrails — `templates/PUBLISHING.md` § "For AI assistants — deploy-time guardrails"
+
+That section is the single source of truth — §3 copies `PUBLISHING.md` into every site, so
+the post-handoff agent carries it too (the scaffolded README's deploy section points there).
+Read it in full before the FIRST deploy, when a brand-new page goes live, and when a live
+URL looks stale; this summary covers routine pushes.
+**Always announce whether a push is PREVIEW or LIVE** (two-stage sites: "this
+is NOT live yet" + the preview URL on every push to `main`; live only after
+`npm run ship` AND the production build finishes). **Never request — or
+announce — a brand-new page's URL on the live domain before its build is
+Active**: the first request — the owner clicking your announcement counts —
+caches a 404 at the edge that only a manual dashboard purge clears. Verify on
+the hash deployment URL until Active, touch the bare canonical URL last, and
+hold Search Console Request Indexing until then.
+
 - [ ] All QA green: `npm test`.
 - [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
       is empty — merged-but-unpromoted work is invisibly unshipped. If not empty and it
@@ -406,25 +415,17 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
-      German-market sites: don't re-translate — swap in the vetted German draft
-      that ships in the site repo (`src/pages/_datenschutz.astro`, § 25
-      TDDDG-aware; underscore = unrouted until renamed; its header lists the
-      swap steps — German-only sites serve it at `/datenschutz` REPLACING
-      `/privacy`; multilingual sites use its text at `/de/privacy`). It also ships a German Impressum
-      draft (`src/pages/impressum.astro`, § 5 DDG + § 18 Abs. 2 MStV — required
-      for providers established in Germany, whatever the site's language, and
-      for sites targeting the German market; linked from every page via the
-      Base.astro footer): fill every `[BRACKET]` slot (legal name + form,
-      ladungsfähige Anschrift, phone as the second contact channel, register
-      entry, USt-IdNr. or Wirtschafts-IdNr., supervisory authority for licensed
-      activities + chamber/professional rules for regulated professions, § 18
-      MStV contact for editorial content) and delete the sections that don't
-      apply. Austrian/Swiss providers: adapt to § 5 ECG + § 25 MedienG resp.
-      Art. 3 UWG (the page's comments say how). Provider neither established in
-      Germany nor targeting it: delete all five pieces — `impressum.astro`, the
-      `Base.astro` footer link, the `tests/_helpers.ts` PAGES entry, the
-      `public/llms.txt` line, and the `OWN_CARD_EXEMPT` entry in
-      `tests/seo.spec.ts`.
+      German-market sites: don't re-translate — swap in the vetted German
+      drafts that ship in the site repo, whose own file headers carry the
+      exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
+      underscore = unrouted until renamed; German-only sites serve it at
+      `/datenschutz` REPLACING `/privacy`, multilingual sites use its text at
+      `/de/privacy`) and `src/pages/impressum.astro` (§ 5 DDG + § 18 Abs. 2
+      MStV — required for providers established in Germany, whatever the
+      site's language, and for sites targeting the German market; fill/delete
+      per its header and section comments, which also cover Austrian/Swiss
+      adaptation and the five-piece removal for providers with no German
+      nexus).
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
@@ -448,33 +449,17 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
       Hints toggle). Register the production domain only — never a preview host.
 - [ ] **Business listings claimed, if applicable** (`business-listings-setup`,
-      §4a): `sameAs` verification done for any named entity; directories claimed
-      **where a suitable one exists for the category** — "no relevant directory
-      found" is a valid, non-blocking outcome, same as GBP/Bing ineligibility, not
-      a gap to keep chasing; Google Business Profile and Bing Places live **only
-      if the entity actually qualifies** (real address or in-person service —
-      `business-listings-setup` §1 step 0's own check) — "not eligible" is a
-      valid, non-blocking outcome for an online-only entity, distinct from
-      "skipped by owner choice"; every `sameAs` URL in schema is either
-      confirmed live (200) or manually verified in a logged-out browser (for
-      anything the automated fetch left unverified — a bot-block, a 5xx, or a
-      redirect to a different domain), and points at the
-      entity's real profile — a platform that blocks automated fetches is not
-      itself a reason to remove an entry.
+      §4a): `sameAs` verification done for any named entity — every URL in
+      schema confirmed live or manually verified logged-out, per that skill's
+      own verification rules; directories claimed where a suitable one exists
+      for the category; Google Business Profile and Bing Places live only if
+      the entity actually qualifies (the skill's §1 step 0 checks). "No
+      relevant directory found" and "not eligible" are valid, non-blocking
+      outcomes — distinct from "skipped by owner choice".
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
       `PUBLISHING.md` (with its "For AI assistants" guardrails section intact), and a
       `README.md` with the decision answers + "how to add a page / run tests / deploy".
-
-### Deploy-time guardrails (every deploy, pre- and post-handoff)
-
-Two standing rules govern every deploy: **always announce whether a pushed change is on the
-PREVIEW or LIVE**, and **never request or announce a brand-new page's URL on the live domain
-before its production build is Active** (the cached-404 rule). The full rules live in
-`templates/PUBLISHING.md` § "For AI assistants — deploy-time guardrails" — the single
-source of truth, copied into every site by §3 so the post-handoff agent carries them too
-(the scaffolded README's deploy section points there). Read that section before the build's
-FIRST deploy, not just before handing off.
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity
 
