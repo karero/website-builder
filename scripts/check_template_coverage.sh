@@ -67,6 +67,21 @@ in_bucket() {  # $1 = file path, $2 = space-separated bucket entries (files or d
   return 1
 }
 
+# $1 = path, $2 = the literal text a case arm for it must START WITH (after stripping
+# leading whitespace) — "$path)" for a single file, "$path/*)" for a directory wildcard.
+# Anchoring to line-start (not a bare substring grep) means a mention inside a comment
+# or an echoed diagnostic string can't be mistaken for an active case arm.
+has_case_arm() {
+  local path="$1" want="$2" line trimmed
+  while IFS= read -r line; do
+    trimmed="${line#"${line%%[![:space:]]*}"}"
+    case "$trimmed" in
+      "$want"*) return 0 ;;
+    esac
+  done < "$WN"
+  return 1
+}
+
 # Self-test, both directions. A completeness guard that has never fired is a
 # hypothesis, not a guard — and one that flags files it shouldn't is its mirror image.
 if ! in_bucket "$TEMPLATE_ASTRO_DIR/tests/some_new_spec.spec.ts" "$TEMPLATE_TRACKED"; then
@@ -94,14 +109,22 @@ if [ -e "$TEMPLATE_ASTRO_DIR/definitely-not-a-real-file.txt" ]; then
   echo "FAIL — self-test: [ -e ] matched a path that doesn't exist. Fix before trusting the scan."
   exit 1
 fi
-if ! grep -qF "skills/new-website/templates/astro/playwright.config.ts)" "$WN"; then
-  echo "FAIL — self-test: mapping lookup misses a case arm that definitely exists"
+if ! has_case_arm "skills/new-website/templates/astro/playwright.config.ts" \
+     "skills/new-website/templates/astro/playwright.config.ts)"; then
+  echo "FAIL — self-test: has_case_arm misses a case arm that definitely exists"
   echo "(playwright.config.ts). Fix before trusting the scan."
   exit 1
 fi
-if grep -qF "skills/new-website/templates/astro/definitely-not-a-real-file.txt)" "$WN"; then
-  echo "FAIL — self-test: mapping lookup matched a case arm that doesn't exist. Fix before"
+if has_case_arm "skills/new-website/templates/astro/definitely-not-a-real-file.txt" \
+     "skills/new-website/templates/astro/definitely-not-a-real-file.txt)"; then
+  echo "FAIL — self-test: has_case_arm matched a case arm that doesn't exist. Fix before"
   echo "trusting the scan."
+  exit 1
+fi
+if ! has_case_arm "skills/new-website/templates/astro/tests" \
+     "skills/new-website/templates/astro/tests/*)"; then
+  echo "FAIL — self-test: has_case_arm misses the tests/ directory wildcard arm that"
+  echo "definitely exists. Fix before trusting the scan."
   exit 1
 fi
 
@@ -120,8 +143,11 @@ for entry in $TEMPLATE_TRACKED $SITE_OWNED $SITE_SOURCE; do
 done
 missing_mapping=()
 for entry in $TEMPLATE_TRACKED; do
-  [ -d "$entry" ] && continue   # directory entries (tests/) are handled by a wildcard case
-  grep -qF "$entry)" "$WN" || missing_mapping+=("$entry")
+  if [ -d "$entry" ]; then
+    has_case_arm "$entry" "$entry/*)" || missing_mapping+=("$entry/* (directory wildcard arm)")
+  else
+    has_case_arm "$entry" "$entry)" || missing_mapping+=("$entry")
+  fi
 done
 if [ "${#stale_entries[@]}" -gt 0 ]; then
   echo "FAIL — ${#stale_entries[@]} bucket entry/entries point at a path that no longer exists:"
@@ -138,15 +164,20 @@ if [ "${#missing_mapping[@]}" -gt 0 ]; then
   exit 1
 fi
 
-[ -d "$TEMPLATE_ASTRO_DIR" ] || { echo "FAIL — $TEMPLATE_ASTRO_DIR does not exist; the template moved."; exit 1; }
-
 # Discover files, never hardcode a list — that's the whole point of this guard.
 # Symlinks count too (-o -type l): a symlink dropped under the template with no real
 # bucket entry would otherwise pass silently, defeating the "every file" invariant.
+# Captured via command substitution (not process substitution) so find's own exit
+# status is checkable via PIPESTATUS — a mid-scan find error must not leave FILES
+# looking like a complete, trustworthy listing.
+find_output="$(find "$TEMPLATE_ASTRO_DIR" \( -type f -o -type l \) ! -name .DS_Store | sort)"
+find_rc="${PIPESTATUS[0]}"
+if [ "$find_rc" -ne 0 ]; then
+  echo "FAIL — find exited $find_rc scanning $TEMPLATE_ASTRO_DIR; the file listing is unreliable."
+  exit 1
+fi
 FILES=()
-while IFS= read -r f; do FILES+=("$f"); done < <(
-  find "$TEMPLATE_ASTRO_DIR" \( -type f -o -type l \) ! -name .DS_Store | sort
-)
+while IFS= read -r f; do [ -n "$f" ] && FILES+=("$f"); done <<< "$find_output"
 if [ "${#FILES[@]}" -lt 1 ]; then
   echo "FAIL — no files found under $TEMPLATE_ASTRO_DIR; find/path broke or the dir moved."
   exit 1

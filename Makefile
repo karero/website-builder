@@ -15,7 +15,7 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## fail if any personal name / contact info / credential is in the suite, or independent-review names a concrete model (it must stay model-agnostic), or a new astro template file is untracked by whats-new
+check:     ## fail if any personal name / contact info / credential is in the suite, or independent-review names a concrete model (it must stay model-agnostic), or a new astro template file isn't bucketed (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_model_agnostic.sh
 	@bash scripts/check_template_coverage.sh
