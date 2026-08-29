@@ -63,16 +63,23 @@ write_stamp() {  # $1 = skills dir
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/.nvmrc'
 
-# Upstream template files that scaffolded sites are EXPECTED to hand-edit (astro.config.mjs's
-# `site:`, package.json's deps) — deliberately NOT drift-tracked: an upstream dep bump would
-# fire TESTS-VERSION drift on every refresh and drown the rare real signal in noise, and
-# check_astro_version() below already covers the part of this that matters (the Astro major
-# pin). This list changes no runtime reporting behavior on its own (nothing above reads it) —
-# it exists purely so scripts/check_template_coverage.sh has a machine-readable record of the
+# Upstream template files that scaffolded sites are EXPECTED to hand-edit — deliberately NOT
+# drift-tracked, for two different reasons:
+#  - config VALUES: astro.config.mjs's `site:`, package.json's deps. An upstream dep bump would
+#    fire TESTS-VERSION drift on every refresh and drown the rare real signal in noise, and
+#    check_astro_version() below already covers the part of this that matters (the Astro major
+#    pin).
+#  - per-site CONTENT lists: scripts/generate_og_cards.py's BRAND block (og-images/SKILL.md
+#    step fills in BRAND_NAME etc.) and PAGES-shaped entries (astro-i18n-setup has sites add
+#    per-page translated title/subtitle text) are hand-edited by construction — every
+#    customized site's copy diverges from upstream immediately, so tracking it would fire on
+#    every site, every time, which is the same noise problem as the dep-bump case above.
+# This list changes no runtime reporting behavior on its own (nothing above reads it) — it
+# exists purely so scripts/check_template_coverage.sh has a machine-readable record of the
 # decision instead of a silent gap it would otherwise flag as unaccounted-for.
-SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json'
+SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json skills/new-website/templates/astro/scripts/generate_og_cards.py'
 
 write_tests_stamp() {  # $1 = tests dir
   printf 'suite_commit: %s\ncopied: %s\n' \
@@ -320,6 +327,16 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/astro/tsconfig.json (site copy: tsconfig.json)" ;;
       skills/new-website/templates/astro/public/_headers)
         echo "  templates/astro/public/_headers (site copy: public/_headers)" ;;
+      skills/new-website/templates/astro/scripts/ship.sh)
+        echo "  templates/astro/scripts/ship.sh (site copy: scripts/ship.sh)" ;;
+      skills/new-website/templates/astro/scripts/build-marker.mjs)
+        echo "  templates/astro/scripts/build-marker.mjs (site copy: scripts/build-marker.mjs)" ;;
+      skills/new-website/templates/astro/scripts/set_pdf_title.py)
+        echo "  templates/astro/scripts/set_pdf_title.py (site copy: scripts/set_pdf_title.py)" ;;
+      skills/new-website/templates/astro/scripts/hooks/pre-push)
+        echo "  templates/astro/scripts/hooks/pre-push (site copy: scripts/hooks/pre-push)" ;;
+      skills/new-website/templates/astro/.nvmrc)
+        echo "  templates/astro/.nvmrc (site copy: .nvmrc)" ;;
       *)
         echo "  $f" ;;
     esac

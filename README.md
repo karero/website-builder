@@ -173,8 +173,10 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
 > `playwright.config.ts`, `functions/_middleware.ts`, `.github/workflows/ci.yml`,
 > `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
-> `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`, and
-> `public/_headers`) are **frozen one-time copies**, not vendored skills —
+> `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
+> `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
+> `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, and `.nvmrc`) are
+> **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then

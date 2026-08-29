@@ -48,22 +48,21 @@ if [ -z "${TEMPLATE_TRACKED:-}" ] || [ -z "${SITE_OWNED:-}" ]; then
 fi
 
 # Files that become the site's own application source the moment they're scaffolded
-# (src/**, branding/config placeholders the site owner fills in, the npm-managed
-# lockfile) — or, for README.md, scaffold-time reference documentation for whoever
-# runs the new-website skill that is never copied into a site at all (SKILL.md §3
-# step 1 points at it for "exact steps", it doesn't cp it). Either way, diffing these
-# against upstream carries no actionable drift signal, so — like SITE_OWNED — they're
+# (src/** — pages/components/config the site owner writes and rewrites as its actual
+# content — plus the npm-managed lockfile and the generated/placeholder public/ assets
+# below) — or, for README.md, scaffold-time reference documentation for whoever runs
+# the new-website skill that is never copied into a site at all (SKILL.md §3 step 1
+# points at it for "exact steps", it doesn't cp it). Either way, diffing these against
+# upstream carries no actionable drift signal, so — like SITE_OWNED — they're
 # deliberately excluded from TEMPLATE_TRACKED. Same "no runtime behavior" note as
 # SITE_OWNED: nothing in whats-new.sh reads this; only this guard does.
 #
-# QUESTIONABLE, flagged rather than guessed confidently (see the bugfix report this
-# guard shipped with): .nvmrc, scripts/build-marker.mjs, scripts/generate_og_cards.py,
-# scripts/hooks/pre-push, scripts/set_pdf_title.py, scripts/ship.sh are infra/tooling
-# in the same spirit as the scripts already in TEMPLATE_TRACKED (anchor-ids.mjs,
-# check_external_links.sh, check_internal_links.sh, run_og.mjs) — sites are unlikely to
-# rewrite them, so an upstream fix might be worth surfacing too. They're parked here
-# (the conservative, lower-noise choice) pending an explicit decision on promoting them.
-SITE_SOURCE="$TEMPLATE_ASTRO_DIR/src $TEMPLATE_ASTRO_DIR/.nvmrc $TEMPLATE_ASTRO_DIR/package-lock.json $TEMPLATE_ASTRO_DIR/public/llms.txt $TEMPLATE_ASTRO_DIR/public/manifest.webmanifest $TEMPLATE_ASTRO_DIR/public/robots.txt $TEMPLATE_ASTRO_DIR/public/images $TEMPLATE_ASTRO_DIR/README.md $TEMPLATE_ASTRO_DIR/scripts/build-marker.mjs $TEMPLATE_ASTRO_DIR/scripts/generate_og_cards.py $TEMPLATE_ASTRO_DIR/scripts/hooks/pre-push $TEMPLATE_ASTRO_DIR/scripts/set_pdf_title.py $TEMPLATE_ASTRO_DIR/scripts/ship.sh"
+# The six infra/tooling scripts once parked here alongside these (.nvmrc,
+# build-marker.mjs, generate_og_cards.py, hooks/pre-push, set_pdf_title.py, ship.sh)
+# were a deliberate, reviewed decision, not an oversight: five were promoted to
+# TEMPLATE_TRACKED and generate_og_cards.py moved to SITE_OWNED — see whats-new.sh's
+# TEMPLATE_TRACKED/SITE_OWNED comments for the reasoning.
+SITE_SOURCE="$TEMPLATE_ASTRO_DIR/src $TEMPLATE_ASTRO_DIR/package-lock.json $TEMPLATE_ASTRO_DIR/public/llms.txt $TEMPLATE_ASTRO_DIR/public/manifest.webmanifest $TEMPLATE_ASTRO_DIR/public/robots.txt $TEMPLATE_ASTRO_DIR/public/images $TEMPLATE_ASTRO_DIR/README.md"
 
 in_bucket() {  # $1 = file path, $2 = space-separated bucket entries (files or dir prefixes)
   local f="$1" list="$2" entry
