@@ -29,6 +29,15 @@ if [ "$rc" -eq 1 ] || [ -z "$extracted" ]; then
   echo "(renamed, removed, or reformatted?). Update this guard to match."
   exit 1
 fi
+# Exactly one assignment each, or a later duplicate would silently win the eval below
+# and weaken coverage with no signal that it happened.
+tt_count="$(grep -c -E '^TEMPLATE_TRACKED=' "$WN")"
+so_count="$(grep -c -E '^SITE_OWNED=' "$WN")"
+if [ "$tt_count" -ne 1 ] || [ "$so_count" -ne 1 ]; then
+  echo "FAIL — expected exactly one TEMPLATE_TRACKED= and one SITE_OWNED= assignment in"
+  echo "$WN, found $tt_count and $so_count. Remove the duplicate(s) before trusting the scan."
+  exit 1
+fi
 # The two lines are static, single-quoted string literals we author ourselves in this
 # same repo (not attacker-controlled input) — eval just assigns them into this shell.
 eval "$extracted"
