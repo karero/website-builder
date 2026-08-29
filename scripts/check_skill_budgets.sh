@@ -81,18 +81,21 @@ chars() { printf '%s' "$1" | LC_ALL="$UTF8_LOCALE" wc -m | tr -d '[:space:]'; }
 # real parser returns the LAST value, not the first), and plain values a
 # real parser rejects or resolves to non-strings (anchors, tags, flow
 # collections, sequence/mapping indicators, colon-space, unterminated
-# quotes, value-position comments, null forms). Residual over-counts
+# quotes, value-position comments, and whole-token non-strings: null/boolean
+# forms, numbers, hex/octal/binary, inf/nan, bare dates). Residual over-counts
 # (quoted-scalar escapes, trailing `#` comments after a plain value, kept
 # trailing spaces on block lines) err conservative: they can false-FAIL near
-# the boundary, never false-pass. Frank residual gaps, loud-or-conservative
-# for valid YAML: a frontmatter never closed by `---` scans on into the body,
-# and boolean/numeric plain values are measured at face length.
+# the boundary, never false-pass. Frank residual gap, loud-or-conservative
+# for valid YAML: a frontmatter never closed by `---` scans on into the body.
 #
 # The output can END IN A NEWLINE (clip chomping), which $(...) strips — every
 # caller must capture with the x-sentinel idiom:
 #   d=$(desc_of "$f"; printf x); d=${d%x}
 desc_of() {
-  awk '
+  # LC_ALL=C: the parser is ASCII-structural (indent/quote/token matching) and
+  # tolower()/regex behavior must not vary with the ambient locale; multibyte
+  # description content passes through untouched and is counted by chars().
+  LC_ALL=C awk '
     BEGIN {
       sq=sprintf("%c",39); dq=sprintf("%c",34)
       # Duplicate-key SCAN pattern: also catches the valid alternate spellings
@@ -407,6 +410,24 @@ name: t
 description: 1600
 ---
 EOF
+cat > "$TMP/flow-starter.md" <<'EOF'
+---
+name: t
+description: , x
+---
+EOF
+cat > "$TMP/colon-no-space.md" <<'EOF'
+---
+name: t
+description:x
+---
+EOF
+cat > "$TMP/date-only.md" <<'EOF'
+---
+name: t
+description: 2026-08-29
+---
+EOF
 cat > "$TMP/date-starts-string.md" <<'EOF'
 ---
 name: t
@@ -445,7 +466,7 @@ n=$(st_len "$TMP/date-starts-string.md")
 for fx in nodesc multiline-plain multiline-plain-blank block-indicator keep-chomp \
           block-lead-blank block-indent-jump block-tab-indent block-wide-blank alias \
           duplicate-key dup-alt-spelling plain-colon plain-seq unterminated-quote \
-          comment-value null-value numeric-value; do
+          comment-value null-value numeric-value flow-starter colon-no-space date-only; do
   st_read "$TMP/$fx.md"
   [ -z "$ST" ] || st_fail "$fx.md was measured instead of refused (got '$ST')"
 done
