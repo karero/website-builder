@@ -19,7 +19,7 @@ quoting a number" at the bottom.
 | **Cost** | Free tier, paid plans from $20/mo | Free tier, paid plans from $20/mo | $0, always |
 | **Setup effort (non-technical)** | ~10–20 min; one terminal command + browser sign-in | ~10–20 min; IDE is a plain installer, but the `agy` CLI (what this skill actually uses) needs a separate terminal command | ~10–20 min install + a model download (minutes to tens of minutes depending on connection and model size) |
 | **Needs a terminal at all?** | Yes, once, to install | Yes, once, to install `agy` (the IDE alone is terminal-free, but doesn't power this skill) | Yes, once, to install and pull a model |
-| **Review quality** | Sharp, frontier-class | Sharp, frontier-class (Gemini 3.1 Pro) | Noticeably weaker unless the machine can run a large (20B+) model — see below |
+| **Review quality** | Sharp, frontier-class | Sharp, frontier-class (Gemini family) | Noticeably weaker unless the machine can run a large (20B+) model — see below |
 | **Usage limits on free tier** | Rolling window, resets in hours; exact numbers are not reliably published and vary by plan/model — see caveat below | "Basic weekly rate limits," no published number; **one dated real-world report (XDA Developers, May 12 2026) describes a lockout of up to ~7 days after as little as 20–30 minutes of use** — the free tier is tight and its limits are opaque by design; see caveat below | None — fully unlimited, runs entirely on your own machine |
 | **Privacy** | Diff/plan text leaves your machine to OpenAI | Diff/plan text leaves your machine to Google | Nothing leaves your machine |
 | **What happens when you hit the limit** | Current task finishes; new tasks pause until the window resets, or upgrade, or (if configured) pay per token via an API key | Locked out until the weekly reset — no pay-as-you-go on the free tier itself (that requires upgrading to Pro/Ultra) | N/A — never happens |
@@ -128,7 +128,8 @@ move is telling the user to close them first, not silently dropping a tier.
 Apple Silicon Macs (M1–M4) use unified memory — there's no separate VRAM
 number to check; the figure from `sysctl hw.memsize` is the whole budget.
 
-**RAM → model table** (sizes are each tag's default-pull download size, not
+**RAM → model table** (dated examples for the LOCAL sanity tier only — the
+review pipeline itself is model-agnostic and hardcodes none of them; sizes are each tag's default-pull download size, not
 a uniform quantization scheme — ollama's per-tag default varies (e.g.
 `gpt-oss` ships natively in MXFP4, `deepseek-coder-v2:16b` defaults to
 Q4_0); run `ollama show <tag>` if the exact quantization matters for your
@@ -180,12 +181,12 @@ Independence rule already lists cross-model options that don't require Claude at
 Codex host, ollama-cloud or Gemini both satisfy the gate alone. Claude is an *additional* option,
 not a requirement: useful when you specifically want a third, distinct model family in the mix,
 or when the other options are unavailable or rate-limited. The Antigravity CLI (`agy`) can reach one —
-`AGY_MODEL="Claude Opus 4.6 (Thinking)" agy --sandbox --model "$AGY_MODEL" -p` — matching
-SKILL.md's canonical invocation (Step 5) exactly, via the same free Antigravity/Gemini login used
-for the Gemini seat elsewhere in this guide. Setting `AGY_MODEL` itself (not just passing the
-tag straight to `--model`) matters: SKILL.md's own gate-satisfaction check on a Gemini host looks
-at whether `AGY_MODEL` was overridden away from its Gemini default. Verified working headless as
-of 2026-07-02; re-verify before relying on it if this guide is old by then.
+`AGY_MODEL="<a Claude model from 'agy models'>" agy --sandbox --model "$AGY_MODEL" -p` — matching
+the onboarding reference's canonical invocation (its Step 5) exactly, via the same free
+Antigravity/Gemini login used for the Gemini seat elsewhere in this guide. Confirm the model
+family from the run's own output, per that same Step 5 rule — the confirmed family, not an
+assumed default, is what satisfies the gate. Verified working headless as of 2026-07-02;
+re-verify before relying on it if this guide is old by then.
 
 This is **not** a separate free lane — it's the same `agy` CLI and the same scarce-quota,
 opt-in-only rule as every other Antigravity use in this skill (see SKILL.md's reviewer stack).

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # independent_review.sh — external-model half of the `independent-review` gate.
-# DEFAULT STANDARD PAIR = Codex CLI + ollama-cloud (glm-5.3-flash:cloud) — both run
+# DEFAULT STANDARD PAIR = Codex CLI + ollama-cloud (your signed-in ':cloud' model, auto-detected) — both run
 # every time (or the first that succeeds with --first-success), and their
 # ranked BUG/RISK/NIT reviews print. The skill ALSO runs a host fresh-eyes pass
 # (tier 3 — whatever model family the host agent is) and consolidates.
@@ -47,12 +47,15 @@
 # Env:
 #   (codex model + reasoning effort default from ~/.codex/config.toml — daily driver)
 #   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
-#                                    e.g. CODEX_MODEL=gpt-5.6-sol for a hard case or a
+#                                    e.g. CODEX_MODEL=<model-tag> for a hard case or a
 #                                    long plan. Does not touch config.toml's daily driver.
-#   OLLAMA_MODEL   (glm-5.3-flash:cloud)  ollama model for the standard second reviewer —
-#                                    defaults to the owner's signed-in ollama-cloud model;
-#                                    override to point at a different cloud/local tag.
-#   AGY_MODEL      (Gemini 3.1 Pro (High))  Antigravity CLI model, used only when
+#   OLLAMA_MODEL   (auto-detected)   ollama model for the standard second reviewer —
+#                                    defaults to the first ':cloud' tag in `ollama list`
+#                                    (the owner's signed-in cloud model; this script
+#                                    prescribes no specific model). Override to point
+#                                    at a different cloud/local tag.
+#   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
+#                                    CLI's own default model. Used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
 #   WITH_ANTIGRAVITY (0)             set to 1 (or pass --with-antigravity) to include
 #                                    the Antigravity/agy tier for this run. Off by default.
@@ -104,12 +107,17 @@ is_cloud_ollama_tag() {
     *) return 1 ;;
   esac
 }
-# The standard second reviewer is the owner's signed-in ollama-cloud model — no
-# env var needed to get the default duo (Codex + ollama-cloud) working.
-# NOT defaulted in --local-only mode: that mode's whole point is nothing
-# leaves the machine, and glm-5.3-flash:cloud is a network call by definition —
+# The standard second reviewer is the owner's signed-in ollama-cloud model —
+# auto-detected as the first ':cloud' tag in `ollama list`, so no env var is
+# needed to get the default duo (Codex + ollama-cloud) working, and the script
+# hardcodes no model: whatever the owner signed in with IS the default.
+# NOT auto-detected in --local-only mode: that mode's whole point is nothing
+# leaves the machine, and every ':cloud' tag is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
-[ "$LOCAL_ONLY" = "1" ] || OLLAMA_MODEL="${OLLAMA_MODEL:-glm-5.3-flash:cloud}"
+if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ] && command -v ollama >/dev/null 2>&1; then
+  OLLAMA_MODEL="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -m1 ':cloud$' || true)"
+  [ -n "$OLLAMA_MODEL" ] || echo "note: no OLLAMA_MODEL set and no ':cloud' model in 'ollama list' — the ollama tier will be skipped ('ollama signin' plus a cloud model enables it, or set OLLAMA_MODEL explicitly)." >&2
+fi
 # Skipping the DEFAULT above isn't enough on its own: a caller-supplied
 # OLLAMA_MODEL already pointing at a cloud tag (e.g. left exported from an
 # earlier non-local-only run in the same shell) would otherwise still trigger
@@ -372,7 +380,7 @@ run_codex() {
   # ^model[[:space:]]*= (not bare ^model): config.toml also has a
   # model_reasoning_effort key, which a bare ^model prefix match also catches —
   # confirmed live in this session's own captured review headers, which were
-  # garbled by exactly this ("codex (~/.codex config: gpt-5.6-terra\nmodel_rea…").
+  # garbled by exactly this ("codex (~/.codex config: <model>\nmodel_rea…").
   local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
   printf '## Independent review — codex (%s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
 }
@@ -380,19 +388,26 @@ run_codex() {
 # Antigravity CLI `agy` (brew: antigravity-cli). The owner's Antigravity free-tier
 # credits are scarce; this tier is never run automatically, only when explicitly
 # requested because it's genuinely worth spending one. FREE tier via the
-# Antigravity Google login (shared with the IDE — no separate auth, no API key), and it
-# exposes the literal "Gemini 3.1 Pro (High)" model. Verified headless 2026-07-02.
+# Antigravity Google login (shared with the IDE — no separate auth, no API key);
+# available models are whatever `agy models` lists for that login. Verified
+# headless 2026-07-02.
 # (The old @google/gemini-cli path is DEPRECATED: Google discontinued its free
 # "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
 # --sandbox = terminal restrictions; -p print mode never auto-approves tool calls (we do NOT
 # pass --dangerously-skip-permissions). Run from a throwaway dir; treat output as untrusted.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
-  local sbox out rc model="${AGY_MODEL:-Gemini 3.1 Pro (High)}"
+  local sbox out rc model="${AGY_MODEL:-}"
   sbox="$(mktemp -d)"
   # </dev/null: if the CLI ever prompts (tool-approval y/n) inside the captured
   # subshell it would hang invisibly — an empty stdin makes it abort instead.
-  ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+  # --model passed only when AGY_MODEL is set — otherwise the CLI's own default
+  # model runs; this script prescribes none.
+  if [ -n "$model" ]; then
+    ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+  else
+    ( cd "$sbox" && agy --sandbox -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+  fi
   rm -rf "$sbox"
   { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || return 1
   out="$(cat "$RAW_DIR/agy.out")"
@@ -406,7 +421,7 @@ run_agy() {
     MODE:*|*"MODE: INSPECTED"*|*"MODE: TEXT-ONLY"*) : ;;
     *) echo "agy tier: no MODE line — cannot tell whether it inspected files or reviewed text only; treat its verified/wrong verdicts as unattributed." >&2 ;;
   esac
-  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "$model" "$out"
+  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default model}" "$out"
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
@@ -515,10 +530,10 @@ cat >&2 <<'EOF'
 # Standard pair (default, no flags needed if both are set up):
 #   codex           # OpenAI Codex CLI (bundled in the ChatGPT VS Code extension) — preferred;
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
-#   ollama          # local daemon + `ollama signin` for the glm-5.3-flash:cloud default tag
+#   ollama          # local daemon + `ollama signin` — your first ':cloud' tag auto-serves as the default
 # Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
 # (or WITH_ANTIGRAVITY=1) to spend one this run:
-#   brew install antigravity-cli    # `agy` — Gemini 3.1 Pro (High), free Antigravity login
+#   brew install antigravity-cli    # `agy` — Gemini-family models, free Antigravity login
 # Or paste the prompt below into any strong model and feed the findings back:
 EOF
 # skipped tiers (missing CLI/auth) return before writing anything — only ATTEMPTED

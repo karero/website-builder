@@ -3,7 +3,7 @@ name: independent-review
 description: >
   Domain-agnostic cross-model review gate: run a planning markdown (PLAN gate)
   or a branch/PR diff (DIFF gate) through INDEPENDENT external reviewers via
-  scripts/independent_review.sh — the standard pair (Codex + ollama-cloud GLM)
+  scripts/independent_review.sh — the standard pair (Codex + your signed-in ollama-cloud model)
   runs automatically; Antigravity/Gemini only on explicit opt-in
   (--with-antigravity), its credits are scarce. Consolidate a ranked
   BUG/RISK/NIT list and BLOCK until every finding is fixed, refuted, or
@@ -131,27 +131,29 @@ the plan.
 
 1. **Codex CLI** (`codex exec -s read-only`) — genuine read-only sandbox; model +
    effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
-   `CODEX_MODEL=gpt-5.6-sol` for a harder case or a long plan — config.toml's
+   `CODEX_MODEL=<model-tag>` for a harder case or a long plan — config.toml's
    reasoning-effort setting still applies on top, since the override only touches
    the model key.
-2. **ollama cloud** (`OLLAMA_MODEL`, defaults to `glm-5.3-flash:cloud`) — the standard
-   second reviewer, runs automatically alongside Codex with no env var needed.
-   Override to a different tag if a specific case warrants it.
+2. **ollama cloud** (`OLLAMA_MODEL`) — the standard second reviewer, runs
+   automatically alongside Codex with no env var needed: the script
+   auto-detects your signed-in `:cloud` model from `ollama list`. The skill
+   prescribes no specific model — set `OLLAMA_MODEL` to pick a different
+   cloud or local tag if a specific case warrants it.
 3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
    `double-knuth` skill) with NO shared context: give it only the artifact and
    the strict prompt below. Never reuse the authoring conversation. If the host
    has no sub-agent primitive (some Codex installs), use a separate fresh
    session with only the artifact — or record the pass as *degraded* in the
-   trail, not as no-shared-context. On a Claude Code host, a **Fable** pass
-   (Agent tool, `model: "fable"`) is a good candidate for this seat when the
-   owner wants a second same-family opinion on top of the Sonnet host pass —
-   it's free (no external credits, no CLI), just not cross-model (see the
-   Independence rule below). Offer it after presenting results, don't run it
-   unasked.
-4. **Antigravity — OPT-IN ONLY, never automatic.** Gemini 3.1 Pro (High) via
-   the Antigravity CLI (`agy --sandbox --model "$AGY_MODEL" -p`, `AGY_MODEL` defaulting to
-   "Gemini 3.1 Pro (High)" — `references/onboarding.md` Step 5 has the full invocation and how to override it),
-   free Antigravity login. The
+   trail, not as no-shared-context. On a Claude Code host, an extra pass with
+   a stronger host-family model (the Agent tool's model option) is a good
+   candidate for this seat when the owner wants a second same-family opinion
+   on top of the host's own — it's free (no external credits, no CLI), just
+   not cross-model (see the Independence rule below). Offer it after
+   presenting results, don't run it unasked.
+4. **Antigravity — OPT-IN ONLY, never automatic.** Google Gemini via the
+   Antigravity CLI (`agy --sandbox -p`; setting `AGY_MODEL` overrides the
+   CLI's own default model — `references/onboarding.md` Step 5 has the full
+   invocation), free Antigravity login. The
    owner's Antigravity free-tier credits are scarce and get spent only when
    explicitly worth it: pass `--with-antigravity` to the script, or the owner
    directly asks ("antigravity review", "agy review", "worth burning a
@@ -187,9 +189,10 @@ successful reviewer is cross-model (a different family than the host)**; if
 only same-family reviewers ran, the gate is degraded and needs an explicit
 owner waiver — codex reviewing codex-authored work shares the blind spots this
 gate exists to catch. Per host: **Claude Code** — fresh-eyes = the Claude pass
-(optionally a **Fable** pass, see the reviewer stack above — same family,
+(optionally a stronger same-family pass, see the reviewer stack above —
 doesn't count as cross-model either), cross-model = Codex + ollama-cloud
-(GLM, Z.ai — the standard default pair) + Gemini/Antigravity (opt-in extra,
+(classified by the family of the tag actually used — the standard default
+pair) + Gemini/Antigravity (opt-in extra,
 not needed to satisfy the gate since Codex or ollama-cloud already does).
 **Codex** — fresh-eyes = Codex, cross-model = ollama-cloud + Gemini + Claude.
 **Antigravity/Gemini** — fresh-eyes = Gemini, cross-model = Codex +
@@ -236,7 +239,7 @@ teach the plain-language trigger phrases.
    later needs its own consent, not an inherited one. If the content must stay local, run the script with
    `--local-only` (skips codex/agy/paste entirely; local ollama only — the
    script requires the EFFECTIVE ollama tag to be local: under `--local-only` the
-   `glm-5.3-flash:cloud` default is never applied, and an explicitly-set cloud tag is refused outright,
+   cloud auto-detect default is never applied, and an explicitly-set cloud tag is refused outright,
    rather than silently sending content out) plus the tier-3 host fresh-eyes
    pass — tier 6 (paste into any model) is just as
    external as the CLIs and is excluded. A local-only verdict is inherently
@@ -405,7 +408,7 @@ teach the plain-language trigger phrases.
    A reviewer re-raising a finding THIS REVIEW's own round-to-round trail already dispositioned
    (matched by the stable id from point 4, not just similar wording) is common and NOT
    automatically oscillation — an independent reviewer, especially the no-shared-context
-   fresh-eyes/Fable seat, is expected to sometimes re-notice something a prior round already
+   fresh-eyes seat, is expected to sometimes re-notice something a prior round already
    handled, precisely because that seat doesn't know the prior rounds happened. What matters,
    checked with the same verification standard as any other claim (not just asserted): does the
    re-raise bring new reasoning or evidence beyond what the prior disposition already considered —
@@ -463,8 +466,8 @@ teach the plain-language trigger phrases.
    waiver as before; it does not close it. Never let rounds run silently back-to-back. Once
    the standard pair (and any fresh-eyes pass) has reported, ASK — don't just
    stop — whether the owner wants anything more: a `--with-antigravity` round
-   (spending one of the scarce credits), or an extra same-family **Fable**
-   pass (Agent tool, `model: "fable"` — free, no credits, just not
+   (spending one of the scarce credits), or an extra same-family pass with a
+   stronger host-family model (free, no external credits, just not
    cross-model). Offer, don't run either unasked.
 9. **Close out — both halves, not just the trail file.** Read
    `references/closeout.md` and follow it: (a) write the trail file

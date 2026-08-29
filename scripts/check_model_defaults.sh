@@ -1,42 +1,42 @@
 #!/usr/bin/env bash
-# Guard: independent-review's OLLAMA_MODEL default is hand-maintained across many prose
-# references (SKILL.md, references/*.md, the script itself) instead of read from one place —
-# exactly how the ollama-cloud default drifted out of sync during the claude-skills migration.
-# This derives the canonical value from the script's own default assignment (the only
-# line that actually governs runtime behavior) and fails if any other mention disagrees.
+# Guard: independent-review is model-AGNOSTIC — the pipeline prescribes no specific LLM.
+# The ollama tier auto-detects the owner's signed-in ':cloud' model, Codex and Antigravity
+# use their own CLI-configured defaults, and the docs speak in families and generic tags.
+# A hardcoded default is exactly how the ollama tier once drifted out of sync with the
+# owner's real setup (the pre-2026-08-29 version of this check managed that drift; this
+# version prevents the class). references/setup-guide.md is deliberately NOT scanned —
+# it is the drift-prone helper that cites dated, concrete local-model examples for the
+# RAM table, and says so inline.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 SKILL_DIR="skills/independent-review"
-SCRIPT="$SKILL_DIR/scripts/independent_review.sh"
-DOC="$SKILL_DIR/SKILL.md"
+FILES=(
+  "$SKILL_DIR/SKILL.md"
+  "$SKILL_DIR/references/onboarding.md"
+  "$SKILL_DIR/references/closeout.md"
+  "$SKILL_DIR/scripts/independent_review.sh"
+)
 
-canonical=$(grep -oE 'OLLAMA_MODEL="\$\{OLLAMA_MODEL:-[^}]+\}"' "$SCRIPT" \
-  | sed -E 's/.*:-(.*)\}"/\1/')
+for f in "${FILES[@]}"; do
+  if [ ! -f "$f" ]; then
+    echo "FAIL — expected pipeline file missing: $f (update FILES in this check if it moved)."
+    exit 1
+  fi
+done
 
-if [ -z "$canonical" ]; then
-  echo "FAIL — could not find the OLLAMA_MODEL default assignment in $SCRIPT."
-  echo "The line this check expects looks like: OLLAMA_MODEL=\"\${OLLAMA_MODEL:-<tag>}\""
-  exit 1
-fi
-
-# Every mention of a glm-*:cloud-shaped tag, anywhere in the doc or the script, must
-# contain the canonical value above — a line that already contains it passes trivially,
-# including the assignment line itself. A line legitimately discussing a DIFFERENT,
-# non-default tag (e.g. "the old tag still works as an override") is excluded via an
-# explicit inline marker rather than guessed at — see the marker text below.
-MARKER='non-default mention'
-PATTERN='glm-[A-Za-z0-9.-]+:cloud'
-mismatches=$(grep -nE "$PATTERN" "$DOC" "$SKILL_DIR"/references/*.md "$SCRIPT" | grep -vF "$canonical" | grep -vF "$MARKER")
+# Named cloud tags (word:cloud — a bare ':cloud' convention mention is fine) and
+# versioned family/model names. Family names WITHOUT a version (Gemini, GLM,
+# gpt-class, Claude) stay allowed — the Independence rule classifies by family.
+PATTERN='[A-Za-z0-9][A-Za-z0-9._-]*:cloud|[Gg][Ll][Mm]-[0-9]|gpt-[0-9]|[Gg]emini[- ][0-9]|[Cc]laude[- ][0-9]'
+mismatches=$(grep -nE "$PATTERN" "${FILES[@]}")
 
 if [ -n "$mismatches" ]; then
-  echo "FAIL — a reference to the ollama-cloud default disagrees with the canonical value"
-  echo "($canonical, from $SCRIPT's own default assignment):"
+  echo "FAIL — a concrete model name/tag appears in independent-review's pipeline files."
+  echo "The skill is model-agnostic: name model FAMILIES or generic tag shapes only, and"
+  echo "let the owner's own CLI config/signin choose the actual model:"
   printf '%s\n' "$mismatches" | sed 's/^/    /'
-  echo ""
-  echo "Update the mismatched reference(s) to $canonical, or update the assignment in"
-  echo "$SCRIPT if the default itself is meant to change."
   exit 1
 fi
 
-echo "OK — every OLLAMA_MODEL reference in $SKILL_DIR matches the canonical default ($canonical)"
+echo "OK — independent-review stays model-agnostic (no concrete model names/tags in its pipeline files)"

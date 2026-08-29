@@ -89,9 +89,9 @@ what's installed," not "any one tool works":** per this skill's own
 Independence rule above, a reviewer only satisfies the gate if it's
 **cross-model relative to the CURRENT host**, not just "installed" — ollama
 LOCAL never satisfies it regardless of host (tier 5 — sanity pass only), but
-ollama CLOUD (a signed-in `:cloud`-tagged model, e.g. the default
-`glm-5.3-flash:cloud`) DOES count, same as Codex/Antigravity — it's tier 2, part of
-the standard default pair (see Reviewer stack above), not tier 5. Which cloud
+ollama CLOUD (a signed-in `:cloud`-tagged model) DOES count, same as
+Codex/Antigravity — it's tier 2, part of the standard default pair (see
+Reviewer stack above), not tier 5. Which cloud
 tool(s) count as cross-model depends on what's running this wizard: on a
 Claude Code host, Codex and/or ollama-cloud and/or Antigravity all count; on
 a Codex host, Codex CLI alone does NOT (same family as the host) —
@@ -134,9 +134,10 @@ detail, but lead with this, not the table:
   report of severe lockouts) from `references/setup-guide.md` and say it
   plainly — don't undersell it, and don't guess at numbers not in that file.
 - **ollama** — free either way, two distinct modes:
-  - *Cloud* (e.g. the default `glm-5.3-flash:cloud`) — needs a one-time `ollama
-    signin` (free, no payment) but nothing beyond that; runs on Ollama's own
-    servers, so it DOES leave the machine. This is the script's actual
+  - *Cloud* (any `:cloud`-tagged model — the script auto-uses whichever one
+    the signin provides) — needs a one-time `ollama signin` (free, no
+    payment) but nothing beyond that; runs on Ollama's own servers, so it
+    DOES leave the machine. This is the script's actual
     standard second reviewer — sharp enough to satisfy the gate on its own,
     same tier as Codex/Antigravity.
   - *Local* (a model pulled to this computer) — completely free, unlimited,
@@ -249,15 +250,16 @@ CURRENT host's family. That's it — check it against whichever host is
 actually running right now, for whichever reviewer is actually being
 verified, every time.**
 
-`agy`'s default model is Gemini (`independent_review.sh` invokes `agy
---sandbox --model "$AGY_MODEL" ...`, `AGY_MODEL` defaulting to "Gemini 3.1
-Pro (High)" — that env var is this script's own convention, mapped straight
-onto `agy`'s real `--model` flag; it is not a native `agy` setting, so don't
-expect it to do anything outside this script). Gemini differs from every
-host in this skill except an Antigravity/Gemini host itself — so on a
-Gemini host specifically, `agy` only satisfies the gate if `AGY_MODEL` is
-overridden away from Gemini (e.g. to Claude); on every other host, `agy`'s
-Gemini default already satisfies it. If a fallback reviewer is needed
+`agy` runs whatever model its CLI is configured for — typically a
+Gemini-family default from the Antigravity login (`independent_review.sh`
+passes `--model "$AGY_MODEL"` only when that env var is set — the var is
+this script's own convention, mapped straight onto `agy`'s real `--model`
+flag; it is not a native `agy` setting, so don't expect it to do anything
+outside this script). Don't assume the default's family: confirm it from
+the run's own output and apply the one rule — on a Gemini host
+specifically, `agy` satisfies the gate only with `AGY_MODEL` overridden to
+a non-Gemini family; on any other host its Gemini-family default typically
+satisfies it, once confirmed. If a fallback reviewer is needed
 because `agy`'s model can't be confirmed, apply the same one rule to pick
 it — check whichever candidate's model family actually differs from the
 current host's, rather than defaulting to a fixed choice; on most hosts
@@ -270,7 +272,7 @@ invocation's reported model, not a config file (a valid Codex install may
 have no `config.toml`, or one with no explicit `model` entry, sourcing its
 effective model from defaults/profile/CLI args instead; `codex exec` does
 reliably print its effective config in its own output regardless, e.g.
-"model: gpt-5.6-terra" — that's the thing to read, not the file). `agy`'s
+a `model: <name>` line — that's the thing to read, not the file). `agy`'s
 output format for this wasn't independently confirmed while writing this
 skill, so treat that pattern as a lead to check, not a guarantee. **If no
 model identifier can be confirmed at all, do not report `agy` as
