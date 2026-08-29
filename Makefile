@@ -15,9 +15,10 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## fail if any personal name / contact info / credential is in the suite, or independent-review names a concrete model (it must stay model-agnostic)
+check:     ## fail if any personal name / contact info / credential is in the suite, independent-review names a concrete model (it must stay model-agnostic), or a skill description exceeds the 1024-char spec limit
 	@bash scripts/check_clean.sh
 	@bash scripts/check_model_agnostic.sh
+	@bash scripts/check_skill_budgets.sh
 
 smoke: package   ## shippability check: make check + build zip + verify zip contents
 	@echo "smoke OK — suite is clean and the handoff zip is complete"
