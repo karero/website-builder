@@ -17,7 +17,10 @@ cd "$(dirname "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."
 DESC_HARD=1024
 DESC_WARN=900
 LINES_SOFT=500
-MIN_SKILLS=10
+# Breakage tripwire, not an inventory ledger: it catches a broken glob/path
+# (0 files) or catastrophic loss, while tolerating routine removals. The suite
+# holds 28 skills as of 2026-08-29.
+MIN_SKILLS=20
 
 # All four entries predate this check (2026-08-29) — the debt was found by the
 # check, not created by it. A skill-debloat thread trimming descriptions was
@@ -78,18 +81,25 @@ chars() { printf '%s' "$1" | LC_ALL="$UTF8_LOCALE" wc -m | tr -d '[:space:]'; }
 # real parser returns the LAST value, not the first), and plain values a
 # real parser rejects or resolves to non-strings (anchors, tags, flow
 # collections, sequence/mapping indicators, colon-space, unterminated
-# quotes). Residual over-counts (quoted-scalar escapes, trailing `#`
-# comments on plain scalars, kept trailing spaces on block lines) err
-# conservative: they can false-FAIL near the boundary, never false-pass.
-# Frank residual gap, loud-or-conservative for valid YAML: a frontmatter
-# never closed by `---` scans on into the body.
+# quotes, value-position comments, null forms). Residual over-counts
+# (quoted-scalar escapes, trailing `#` comments after a plain value, kept
+# trailing spaces on block lines) err conservative: they can false-FAIL near
+# the boundary, never false-pass. Frank residual gaps, loud-or-conservative
+# for valid YAML: a frontmatter never closed by `---` scans on into the body,
+# and boolean/numeric plain values are measured at face length.
 #
 # The output can END IN A NEWLINE (clip chomping), which $(...) strips — every
 # caller must capture with the x-sentinel idiom:
 #   d=$(desc_of "$f"; printf x); d=${d%x}
 desc_of() {
   awk '
-    BEGIN { sq=sprintf("%c",39); dq=sprintf("%c",34) }
+    BEGIN {
+      sq=sprintf("%c",39); dq=sprintf("%c",34)
+      # Duplicate-key SCAN pattern: also catches the valid alternate spellings
+      # `description :` and quoted keys, which a real parser still resolves
+      # last-wins. The CAPTURE rule below stays strict on purpose.
+      dupre = "^[" dq sq "]?description[" dq sq "]?[ \t]*:"
+    }
     NR==1 { if ($0 ~ /^---[ \t\r]*$/) infm=1; next }
     infm==0 { exit }
     /^---[ \t\r]*$/ { exit }
@@ -103,7 +113,7 @@ desc_of() {
       captured=0; done=1
     }
     done==1 {
-      if ($0 ~ /^description:/) { desc=""; exit }
+      if ($0 ~ dupre) { desc=""; exit }
       next
     }
     mode=="block" {
@@ -113,7 +123,7 @@ desc_of() {
         blanks++; next
       }
       if ($0 !~ /^[ \t]/) {
-        if ($0 ~ /^description:/) { desc=""; exit }
+        if ($0 ~ dupre) { desc=""; exit }
         mode=""; done=1; next
       }
       if ($0 ~ /^ *\t/) { desc=""; exit }
@@ -131,7 +141,7 @@ desc_of() {
       desc=desc line; blanks=0
       next
     }
-    /^description:/ {
+    /^description:([ \t]|$)/ {
       val=$0; sub(/^description:[ \t]*/,"",val); sub(/[ \t\r]+$/,"",val)
       if (val==">")  { mode="block"; wasblock=1; lit=0; clip=1; next }
       if (val==">-") { mode="block"; wasblock=1; lit=0; clip=0; next }
@@ -151,6 +161,13 @@ desc_of() {
       # scalar). Quoted values, handled above, may contain any of these.
       if (a==sq || a==dq) { exit }
       if (a=="*" || a=="&" || a=="!" || a=="[" || a=="{" || a=="%" || a=="@" || a=="`") { exit }
+      if (a=="#" || a=="," || a=="]" || a=="}") { exit }
+      lv=tolower(val)
+      if (val=="~" || lv=="null" || lv=="true" || lv=="false" || lv=="yes" || lv=="no" || lv=="on" || lv=="off") { exit }
+      if (val ~ /^[-+]?([0-9][0-9_]*(\.[0-9_]*)?|\.[0-9_]+)([eE][-+]?[0-9]+)?$/) { exit }
+      if (val ~ /^[-+]?0[xXoObB][0-9a-fA-F_]+$/) { exit }
+      if (lv ~ /^[-+]?\.(inf|nan)$/) { exit }
+      if (val ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]?-[0-9][0-9]?$/) { exit }
       if (val ~ /^[-?:]([ \t]|$)/) { exit }
       if (val ~ /:[ \t]/) { exit }
       desc=val; captured=1; next
@@ -372,6 +389,37 @@ name: t
 description: "a: b"
 ---
 EOF
+cat > "$TMP/comment-value.md" <<'EOF'
+---
+name: t
+description: # TODO write this
+---
+EOF
+cat > "$TMP/null-value.md" <<'EOF'
+---
+name: t
+description: null
+---
+EOF
+cat > "$TMP/numeric-value.md" <<'EOF'
+---
+name: t
+description: 1600
+---
+EOF
+cat > "$TMP/date-starts-string.md" <<'EOF'
+---
+name: t
+description: 2026-08-29 was the day this suite got budgets
+---
+EOF
+cat > "$TMP/dup-alt-spelling.md" <<'EOF'
+---
+name: t
+description: short
+description : a longer duplicate under an alternate valid key spelling
+---
+EOF
 
 n=$(st_len "$TMP/plain.md")
 [ "$n" -eq 5 ] || st_fail "plain description counted $n chars, expected 5"
@@ -392,9 +440,12 @@ n=$(st_len "$TMP/crlf.md")
 [ "$n" -eq 3 ] || st_fail "CRLF file counted $n chars, expected 3 — CR handling broke"
 n=$(st_len "$TMP/quoted-colon.md")
 [ "$n" -eq 4 ] || st_fail "quoted value containing colon-space counted $n chars, expected 4 — quote path must bypass the plain-scalar refusals"
+n=$(st_len "$TMP/date-starts-string.md")
+[ "$n" -eq 45 ] || st_fail "plain string starting with a date counted $n chars, expected 45 — whole-token refusals must not fire on real descriptions"
 for fx in nodesc multiline-plain multiline-plain-blank block-indicator keep-chomp \
           block-lead-blank block-indent-jump block-tab-indent block-wide-blank alias \
-          duplicate-key plain-colon plain-seq unterminated-quote; do
+          duplicate-key dup-alt-spelling plain-colon plain-seq unterminated-quote \
+          comment-value null-value numeric-value; do
   st_read "$TMP/$fx.md"
   [ -z "$ST" ] || st_fail "$fx.md was measured instead of refused (got '$ST')"
 done
