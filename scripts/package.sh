@@ -51,6 +51,7 @@ REQUIRED=(
   docs/CODEX-TEST.md
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
+  skills/new-website/templates/PUBLISHING.md
 )
 zipfiles="$(unzip -Z1 "$OUT/website-builder.zip")"
 missing=0

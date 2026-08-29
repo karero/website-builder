@@ -5,8 +5,9 @@ description: >
   optimize step that sits downstream of search-console-setup (which only registers
   the property). Uses the free GSC Search Analytics API (OAuth desktop flow,
   read-only) to report where target keywords rank, striking-distance queries (avg
-  position ~8-20 = fastest Top-10 wins), and high-impression/low-CTR pages that need
-  title/meta rewrites. Optional free competitive-SERP layer (Serper, fallback SerpApi)
+  position ~8-20 = fastest Top-10 wins), and high-impression/low-CTR pages flagged
+  for snippet/SERP investigation (a title/meta rewrite is the outcome only when the
+  live-SERP check shows a snippet problem you control). Optional free competitive-SERP layer (Serper, fallback SerpApi)
   shows who actually holds the Top 10 for a keyword you don't rank for yet, plus an
   optional Bing Webmaster Tools source (simple API key) as a Copilot/ChatGPT-visibility
   proxy. Ships Python scripts (scripts/gsc_query.py, scripts/serp_check.py,
@@ -22,7 +23,7 @@ description: >
   search visibility", "track my rankings over time", "schedule weekly tracking", "track my
   SEO automatically", "weekly SEO report".
 metadata:
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 # Search Console insights
@@ -36,7 +37,7 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | Source | Script | Auth | What you get |
 |---|---|---|---|
 | **Combined (the default)** | `insights.py` | — | **Google + Bing side by side** per keyword + a nudge to connect any missing free source |
-| **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages. German-market/bilingual sites: pass `--country deu` (ISO alpha-3; also on `insights.py`) — default numbers are blended across every country, which can mask or fake German positions. Keyword matching folds umlauts/ß ("München" matches rows typed "muenchen") |
+| **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages; `--page <url>` / `--query "<q>"` drill-downs for query↔page attribution. German-market/bilingual sites: pass `--country deu` (ISO alpha-3; also on `insights.py`) — default numbers are blended across every country, which can mask or fake German positions. Keyword matching folds umlauts/ß ("München" matches rows typed "muenchen") |
 | **Live Google SERP** | `serp_check.py` | Serper key (free, optional) | The actual Top-10 for any keyword + where you sit — incl. keywords you don't rank for yet |
 | **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats — a Copilot/ChatGPT-visibility proxy; ~6-month aggregate |
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
@@ -123,61 +124,61 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
 
 ## Reading the numbers — from GSC data to a conclusion
 
-Pulling the report is the easy part. Turning it into a correct diagnosis is where
-mistakes actually happen — every rule below was a real, costly error caught in a live
-site's data (2026-08-27: it silently invalidated a headline "% of site-wide traffic"
-claim in an externally-reviewed proposal before being caught). Apply these before
-stating any conclusion, not just when something looks off.
+Pulling the report is the easy part; the diagnosis is where mistakes happen. Every
+rule below was a real interpretation error caught in a live site's data. Apply them
+before stating any conclusion, not just when something looks off.
 
-1. **Site-wide totals: use the page-level report, not the query-level one.**
-   `gsc_query.py` now prints both, clearly labeled, and warns when they disagree by
-   more than 10% — but the *reason* matters for judgment calls it can't automate:
-   GSC's query-dimensioned report anonymizes/drops rare long-tail queries on a
-   low-volume site, so its row sum silently undercounts. The page-dimensioned report
-   doesn't hit that same anonymization. **Always quote the page-level total as "the"
-   site-wide figure; the query-level one is a reference number only, never a
-   denominator.** (This skill is built for a low-volume site -- see the "Low-volume
-   playbook" below. Both reports are capped at 25,000 rows per pull; on a genuinely
-   large property the page-level total is itself a floor, not exhaustive.)
-2. **A percentage claim must name its denominator, and it must be the right one.**
-   "123 impressions is 32% of site-wide traffic" is only as correct as the number
-   underneath it. Before writing a percentage into a report or a recommendation,
-   state explicitly which total (page-level site-wide, or one specific page's own
-   impressions) it's computed against — a reader should never have to guess.
-3. **CTR only means something together with position — read them as a pair:**
-   - **Position ≤5, CTR near 0%:** a real snippet problem. This is the trigger
-     condition for the mandatory SERP-snippet check below (#5) — do that before
-     touching the title or description.
-   - **Position 6–15, low CTR:** could be a snippet problem or a format/relevance
-     mismatch for that position. Check what's actually ranking around you (Phase 2)
-     before assuming a copy fix is the answer.
-   - **Position >20:** not a CTR problem yet. Rewriting the title rarely helps here —
-     the page isn't relevant/authoritative enough to be seen as an option at all.
+1. **Only the property-level figure is a site-wide total.** The report prints up to
+   three, labeled: **property-level** (no dimension — one impression per results
+   page; the only valid site-wide denominator, within any `--country` filter you
+   passed), the **page-level sum** (counts each
+   of your pages separately when several share one results page — brand sitelinks
+   inflate it), and the **query-level sum** (anonymization drops rare queries —
+   undercounts on thin sites). The script warns when they disagree by >10% and
+   labels any fallback a floor/ceiling; never promote either sum to "the" total.
+   (Both sums also cap at 25,000 rows per pull; the property-level row does not.)
+2. **A percentage or comparison must name its denominator AND its window.** State
+   which total it is computed against, and which date range and report it came from.
+   Never compare numbers from different windows or sources (a 28-day GSC pull vs
+   Bing's ~6-month aggregate; a fresh pull vs a figure quoted from an older report)
+   without saying so. Best of all, prefer page-relative figures ("123 of this page's
+   own 150 impressions") — they need no site-wide denominator at all and say more.
+3. **Separate brand from non-brand before concluding anything.** On a young or niche
+   site, most impressions are the brand name and its typos: they inflate totals, CTR
+   and the top-queries table, and say nothing about SEO progress. Label brand rows,
+   and say whether a percentage is of all traffic or of non-brand traffic.
+4. **CTR only means something together with position — and with the live SERP:**
+   - **Position ≤5, CTR near 0%:** a snippet **or SERP-context** problem — the
+     mandatory live check (#6) decides which. On entity/person queries a knowledge
+     panel or Wikipedia can absorb the clicks while your snippet is fine.
+   - **Position 6–15, low CTR:** snippet, or a format/relevance mismatch — check
+     what's actually ranking around you (Phase 2) before assuming a copy fix.
+   - **Position >20:** not a CTR problem yet; a title rewrite rarely helps here.
    - **Under ~20 total impressions, at any position:** too thin to diagnose. Say so —
      "insufficient volume to conclude anything yet" is a correct, honest answer.
-4. **Before crediting or blaming a change, cross-check GSC against the site's own
-   analytics tool (Plausible/GA), not GSC alone.** GSC counts what Google *served* and
-   what got *clicked in the SERP* — it says nothing about what happened after the
-   click. If GSC shows real clicks on a page in a window but the analytics tool shows
-   zero matching visits, that's a real discrepancy (ad blockers, a missing tracking
-   snippet, bot/automated clicks) worth resolving before treating GSC clicks alone as
-   proof a change worked, or treating zero analytics visits alone as proof it didn't.
-   Check the tracking snippet is actually present in the page's rendered HTML
-   (`curl` the live URL) before concluding the gap is behavioral rather than a bug.
-5. **MANDATORY before any CTR/snippet diagnosis:** the same live-SERP-snippet check
-   documented under Phase 2 below applies here too — a "the description is too
-   long/short" theory is unverified until you've seen what Google is actually
-   rendering for that query.
+5. **Attribute queries to pages with data, not inference.** Never assert which page a
+   query lands on — or that two pages cannibalize one query — from the separate
+   query and page tables. Pull it: `--page <url>` (queries landing on that page) or
+   `--query "<q>"` (pages serving that query). One flag replaces a guess.
+6. **MANDATORY before any CTR/snippet diagnosis:** the live-SERP-snippet check under
+   Phase 2 — Google often discards the shipped meta description, and the SERP around
+   you explains a CTR gap at least as often as your snippet does.
+7. **Correlation needs a control before it becomes a cause.** Before crediting or
+   blaming any change (yours or Google's): segment out bots and brand, compare equal
+   windows, and check pages you didn't touch. Cross-check GSC against the site's own
+   analytics (Plausible/GA) — GSC counts SERP events, not what happened after the
+   click, and its clicks can include non-human ones. If clicks and analytics visits
+   disagree, verify the tracking snippet in the live rendered HTML (`curl`) before
+   calling the gap behavioral. Until a control agrees, write "consistent with", not
+   "explains".
 
-**Worked example (generalized from a real case).** A report showed "123 impressions,
-32% of sitewide traffic" for one query, using the query-level total (384 impressions)
-as the denominator. The page-level total was actually 1,071 impressions — the real
-site-wide figure. Recomputed correctly, that query was ~11.5% of true site-wide
-traffic, and a *far* more precise, defensible number was available anyway: 123 of the
-*target page's own* 150 impressions (~82%) — a page-relative figure needs no
-site-wide denominator at all, and says more. When a conclusion can be stated relative
-to the one page being discussed rather than the whole site, prefer that — it's harder
-to get wrong and more useful to the reader.
+**Worked example (real case).** "123 impressions = 32% of site-wide traffic" used the
+query-level sum (384) as its denominator — an anonymization-shrunk number. But the
+"corrected" claim quoted the page-level sum (1,071) as the truth, which overcounts the
+other way. The defensible number needed no site-wide denominator at all: 123 of the
+target page's own 150 impressions (~82%) — with the query→page mapping confirmed via
+the `--query` drill-down (rule 5), not assumed. Page-relative framing is harder to get
+wrong and more useful.
 
 ## Phase 1 — GSC data (free, high-signal)
 
@@ -195,17 +196,18 @@ to get wrong and more useful to the reader.
 - First run opens a browser for consent; the refresh token is cached at
   `~/.config/gsc-insights/token.json` (chmod 600) so later runs are silent.
 
-The report opens with **two site-wide totals** (page-level = the real figure,
-query-level = reference only, flagged if they disagree by >10% — see "Reading the
-numbers" above for why both exist), then three actionable sections (then top-queries /
-top-pages tables):
+The report opens with **up to three site-wide totals** (property-level = the
+denominator; page-level and query-level sums as labeled references, flagged when they
+disagree by >10% — see "Reading the numbers" above for why each differs), then three
+actionable sections (then top-queries / top-pages tables):
 
 1. **Target keywords — where we stand.** Best-matching query, avg position,
    impressions, clicks, CTR for each `--keywords` term (or "no impressions yet").
 2. **Striking-distance queries** (avg position ~8–20): already on Google's radar,
    one push from the Top 10. Highest ROI — prioritise these.
 3. **Good position, low CTR pages** (rank ≤10, CTR <2%): they're *seen* but not
-   *clicked* → the title/meta-description is the bottleneck, not ranking.
+   *clicked* → investigate the snippet or the SERP context (rule 4 of "Reading the
+   numbers") before deciding the title/meta is the bottleneck.
 
 ## Phase 2 — competitive SERP (who actually ranks)
 
@@ -308,10 +310,17 @@ set -a; . ~/.config/gsc-insights/.env; set +a
 bash scripts/track.sh example.com "AI Events Munich,AI Meetups Munich,AI Treffen München"
 ```
 
-Output is a per-keyword trend (**lower position = better; ▲ = improved**). The first run
-just seeds the history — re-run **every 1–2 weeks** to watch the needle. (Each query script
-also takes `--csv <path>` to append on its own; `python scripts/_history.py <csv>` reprints
-the trend without a new pull.)
+Output is a per-keyword trend (**lower position = better; ▲ = improved**). The tracker
+pulls a **28-day window** (`GSC_TRACK_DAYS` overrides) so week-over-week moves are
+actually visible — a 90-day window would smooth them away — and it marks moves that
+aren't real rank changes: `≠` = the best-matching query changed between runs, `~` = a
+compared side has under 10 impressions (noise), `‡` = the tracked window or country
+filter changed between runs, or the earlier row predates the config columns (both
+recorded in the CSV, so the trend flags its own config breaks; only a move between
+two pre-schema runs leaves no record to flag). The first run just seeds the history —
+re-run **every 1–2 weeks** to watch the needle. (Each query script also takes
+`--csv <path>` to append on its own; `python scripts/_history.py <csv>` reprints the
+trend without a new pull.)
 
 ## Weekly auto-tracking (opt-in, per site) — offer this
 
@@ -365,8 +374,10 @@ to work it like this:
    phrasing into the page's `<title>`, H1, and first paragraph. Moving one query 12→8 is a
    real, attributable win.
 3. **Fix titles for queries you already rank for but nobody clicks.** Ranking ≤10 with ~0
-   clicks = a *snippet* problem, not a ranking problem — and it's higher ROI at low volume
-   than chasing new terms. Rewrite the title/meta (→ `copywriting` + `website-seo-geo`).
+   clicks = a *snippet-or-SERP* problem, not a ranking problem — and it's higher ROI at low
+   volume than chasing new terms. Run the mandatory live-SERP check first; rewrite the
+   title/meta only if it shows a snippet problem you control (→ `copywriting` +
+   `website-seo-geo`).
 4. **Mine the queries you never targeted.** The top-queries table surfaces terms you
    *accidentally* rank for (speaker names, adjacent topics, "claude code munich"). On a
    thin site these are gold — real demand. Build or expand a section around the ones that
@@ -384,6 +395,10 @@ Compare a 28-day window to the prior 28 days to see genuine movement.
 - **Read-only** GSC scope (`webmasters.readonly`); never writes to the property.
 - This is data + analysis, **not** registration (`search-console-setup`), not the
   on-page metadata contract (`website-seo-geo`), not AI-answer optimisation (`ai-seo`).
+- **Not index coverage.** These scripts read Search Analytics only. Never claim a
+  page "isn't indexed" from its absence in a list, table, or report — verify with
+  GSC's URL Inspection (tool or API) first; absence of impressions is not absence
+  from the index.
 - **Opt-in** skill: it needs API creds, so it is deliberately **not** in the
   `new-website` always-on copy set — copy it into a project only when wanted.
 - Paid scale-up (not wired here): DataForSEO (no free tier, $50 min) is the option if

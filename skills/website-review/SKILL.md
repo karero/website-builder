@@ -3,21 +3,18 @@ name: website-review
 description: >
   The Double-Knuth review for a site — a two-pass correctness + cross-file
   consistency audit run at the END of a build (pre-launch) and after ADDING or
-  substantially editing a page (the moments cross-file consistency silently
-  breaks). Pass 1 = bugs/correctness/Rule-12 (delegates the diff to /code-review);
-  Pass 2 = completeness + route/URL/SEO/config/email/docs consistency against the
-  site contract. Read-only: returns a ranked BUG/RISK/NIT list with file:line +
-  fixes. Prerequisite: website-qa green. Also owns the "review depth" decision
-  for website work: this skill (or /code-review alone for a small diff) is the
-  free default, sufficient for most changes; a single external reviewer via
-  `independent-review` is an owner-approved OPTIONAL extra for genuinely
-  higher-stakes changes (site-wide SEO repositioning, payment/checkout flows,
-  sensitive-data forms, major redesigns) — never independent-review's own
-  default of two reviewers, and never decided silently. Trigger phrases:
-  "double-knuth", "double knuth the site", "review the site", "site review",
-  "final review before launch", "review this page", "did adding the page break
-  anything", "consistency check the site", "audit the site code", "how much
-  review does this need", "do I need a second opinion on this", "should I use
+  substantially editing a page.
+  Pass 1 = bugs/correctness (delegates the diff to /code-review);
+  Pass 2 = completeness + route/URL/SEO/config/email/docs consistency against
+  the site contract. Read-only: returns a ranked BUG/RISK/NIT list with
+  file:line + fixes. Prerequisite: website-qa green. Also owns the "review
+  depth" decision for website work — when this free default suffices vs. an
+  owner-approved single external reviewer for genuinely higher-stakes changes
+  (its "Review depth" section has the rule). Trigger phrases: "double-knuth",
+  "double knuth the site", "review the site", "site review", "final review
+  before launch", "review this page", "did adding the page break anything",
+  "consistency check the site", "audit the site code", "how much review does
+  this need", "do I need a second opinion on this", "should I use
   independent-review for this".
 ---
 
@@ -109,6 +106,8 @@ recommendation, never to pick unasked.
   knowing the edit happened.
 - Nothing silently unshipped (two-stage sites): `git log origin/production..origin/main` empty,
   or the gap is a conscious decision — and the last `npm run ship` ended "✓ LIVE — verified".
+  Any deploy you run or announce follows the site's `PUBLISHING.md` § "For AI assistants —
+  deploy-time guardrails" (preview-vs-live announcements + the cached-404 rule).
 
 ## Pass 2 — completeness + cross-file/skill consistency
 - **Routes:** every `src/pages/**` route is in `tests/_helpers.ts` `PAGES` (and vice-versa;

@@ -19,8 +19,8 @@
 #   scripts/whats-new.sh --stamp-tests <tests_dir> # write the TESTS-VERSION stamp next to a
 #                                                 # site's tests/ copies. The report uses it
 #                                                 # to flag upstream changes to the template
-#                                                 # test suite + CONTENT_GUIDE — files that
-#                                                 # are FROZEN one-time copies, which
+#                                                 # test suite + CONTENT_GUIDE + playwright.config
+#                                                 # — files that are FROZEN one-time copies, which
 #                                                 # --refresh deliberately never touches
 #                                                 # (a blind overwrite would clobber the
 #                                                 # site's own PAGES list / exemptions).
@@ -56,8 +56,8 @@ write_stamp() {  # $1 = skills dir
 }
 
 # Upstream template files that scaffolded sites carry as FROZEN copies (tests/*,
-# CONTENT_GUIDE.md). Tracked via TESTS-VERSION; never auto-refreshed.
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md'
+# CONTENT_GUIDE.md, playwright.config.ts). Tracked via TESTS-VERSION; never auto-refreshed.
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/astro/playwright.config.ts'
 
 write_tests_stamp() {  # $1 = tests dir
   printf 'suite_commit: %s\ncopied: %s\n' \
@@ -268,7 +268,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
   # shellcheck disable=SC2086
   changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- $TEMPLATE_TRACKED)"
   if [ -z "$changed" ]; then
-    echo "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE."
+    echo "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE / playwright.config."
     if [ "${src#SUITE-VERSION}" != "$src" ]; then
       echo "Pin the tests baseline off the fallback (it moves when skills refresh):"
       echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
@@ -287,6 +287,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  ${f#skills/new-website/templates/astro/} (site copy: tests/$(basename "$f"))" ;;
       skills/new-website/templates/content-guide.md)
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
+      skills/new-website/templates/astro/playwright.config.ts)
+        echo "  templates/astro/playwright.config.ts (site copy: playwright.config.ts)" ;;
       *)
         echo "  $f" ;;
     esac

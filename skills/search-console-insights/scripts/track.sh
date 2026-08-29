@@ -22,7 +22,11 @@ KEYWORDS="${2:?keywords required (comma-separated)}"
 echo "▶ Google Search Console …"
 # GSC_COUNTRY (ISO alpha-3, e.g. deu): optional country filter so the tracked
 # history matches ad-hoc --country reports (env-var pattern like GSC_HISTORY_CSV).
-"$PY" "$DIR/gsc_query.py" --site "sc-domain:$DOMAIN" --days 90 \
+# 28-day window (GSC_TRACK_DAYS overrides): weekly points from a 90-day window
+# are ~92% the same data — real moves show up damped and weeks late. 28 matches
+# the SKILL.md cadence. NOTE: changing the window shifts the level of the
+# recorded positions once, so the first post-change trend line is not comparable.
+"$PY" "$DIR/gsc_query.py" --site "sc-domain:$DOMAIN" --days "${GSC_TRACK_DAYS:-28}" \
   --keywords "$KEYWORDS" --csv "$CSV" ${GSC_COUNTRY:+--country "$GSC_COUNTRY"} >/dev/null
 
 echo "▶ Bing Webmaster …"

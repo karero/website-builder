@@ -1,19 +1,17 @@
 ---
 name: internal-link-audit
 description: >
-  Internal-linking tool for an Astro site built with the new-website kit. Builds the
-  site's inbound-link graph from dist/ and reports which pages are ORPHANED (in the
-  sitemap but no internal link points at them — invisible to crawlers and browsing
-  humans), THIN (a single inbound link, usually just the nav/footer, with no contextual
-  in-body link), or DEEP (more than ~3 clicks from home), then suggests WHERE to add the
-  missing links — applying the internal-linking strategy from `site-architecture`
-  (hub-and-spoke, descriptive anchor text, important pages most-linked, shallow depth). The
-  judgment-side complement to the offline `tests/orphans.spec.ts` gate (which only
-  fails the build when a page is unreachable from home). Run before a release, after
-  adding pages, or when GSC reports orphaned/low-coverage pages. Trigger phrases:
-  "internal link audit", "orphaned pages", "are any pages orphaned", "internal
-  linking", "which pages link to nothing", "fix orphan pages", "improve internal
-  links", "cross-link the comparison pages".
+  Internal-linking tool for an Astro site built with the new-website kit.
+  Builds the site's inbound-link graph from dist/ and reports which pages are
+  ORPHANED (in the sitemap but no internal link points at them), THIN (a
+  single inbound link, no contextual in-body link), or DEEP (more than ~3
+  clicks from home), then suggests WHERE to add the missing links using
+  `site-architecture`'s internal-linking strategy. The judgment-side
+  complement to the offline `tests/orphans.spec.ts` gate. Run before a
+  release, after adding pages, or when GSC reports orphaned/low-coverage
+  pages. Trigger phrases: "internal link audit", "orphaned pages", "are any
+  pages orphaned", "internal linking", "which pages link to nothing", "fix
+  orphan pages", "improve internal links", "cross-link the comparison pages".
 ---
 
 # Internal Link Audit
