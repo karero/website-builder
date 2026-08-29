@@ -53,9 +53,8 @@ from silently hiding content. `website-motion` is never run by default: ask for 
 **Conduct the interview — and ALL user-facing guidance throughout this pipeline
 (explanations, the §3a link-sweep question, the §4 preview-vs-live announcement,
 error walk-throughs) — in the language the user writes in.** A German owner gets
-the whole journey in German; the skill files themselves stay English. The verbatim
-message templates below are content specs, not required English wording — deliver
-them in the user's language.
+the whole journey in German; the skill files themselves stay English. The
+verbatim message templates below are content specs, not required English wording.
 
 Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
@@ -371,6 +370,19 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 
 ## 4. Launch & handoff checklist
 
+### Deploy-time guardrails — `references/launch-guardrails.md`
+
+Read the reference in full before the FIRST deploy, when a brand-new page goes
+live, and when a live URL looks stale; this summary covers routine pushes.
+**Always announce whether a push is PREVIEW or LIVE** (two-stage sites: "this
+is NOT live yet" + the preview URL on every push to `main`; live only after
+`npm run ship` AND the production build finishes). **Never request — or
+announce — a brand-new page's URL on the live domain before its build is
+Active**: the first request — the owner clicking your announcement counts —
+caches a 404 at the edge that only a manual dashboard purge clears. Verify on
+the hash deployment URL until Active, touch the bare canonical URL last, and
+hold GSC Request Indexing until then.
+
 - [ ] All QA green: `npm test`.
 - [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
       is empty — merged-but-unpromoted work is invisibly unshipped. If not empty and it
@@ -441,17 +453,6 @@ EXT=$(grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`, and a `README.md` with
       the decision answers + "how to add a page / run tests / deploy".
-
-### Deploy-time guardrails — read `references/launch-guardrails.md` before any deploy
-
-Two standing rules live there in full: **always announce whether a push is
-PREVIEW or LIVE** (two-stage sites: "this is NOT live yet" + the preview URL
-on every push to `main`; live only after `npm run ship` AND the production
-build finishes; quote the memorable `pages.dev` alias and open it before
-reporting it), and **never request a brand-new page on the live domain before
-its build is Active** — the edge caches the 404 and only a manual dashboard
-purge clears it; verify on the hash deployment URL until Active, touch the
-bare canonical URL last, and hold GSC Request Indexing until then.
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity
 

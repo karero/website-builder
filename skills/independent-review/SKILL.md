@@ -11,8 +11,9 @@ description: >
   BEFORE building from any non-trivial plan, BEFORE merging any non-trivial
   PR, and whenever asked for a "codex review", "gemini review", "antigravity
   review", "agy review", "adversarial review", "cross-model review",
-  "independent review", "review before I merge", or to "set up AI code
-  review".
+  "independent review", "get a second model to review", "review before I
+  merge", "which review tool should I use", or to "set up AI code review" /
+  "set up codex, ollama, or antigravity for review".
 ---
 
 # Independent review — the cross-model gate
@@ -66,21 +67,22 @@ the reading code in the artifact, or expect to spend the round refuting.
 
 ### PLAN gate preconditions — two things to check before spending a round
 
-(Codified 2026-08-16, after a multi-day build cleared seven PLAN rounds and still
-left its owner unable to say which steps were finished.)
-
-**The HOST agent runs these checks itself, before the external pair goes out** —
-neither reviewer seat can (the fresh-eyes seat has no repo access; the external
-pair is never asked). Full reasoning, scope, and what each check does NOT
-establish: read `references/plan-preconditions.md` before running a PLAN round.
+**The HOST agent runs these checks itself, before the external pair goes out.**
+Check 1 is structurally invisible to the reviewers (the fresh-eyes seat has no
+repo access; the external pair is never asked it). Full reasoning, scope, and
+what each check does NOT establish: `references/plan-preconditions.md` —
+consult it whenever a check's verdict is contested or unclear.
 
 1. **Can the plan report its own progress?** The plan (or a sibling document it
    names) has a place where each step's state is recorded, and every state
    claiming progress carries a reference another person can open — a commit
-   SHA, a repository-qualified PR, a durably retained test-run link. If not:
-   record it as a **RISK, not a NIT**, in the host's own findings and the trail
-   (Procedure step 9), and keep it OUT of the artifact sent to the external
-   pair — their round still runs on the plan's content exactly as usual.
+   SHA, a repository-qualified PR, a test-run link retained per the project's
+   own policy, never an ephemeral CI console URL. ("Not started" is the one
+   state needing no reference.) If not: record it as a **RISK, not a NIT**, in
+   the host's own findings and the trail (Procedure step 9), and keep it OUT
+   of the artifact sent to the external pair — including a verification
+   round's prior-findings list. Their round still runs on the plan's content
+   exactly as usual.
 2. **Are the plan's own decisions settled?** A plan whose steps are still
    changing needs its open decisions closed first, not another round —
    re-reviewing a moving target is how a plan reaches round seven. This defers

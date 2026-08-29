@@ -1,9 +1,9 @@
 # Launch guardrails — announcing deploys and protecting the edge cache
 
-Read from SKILL.md §4's "Deploy-time guardrails" pointer. Two standing rules for
-every deploy on a kit-built site: how to announce preview vs live to the owner,
-and why a brand-new page must never be requested on the live domain before its
-build is Active.
+Companion to SKILL.md §4's "Deploy-time guardrails" pointer — two standing
+rules for every deploy on a kit-built site. Deliver every announcement in the
+owner's language (SKILL.md §1's rule): the templates below are content specs,
+not required English wording.
 
 ## Always say whether it's PREVIEW or LIVE (two-stage)
 
@@ -15,7 +15,9 @@ push to `main` (or they do), state it explicitly — never let a preview read as
 
 Only after `npm run ship` (or the merge into `production`) **and** the Cloudflare production
 build finishes is it actually live at `<live-domain>` — confirm that separately ("✅ now
-live at …"). On a **single-stage** site there is no preview: say plainly that the push **is
+live at …"). `npm run ship` performs this verification itself — it polls `/build.txt` until
+the live site serves the new SHA and prints "✓ LIVE — verified"; trust that output rather
+than re-checking by hand. The manual confirmation applies to plain-merge publishes. On a **single-stage** site there is no preview: say plainly that the push **is
 going live now**.
 
 **Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
@@ -25,7 +27,7 @@ keep it as a **backup**: when an alias looks **stale** (cache/propagation lag, o
 serving an older build), the hash URL pins the exact fresh deployment and confirms the new
 build is up. Whichever you quote, **open it and confirm it loads** rather than reporting it
 blind — and note it for the project. (A `pages.dev` URL is also the signal you deployed to
-**Pages**, not a Worker — see `CLOUDFLARE_FIRST_DEPLOY.md`.)
+**Pages**, not a Worker — see `references/CLOUDFLARE_FIRST_DEPLOY.md`.)
 
 ## Never request a page on the live domain before its build is Active
 

@@ -2,8 +2,9 @@
 
 Read from SKILL.md's "PLAN gate preconditions" section, which summarizes the two
 checks; this file carries the complete rationale, scope, and — just as important —
-what each check does NOT establish. "Procedure step N" below refers to the
-Procedure section in SKILL.md.
+what each check does NOT establish. "Procedure step N", "the clerk procedure",
+"the Reviewer stack", and "item 3" (a Reviewer-stack entry) below all refer to
+SKILL.md.
 
 (Codified 2026-08-16, after a multi-day build cleared seven PLAN rounds and still
 left its owner unable to say which steps were finished.)
@@ -42,7 +43,7 @@ time — the plan has somewhere to record state, and the convention demands a re
 It cannot tell you a row is *accurate*, and it cannot police updates during the build
 that follows: at review time most steps have not happened yet, and nothing here is
 watching weeks later. A tracker can still go stale by simply not being updated, and the
-rule below is stated in a document reviewers read — if whoever executes the plan is a
+rule below is stated in this skill's own documentation — if whoever executes the plan is a
 different session, a different agent, or a human who never opens this skill, nothing
 here reaches them. Say all of that plainly rather than imply a coverage this check does
 not have: closing it needs the rule carried into wherever the builder actually looks —

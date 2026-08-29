@@ -13,8 +13,8 @@ description: >
   (its "Review depth" section has the rule). Trigger phrases: "double-knuth",
   "review the site", "site review", "final review before launch", "review
   this page", "did adding the page break anything", "consistency check the
-  site", "how much review does this need", "should I use independent-review
-  for this".
+  site", "how much review does this need", "do I need a second opinion on
+  this", "should I use independent-review for this".
 ---
 
 # Website review — Double-Knuth (correctness + consistency)

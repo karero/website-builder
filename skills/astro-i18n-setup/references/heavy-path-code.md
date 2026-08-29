@@ -2,7 +2,7 @@
 
 The exact code for SKILL.md's "What it changes" §1–§3. Read the matching
 SKILL.md section first for what each edit does and the rules around it; apply
-the code from here. Section numbers match SKILL.md.
+the code from here.
 
 ## §1. `astro.config.mjs` — i18n routing + sitemap alternates
 
@@ -136,8 +136,8 @@ const localePath = neutral === '/' ? undefined : neutral.replace(/^\//, '');
 // Sparse-aware: only the locales this ROUTE exists in (routeLocales, §2) get an
 // alternate — not every LOCALES entry. Fully-translated routes are unaffected.
 // Named i18nAlternates because the template already has an `alternates` PROP
-// (the twin-pages light path) in this scope — see the note below this snippet
-// in SKILL.md §3.
+// (the twin-pages light path) in this scope — SKILL.md §3's light-path note
+// says what to delete.
 const pageLocales = routeLocales(neutral);
 const i18nAlternates = pageLocales.map((loc) => ({ loc, href: new URL(getRelativeLocaleUrl(loc, localePath), site).href }));
 // x-default → the default-locale variant; a route with NO default-locale variant

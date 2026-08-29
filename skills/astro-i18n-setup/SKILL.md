@@ -146,9 +146,9 @@ completeness check by design.
 Add the `i18n` block (default + launch locales, `prefixDefaultLocale: false`)
 and give `sitemap()` the matching `i18n` map so it emits `<xhtml:link>`
 hreflang alternates — plus a `serialize` hook that filters each entry's
-alternates down to the locales the route actually exists in (sparse routes,
-§2 / "Partial translation" above; a sitemap advertising a never-built variant
-contradicts the head hreflang set). The hook imports the shared registry from
+alternates down to the locales the route actually exists in (sparse routes:
+routes given an explicit `locales` list in §2's ROUTES registry — see
+"Partial translation" above). The hook imports the shared registry from
 `src/config.ts` (Vite loads the Astro config, so the TS import works).
 Verbatim config: `references/heavy-path-code.md` §1.
 Fully-translated sites (no `locales` overrides in ROUTES): the hook is a no-op.
@@ -158,10 +158,10 @@ Replace `SITE.locale` with `LOCALES` / `DEFAULT_LOCALE` / `LOCALE_LABELS`, and
 add the per-route `ROUTES` registry — THE single registry that Base.astro
 (head hreflang), astro.config.mjs (sitemap alternates) and the tests all read,
 so they can't drift apart; a route with NO `locales` field exists in every
-locale. Also added: fail-loud import-time validation of the registry (duplicate
-path, unknown or repeated locale) and the `pathLocale()` / `neutralPath()` /
-`routeLocales()` helpers everything else imports. Verbatim code:
-`references/heavy-path-code.md` §2.
+locale. The block also carries fail-loud import-time validation of the
+registry (duplicate path, unknown or repeated locale) and the `pathLocale()` /
+`neutralPath()` / `routeLocales()` helpers everything else imports — apply it
+whole. Verbatim code: `references/heavy-path-code.md` §2.
 
 Remove `SITE.locale` — and the matching `lang = SITE.locale` default prop in
 `Base.astro` (the `lang = SITE.locale` default in the Props destructure): the layout derives the locale from `Astro.currentLocale` now
@@ -170,20 +170,17 @@ Everything reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
 
 ### 3. `src/layouts/Base.astro` — locale-aware (VERIFIED build output)
 Add the imports + derive locale/alternates, set `<html lang>` from the current
-locale, and emit self-referencing hreflang + `x-default`. Verbatim code — with
-the caveats that made it need verifying (bare path segments for
-`getRelativeLocaleUrl` under `trailingSlash: 'never'`; sparse-aware
-`routeLocales()`; a deterministic `x-default` fallback to the route's first
-listed locale; the `i18nAlternates` name avoiding the template's existing
-`alternates` prop): `references/heavy-path-code.md` §3. Build and confirm the
-output (reciprocal hreflang, and clean trailing slashes under
-`trailingSlash: 'never'`).
+locale, and emit self-referencing hreflang + `x-default`. Verbatim code, with
+the hard-won caveats preserved as inline comments:
+`references/heavy-path-code.md` §3. Build and confirm the output (reciprocal
+hreflang, and clean trailing slashes under `trailingSlash: 'never'`).
 
 The starter's CHROME chrome-strings lookup keys on `SITE.locale`, which §2
 removed — rekey it on `Astro.currentLocale ?? DEFAULT_LOCALE` (per-page chrome
 language IS correct on a locale-routed site, unlike the single-locale starter).
 The template's LIGHT-path pieces are superseded on a heavy site: **delete the
-`{alternates.map(…)}` render line** (this snippet's cluster replaces it) — the
+`{alternates.map(…)}` render line** (the hreflang cluster from
+`references/heavy-path-code.md` §3 replaces it) — the
 `alternates` prop and `altHref` helper then sit unused; remove them too or leave
 them, but never feed both emission paths on one page.
 Keep the `ogLocale` line (config.ts's shared `ogLocaleFor` maps `lang → og:locale`);
