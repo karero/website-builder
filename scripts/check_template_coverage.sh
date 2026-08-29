@@ -57,7 +57,7 @@ fi
 # deliberately excluded from TEMPLATE_TRACKED. Same "no runtime behavior" note as
 # SITE_OWNED: nothing in whats-new.sh reads this; only this guard does.
 #
-# The six infra/tooling scripts once parked here alongside these (.nvmrc,
+# The six infra/tooling files once parked here alongside these (.nvmrc,
 # build-marker.mjs, generate_og_cards.py, hooks/pre-push, set_pdf_title.py, ship.sh)
 # were a deliberate, reviewed decision, not an oversight: five were promoted to
 # TEMPLATE_TRACKED and generate_og_cards.py moved to SITE_OWNED — see whats-new.sh's
