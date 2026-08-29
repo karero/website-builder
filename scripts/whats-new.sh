@@ -19,8 +19,10 @@
 #   scripts/whats-new.sh --stamp-tests <tests_dir> # write the TESTS-VERSION stamp next to a
 #                                                 # site's tests/ copies. The report uses it
 #                                                 # to flag upstream changes to the template
-#                                                 # test suite + CONTENT_GUIDE + playwright.config
-#                                                 # — files that are FROZEN one-time copies, which
+#                                                 # test suite + CONTENT_GUIDE + the frozen
+#                                                 # root/config/infra files (see
+#                                                 # TEMPLATE_TRACKED below) — files that are
+#                                                 # FROZEN one-time copies, which
 #                                                 # --refresh deliberately never touches
 #                                                 # (a blind overwrite would clobber the
 #                                                 # site's own PAGES list / exemptions).
@@ -56,8 +58,21 @@ write_stamp() {  # $1 = skills dir
 }
 
 # Upstream template files that scaffolded sites carry as FROZEN copies (tests/*,
-# CONTENT_GUIDE.md, playwright.config.ts). Tracked via TESTS-VERSION; never auto-refreshed.
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/astro/playwright.config.ts'
+# CONTENT_GUIDE.md, playwright.config.ts, and the root/infra files below). Tracked via
+# TESTS-VERSION; never auto-refreshed. Every file under templates/astro/ must land in
+# exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
+# scripts/check_template_coverage.sh enforces that so a new template file can no longer
+# go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers'
+
+# Upstream template files that scaffolded sites are EXPECTED to hand-edit (astro.config.mjs's
+# `site:`, package.json's deps) — deliberately NOT drift-tracked: an upstream dep bump would
+# fire TESTS-VERSION drift on every refresh and drown the rare real signal in noise, and
+# check_astro_version() below already covers the part of this that matters (the Astro major
+# pin). This list changes no runtime reporting behavior on its own (nothing above reads it) —
+# it exists purely so scripts/check_template_coverage.sh has a machine-readable record of the
+# decision instead of a silent gap it would otherwise flag as unaccounted-for.
+SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json'
 
 write_tests_stamp() {  # $1 = tests dir
   printf 'suite_commit: %s\ncopied: %s\n' \
@@ -268,7 +283,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
   # shellcheck disable=SC2086
   changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- $TEMPLATE_TRACKED)"
   if [ -z "$changed" ]; then
-    echo "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE / playwright.config."
+    echo "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE / frozen root+infra files."
     if [ "${src#SUITE-VERSION}" != "$src" ]; then
       echo "Pin the tests baseline off the fallback (it moves when skills refresh):"
       echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
@@ -289,6 +304,22 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
       skills/new-website/templates/astro/playwright.config.ts)
         echo "  templates/astro/playwright.config.ts (site copy: playwright.config.ts)" ;;
+      skills/new-website/templates/astro/functions/_middleware.ts)
+        echo "  templates/astro/functions/_middleware.ts (site copy: functions/_middleware.ts)" ;;
+      skills/new-website/templates/astro/.github/workflows/ci.yml)
+        echo "  templates/astro/.github/workflows/ci.yml (site copy: .github/workflows/ci.yml)" ;;
+      skills/new-website/templates/astro/scripts/anchor-ids.mjs)
+        echo "  templates/astro/scripts/anchor-ids.mjs (site copy: scripts/anchor-ids.mjs)" ;;
+      skills/new-website/templates/astro/scripts/check_external_links.sh)
+        echo "  templates/astro/scripts/check_external_links.sh (site copy: scripts/check_external_links.sh)" ;;
+      skills/new-website/templates/astro/scripts/check_internal_links.sh)
+        echo "  templates/astro/scripts/check_internal_links.sh (site copy: scripts/check_internal_links.sh)" ;;
+      skills/new-website/templates/astro/scripts/run_og.mjs)
+        echo "  templates/astro/scripts/run_og.mjs (site copy: scripts/run_og.mjs)" ;;
+      skills/new-website/templates/astro/tsconfig.json)
+        echo "  templates/astro/tsconfig.json (site copy: tsconfig.json)" ;;
+      skills/new-website/templates/astro/public/_headers)
+        echo "  templates/astro/public/_headers (site copy: public/_headers)" ;;
       *)
         echo "  $f" ;;
     esac

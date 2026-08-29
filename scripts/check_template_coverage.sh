@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# Guard: every file under skills/new-website/templates/astro/ must be accounted for in
+# exactly one bucket — TEMPLATE_TRACKED (drift-tracked via TESTS-VERSION), SITE_OWNED
+# (deliberately not tracked — sites hand-edit it), or SITE_SOURCE (below — becomes the
+# site's own application content at scaffold time, or never ships to a site at all).
+# TEMPLATE_TRACKED and SITE_OWNED are extracted straight out of scripts/whats-new.sh
+# rather than duplicated here, so this guard can never itself drift from the list it's
+# checking — that duplication is exactly the bug class PR #87 exposed (a hand-maintained
+# list one file at a time silently missing a new template file).
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+WN="scripts/whats-new.sh"
+TEMPLATE_ASTRO_DIR="skills/new-website/templates/astro"
+
+[ -f "$WN" ] || { echo "FAIL — $WN not found; can't extract TEMPLATE_TRACKED/SITE_OWNED."; exit 1; }
+
+# grep is tri-state: 0 = matches (both lines found), 1 = no match, >1 = error. An I/O
+# error must not fall through and read as "extraction succeeded with nothing".
+extracted="$(grep -E '^(TEMPLATE_TRACKED|SITE_OWNED)=' "$WN")"
+rc=$?
+if [ "$rc" -gt 1 ]; then
+  echo "FAIL — grep errored (exit $rc) extracting TEMPLATE_TRACKED/SITE_OWNED from $WN;"
+  echo "the guard result is unreliable."
+  exit 1
+fi
+if [ "$rc" -eq 1 ] || [ -z "$extracted" ]; then
+  echo "FAIL — could not find TEMPLATE_TRACKED=/SITE_OWNED= assignments in $WN"
+  echo "(renamed, removed, or reformatted?). Update this guard to match."
+  exit 1
+fi
+# The two lines are static, single-quoted string literals we author ourselves in this
+# same repo (not attacker-controlled input) — eval just assigns them into this shell.
+eval "$extracted"
+if [ -z "${TEMPLATE_TRACKED:-}" ] || [ -z "${SITE_OWNED:-}" ]; then
+  echo "FAIL — TEMPLATE_TRACKED or SITE_OWNED came back empty after extraction from $WN."
+  echo "Update this guard to match."
+  exit 1
+fi
+
+# Files that become the site's own application source the moment they're scaffolded
+# (src/**, branding/config placeholders the site owner fills in, the npm-managed
+# lockfile) — or, for README.md, scaffold-time reference documentation for whoever
+# runs the new-website skill that is never copied into a site at all (SKILL.md §3
+# step 1 points at it for "exact steps", it doesn't cp it). Either way, diffing these
+# against upstream carries no actionable drift signal, so — like SITE_OWNED — they're
+# deliberately excluded from TEMPLATE_TRACKED. Same "no runtime behavior" note as
+# SITE_OWNED: nothing in whats-new.sh reads this; only this guard does.
+#
+# QUESTIONABLE, flagged rather than guessed confidently (see the bugfix report this
+# guard shipped with): .nvmrc, scripts/build-marker.mjs, scripts/generate_og_cards.py,
+# scripts/hooks/pre-push, scripts/set_pdf_title.py, scripts/ship.sh are infra/tooling
+# in the same spirit as the scripts already in TEMPLATE_TRACKED (anchor-ids.mjs,
+# check_external_links.sh, check_internal_links.sh, run_og.mjs) — sites are unlikely to
+# rewrite them, so an upstream fix might be worth surfacing too. They're parked here
+# (the conservative, lower-noise choice) pending an explicit decision on promoting them.
+SITE_SOURCE="$TEMPLATE_ASTRO_DIR/src $TEMPLATE_ASTRO_DIR/.nvmrc $TEMPLATE_ASTRO_DIR/package-lock.json $TEMPLATE_ASTRO_DIR/public/llms.txt $TEMPLATE_ASTRO_DIR/public/manifest.webmanifest $TEMPLATE_ASTRO_DIR/public/robots.txt $TEMPLATE_ASTRO_DIR/public/images $TEMPLATE_ASTRO_DIR/README.md $TEMPLATE_ASTRO_DIR/scripts/build-marker.mjs $TEMPLATE_ASTRO_DIR/scripts/generate_og_cards.py $TEMPLATE_ASTRO_DIR/scripts/hooks/pre-push $TEMPLATE_ASTRO_DIR/scripts/set_pdf_title.py $TEMPLATE_ASTRO_DIR/scripts/ship.sh"
+
+in_bucket() {  # $1 = file path, $2 = space-separated bucket entries (files or dir prefixes)
+  local f="$1" list="$2" entry
+  for entry in $list; do
+    [ "$f" = "$entry" ] && return 0
+    case "$f" in
+      "$entry"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# Self-test, both directions. A completeness guard that has never fired is a
+# hypothesis, not a guard — and one that flags files it shouldn't is its mirror image.
+if ! in_bucket "$TEMPLATE_ASTRO_DIR/tests/some_new_spec.spec.ts" "$TEMPLATE_TRACKED"; then
+  echo "FAIL — self-test: in_bucket misses a real tests/ directory entry. Fix the matcher"
+  echo "before trusting the scan."
+  exit 1
+fi
+if ! in_bucket "$TEMPLATE_ASTRO_DIR/package.json" "$SITE_OWNED"; then
+  echo "FAIL — self-test: in_bucket misses a real SITE_OWNED entry. Fix the matcher before"
+  echo "trusting the scan."
+  exit 1
+fi
+if in_bucket "$TEMPLATE_ASTRO_DIR/definitely-not-a-real-file.txt" "$TEMPLATE_TRACKED $SITE_OWNED $SITE_SOURCE"; then
+  echo "FAIL — self-test: in_bucket matched a file that is in none of the bucket lists."
+  echo "Fix the matcher before trusting the scan."
+  exit 1
+fi
+
+[ -d "$TEMPLATE_ASTRO_DIR" ] || { echo "FAIL — $TEMPLATE_ASTRO_DIR does not exist; the template moved."; exit 1; }
+
+# Discover files, never hardcode a list — that's the whole point of this guard.
+FILES=()
+while IFS= read -r f; do FILES+=("$f"); done < <(
+  find "$TEMPLATE_ASTRO_DIR" -type f ! -name .DS_Store | sort
+)
+if [ "${#FILES[@]}" -lt 1 ]; then
+  echo "FAIL — no files found under $TEMPLATE_ASTRO_DIR; find/path broke or the dir moved."
+  exit 1
+fi
+
+unaccounted=()
+ambiguous=()
+for f in "${FILES[@]}"; do
+  hits=0
+  in_bucket "$f" "$TEMPLATE_TRACKED" && hits=$((hits + 1))
+  in_bucket "$f" "$SITE_OWNED" && hits=$((hits + 1))
+  in_bucket "$f" "$SITE_SOURCE" && hits=$((hits + 1))
+  if [ "$hits" -eq 0 ]; then
+    unaccounted+=("$f")
+  elif [ "$hits" -gt 1 ]; then
+    ambiguous+=("$f")
+  fi
+done
+
+fail=0
+if [ "${#unaccounted[@]}" -gt 0 ]; then
+  fail=1
+  echo "FAIL — ${#unaccounted[@]} file(s) under $TEMPLATE_ASTRO_DIR are in no bucket:"
+  printf '    %s\n' "${unaccounted[@]}"
+  echo "Pick one: add it to TEMPLATE_TRACKED or SITE_OWNED in $WN (with its in-site path"
+  echo "mapping in process_tests_stamp's switch, per TEMPLATE_TRACKED, if you add it there),"
+  echo "or to SITE_SOURCE in this script."
+fi
+if [ "${#ambiguous[@]}" -gt 0 ]; then
+  fail=1
+  echo "FAIL — ${#ambiguous[@]} file(s) under $TEMPLATE_ASTRO_DIR are in more than one bucket:"
+  printf '    %s\n' "${ambiguous[@]}"
+  echo "Each file must be in exactly one of TEMPLATE_TRACKED, SITE_OWNED, SITE_SOURCE."
+fi
+
+if [ "$fail" -ne 0 ]; then
+  exit 1
+fi
+echo "OK — all ${#FILES[@]} files under $TEMPLATE_ASTRO_DIR are accounted for (TEMPLATE_TRACKED, SITE_OWNED, or SITE_SOURCE)."
