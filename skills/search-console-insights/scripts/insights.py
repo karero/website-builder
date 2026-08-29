@@ -59,7 +59,8 @@ def gsc_positions(domain, keywords, days, client_secret, token, country=""):
         creds = gsc_query.load_credentials(Path(client_secret), Path(token), interactive=False)
         svc = gsc_query.build_service(creds)
         end = dt.date.today() - dt.timedelta(days=2)
-        start = end - dt.timedelta(days=days)
+        # GSC dates are inclusive: an N-day window is end-(N-1)..end.
+        start = end - dt.timedelta(days=days - 1)
         rows = gsc_query.query(svc, f"sc-domain:{domain}",
                                start.isoformat(), end.isoformat(), ["query"],
                                country=country)
@@ -95,7 +96,12 @@ def main():
     ap = argparse.ArgumentParser(description="Combined Google + Bing rankings.")
     ap.add_argument("--domain", required=True, help="e.g. example.com")
     ap.add_argument("--keywords", required=True, help="Comma-separated target keywords.")
-    ap.add_argument("--days", type=int, default=90)
+    def _days(v):
+        n = int(v)
+        if n < 1:
+            ap.error(f"--days must be >= 1 (got {v!r})")
+        return n
+    ap.add_argument("--days", type=_days, default=90)
     ap.add_argument("--client-secret", default=str(DEFAULT_SECRET))
     ap.add_argument("--token", default=str(DEFAULT_TOKEN))
     def _country(v):
@@ -129,6 +135,13 @@ def main():
         print(f"| {kw} | {cell(gsc, kw)} | {cell(bing, kw)} |")
     print("\n_Lower position = better. “—” = connected but no impressions yet; "
           "“not connected” = that source isn’t set up._")
+    if isinstance(gsc, dict) and isinstance(bing, dict):
+        country_bit = (f" and the --country {args.country} filter (Google only)"
+                       if args.country else "")
+        print(f"\n_The two columns are not the same measurement — Google covers "
+              f"your {args.days}-day window{country_bit}; Bing is a ~6-month "
+              f"global aggregate. A difference can be window or geography, not "
+              f"ranking._")
 
     # Cross-engine takeaways — where one engine ranks you Top-10 and the other doesn't.
     notes = []
@@ -144,12 +157,6 @@ def main():
     if notes:
         print("\n**Where the engines disagree:**")
         print("\n".join(notes))
-        country_bit = (f" and the --country {args.country} filter (Google only)"
-                       if args.country else "")
-        print(f"\n_Caveat: the two columns are not the same measurement — Google "
-              f"covers your {args.days}-day window{country_bit}; Bing is a ~6-month "
-              f"global aggregate. A disagreement can be window or geography, not "
-              f"ranking._")
 
     # Suggest connecting whatever's missing (all free).
     sugg = []

@@ -173,9 +173,12 @@ def build_report(site, rows, kw_matches, page_rows=None):
         L.append(f"_Query-level, for reference only: {tot_c} clicks, {tot_i} "
                  f"impressions across {len(rows)} queries._\n")
         # Checked on both metrics, not impressions alone -- same reasoning as
-        # gsc_query.py's build_report.
-        impr_mismatch = (abs(tot_i_pages - tot_i) / tot_i_pages) if tot_i_pages > 0 else 0
-        clicks_mismatch = (abs(tot_c_pages - tot_c) / tot_c_pages) if tot_c_pages > 0 else 0
+        # gsc_query.py's build_report. Zero-safe: a 0-vs-nonzero pair is the
+        # starkest disagreement, not a suppressed one.
+        impr_mismatch = ((abs(tot_i_pages - tot_i) / tot_i_pages) if tot_i_pages > 0
+                         else (1.0 if tot_i > 0 else 0))
+        clicks_mismatch = ((abs(tot_c_pages - tot_c) / tot_c_pages) if tot_c_pages > 0
+                           else (1.0 if tot_c > 0 else 0))
         flagged = [name for name, m in (("impressions", impr_mismatch), ("clicks", clicks_mismatch))
                    if m > TOTALS_MISMATCH_THRESHOLD]
         if flagged:
@@ -282,6 +285,7 @@ def main():
                 "position": round(b["position"], 1) if b else "",
                 "impressions": int(b["impressions"]) if b else 0,
                 "clicks": int(b["clicks"]) if b else 0,
+                "window": "~180", "country": "",  # Bing: fixed ~6-month aggregate, no country param
             })
         _history.append_rows(args.csv, items)
         eprint(f"appended {len(items)} keyword rows to {args.csv}")

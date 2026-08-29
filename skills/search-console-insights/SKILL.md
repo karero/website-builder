@@ -129,7 +129,8 @@ before stating any conclusion, not just when something looks off.
 
 1. **Only the property-level figure is a site-wide total.** The report prints up to
    three, labeled: **property-level** (no dimension — one impression per results
-   page; the only valid site-wide denominator), the **page-level sum** (counts each
+   page; the only valid site-wide denominator, within any `--country` filter you
+   passed), the **page-level sum** (counts each
    of your pages separately when several share one results page — brand sitelinks
    inflate it), and the **query-level sum** (anonymization drops rare queries —
    undercounts on thin sites). The script warns when they disagree by >10% and
@@ -204,7 +205,8 @@ actionable sections (then top-queries / top-pages tables):
 2. **Striking-distance queries** (avg position ~8–20): already on Google's radar,
    one push from the Top 10. Highest ROI — prioritise these.
 3. **Good position, low CTR pages** (rank ≤10, CTR <2%): they're *seen* but not
-   *clicked* → the title/meta-description is the bottleneck, not ranking.
+   *clicked* → investigate the snippet or the SERP context (rule 4 of "Reading the
+   numbers") before deciding the title/meta is the bottleneck.
 
 ## Phase 2 — competitive SERP (who actually ranks)
 
@@ -311,9 +313,10 @@ Output is a per-keyword trend (**lower position = better; ▲ = improved**). The
 pulls a **28-day window** (`GSC_TRACK_DAYS` overrides) so week-over-week moves are
 actually visible — a 90-day window would smooth them away — and it marks moves that
 aren't real rank changes: `≠` = the best-matching query changed between runs, `~` = a
-compared side has under 10 impressions (noise). Changing the window (including
-upgrading from the old 90-day tracker) shifts the recorded positions once — treat the
-first post-change move as not comparable. The first run just seeds the history —
+compared side has under 10 impressions (noise), `‡` = the tracked window or country
+filter changed between runs (recorded in the CSV, so the trend flags its own config
+breaks; rows from before this schema existed can't be flagged — treat the first move
+after any window change as not comparable). The first run just seeds the history —
 re-run **every 1–2 weeks** to watch the needle. (Each query script also takes
 `--csv <path>` to append on its own; `python scripts/_history.py <csv>` reprints the
 trend without a new pull.)
@@ -370,8 +373,9 @@ to work it like this:
    phrasing into the page's `<title>`, H1, and first paragraph. Moving one query 12→8 is a
    real, attributable win.
 3. **Fix titles for queries you already rank for but nobody clicks.** Ranking ≤10 with ~0
-   clicks = a *snippet* problem, not a ranking problem — and it's higher ROI at low volume
-   than chasing new terms. Rewrite the title/meta (→ `copywriting` + `website-seo-geo`).
+   clicks = a *snippet-or-SERP* problem, not a ranking problem — and it's higher ROI at low
+   volume than chasing new terms. Run the mandatory live-SERP check first, then rewrite the
+   title/meta (→ `copywriting` + `website-seo-geo`).
 4. **Mine the queries you never targeted.** The top-queries table surfaces terms you
    *accidentally* rank for (speaker names, adjacent topics, "claude code munich"). On a
    thin site these are gold — real demand. Build or expand a section around the ones that

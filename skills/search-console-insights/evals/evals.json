@@ -69,12 +69,12 @@
     },
     {
       "id": 6,
-      "prompt": "My GSC report shows 123 impressions for one query and a query-level total of 384 impressions site-wide, but the page-level table's rows actually sum to 1,071. Which total should I use, and is 'this query is 32% of site-wide traffic' a correct claim? Also, one of my pages ranks position 4 with 0% CTR at 150 impressions — what does that mean, and what should I check before rewriting its title?",
+      "prompt": "My GSC report shows 123 impressions for one query and a query-level total of 384 impressions site-wide, but the page-level table's rows actually sum to 1,071. Which total should I use, and is 'this query is 32% of site-wide traffic' a correct claim? Also, one of my pages ranks position 4 with 0% CTR at 150 impressions, and a --query drill-down confirms the 123-impression query lands only on that page — what does that mean, and what should I check before rewriting its title?",
       "expected_output": "Should explain that NEITHER sum is the true site-wide figure: the query-level total (384) undercounts (anonymization drops rare queries) and the page-level sum (1,071) overcounts (each page is counted separately when several share one results page, e.g. brand sitelinks) — the correct denominator is the property-level (no-dimension) total, which the report prints. Best answer reframes the claim page-relative (123 of the page's own 150 impressions, ~82%) instead of any site-wide percentage. Should read position ~4 with ~0% CTR as a snippet OR SERP-context problem (a knowledge panel or Wikipedia can absorb clicks on an entity query), decided by the mandatory live-SERP check (serp_check.py) against the page's actual shipped meta description before any title/description rewrite.",
       "assertions": [
         "Does NOT bless the page-level sum (1,071) as the true site-wide figure — explains it can overcount (pages counted separately per results page)",
         "Flags the query-level total as an anonymized undercount, not a valid denominator",
-        "Names the property-level (no-dimension) total as the correct site-wide denominator, or reframes the claim page-relative (123/150)",
+        "Names the property-level (no-dimension) total as the correct site-wide denominator, or reframes the claim page-relative (123/150, using the attribution the drill-down established)",
         "Reads position ~4 + ~0% CTR as snippet-or-SERP-context, not automatically a snippet defect and not a ranking problem",
         "States the live-SERP-snippet check (serp_check.py) is mandatory before recommending a title/description rewrite"
       ],

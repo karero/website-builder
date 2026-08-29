@@ -8,14 +8,19 @@ position movement. Position is "lower = better", so a DROP in the number is an
 improvement (shown ▲). This is what turns the low-volume playbook's "track
 position week-over-week" from a manual eyeball into one command.
 
-CSV columns: date, source, keyword, query, position, impressions, clicks
+CSV columns: date, source, keyword, query, position, impressions, clicks,
+window, country. The last two record the pull's configuration so the trend
+can refuse to draw an arrow across a config change; they were appended to
+the schema (2026-08-29) — rows appended to an older CSV still align, since
+new fields only ever go on the END, but readers of that file won't see them.
 """
 import csv
 import collections
 import os
 import sys
 
-FIELDS = ["date", "source", "keyword", "query", "position", "impressions", "clicks"]
+FIELDS = ["date", "source", "keyword", "query", "position", "impressions", "clicks",
+          "window", "country"]
 
 
 def append_rows(csv_path, items):
@@ -40,10 +45,14 @@ def _pos(row):
 
 
 def _impr(row):
+    """Parsed impressions, or None when the cell is blank/absent/garbled —
+    None must stay distinct from a genuine 0 so legacy rows without a value
+    never earn the thin-noise marker by coercion."""
+    v = row.get("impressions", "")
     try:
-        return int(row.get("impressions", "") or 0)
+        return int(str(v).strip())
     except (TypeError, ValueError):
-        return 0
+        return None
 
 
 def print_trend(csv_path):
@@ -91,12 +100,19 @@ def print_trend(csv_path):
             move += " ≠"
             legend["≠"] = ("≠ best-matching query changed between runs — "
                            "not the same query's movement")
-        imprs = [_impr(r) for r in (now, prev)
-                 if r is not None and _pos(r) is not None]
+        imprs = [i for i in (_impr(r) for r in (now, prev)
+                             if r is not None and _pos(r) is not None)
+                 if i is not None]
         if prev is not None and imprs and min(imprs) < 10:
             move += " ~"
             legend["~"] = ("~ a compared side has under 10 impressions — "
                            "movement is noise at this volume")
+        cfg_now = (now.get("window") or "", now.get("country") or "")
+        cfg_prev = (((prev or {}).get("window")) or "", ((prev or {}).get("country")) or "")
+        if prev is not None and cfg_now != cfg_prev and any(cfg_now + cfg_prev):
+            move += " ‡"
+            legend["‡"] = ("‡ the tracked window/country changed between runs — "
+                           "positions are not comparable across the change")
         if src == "bing" and prev is not None:
             legend["bing"] = ("bing rows: positions are ~6-month aggregates — "
                               "week-over-week moves are damped and lag")
