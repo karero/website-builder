@@ -22,22 +22,26 @@ LINES_SOFT=500
 # holds 28 skills as of 2026-08-29.
 MIN_SKILLS=20
 
-# All four entries predate this check (2026-08-29) — the debt was found by the
-# check, not created by it. A skill-debloat thread trimming descriptions was
-# already in flight when the check landed; the trims belong to that thread (or,
-# if it never merges, to whoever picks the debt up). Each entry is removed in
-# the same PR that lands its skill's trim — the stale-entry FAIL below enforces
-# that. Caps are the YAML-parsed value lengths (see desc_of), verified against
-# a real YAML parser on 2026-08-29, and each pin must EQUAL the current value:
-# a trim lowers the pin in the same change, so regrowth under a stale cap has
-# nowhere to hide. For clip-chomped (`>`) blocks the parsed value includes a
-# trailing newline, so a pin reads one higher than the visible text — that is
-# correct, do not "fix" it. One entry per skill; duplicates FAIL.
+# Descriptions over DESC_HARD that are tolerated for now, pinned so they can
+# only shrink. This started as four entries, all predating the check; the
+# skill-debloat work (#85) then trimmed three of them back under the limit and
+# those entries came out in this same change — the stale-entry FAIL is what
+# forced the cleanup, exactly as intended.
+#
+# The one left is NOT leftover debt: the careful-interpretation hardening (#86)
+# GREW this description from 1603 to 1716 while the check was in review. It is
+# now the only skill over the spec limit, and by a wide margin. Trimming it is
+# a content decision for that skill's owner, so it is re-pinned at its current
+# length rather than edited here.
+#
+# Caps are the YAML-parsed value lengths (see desc_of) and each pin must EQUAL
+# the current value: a trim lowers the pin in the same change, so regrowth
+# under a stale cap has nowhere to hide. For clip-chomped (`>`) blocks the
+# parsed value includes a trailing newline, so a pin reads one higher than the
+# visible text — that is correct, do not "fix" it. One entry per skill;
+# duplicates FAIL.
 ALLOW_OVER=(
-  "search-console-insights=1603"
-  "website-review=1313"
-  "new-website=1204"
-  "internal-link-audit=1032"
+  "search-console-insights=1716"
 )
 
 # The limit counts characters, not bytes — the descriptions are full of
