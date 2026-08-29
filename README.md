@@ -170,8 +170,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > pinned: list its name in `<skills_dir>/REFRESH-KEEP` (one per line, `#` comments)
 > and `--refresh` will never touch it — reports mark it "(pinned)". Plain
 > `make whats-new` shows the suite's recent skill changes.
-> Template test files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`) are **frozen one-time
-> copies**, not vendored skills — `--refresh` never touches them. `whats-new` reports
+> Template test files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md` and
+> `playwright.config.ts`) are **frozen one-time copies**, not vendored skills —
+> `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
 > `./scripts/whats-new.sh --stamp-tests <site>/tests`.
