@@ -26,5 +26,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check per-skill size budgets (description hard limit)
+      - name: Check per-skill size budgets (description limit + line budget)
         run: bash scripts/check_skill_budgets.sh

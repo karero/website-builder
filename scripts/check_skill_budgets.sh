@@ -27,7 +27,9 @@ MIN_SKILLS=10
 # that. Caps are the YAML-parsed value lengths (see desc_of), verified against
 # a real YAML parser on 2026-08-29, and each pin must EQUAL the current value:
 # a trim lowers the pin in the same change, so regrowth under a stale cap has
-# nowhere to hide. One entry per skill; duplicates FAIL.
+# nowhere to hide. For clip-chomped (`>`) blocks the parsed value includes a
+# trailing newline, so a pin reads one higher than the visible text — that is
+# correct, do not "fix" it. One entry per skill; duplicates FAIL.
 ALLOW_OVER=(
   "search-console-insights=1603"
   "website-review=1313"
@@ -67,11 +69,20 @@ chars() { printf '%s' "$1" | LC_ALL="$UTF8_LOCALE" wc -m | tr -d '[:space:]'; }
 # plain/quoted scalars (an indented continuation after the value line, blank
 # lines included), keep chomping (`>+`/`|+`), block headers beyond the four
 # bare forms (indentation indicators like `>2`, trailing comments), blank
-# lines before a block's first content line, and any block line whose indent
-# differs from the first content line's. Residual over-counts (quoted-scalar
-# escapes, trailing `#` comments on plain scalars, kept trailing spaces on
-# block lines) err conservative: they can false-FAIL near the boundary, never
-# false-pass.
+# lines before a block's first content line, any block line whose indent
+# differs from the first content line's, tabs in or immediately after a
+# block's indentation (YAML indent is spaces-only; a tab there is content a
+# real parser keeps), whitespace-only block lines wider than the indent (a
+# real parser keeps the excess as content), alias values (`*ref` expands to
+# the anchored content — unmeasurable here), duplicate description keys (a
+# real parser returns the LAST value, not the first), and plain values a
+# real parser rejects or resolves to non-strings (anchors, tags, flow
+# collections, sequence/mapping indicators, colon-space, unterminated
+# quotes). Residual over-counts (quoted-scalar escapes, trailing `#`
+# comments on plain scalars, kept trailing spaces on block lines) err
+# conservative: they can false-FAIL near the boundary, never false-pass.
+# Frank residual gap, loud-or-conservative for valid YAML: a frontmatter
+# never closed by `---` scans on into the body.
 #
 # The output can END IN A NEWLINE (clip chomping), which $(...) strips — every
 # caller must capture with the x-sentinel idiom:
@@ -81,16 +92,32 @@ desc_of() {
     BEGIN { sq=sprintf("%c",39); dq=sprintf("%c",34) }
     NR==1 { if ($0 ~ /^---[ \t\r]*$/) infm=1; next }
     infm==0 { exit }
+    /^---[ \t\r]*$/ { exit }
+    # After a single-line value: skip blanks, refuse an indented continuation
+    # (multi-line plain/quoted), then keep scanning the frontmatter so a
+    # DUPLICATE description key — which a real parser resolves to the LAST
+    # value — is refused rather than first-copy-measured.
     captured==1 {
       if ($0 ~ /^[ \t\r]*$/) next
-      if ($0 ~ /^[ \t]/) desc=""
-      exit
+      if ($0 ~ /^[ \t]/) { desc=""; exit }
+      captured=0; done=1
     }
-    /^---[ \t\r]*$/ { exit }
+    done==1 {
+      if ($0 ~ /^description:/) { desc=""; exit }
+      next
+    }
     mode=="block" {
-      if ($0 ~ /^[ \t\r]*$/) { blanks++; next }
-      if ($0 !~ /^[ \t]/) { exit }
-      match($0, /^[ \t]+/)
+      if ($0 ~ /^[ \t\r]*$/) {
+        ws=$0; sub(/\r$/,"",ws)
+        if (desc!="" && (ws ~ /\t/ || length(ws) > indent)) { desc=""; exit }
+        blanks++; next
+      }
+      if ($0 !~ /^[ \t]/) {
+        if ($0 ~ /^description:/) { desc=""; exit }
+        mode=""; done=1; next
+      }
+      if ($0 ~ /^ *\t/) { desc=""; exit }
+      match($0, /^ +/)
       if (desc=="") {
         if (blanks>0) { desc=""; exit }
         indent=RLENGTH
@@ -106,21 +133,31 @@ desc_of() {
     }
     /^description:/ {
       val=$0; sub(/^description:[ \t]*/,"",val); sub(/[ \t\r]+$/,"",val)
-      if (val==">")  { mode="block"; lit=0; clip=1; next }
-      if (val==">-") { mode="block"; lit=0; clip=0; next }
-      if (val=="|")  { mode="block"; lit=1; clip=1; next }
-      if (val=="|-") { mode="block"; lit=1; clip=0; next }
+      if (val==">")  { mode="block"; wasblock=1; lit=0; clip=1; next }
+      if (val==">-") { mode="block"; wasblock=1; lit=0; clip=0; next }
+      if (val=="|")  { mode="block"; wasblock=1; lit=1; clip=1; next }
+      if (val=="|-") { mode="block"; wasblock=1; lit=1; clip=0; next }
       a=substr(val,1,1)
       if (a==">" || a=="|") { exit }
       if (length(val)>=2) {
         z=substr(val,length(val),1)
-        if ((a==sq && z==sq) || (a==dq && z==dq)) val=substr(val,2,length(val)-2)
+        if ((a==sq && z==sq) || (a==dq && z==dq)) {
+          desc=substr(val,2,length(val)-2); captured=1; next
+        }
       }
+      # Plain scalar: refuse shapes a real parser rejects or resolves to a
+      # non-string — aliases/anchors/tags/flow/reserved indicators, sequence
+      # or mapping indicators, and a colon-space (invalid inside a plain
+      # scalar). Quoted values, handled above, may contain any of these.
+      if (a==sq || a==dq) { exit }
+      if (a=="*" || a=="&" || a=="!" || a=="[" || a=="{" || a=="%" || a=="@" || a=="`") { exit }
+      if (val ~ /^[-?:]([ \t]|$)/) { exit }
+      if (val ~ /:[ \t]/) { exit }
       desc=val; captured=1; next
     }
     END {
       if (desc !~ /[^ \t\n\r]/) desc=""
-      else if (mode=="block" && clip==1) desc=desc "\n"
+      else if (wasblock && clip==1) desc=desc "\n"
       printf "%s", desc
     }
   ' "$1"
@@ -296,6 +333,45 @@ description: >
 ---
 EOF
 printf -- '---\r\nname: t\r\ndescription: abc\r\n---\r\n' > "$TMP/crlf.md"
+printf -- '---\nname: t\ndescription: >\n  \tnever\n  \tmeasured\n---\n' > "$TMP/block-tab-indent.md"
+printf -- '---\nname: t\ndescription: >\n  a\n    \n  c\n---\n' > "$TMP/block-wide-blank.md"
+cat > "$TMP/alias.md" <<'EOF'
+---
+name: t
+description: *bigdesc
+---
+EOF
+cat > "$TMP/duplicate-key.md" <<'EOF'
+---
+name: t
+description: short
+description: a much longer duplicate that a real parser would return instead
+---
+EOF
+cat > "$TMP/plain-colon.md" <<'EOF'
+---
+name: t
+description: a: b
+---
+EOF
+cat > "$TMP/plain-seq.md" <<'EOF'
+---
+name: t
+description: - item
+---
+EOF
+cat > "$TMP/unterminated-quote.md" <<'EOF'
+---
+name: t
+description: "abc
+---
+EOF
+cat > "$TMP/quoted-colon.md" <<'EOF'
+---
+name: t
+description: "a: b"
+---
+EOF
 
 n=$(st_len "$TMP/plain.md")
 [ "$n" -eq 5 ] || st_fail "plain description counted $n chars, expected 5"
@@ -314,8 +390,11 @@ n=$(st_len "$TMP/folded-utf8.md")
 [ "$n" -eq 8 ] || st_fail "em-dash description counted $n chars, expected 8 — counting bytes, not characters?"
 n=$(st_len "$TMP/crlf.md")
 [ "$n" -eq 3 ] || st_fail "CRLF file counted $n chars, expected 3 — CR handling broke"
+n=$(st_len "$TMP/quoted-colon.md")
+[ "$n" -eq 4 ] || st_fail "quoted value containing colon-space counted $n chars, expected 4 — quote path must bypass the plain-scalar refusals"
 for fx in nodesc multiline-plain multiline-plain-blank block-indicator keep-chomp \
-          block-lead-blank block-indent-jump; do
+          block-lead-blank block-indent-jump block-tab-indent block-wide-blank alias \
+          duplicate-key plain-colon plain-seq unterminated-quote; do
   st_read "$TMP/$fx.md"
   [ -z "$ST" ] || st_fail "$fx.md was measured instead of refused (got '$ST')"
 done
@@ -390,18 +469,27 @@ for f in "${FILES[@]}"; do
     fi
   done
 
+  # Line budget first, so a skill whose description is refused below still
+  # gets its line warning. The numeric guard mirrors judge_desc's: without
+  # set -e a garbled count would silently skip the warn.
+  lines=$(awk 'END{print NR}' "$f")
+  case "$lines" in
+    ''|*[!0-9]*)
+      echo "FAIL — $skill: measured line count '$lines' is not a number — awk breakage; fix the script."
+      fails=1 ;;
+    *)
+      if [ "$lines" -gt "$LINES_SOFT" ]; then
+        echo "warn — $skill: SKILL.md is ${lines} lines — over the ${LINES_SOFT}-line soft budget; move detail to references/."
+        warns=1
+      fi ;;
+  esac
+
   desc=$(desc_of "$f"; printf x); desc=${desc%x}
   if [ -z "$desc" ]; then
     echo "FAIL — $skill: no measurable frontmatter description (missing, a leading BOM, or a YAML style this parser refuses — see desc_of)."
     fails=1; continue
   fi
   judge_desc "$skill" "$(chars "$desc")" "$allowed" "$cap"
-
-  lines=$(awk 'END{print NR}' "$f")
-  if [ "$lines" -gt "$LINES_SOFT" ]; then
-    echo "warn — $skill: SKILL.md is ${lines} lines — over the ${LINES_SOFT}-line soft budget; move detail to references/."
-    warns=1
-  fi
 done
 
 for entry in ${ALLOW_OVER[@]+"${ALLOW_OVER[@]}"}; do
