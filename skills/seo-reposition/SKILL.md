@@ -6,13 +6,11 @@ description: >
   demand; category pages pull ~0 non-brand impressions). Method proven on two
   sites: SERP trap-test every candidate phrase → find the winnable wedge →
   rewording plan with a target-vs-copy rule → GUARD TESTS FIRST (red→green
-  ratchet) → phased gated implementation → ship → schedule a predicted-vs-actual
-  grading run. Review at the plan and PR gates is OWNER'S CHOICE — website-review
-  (Double-Knuth) or /code-review alone by default; independent-review with a
-  single reviewer (--first-success) is an optional escalation for the owner to
-  approve, never independent-review's own default of two. Trigger
-  phrases: "reposition the site's SEO", "our keywords collide with X", "we're
-  not ranking for our category", "Google files us under the wrong thing",
+  ratchet) → phased gated implementation → ship → schedule a
+  predicted-vs-actual grading run. Review at the plan and PR gates is the
+  owner's choice (the phase gates state the options). Trigger phrases:
+  "reposition the site's SEO", "our keywords collide with X", "we're not
+  ranking for our category", "Google files us under the wrong thing",
   "trap-phrase audit", "rewording plan", "find our SEO wedge".
 ---
 
