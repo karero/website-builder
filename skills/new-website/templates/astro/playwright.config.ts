@@ -18,5 +18,10 @@ export default defineConfig({
     url: `${BASE}/`,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
+    // Astro >=7.2's `astro preview` auto-daemonizes when it detects an AI coding
+    // agent as its caller (isRunByAgent()), even without --background — the launcher
+    // process then exits immediately and Playwright reports "exited early" even
+    // though a server is listening. Any truthy value here short-circuits that check.
+    env: { ASTRO_PREVIEW_BACKGROUND: 'false' },
   },
 });

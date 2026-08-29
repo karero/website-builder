@@ -268,9 +268,13 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `business-listings-setup` (post-launch Business Profile/Bing Places/
    `sameAs` — gated per §4a), and `website-motion` (optional polish — copied so
    the recipient can opt in later; it never runs on its own):
+   `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
+   symlinks each skill from this suite repo) — use `cp -RL` to dereference
+   them, not `cp -R`, or the copy ships broken symlinks pointing back at the
+   developer's own machine instead of a self-contained skill directory:
    ```bash
    mkdir -p "$PROJECT_SKILLS_DIR"
-   cp -R "$SKILLS_ROOT"/website-positioning \
+   cp -RL "$SKILLS_ROOT"/website-positioning \
          "$SKILLS_ROOT"/website-content-guide \
          "$SKILLS_ROOT"/website-seo-geo \
          "$SKILLS_ROOT"/website-design-system \
@@ -293,6 +297,14 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/website-motion \
          "$PROJECT_SKILLS_DIR"/
    ```
+   **Sanity check** (always, right after copying) — confirm nothing was copied
+   as a symlink:
+   ```bash
+   find "$PROJECT_SKILLS_DIR" -maxdepth 1 -type l
+   # Must print nothing. Any output means a skill copied as a symlink, not a
+   # real directory — the handoff repo would ship broken links back to this
+   # machine. Re-run the copy for the listed name(s) with cp -RL.
+   ```
    The global copies stay the updateable source of truth; the project copies are
    the frozen handoff set.
 
@@ -302,12 +314,12 @@ Assemble the project at `<site>/` so it travels without any global setup:
    gets astro-i18n-setup):
    ```bash
    # If Q3 = "non-technical editor" (Keystatic):
-   cp -R "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
+   cp -RL "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
    # If Q4 = "2+ languages at launch" OR "multilingual, one language first"
    # (phased rollout): the phased site NEEDS the skill vendored from day 1 —
    # its Phase 2 instruction is "run astro-i18n-setup when translations are
    # ready", which can't resolve if the skill was never copied.
-   cp -R "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   cp -RL "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
    ```
 
    **Stamp the copies** (always, after ALL skills are copied) — records which suite
