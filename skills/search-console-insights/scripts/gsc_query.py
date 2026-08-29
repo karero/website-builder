@@ -4,11 +4,16 @@ gsc_query.py — Phase 1 of the search-console-insights skill.
 
 Pulls Google Search Console *Search Analytics* data (queries, pages, CTR,
 average position) via the official API and writes a Markdown report that
-surfaces the three highest-leverage things:
+surfaces the highest-leverage things:
 
   1. Where each TARGET keyword currently ranks (or "not yet ranking").
   2. Striking-distance queries (avg position ~8-20) — the fastest Top-10 wins.
-  3. High-impression / low-CTR pages — title & meta-description rewrite targets.
+  3. High-impression / low-CTR pages — snippet/SERP investigation targets
+     (a title/meta rewrite only after the live-SERP check confirms a
+     controllable snippet problem).
+  4. On demand, query<->page attribution: --page <url> (which queries land on a
+     page) and --query "<q>" (which pages serve a query) — so attribution and
+     cannibalization are read from data, never guessed from separate tables.
 
 Read-only: it uses the `webmasters.readonly` scope and never writes to GSC.
 
@@ -41,11 +46,16 @@ ROW_LIMIT = 25000  # GSC max rows per request; plenty for a small site.
 
 # Striking distance = ranking on roughly page 1-2 but not yet in the Top 10.
 STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
-# A page in a good position that few people click = title/meta problem.
+# An average position over a handful of impressions is noise, not a win — don't
+# rank such rows as opportunities (they're still counted, never silently dropped).
+STRIKING_MIN_IMPRESSIONS = 5
+# A page in a good position that few people click = snippet OR SERP-context
+# problem — the mandatory live-SERP check decides which.
 LOW_CTR_MAX_POSITION = 10.0
 LOW_CTR_THRESHOLD = 0.02  # 2%
-# How far apart the page-level and query-level totals can be before it's worth
-# flagging as likely query-report anonymization rather than normal noise.
+# How far a dimensioned sum may drift from the property-level total before it's
+# worth explaining (query-level: anonymization undercounts; page-level: several
+# of your pages in one results page — e.g. brand sitelinks — overcount).
 TOTALS_MISMATCH_THRESHOLD = 0.10  # 10%
 LOW_CTR_MIN_IMPRESSIONS = 20
 
@@ -110,20 +120,35 @@ def build_service(creds):
     return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
-def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""):
+def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country="",
+          page="", query_str=""):
     body = {
         "startDate": start,
         "endDate": end,
-        "dimensions": dimensions,
         "rowLimit": row_limit,
     }
+    if dimensions:
+        body["dimensions"] = dimensions
+    # No dimensions at all → GSC aggregates BY PROPERTY: one impression per
+    # results page, however many of your pages appeared on it. That single row
+    # is the only true site-wide total (page-sums overcount, query-sums
+    # undercount — see build_report).
+    filters = []
     if country:
         # ISO-3166-1 alpha-3, lowercase (GSC convention), e.g. 'deu' for Germany.
         # Without this, a bilingual/German-market site reads BLENDED global
         # averages — German positions get masked by (or fake) other markets'.
-        body["dimensionFilterGroups"] = [{
-            "filters": [{"dimension": "country", "expression": country.lower()}],
-        }]
+        filters.append({"dimension": "country", "expression": country.lower()})
+    if page:
+        filters.append({"dimension": "page", "expression": page})
+    if query_str:
+        filters.append({"dimension": "query", "expression": query_str})
+    if filters:
+        # groupType "and" is GSC's effective behavior for multiple filters
+        # (verified empirically 2026-08-29: country+page returned the
+        # intersection, not the union) — stated explicitly so nobody has to
+        # re-litigate the API default.
+        body["dimensionFilterGroups"] = [{"groupType": "and", "filters": filters}]
     resp = service.searchanalytics().query(siteUrl=site, body=body).execute()
     return resp.get("rows", [])
 
@@ -168,22 +193,36 @@ def match_keywords(query_rows, keywords):
 
 
 def build_report(site, start, end, top_queries, top_pages, kw_matches,
-                 perm_level, days, country=""):
+                 perm_level, days, country="", site_total=None,
+                 page_drill=None, page_url="", query_drill=None, query_term=""):
     L = []
     L.append(f"# Search Console insights — {site}")
     country_note = f", country filter: {country}" if country else ""
     L.append(f"\n_Window: {start} → {end} ({days} days){country_note}. Permission: "
              f"{perm_level or 'unknown'}._\n")
 
+    st_has_data = bool(site_total) and (
+        site_total.get("impressions", 0) > 0 or site_total.get("clicks", 0) > 0)
+    total_clicks = sum(int(r["clicks"]) for r in top_queries)
+    total_impr = sum(int(r["impressions"]) for r in top_queries)
+    total_clicks_pages = sum(int(r["clicks"]) for r in top_pages)
+    total_impr_pages = sum(int(r["impressions"]) for r in top_pages)
+    dims_total = total_clicks + total_impr + total_clicks_pages + total_impr_pages
+    # At the row cap a sum is possibly-truncated: "ceiling"/"anonymization"
+    # claims must soften, since a truncated sum has no guaranteed relation
+    # to the property total.
+    q_capped = len(top_queries) >= ROW_LIMIT
+    p_capped = len(top_pages) >= ROW_LIMIT
+
     # --- Honest emptiness check (Rule 12) ---------------------------------
-    # Gated on BOTH reports being empty: query-level and page-level rows come
-    # from two independent API calls (see main()) and can diverge — one can
+    # Gated on every pull carrying zero DATA (not merely zero rows): the
+    # pulls are independent API calls (see main()) and can diverge — one can
     # be genuinely empty (GSC's own anonymization, a transient hiccup) while
-    # the other still has real data. Bailing out on top_queries alone would
-    # discard real page-level traffic and wrongly tell the reader there's
-    # nothing to see.
-    if not top_queries and not top_pages:
-        L.append("> ⚠️ **No Search Analytics rows in this window.**\n>\n"
+    # another still has real data. And a row whose metrics are all zero is
+    # the same "nothing to see" as no row — reporting it as a divergence
+    # between the pulls would be a false alarm.
+    if not st_has_data and dims_total == 0:
+        L.append("> ⚠️ **No Search Analytics data in this window.**\n>\n"
                  "> This is expected for a property verified recently — GSC only\n"
                  "> collects data *forward from verification*, with a ~2–3 day lag,\n"
                  "> and there is no historical backfill. Re-run this in 1–2 weeks.\n")
@@ -193,68 +232,124 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                      f"> without the filter to compare.\n")
         return "\n".join(L)
 
-    total_clicks = sum(int(r["clicks"]) for r in top_queries)
-    total_impr = sum(int(r["impressions"]) for r in top_queries)
-    total_clicks_pages = sum(int(r["clicks"]) for r in top_pages)
-    total_impr_pages = sum(int(r["impressions"]) for r in top_pages)
-
-    # GSC's query-dimensioned report anonymizes/omits rare long-tail queries
-    # on low-volume sites, so its own row sum can understate the real total.
-    # The page-dimensioned report doesn't hit that same anonymization, so its
-    # sum is normally the trustworthy site-wide figure — but the two reports
-    # are independent API calls (see main()) and either can come back empty
-    # on its own, so "prefer page-level" only holds when page-level actually
-    # has rows. Silently picking a number here, in either direction, is
-    # exactly the mistake this check exists to prevent (it invalidated a
-    # headline "% of site-wide traffic" claim in a real, externally-reviewed
-    # proposal before being caught, 2026-08-27).
-    if not top_pages:
-        L.append(f"> ⚠️ **Page-level report returned no rows this window, though "
-                 f"query-level data exists.** Falling back to the query-level total — "
-                 f"it can undercount rare queries on a thin site, so treat this as a "
-                 f"floor, not a confirmed total.\n")
-        L.append(f"**Site-wide total (query-level report, page-level unavailable this "
-                 f"run):** {total_clicks} clicks, {total_impr} impressions, across "
-                 f"returned query rows.\n")
-    elif not top_queries:
-        L.append(f"> ⚠️ **Query-level report returned no rows this window, though "
-                 f"page-level data exists.** The \"Target keywords\" section below will "
-                 f"show every keyword as \"no impressions yet\" — that reflects missing "
-                 f"query-level detail this run, not necessarily zero real traffic.\n")
-        L.append(f"**Site-wide total (page-level report):** {total_clicks_pages} clicks, "
-                 f"{total_impr_pages} impressions, across returned page rows.\n")
-    else:
-        L.append(f"**Site-wide total (page-level report, across returned rows — use "
-                 f"this):** {total_clicks_pages} clicks, {total_impr_pages} "
+    # Three totals, three meanings, each from its own API call:
+    #   property-level (no dimensions) — one impression per results page however
+    #     many of your pages appeared on it: the only true site-wide figure and
+    #     the only valid site-wide denominator.
+    #   page-level sum — counts each of your pages separately when several share
+    #     one results page (brand sitelinks!), so it can run ABOVE the truth.
+    #   query-level sum — anonymization drops rare queries on thin sites, so it
+    #     runs BELOW the truth.
+    # An earlier fix (2026-08-27) blessed the page-level sum as "the real
+    # figure" — replacing one wrong denominator with a subtler one. Both sums
+    # are also capped at ROW_LIMIT rows; the property-level row is not.
+    if st_has_data:
+        st_clicks = int(site_total.get("clicks", 0))
+        st_impr = int(site_total.get("impressions", 0))
+        cflt = f", {country}-filtered" if country else ""
+        L.append(f"**Site-wide total (property-level{cflt} — the denominator for "
+                 f"any site-wide claim):** {st_clicks} clicks, {st_impr} "
                  f"impressions.\n")
-        L.append(f"_Query-level report, for reference only (undercounts rare queries "
-                 f"on thin sites, across returned rows): {total_clicks} clicks, "
-                 f"{total_impr} impressions._\n")
-        # top_pages being non-empty only means the list has rows, not that they
-        # sum to nonzero impressions/clicks (e.g. every returned row reports 0
-        # for this window/filter) -- guard each division rather than assume it.
-        # Checked on both metrics, not impressions alone: a site can have
-        # matching impressions but wildly different clicks (0 vs. 20 is a
-        # real, silent disagreement impressions-only would miss entirely).
-        impr_mismatch = (abs(total_impr_pages - total_impr) / total_impr_pages) if total_impr_pages > 0 else 0
-        clicks_mismatch = (abs(total_clicks_pages - total_clicks) / total_clicks_pages) if total_clicks_pages > 0 else 0
-        flagged_metrics = [name for name, m in (("impressions", impr_mismatch), ("clicks", clicks_mismatch))
-                            if m > TOTALS_MISMATCH_THRESHOLD]
-        if flagged_metrics:
-            threshold_pct = f"{TOTALS_MISMATCH_THRESHOLD * 100:.0f}%"
-            metrics_str = " and ".join(flagged_metrics)
-            if total_impr_pages >= total_impr:
-                L.append(f"> ⚠️ **{metrics_str.capitalize()} disagree by more than "
-                         f"{threshold_pct}** — a sign GSC is anonymizing/dropping rare "
-                         f"queries from the query-level report on this site. Use the "
-                         f"page-level total above for any \"site-wide\" claim, and never "
-                         f"compute a percentage against the query-level number.\n")
+        refs = []
+        if top_pages:
+            refs.append(f"page-level sum {total_clicks_pages} clicks / "
+                        f"{total_impr_pages} impr (counts each page separately when "
+                        f"several share one results page)")
+        if top_queries:
+            refs.append(f"query-level sum {total_clicks} clicks / {total_impr} impr "
+                        f"(anonymization drops rare queries)")
+        if refs:
+            L.append("_For reference only, never as a denominator: "
+                     + "; ".join(refs) + "._\n")
+        # Both metrics, not impressions alone (page-sum clicks should track the
+        # property's clicks closely — a click is attributed to one URL — so a
+        # clicks-only divergence is a real, silent anomaly). Zero-safe: 0 vs
+        # nonzero is the starkest disagreement, not a suppressed one. Both
+        # DIRECTIONS: the expected direction gets its known explanation, the
+        # unexpected one an explicit "this isn't the normal pattern" flag.
+        def _div(sum_v, prop_v):
+            if prop_v > 0:
+                return abs(sum_v - prop_v) / prop_v > TOTALS_MISMATCH_THRESHOLD
+            return sum_v > 0
+        if top_pages:
+            # Sitelinks explain exactly one pattern: IMPRESSIONS inflated
+            # above a positive property figure. Clicks attribute to one URL
+            # (the sums should match), and a zero or below-property figure
+            # isn't multi-page counting — those get the anomaly message.
+            if (st_impr > 0 and
+                    (total_impr_pages - st_impr) / st_impr > TOTALS_MISMATCH_THRESHOLD):
+                L.append(f"> ⚠️ **The page-level sum diverges above the property "
+                         f"total (impressions)** — several of your pages often "
+                         f"appear in the same results page (typically brand "
+                         f"sitelinks). A percentage computed against the page-level "
+                         f"sum understates every share.\n")
+            anom = [m for m, s, p in (("impressions", total_impr_pages, st_impr),
+                                      ("clicks", total_clicks_pages, st_clicks))
+                    if _div(s, p) and not (m == "impressions" and p > 0 and s > p)]
+            if anom:
+                L.append(f"> ⚠️ **The page-level sum diverges from the property "
+                         f"total ({' and '.join(anom)}) in a way sitelinks can't "
+                         f"explain** — row-cap truncation, or transient divergence "
+                         f"between the independent pulls. Treat both numbers with "
+                         f"caution this run.\n")
+        if top_queries:
+            metrics = (("impressions", total_impr, st_impr),
+                       ("clicks", total_clicks, st_clicks))
+            under = [m for m, s, p in metrics if _div(s, p) and s <= p]
+            q_over = [m for m, s, p in metrics if _div(s, p) and s > p]
+            if under:
+                cov = (f"; query rows cover {total_impr / st_impr:.0%} of impressions"
+                       if "impressions" in under and st_impr > 0 else "")
+                cause = ("GSC is anonymizing rare queries on this site"
+                         + (" and/or the row cap truncated the pull" if q_capped else ""))
+                L.append(f"> ⚠️ **The query-level sum diverges below the property "
+                         f"total ({' and '.join(under)}{cov})** — {cause}. Individual "
+                         f"query rows are fine; their sum is not a total.\n")
+            if q_over:
+                L.append(f"> ⚠️ **The query-level sum runs above the property total "
+                         f"({' and '.join(q_over)}) — the unexpected direction** "
+                         f"(not the anonymization pattern; transient divergence). "
+                         f"Re-pull before quoting either.\n")
+    else:
+        # Property-level didn't deliver — distinguish an explicit zero row
+        # (the pulls disagree outright) from no row at all (pull unavailable).
+        if site_total is not None:
+            L.append(f"> ⚠️ **Property-level total returned 0 clicks / 0 impressions "
+                     f"while the dimensioned reports below have data** — the "
+                     f"independent pulls disagree outright; re-pull before quoting "
+                     f"any of these as a total.\n")
+        else:
+            L.append(f"> ⚠️ **Property-level totals unavailable this run.**\n")
+        if top_pages:
+            if p_capped:
+                L.append(f"**Site-wide (page-level sum, row-capped — partial, bounds "
+                         f"unknown):** {total_clicks_pages} clicks, "
+                         f"{total_impr_pages} impressions.\n")
             else:
-                L.append(f"> ⚠️ **{metrics_str.capitalize()} disagree by more than "
-                         f"{threshold_pct}, and unusually the query-level total is the "
-                         f"larger one** — this isn't the normal anonymization pattern. "
-                         f"Treat both numbers with caution and re-run before quoting "
-                         f"either as a site-wide figure.\n")
+                L.append(f"**Site-wide (page-level sum, ceiling — counts each of "
+                         f"your pages separately when several share one results "
+                         f"page):** {total_clicks_pages} clicks, "
+                         f"{total_impr_pages} impressions.\n")
+        elif q_capped:
+            L.append(f"**Site-wide (query-level sum, row-capped — partial, bounds "
+                     f"unknown):** {total_clicks} clicks, {total_impr} impressions.\n")
+        else:
+            L.append(f"**Site-wide (query-level sum, floor — undercounts rare "
+                     f"queries on a thin site):** {total_clicks} clicks, "
+                     f"{total_impr} impressions.\n")
+    if len(top_pages) >= ROW_LIMIT or len(top_queries) >= ROW_LIMIT:
+        L.append(f"> ⚠️ **A dimensioned pull hit the {ROW_LIMIT}-row cap** — that "
+                 f"sum may be partial, and truncation (not just anonymization) can "
+                 f"explain gaps against the property total.\n")
+    if not top_queries:
+        L.append(f"> ⚠️ **Query-level report returned no rows this window.** The "
+                 f"\"Target keywords\" section below will show every keyword as \"no "
+                 f"impressions yet\" — that reflects missing query-level detail this "
+                 f"run, not necessarily zero real traffic.\n")
+    if not top_pages:
+        L.append(f"> ⚠️ **Page-level report returned no rows this window.** The "
+                 f"top-pages and low-CTR sections below reflect a missing page-level "
+                 f"pull this run, not an absence of pages.\n")
 
     # --- Target keywords ---------------------------------------------------
     L.append("## Target keywords — where we stand\n")
@@ -273,16 +368,25 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     L.append("")
 
     # --- Striking distance -------------------------------------------------
+    in_range = [r for r in top_queries
+                if STRIKING_MIN <= r["position"] <= STRIKING_MAX and r["impressions"] > 0]
     striking = sorted(
-        [r for r in top_queries
-         if STRIKING_MIN <= r["position"] <= STRIKING_MAX and r["impressions"] > 0],
+        [r for r in in_range if r["impressions"] >= STRIKING_MIN_IMPRESSIONS],
         key=lambda r: r["impressions"], reverse=True,
     )
+    thin = len(in_range) - len(striking)
     L.append("## Striking-distance queries (pos ~8–20 = fastest Top-10 wins)\n")
     if striking:
         L.append(fmt_rows(striking, "Query", limit=20))
     else:
-        L.append("_None in range yet._")
+        L.append("_None in range yet"
+                 + (" with enough impressions to trust" if thin else "") + "._")
+    if thin:
+        L.append(f"\n_{thin} more in-range quer{'y' if thin == 1 else 'ies'} under "
+                 f"{STRIKING_MIN_IMPRESSIONS} impressions not listed as wins — an "
+                 f"average position over a handful of impressions is noise, not a "
+                 f"signal (still counted in the totals; the top-queries table shows "
+                 f"the top 25)._")
     L.append("")
 
     # --- Low-CTR pages -----------------------------------------------------
@@ -293,13 +397,13 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
          and r["impressions"] >= LOW_CTR_MIN_IMPRESSIONS],
         key=lambda r: r["impressions"], reverse=True,
     )
-    L.append("## Good position, low CTR — title/meta rewrite candidates\n")
+    L.append("## Good position, low CTR — snippet/SERP investigation candidates\n")
     if low_ctr:
         L.append(fmt_rows(low_ctr, "Page", limit=15))
         L.append("\n_Position and CTR here are page-level averages across every query that "
-                 "landed on the page, not one query's numbers -- pull the query-level rows "
-                 "for a candidate page before diagnosing which specific query has the "
-                 "snippet problem._"
+                 "landed on the page, not one query's numbers -- re-run with "
+                 "`--page <url>` for a candidate page to see which specific queries land "
+                 "on it before diagnosing a snippet problem._"
                  "\n\n→ Before rewriting: check the live SERP snippet (`serp_check.py`) "
                  "against the page's actual shipped meta description (mandatory, see "
                  "\"Reading the numbers\" in SKILL.md). Then hand off to `copywriting` "
@@ -307,6 +411,39 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     else:
         L.append("_None flagged (need pages ranking ≤10 with CTR <2% and ≥20 impr)._")
     L.append("")
+
+    # --- Attribution drill-downs (only when requested) ---------------------
+    if page_url:
+        L.append(f"## Queries landing on {page_url}\n")
+        if page_drill:
+            L.append(fmt_rows(page_drill, "Query", limit=15))
+            L.append("\n_Attribution from GSC itself (query rows filtered to this "
+                     "page). Rare queries can still be anonymized away, so rows here "
+                     "may not sum to the page's total impressions._")
+        else:
+            L.append("_No query rows for this page in the window. The `--page` "
+                     "filter is an exact URL match — compare against the top-pages "
+                     "table first (https vs http, trailing slash, www) — and rare "
+                     "queries can also be anonymized away even when the page itself "
+                     "shows impressions._")
+        L.append("")
+    if query_term:
+        L.append(f"## Pages serving \"{query_term}\"\n")
+        if query_drill:
+            L.append(fmt_rows(query_drill, "Page", limit=15))
+            if sum(1 for r in query_drill if r["impressions"] > 0) > 1:
+                L.append("\n_More than one page draws impressions for this exact "
+                         "query. That can be benign — several of your pages sharing "
+                         "one results page (sitelinks), or URLs alternating over "
+                         "the window — or it can be cannibalization. Compare their "
+                         "positions and intents before concluding; if it is "
+                         "cannibalization, ask which page Google prefers and whether "
+                         "it's the one you'd pick._")
+        else:
+            L.append("_No pages returned for this exact query in the window (the "
+                     "filter is an exact match — check spelling/casing against the "
+                     "top-queries table)._")
+        L.append("")
 
     # --- Reference tables --------------------------------------------------
     L.append("## Top queries\n")
@@ -322,7 +459,12 @@ def main():
     ap.add_argument("--site", required=True,
                     help="Property, e.g. sc-domain:example.com or "
                          "https://example.com/")
-    ap.add_argument("--days", type=int, default=90)
+    def _days(v: str) -> int:
+        n = int(v)
+        if n < 1:
+            raise argparse.ArgumentTypeError(f"--days must be >= 1 (got {v!r})")
+        return n
+    ap.add_argument("--days", type=_days, default=90)
     ap.add_argument("--keywords", default="",
                     help="Comma-separated target keywords.")
     ap.add_argument("--out", default="", help="Write the Markdown report to this file.")
@@ -342,6 +484,12 @@ def main():
                          "(Google only; Bing has no country parameter.)")
     ap.add_argument("--csv", default="",
                     help="Append target-keyword positions to this history CSV (trend tracking).")
+    ap.add_argument("--page", default="",
+                    help="Full URL: also report which queries land on THIS page "
+                         "(attribution from data, not inference).")
+    ap.add_argument("--query", default="",
+                    help="Exact query string: also report which pages serve it "
+                         "(cannibalization check).")
     args = ap.parse_args()
 
     creds = load_credentials(Path(args.client_secret), Path(args.token))
@@ -362,7 +510,9 @@ def main():
         eprint(f"Could not list sites (continuing): {e}")
 
     end = dt.date.today() - dt.timedelta(days=2)   # GSC lags ~2 days
-    start = end - dt.timedelta(days=args.days)
+    # GSC treats start/end as INCLUSIVE dates, so an N-day window spans
+    # end-(N-1)..end — subtracting N would silently pull N+1 days.
+    start = end - dt.timedelta(days=args.days - 1)
     s_start, s_end = start.isoformat(), end.isoformat()
 
     try:
@@ -371,6 +521,37 @@ def main():
     except Exception as e:  # noqa: BLE001
         eprint(f"Search Analytics query failed: {e}")
         sys.exit(1)
+
+    # The property-level pull degrades on its own: build_report handles
+    # site_total=None honestly, so a transient error here must not cost the
+    # reader the dimensioned report.
+    site_total = None
+    try:
+        # No dimensions → the property-level totals row (the true site-wide figure).
+        totals_rows = query(service, args.site, s_start, s_end, [], country=args.country)
+        site_total = totals_rows[0] if totals_rows else None
+    except Exception as e:  # noqa: BLE001
+        eprint(f"property-level totals pull failed (continuing without it): {e}")
+
+    # Drill-downs degrade on their own — a malformed --page/--query must not
+    # cost the reader the base report. On failure the section is omitted
+    # (clearing the term below), not rendered as a misleading "no rows".
+    page_drill = query_drill = None
+    page_url, query_term = args.page, args.query
+    if args.page:
+        try:
+            page_drill = query(service, args.site, s_start, s_end, ["query"],
+                               country=args.country, page=args.page)
+        except Exception as e:  # noqa: BLE001
+            eprint(f"--page drill-down failed (continuing without it): {e}")
+            page_url = ""
+    if args.query:
+        try:
+            query_drill = query(service, args.site, s_start, s_end, ["page"],
+                                country=args.country, query_str=args.query)
+        except Exception as e:  # noqa: BLE001
+            eprint(f"--query drill-down failed (continuing without it): {e}")
+            query_term = ""
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
     kw_matches = match_keywords(top_queries, keywords) if keywords else []
@@ -387,12 +568,16 @@ def main():
                 "position": round(b["position"], 1) if b else "",
                 "impressions": int(b["impressions"]) if b else 0,
                 "clicks": int(b["clicks"]) if b else 0,
+                "window": args.days, "country": args.country or "",
             })
         _history.append_rows(args.csv, items)
         eprint(f"appended {len(items)} keyword rows to {args.csv}")
 
     report = build_report(args.site, s_start, s_end, top_queries, top_pages,
-                          kw_matches, perm_level, args.days, country=args.country)
+                          kw_matches, perm_level, args.days, country=args.country,
+                          site_total=site_total,
+                          page_drill=page_drill, page_url=page_url,
+                          query_drill=query_drill, query_term=query_term)
     print(report)
     if args.out:
         Path(args.out).write_text(report)
