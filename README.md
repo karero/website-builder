@@ -258,6 +258,9 @@ scripts/
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
   package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
+  check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
+  check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
+  check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
 docs/
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
@@ -310,14 +313,17 @@ The suite is a handoff artifact, so it must carry **no personal names, contact i
 credentials**.
 
 ```bash
-make check       # scans skills/ + root docs for PII + secrets; fails on any hit
+make check       # PII/secrets + model-agnostic + template coverage + per-skill size budgets
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
 catches (any real email, credential/token formats, secret-looking assignments). It runs in
 CI on every push/PR (`.github/workflows/clean.yml`) and is a prerequisite of `make package`,
 so a personalized build cannot ship. A genuine false positive is fixed by tightening a
-pattern in the script — never by loosening it.
+pattern in the script — never by loosening it. The same `make check` (and the same CI
+workflow) also keeps `independent-review` free of concrete model names
+(`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
+(`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs
 
