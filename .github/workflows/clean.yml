@@ -1,8 +1,13 @@
 name: clean
 # Fails the build if any personal name, contact info, or credential enters the skill
-# suite (see scripts/check_clean.sh), or if a concrete model name/tag creeps into
+# suite (see scripts/check_clean.sh), if a concrete model name/tag creeps into
 # independent-review's pipeline files — that skill is model-agnostic and lets the
-# owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh).
+# owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh)
+# — or if a new file under the astro template overlay isn't accounted for in any of
+# whats-new.sh's TEMPLATE_TRACKED/SITE_OWNED buckets or check_template_coverage.sh's own
+# SITE_SOURCE bucket (see scripts/check_template_coverage.sh) — landing in SITE_SOURCE is
+# a deliberate, reviewed "not drift-tracked" decision, not a pass-through for anything
+# unclassified.
 on:
   push:
   pull_request:
@@ -19,3 +24,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check independent-review stays model-agnostic
         run: bash scripts/check_model_agnostic.sh
+  template-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every astro template file is accounted for (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE)
+        run: bash scripts/check_template_coverage.sh
