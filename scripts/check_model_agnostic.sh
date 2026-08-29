@@ -10,17 +10,21 @@ cd "$(dirname "$0")/.."
 
 SKILL_DIR="skills/independent-review"
 
-# Scan every doc and script in the skill EXCEPT references/setup-guide.md — the
-# drift-prone helper that cites dated, concrete local-model examples for the RAM
-# table, and says so inline. Files are discovered, not listed, so a new reference
-# or script is scanned by default instead of silently skipped.
+# Scan every regular file in the skill EXCEPT references/setup-guide.md (matched by
+# exact path, not basename) — the drift-prone helper that cites dated, concrete
+# local-model examples for the RAM table, and says so inline. The one known
+# tag-classification defect that exclusion hides is tracked as row B-TAGCLASS in
+# docs/reviews/OPEN-FINDINGS-independent-review.md. Files are discovered, not
+# listed, and not filtered by extension, so a new reference, script, or helper of
+# any type is scanned by default instead of silently skipped (grep -I skips any
+# genuinely binary file).
 FILES=()
 while IFS= read -r f; do FILES+=("$f"); done < <(
-  find "$SKILL_DIR" -type f \( -name '*.md' -o -name '*.sh' \) ! -name 'setup-guide.md' | sort
+  find "$SKILL_DIR" -type f ! -path "$SKILL_DIR/references/setup-guide.md" | sort
 )
-if [ "${#FILES[@]}" -lt 4 ]; then
-  echo "FAIL — expected at least 4 pipeline files under $SKILL_DIR, found ${#FILES[@]}."
-  echo "If the skill moved or was restructured, update this check."
+if [ "${#FILES[@]}" -lt 2 ]; then
+  echo "FAIL — only ${#FILES[@]} pipeline file(s) found under $SKILL_DIR; find/path breakage or a moved skill."
+  echo "If the skill was restructured, update this check."
   exit 1
 fi
 
@@ -31,8 +35,9 @@ fi
 # model name; this bounds the common drift, it is not an exhaustive parser.
 PATTERN='[a-z0-9][a-z0-9._-]*:(cloud|[0-9]+b)\b|\bglm-[0-9]|\bgpt-[0-9]|\bgemini[- ][0-9]|\bclaude[- ][0-9]|\b(opus|sonnet|haiku|fable)[- ][0-9]'
 
-# Self-test: the pattern must actually catch the shapes it claims to — a guard
-# that cannot fire is worse than none.
+# Self-test, both directions. A guard that cannot fire is worse than none — and one
+# that over-fires on the generic phrasing the header comment explicitly allows is
+# its mirror image.
 for bad in 'glm-9.9-flash:cloud' 'somemodel:120b' 'GPT-5' 'gpt-5.6-sol' \
            'Gemini 3.1 Pro' 'Claude Opus 4.6' 'claude-3' 'a Sonnet 4 pass'; do
   printf '%s\n' "$bad" | grep -qiE "$PATTERN" || {
@@ -40,8 +45,21 @@ for bad in 'glm-9.9-flash:cloud' 'somemodel:120b' 'GPT-5' 'gpt-5.6-sol' \
     exit 1
   }
 done
+for good in 'Gemini' 'gpt-class' "a ':cloud' mention" 'claude family' 'ollama-cloud'; do
+  if printf '%s\n' "$good" | grep -qiE "$PATTERN"; then
+    echo "FAIL — self-test: PATTERN over-matches the allowed phrase '$good'."
+    exit 1
+  fi
+done
 
-mismatches=$(grep -niE "$PATTERN" "${FILES[@]}")
+# grep is tri-state: 0 = matches (violation), 1 = clean, >1 = error. An I/O error
+# must not fall through to the OK line.
+mismatches=$(grep -nIiE "$PATTERN" "${FILES[@]}")
+rc=$?
+if [ "$rc" -gt 1 ]; then
+  echo "FAIL — grep errored (exit $rc) while scanning; the guard result is unreliable."
+  exit 1
+fi
 
 if [ -n "$mismatches" ]; then
   echo "FAIL — a concrete model name/tag appears in independent-review's pipeline files."

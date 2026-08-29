@@ -115,8 +115,14 @@ is_cloud_ollama_tag() {
 # leaves the machine, and every ':cloud' tag is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
 if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
-  if command -v ollama >/dev/null 2>&1; then
-    cloud_tags="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep ':cloud$' || true)"
+  if ! command -v ollama >/dev/null 2>&1; then
+    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer)." >&2
+  elif ! list_out="$(ollama list 2>/dev/null)"; then
+    # A failed listing is NOT "no cloud model" — don't send the user to signin
+    # for what is actually a broken CLI/daemon.
+    echo "note: 'ollama list' failed — cannot auto-detect a cloud model (check the ollama install/daemon, or set OLLAMA_MODEL explicitly). The ollama tier will be skipped this run." >&2
+  else
+    cloud_tags="$(printf '%s\n' "$list_out" | awk 'NR>1 {print $1}' | grep ':cloud$' || true)"
     OLLAMA_MODEL="$(printf '%s\n' "$cloud_tags" | head -1)"
     if [ -z "$OLLAMA_MODEL" ]; then
       echo "note: no OLLAMA_MODEL set and no ':cloud' model in 'ollama list' — the ollama tier will be skipped ('ollama signin' plus a cloud model enables it, or set OLLAMA_MODEL explicitly)." >&2
@@ -130,8 +136,6 @@ if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
         echo "note: auto-detected ollama-cloud model '$OLLAMA_MODEL' from 'ollama list' (set OLLAMA_MODEL to override)." >&2
       fi
     fi
-  else
-    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer)." >&2
   fi
 fi
 # Skipping the DEFAULT above isn't enough on its own: a caller-supplied
@@ -437,7 +441,7 @@ run_agy() {
     MODE:*|*"MODE: INSPECTED"*|*"MODE: TEXT-ONLY"*) : ;;
     *) echo "agy tier: no MODE line — cannot tell whether it inspected files or reviewed text only; treat its verified/wrong verdicts as unattributed." >&2 ;;
   esac
-  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per onboarding Step 5}" "$out"
+  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
