@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Guard: independent-review's OLLAMA_MODEL default is hand-maintained across nine prose
-# references (SKILL.md x4, the script itself x5) instead of read from one place — exactly
-# how the ollama-cloud default drifted out of sync during the claude-skills migration.
+# Guard: independent-review's OLLAMA_MODEL default is hand-maintained across many prose
+# references (SKILL.md, references/*.md, the script itself) instead of read from one place —
+# exactly how the ollama-cloud default drifted out of sync during the claude-skills migration.
 # This derives the canonical value from the script's own default assignment (the only
 # line that actually governs runtime behavior) and fails if any other mention disagrees.
 set -uo pipefail
@@ -27,7 +27,7 @@ fi
 # explicit inline marker rather than guessed at — see the marker text below.
 MARKER='non-default mention'
 PATTERN='glm-[A-Za-z0-9.-]+:cloud'
-mismatches=$(grep -nE "$PATTERN" "$DOC" "$SCRIPT" | grep -vF "$canonical" | grep -vF "$MARKER")
+mismatches=$(grep -nE "$PATTERN" "$DOC" "$SKILL_DIR"/references/*.md "$SCRIPT" | grep -vF "$canonical" | grep -vF "$MARKER")
 
 if [ -n "$mismatches" ]; then
   echo "FAIL — a reference to the ollama-cloud default disagrees with the canonical value"
