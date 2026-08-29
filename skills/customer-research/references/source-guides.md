@@ -2,6 +2,11 @@
 
 Detailed, source-by-source playbooks for gathering customer intelligence from online watering holes.
 
+Contents: Reddit Research · G2 and Review Site Mining · Indie Hackers and
+Product Hunt · Hacker News · LinkedIn Research · YouTube Comments · Twitter / X
+Research · Blog Post and Forum Research — jump to the source you're mining;
+each section stands alone.
+
 ---
 
 ## Reddit Research
