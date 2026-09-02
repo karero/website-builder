@@ -13,6 +13,18 @@
 #     weekday: launchd values — 1=Mon … 6=Sat, and BOTH 0 and 7 = Sunday (default 1=Mon).
 #   bash schedule_tracking.sh remove  <domain>
 #   bash schedule_tracking.sh list
+#   bash schedule_tracking.sh status <domain>   # exact match for ONE site — see below
+#
+# `list` prints SANITIZED labels (dots/etc. become dashes: example.com -> example-com),
+# not the literal domain, and two different domains can sanitize to the same label — so
+# it is NOT reliable for "is <this exact domain> scheduled?". `status <domain>` answers
+# that precisely instead: sanitize() is lossy (e.g. "a.b-c.com" and "a-b.c.com" both land
+# on "a-b-c-com"), so plist EXISTENCE at the derived path is not proof it's THIS domain's
+# plist — status also reads the literal domain back out of ProgramArguments (which install
+# writes verbatim) via `plutil -extract` and only reports "scheduled" if that literal
+# domain actually matches. It also cross-checks `launchctl print` so a plist that exists
+# but never successfully loaded (a failed bootstrap, e.g. a permissions issue) reports
+# "not scheduled" rather than trusting file-existence alone.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -81,16 +93,35 @@ PLIST
   list)
     found=$(ls "$LA_DIR/$PREFIX."*.plist 2>/dev/null || true)
     if [ -n "$found" ]; then
-      echo "Scheduled sites:"
+      echo "Scheduled sites (label form — dots/etc. shown as dashes; use 'status <domain>' to check one exact domain):"
       echo "$found" | sed 's#.*/'"$PREFIX"'\.##; s/\.plist$//; s/^/  - /'
     else
       echo "No sites scheduled yet."
+    fi
+    ;;
+  status)
+    domain="${1:?domain required}"
+    plist="$(plist_for "$domain")"
+    label="$(label_for "$domain")"
+    recorded=""
+    [ -f "$plist" ] && recorded="$(plutil -extract ProgramArguments.2 raw -o - "$plist" 2>/dev/null || true)"
+    if [ "$recorded" != "$domain" ]; then
+      # Either no plist at that derived path, or one exists but a DIFFERENT
+      # domain landed there via a sanitize() collision (e.g. "a.b-c.com" and
+      # "a-b.c.com" both sanitize to "a-b-c-com") -- either way, THIS domain
+      # is not scheduled.
+      echo "not scheduled"
+    elif launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+      echo "scheduled"
+    else
+      echo "not scheduled (plist exists but the launchd job isn't loaded — try re-running install)"
     fi
     ;;
   *)
     echo "usage: schedule_tracking.sh install <domain> \"<keywords>\" [weekday 1-7] [hour 0-23]"
     echo "       schedule_tracking.sh remove <domain>"
     echo "       schedule_tracking.sh list"
+    echo "       schedule_tracking.sh status <domain>"
     exit 1
     ;;
 esac

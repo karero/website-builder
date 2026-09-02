@@ -44,6 +44,8 @@ STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
 STRIKING_MIN_IMPRESSIONS = 5
 # Same threshold and rationale as gsc_query.py's TOTALS_MISMATCH_THRESHOLD.
 TOTALS_MISMATCH_THRESHOLD = 0.10  # 10%
+# Same default + override as gsc_query.py's DEFAULT_CSV / track.sh's CSV.
+DEFAULT_CSV = os.environ.get("GSC_HISTORY_CSV", str(Path.home() / ".config" / "gsc-insights" / "history.csv"))
 
 
 def eprint(*a):
@@ -244,8 +246,12 @@ def main():
     ap.add_argument("--keywords", default="", help="Comma-separated target keywords.")
     ap.add_argument("--out", default="", help="Write the Markdown report to this file.")
     ap.add_argument("--api-key", default=os.environ.get("BING_API_KEY", ""))
-    ap.add_argument("--csv", default="",
-                    help="Append target-keyword positions to this history CSV (trend tracking).")
+    ap.add_argument("--csv", default=DEFAULT_CSV,
+                    help="Append target-keyword positions to this history CSV (trend tracking). "
+                         f"Defaults to {DEFAULT_CSV} (same file track.sh uses, override with "
+                         "$GSC_HISTORY_CSV). Pass --no-csv to skip appending for this run.")
+    ap.add_argument("--no-csv", action="store_true",
+                    help="Don't append to the history CSV for this run.")
     args = ap.parse_args()
 
     if not args.api_key:
@@ -268,29 +274,44 @@ def main():
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
     kw_matches = match_keywords(rows, keywords) if keywords else []
 
-    if args.csv and kw_matches:
+    history_failed = False
+    if args.csv and not args.no_csv and kw_matches:
         import datetime as _dt
         import _history
         today = _dt.date.today().isoformat()
+        site_key = _history.normalize_site(args.site)
         items = []
         for kw, matched in kw_matches:
             b = matched[0] if matched else None
             items.append({
-                "date": today, "source": "bing", "keyword": kw,
+                "date": today, "site": site_key, "source": "bing", "keyword": kw,
                 "query": b["query"] if b else "",
                 "position": round(b["position"], 1) if b else "",
                 "impressions": int(b["impressions"]) if b else 0,
                 "clicks": int(b["clicks"]) if b else 0,
                 "window": "~180", "country": "",  # Bing: fixed ~6-month aggregate, no country param
             })
-        _history.append_rows(args.csv, items)
-        eprint(f"appended {len(items)} keyword rows to {args.csv}")
+        try:
+            n = _history.append_rows(args.csv, items)
+            eprint(f"appended {n} keyword rows to {args.csv}")
+        except Exception as e:  # noqa: BLE001 — history is a side effect; nothing
+            # it can raise (write failure, lock contention, an unexpected
+            # encoding/csv error) may cost the user the ranking report they
+            # actually asked for. history_failed still surfaces it via a
+            # distinct exit code once the report has printed, so a caller
+            # that specifically depends on history (track.sh) can tell —
+            # while an ad-hoc caller that only wants the report can ignore it.
+            eprint(f"note: could not write history to {args.csv} ({e}) — "
+                   f"continuing without it")
+            history_failed = True
 
     report = build_report(args.site, rows, kw_matches, page_rows)
     print(report)
     if args.out:
         Path(args.out).write_text(report)
         eprint(f"\nWrote {args.out}")
+    if history_failed:
+        sys.exit(4)
 
 
 if __name__ == "__main__":

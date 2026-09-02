@@ -51,3 +51,21 @@ After the first successful run: *"✅ Connected — Google confirms you own `<si
 near-empty, **say so honestly** — data accrues over days; that's not a failure.
 
 ### Step 6 — THEN teach them how to use it (SKILL.md's "Once connected"). Don't skip this.
+
+### Step 7 — Ask about weekly tracking, for THIS site specifically
+Every ad-hoc run now quietly builds position history on its own (Phase 1 auto-appends
+to the history CSV), but that still only happens when someone remembers to ask. On
+macOS, check `bash scripts/schedule_tracking.sh status <site>` (exact match for this
+one domain — not `list`, whose sanitized labels can collide between different domains);
+on Linux there's nothing to query (no systemd/cron integration here), so just ask
+directly whether they already have a recurring job for this site. If it's not
+scheduled, close onboarding by actually asking, not just mentioning it in passing:
+*"Want me to also schedule this to check automatically once a week, so you don't have
+to remember to ask? Takes one command, and it's specific to `<site>` — nothing else
+changes."* Wait for a real yes before running `schedule_tracking.sh install` (SKILL.md's
+"Weekly auto-tracking" — never auto-install). A no is a fine, complete answer; don't
+re-ask later in the same session. This is a per-site decision — connecting a second
+site later means asking again for that one, not assuming the first answer carries over.
+The same check applies outside onboarding too: any ranking check on an already-connected
+site that comes back "not scheduled" is a prompt to ask, not just a first-connection
+step (see SKILL.md's "Once connected — how to use it").

@@ -29,6 +29,8 @@ import bing_query  # noqa: E402  — reuse its API-key query pull
 CONFIG = Path.home() / ".config" / "gsc-insights"
 DEFAULT_TOKEN = CONFIG / "token.json"
 DEFAULT_SECRET = CONFIG / "client_secret.json"
+# Same default + override as gsc_query.py / bing_query.py / track.sh's CSV.
+DEFAULT_CSV = os.environ.get("GSC_HISTORY_CSV", str(CONFIG / "history.csv"))
 # A source returns None when NOT CONNECTED (no creds) vs FETCH_ERROR when it IS
 # connected but the API call failed — so we never tell a connected user to re-set-up.
 FETCH_ERROR = "__fetch_error__"
@@ -112,6 +114,14 @@ def main():
                     help="ISO-3166-1 alpha-3 GSC country filter, e.g. 'deu'. Google column "
                          "only — Bing's API has no country parameter, so its column stays "
                          "global; note that when comparing the two.")
+    ap.add_argument("--csv", default=DEFAULT_CSV,
+                    help="Append target-keyword positions to this history CSV (trend tracking). "
+                         f"Defaults to {DEFAULT_CSV} (same file track.sh uses, override with "
+                         "$GSC_HISTORY_CSV) so the default combined view builds history "
+                         "automatically -- this is most users' actual entry point. Pass "
+                         "--no-csv to skip appending for this run.")
+    ap.add_argument("--no-csv", action="store_true",
+                    help="Don't append to the history CSV for this run.")
     args = ap.parse_args()
 
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
@@ -121,6 +131,52 @@ def main():
     gsc = gsc_positions(args.domain, keywords, args.days, args.client_secret, args.token,
                         country=args.country)
     bing = bing_positions(args.domain, keywords, bing_key)
+
+    # Build history from this default entry point too, not just the single-engine
+    # scripts -- most users' actual "where do I rank" ask goes through here, so
+    # tying history-building to gsc_query.py/bing_query.py alone would miss most
+    # runs. Only a genuinely successful pull (a dict) is recorded; None (not
+    # connected) and FETCH_ERROR both stay out of the history.
+    history_failed = False
+    if args.csv and not args.no_csv:
+        import datetime as _dt
+        import _history
+        today = _dt.date.today().isoformat()
+        site_key = _history.normalize_site(args.domain)
+        items = []
+        if isinstance(gsc, dict):
+            for kw in keywords:
+                v = gsc.get(kw)
+                items.append({
+                    "date": today, "site": site_key, "source": "gsc", "keyword": kw,
+                    "query": v["query"] if v else "",
+                    "position": round(v["pos"], 1) if v else "",
+                    "impressions": int(v["impr"]) if v else 0,
+                    "clicks": int(v["clicks"]) if v else 0,
+                    "window": args.days, "country": args.country or "",
+                })
+        if isinstance(bing, dict):
+            for kw in keywords:
+                v = bing.get(kw)
+                items.append({
+                    "date": today, "site": site_key, "source": "bing", "keyword": kw,
+                    "query": v["query"] if v else "",
+                    "position": round(v["pos"], 1) if v else "",
+                    "impressions": int(v["impr"]) if v else 0,
+                    "clicks": int(v["clicks"]) if v else 0,
+                    "window": "~180", "country": "",
+                })
+        if items:
+            try:
+                n = _history.append_rows(args.csv, items)
+                eprint(f"appended {n} keyword rows to {args.csv}")
+            except Exception as e:  # noqa: BLE001 — history is a side effect;
+                # nothing it can raise (write failure, lock contention, an
+                # unexpected encoding/csv error) may cost the user the
+                # ranking report they actually asked for.
+                eprint(f"note: could not write history to {args.csv} ({e}) — "
+                       f"continuing without it")
+                history_failed = True
 
     print(f"# Rankings across Google & Bing — {args.domain}\n")
     if gsc is None and bing is None:
@@ -180,6 +236,9 @@ def main():
     elif isinstance(gsc, dict) and isinstance(bing, dict) and serper:
         print("\n✅ All three sources connected (Google, Bing, Serper). For competitors, "
               "run `serp_check.py` (opt-in — it spends Serper quota).")
+
+    if history_failed:
+        sys.exit(4)
 
 
 if __name__ == "__main__":
