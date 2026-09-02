@@ -242,7 +242,8 @@ skills/            the suite skills (canonical)
   website-*        siblings (run in order): positioning (the strategic spine — what you
                    offer, for whom, what category; worked out FIRST, enforced by
                    positioning.spec.ts), content-guide, design-system, seo-geo,
-                   testimonials, qa, review, permissions
+                   testimonials, qa, review, permissions; positioning-check is the
+                   optional one-screen diagnostic
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
   search-console-setup, business-listings-setup   (bundled deps)
