@@ -15,7 +15,7 @@ description: >
   "competitor Top 10", "how do I rank on Bing", "Copilot visibility", "ChatGPT
   search visibility", "track my rankings over time", "weekly SEO report".
 metadata:
-  version: 1.5.0
+  version: 1.6.0
 ---
 
 # Search Console insights
@@ -35,9 +35,14 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
 | **Weekly auto-tracking** | `schedule_tracking.sh` | — | Opt-in launchd job (per site) that runs the tracker weekly so history builds unattended |
 
-All **read-only** and on **free tiers** (GSC + Bing free; Serper 2,500 searches free). Built
-for a **low-volume** site — see the "Low-volume playbook" below. On first use the agent runs
-a guided **onboarding** (next section), so a non-technical owner never touches the terminal.
+All external calls (GSC, Bing, Serper) are **read-only** and on **free tiers** (GSC + Bing
+free; Serper 2,500 searches free) — nothing is ever written back to Google/Bing/Serper. Local
+writes are all under `~/.config/gsc-insights/`: the history CSV (plus a `.lock` sidecar) on
+by default whenever `--keywords` is given (`--no-csv` opts a single run out), the cached OAuth
+token from onboarding, `--out` if you ask for a saved report, and — only if you explicitly
+schedule it — a per-site launchd plist/log. Built for a **low-volume** site — see the
+"Low-volume playbook" below. On first use the agent runs a guided **onboarding** (next
+section), so a non-technical owner never touches the terminal.
 
 > **Prerequisite:** the property must be verified in GSC (`search-console-setup`).
 > GSC only collects data **forward from verification** — no historical backfill, and a
@@ -71,8 +76,13 @@ Claude session, they just ask:
   - *"track my rankings automatically / every week"* (offers to schedule it, per site)
 
 **Default behavior (agent):** for the slash command or a general "where do I rank" ask,
-run the **combined** view —
-`~/.config/gsc-insights/venv/bin/python scripts/insights.py --domain <site> --keywords "…"`.
+source the env file first, same as `track.sh` does, so `BING_API_KEY`/`GSC_HISTORY_CSV`/etc.
+are actually picked up (`insights.py` reads plain `os.environ` — it does not source the file
+itself), then run the **combined** view:
+```bash
+[ -f ~/.config/gsc-insights/.env ] && { set -a; . ~/.config/gsc-insights/.env; set +a; }
+~/.config/gsc-insights/venv/bin/python scripts/insights.py --domain <site> --keywords "…"
+```
 It auto-detects which sources are connected, shows **Google + Bing side by side** per
 keyword, and prints a nudge to connect any missing free source:
 - only Google connected → show it + offer the ~2-min Bing key (Copilot/ChatGPT proxy);
@@ -82,9 +92,25 @@ keyword, and prints a nudge to connect any missing free source:
 
 Run the single-engine scripts (`gsc_query.py` / `bing_query.py`) only when the user wants
 one engine's full detail; run `serp_check.py` only when they ask for competitors (it spends
-Serper quota); run `track.sh` for the over-time trend. After the first combined view for a
-connected site, **offer weekly auto-tracking** (see "Weekly auto-tracking") so the trend
-builds itself.
+Serper quota); run `track.sh` for the over-time trend. Every Phase 1/Bing/combined run that
+was given `--keywords` now auto-appends a row per keyword to the history CSV on its own (no
+`--csv` needed; a keyword with no matching query still gets a row, recorded as unranked), so
+history quietly builds from ordinary use — but that alone doesn't
+guarantee it *keeps* building if the site goes quiet between asks. An ad-hoc run only
+reports how many rows it appended (stderr), not a trend — it does not itself print `(new)`;
+that marker only appears from `track.sh` / `_history.py`, which print the full trend. So
+check for the scheduling gap directly and deterministically instead of watching for that
+marker: **once per site per session**, run `bash scripts/schedule_tracking.sh status <site>`
+(exact match for one domain — not `list`, whose output is a sanitized label that can collide
+between domains) and, if it says "not scheduled," **actually ask** whether to schedule weekly
+tracking for it (see "Weekly auto-tracking") rather than only mentioning it in passing. This
+applies the same way whether the site went through onboarding recently or was connected long
+before — the trigger is "this site has no schedule yet," not "just finished onboarding" or
+"just saw a `(new)` row." **macOS only** — `schedule_tracking.sh` manages launchd, so its
+`status` is authoritative there. On **Linux** there is no script-managed schedule to query
+(the guidance there is "run `track.sh` from a systemd user timer or cron yourself" — see
+"Weekly auto-tracking"), so ask the user directly whether they already have a recurring job
+for this site instead of assuming "not scheduled" from a check that can't see it.
 
 (See "Capabilities at a glance" above for what each source returns.) Re-running
 **weekly** is the whole point — rankings move, and this report is how they watch the
@@ -310,25 +336,40 @@ compared side has under 10 impressions (noise), `‡` = the tracked window or co
 filter changed between runs, or the earlier row predates the config columns (both
 recorded in the CSV, so the trend flags its own config breaks; only a move between
 two pre-schema runs leaves no record to flag). The first run just seeds the history —
-re-run **every 1–2 weeks** to watch the needle. (Each query script also takes
-`--csv <path>` to append on its own; `python scripts/_history.py <csv>` reprints the
-trend without a new pull.)
+re-run **every 1–2 weeks** to watch the needle, or see "Weekly auto-tracking" below to stop
+relying on remembering. (Every query script — `gsc_query.py`, `bing_query.py`,
+`insights.py` — appends to the history CSV **by default** now whenever `--keywords` is set,
+no `--csv` flag needed; pass `--no-csv` to skip it for one run. A same-config re-run on the
+same date **replaces** that date's row per keyword rather than duplicating it — the dedupe
+key includes the window/country, so an ad-hoc pull at a *different* window than the scheduled
+28-day job adds a second same-day row instead of silently erasing the scheduled one.
+`python scripts/_history.py <csv>` reprints the trend without a new pull.)
 
-## Weekly auto-tracking (opt-in, per site) — offer this
+## Weekly auto-tracking (opt-in, per site) — ask, don't just mention
 
 German-market sites: export `GSC_COUNTRY=deu` in the tracker's env file so the tracked
 history matches your ad-hoc `--country deu` reports — otherwise the trend is computed on
 blended-global numbers while your reports are market-filtered, and the two disagree.
 
-Good practice: once a site is connected and you've shown its first trend, **proactively
-offer** to schedule the tracker weekly so the history builds itself (manual re-runs get
-forgotten). Let the user choose **which sites** and a day/time — **never auto-install**, and
-only on an explicit yes.
+**Check `bash scripts/schedule_tracking.sh status <site>` (macOS)** — first onboarding
+(references/onboarding.md Step 7) or any later ranking check on a site connected before this
+behavior existed — and if it says "not scheduled," **actually ask** whether to schedule the
+tracker weekly for that site, rather than leaving it as a mention the user can skim past
+(ad-hoc runs building history on their own is not the same guarantee as a scheduled job when a
+site goes quiet between asks). Use `status <site>` for the exact check, not `list` — `list`'s
+labels are sanitized (dots become dashes) and can collide between different domains. Check
+this, don't infer from trend output — a site can have plenty of history and still have no
+schedule. On Linux, `schedule_tracking.sh` has nothing to check (no systemd/cron integration
+here — see the platform note below); ask the user directly instead. Let the user choose
+**which sites** and a day/time — **never auto-install**, and only on an explicit yes. A no is
+a complete answer; don't re-ask in the same session, and don't assume a yes for one site
+carries over to the next site connected later.
 
 ```bash
 bash scripts/schedule_tracking.sh install example.com \
   "AI Events Munich,AI Meetups Munich,AI Treffen München" 1 9   # Mon 09:00 (weekday: 1=Mon…6=Sat, 0/7=Sun; hour 0-23)
-bash scripts/schedule_tracking.sh list                  # what's scheduled
+bash scripts/schedule_tracking.sh status example.com    # is THIS site scheduled? (exact)
+bash scripts/schedule_tracking.sh list                  # everything scheduled (sanitized labels)
 bash scripts/schedule_tracking.sh remove example.com
 ```
 

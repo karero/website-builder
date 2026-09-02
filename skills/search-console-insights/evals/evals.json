@@ -58,9 +58,9 @@
     {
       "id": 5,
       "prompt": "Is my position for these keywords improving over time? Set me up to watch it.",
-      "expected_output": "Should use track.sh (or gsc_query.py/bing_query.py with --csv) to append the run to the history CSV and print the week-over-week position trend via _history.py, explaining that lower position is better and a drop in the number is an improvement (shown as ▲). On the first run it should say there's no prior data yet and to re-run in 1-2 weeks. Should NOT claim a trend exists from a single data point.",
+      "expected_output": "Should use track.sh (or any of gsc_query.py/bing_query.py/insights.py, which now append to the history CSV by default whenever --keywords is given -- no --csv flag needed) to append the run to the history CSV and print the week-over-week position trend via _history.py, explaining that lower position is better and a drop in the number is an improvement (shown as ▲). On the first run it should say there's no prior data yet and to re-run in 1-2 weeks. Should NOT claim a trend exists from a single data point.",
       "assertions": [
-        "Uses track.sh or the --csv flag to record history",
+        "Uses track.sh or an ordinary query-script run (history records by default) to record history",
         "Prints/explains a week-over-week position trend",
         "Explains lower position = better (improvement is a drop in the number)",
         "On first run, states there is no prior data yet rather than inventing a trend"
@@ -90,6 +90,20 @@
         "Rejects comparing a fresh pull against a stale saved report — demands equal, named windows from the same source",
         "Requires a control (unchanged pages, equal windows) before attributing anything to the title change",
         "Does not recommend the site-wide rollout on this evidence"
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Can you check my rankings for example.com again? Keywords: 'AI Events Munich, AI Meetups Munich'. I connected this a couple months back but I don't think I've ever set up any kind of recurring check.",
+      "expected_output": "Should run the check as asked (history now builds automatically on every run, no separate 'seed it' step needed). Should check whether example.com already has a schedule (schedule_tracking.sh status example.com on macOS -- an exact per-domain check, not the sanitized 'list' output) rather than inferring from trend output -- the user's own statement that nothing recurring exists yet is a reasonable shortcut but the deterministic check is what actually decides it, since a site can have plenty of history and still have no schedule. Finding it unscheduled, should actually ask whether to schedule weekly auto-tracking for example.com specifically -- not just mention the option in passing, and not skip the ask just because onboarding happened long ago or because history already exists. Should not auto-install; only proceed to schedule_tracking.sh on an explicit yes, and should treat a no as a complete answer.",
+      "assertions": [
+        "Runs the requested rankings check without requiring a separate manual 'seed the history' step",
+        "Checks whether the site is already scheduled (e.g. via schedule_tracking.sh status <site>) rather than assuming from trend output alone",
+        "Actually asks whether to schedule weekly auto-tracking for this specific site, not just a passing mention",
+        "Does not skip the ask on the reasoning that onboarding already happened previously or that history already exists",
+        "Does not auto-install the scheduled job without an explicit yes",
+        "Names the site specifically (not a vague 'your sites') when asking"
       ],
       "files": []
     }

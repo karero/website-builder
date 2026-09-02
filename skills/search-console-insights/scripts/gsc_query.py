@@ -42,6 +42,10 @@ from _lang_normalize import fold
 
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 DEFAULT_TOKEN = Path.home() / ".config" / "gsc-insights" / "token.json"
+# Same default + override as track.sh's CSV, so an ad-hoc run with --keywords
+# builds the same history a scheduled track.sh run would -- no separate
+# "remember to seed it" step. --no-csv opts a single run out.
+DEFAULT_CSV = os.environ.get("GSC_HISTORY_CSV", str(Path.home() / ".config" / "gsc-insights" / "history.csv"))
 ROW_LIMIT = 25000  # GSC max rows per request; plenty for a small site.
 
 # Striking distance = ranking on roughly page 1-2 but not yet in the Top 10.
@@ -482,8 +486,13 @@ def main():
                     help="ISO-3166-1 alpha-3 country filter, e.g. 'deu' — see the "
                          "German-market note in SKILL.md. Default: all countries blended. "
                          "(Google only; Bing has no country parameter.)")
-    ap.add_argument("--csv", default="",
-                    help="Append target-keyword positions to this history CSV (trend tracking).")
+    ap.add_argument("--csv", default=DEFAULT_CSV,
+                    help="Append target-keyword positions to this history CSV (trend tracking). "
+                         f"Defaults to {DEFAULT_CSV} (same file track.sh uses, override with "
+                         "$GSC_HISTORY_CSV) so a plain run with --keywords builds history "
+                         "automatically. Pass --no-csv to skip appending for this run.")
+    ap.add_argument("--no-csv", action="store_true",
+                    help="Don't append to the history CSV for this run.")
     ap.add_argument("--page", default="",
                     help="Full URL: also report which queries land on THIS page "
                          "(attribution from data, not inference).")
@@ -556,22 +565,35 @@ def main():
     keywords = [k.strip() for k in args.keywords.split(",") if k.strip()]
     kw_matches = match_keywords(top_queries, keywords) if keywords else []
 
-    if args.csv and kw_matches:
+    history_failed = False
+    if args.csv and not args.no_csv and kw_matches:
         import _history
         today = dt.date.today().isoformat()
+        site_key = _history.normalize_site(args.site)
         items = []
         for kw, matched in kw_matches:
             b = matched[0] if matched else None
             items.append({
-                "date": today, "source": "gsc", "keyword": kw,
+                "date": today, "site": site_key, "source": "gsc", "keyword": kw,
                 "query": b["keys"][0] if b else "",
                 "position": round(b["position"], 1) if b else "",
                 "impressions": int(b["impressions"]) if b else 0,
                 "clicks": int(b["clicks"]) if b else 0,
                 "window": args.days, "country": args.country or "",
             })
-        _history.append_rows(args.csv, items)
-        eprint(f"appended {len(items)} keyword rows to {args.csv}")
+        try:
+            n = _history.append_rows(args.csv, items)
+            eprint(f"appended {n} keyword rows to {args.csv}")
+        except Exception as e:  # noqa: BLE001 — history is a side effect; nothing
+            # it can raise (write failure, lock contention, an unexpected
+            # encoding/csv error) may cost the user the ranking report they
+            # actually asked for. history_failed still surfaces it via a
+            # distinct exit code once the report has printed, so a caller
+            # that specifically depends on history (track.sh) can tell —
+            # while an ad-hoc caller that only wants the report can ignore it.
+            eprint(f"note: could not write history to {args.csv} ({e}) — "
+                   f"continuing without it")
+            history_failed = True
 
     report = build_report(args.site, s_start, s_end, top_queries, top_pages,
                           kw_matches, perm_level, args.days, country=args.country,
@@ -582,6 +604,8 @@ def main():
     if args.out:
         Path(args.out).write_text(report)
         eprint(f"\nWrote {args.out}")
+    if history_failed:
+        sys.exit(4)
 
 
 if __name__ == "__main__":
