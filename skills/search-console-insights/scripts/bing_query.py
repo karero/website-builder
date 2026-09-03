@@ -43,9 +43,14 @@ API = "https://ssl.bing.com/webmaster/api.svc/json"
 class BingApiError(requests.RequestException):
     """A failed Bing call, with the API key already redacted from the message.
 
-    The original exception's request/response are deliberately NOT propagated:
-    both carry the keyed URL (`.url`), which would undo the redaction.
+    The original exception's request — and its response, when there is one —
+    are deliberately NOT propagated: both carry the keyed URL (`.url`), which
+    would undo the redaction. `status_code` is copied over on its own since a
+    bare number isn't sensitive and lets a caller branch on 4xx vs 5xx.
     """
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 # Striking distance = ranking on roughly page 1-2 but not yet Top 10.
@@ -94,7 +99,8 @@ def _fetch(endpoint, site, key):
         # future change in how requests encodes params can't quietly re-leak it.
         # Literal pattern on purpose — never build a regex from the key itself.
         msg = re.sub(r"(apikey=)[^&\s]+", r"\1<redacted>", msg, flags=re.IGNORECASE)
-        err = BingApiError(f"{type(e).__name__}: {msg}")
+        err = BingApiError(f"{type(e).__name__}: {msg}",
+                           status_code=getattr(e.response, "status_code", None))
     else:
         return r.json().get("d", []) or []
     raise err  # deliberate: outside the except block, see docstring
