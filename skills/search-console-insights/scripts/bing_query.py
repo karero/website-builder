@@ -26,6 +26,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 from _lang_normalize import fold
 
@@ -56,12 +57,34 @@ def pct(x):
     return f"{x * 100:.1f}%"
 
 
+def _fetch(endpoint, site, key):
+    """GET one Bing endpoint and return the rows under the `d` node.
+
+    The API key travels as a query parameter, so every `requests` error message
+    (HTTPError, ConnectionError, Timeout, ...) embeds the request URL WITH the key.
+    Callers print those messages to stderr, and the scheduled runs redirect stderr
+    into a log file — so redact the key here, once, before anyone can print it.
+    The redacted error is raised OUTSIDE the except block on purpose: that way
+    neither __cause__ nor __context__ keeps the unredacted original alive.
+    """
+    try:
+        r = requests.get(f"{API}/{endpoint}",
+                         params={"apikey": key, "siteUrl": site}, timeout=30)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        msg = str(e)
+        if key:
+            msg = msg.replace(key, "<redacted>")
+            msg = msg.replace(quote(key, safe=""), "<redacted>")  # URL-encoded form
+        err = RuntimeError(f"{type(e).__name__}: {msg}")
+    else:
+        return r.json().get("d", []) or []
+    raise err
+
+
 def get_query_stats(site, key):
     """GetQueryStats → normalized rows. Bing wraps the list under the `d` node."""
-    r = requests.get(f"{API}/GetQueryStats",
-                     params={"apikey": key, "siteUrl": site}, timeout=30)
-    r.raise_for_status()
-    rows = r.json().get("d", []) or []
+    rows = _fetch("GetQueryStats", site, key)
     # Bing can return MORE than one row per query (observed live — e.g. per-date or
     # per-market buckets), so fold to one row per query: sum clicks/impressions and
     # impression-weight the average position (matches how GSC aggregates a period).
@@ -101,10 +124,7 @@ def fmt(rows, limit=20, key="query", label="Query"):
 def get_page_stats(site, key):
     """GetPageStats — Bing reuses the QueryStats schema, so the PAGE URL lives in the
     `Query` field (Page/Url come back null). Aggregate by URL like get_query_stats."""
-    r = requests.get(f"{API}/GetPageStats",
-                     params={"apikey": key, "siteUrl": site}, timeout=30)
-    r.raise_for_status()
-    rows = r.json().get("d", []) or []
+    rows = _fetch("GetPageStats", site, key)
     agg = {}
     for it in rows:
         url = it.get("Query", "")  # the URL is in Query for GetPageStats
