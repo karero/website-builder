@@ -39,6 +39,7 @@ def keyed_400(key):
     r.status_code = 400
     r.reason = "Bad Request"
     r.url = prepared.url
+    r.request = prepared  # as requests does; .url on it is keyed too
     return r
 
 
@@ -78,10 +79,9 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
         self.assertNotIn("s3cret", str(err))
 
     def test_an_encoding_we_do_not_predict_is_still_caught(self):
-        # Exercises the structural `apikey=...` pass: the key is percent-encoded
-        # character by character, so neither the raw key nor its quote_plus form
-        # appears for the other replaces to find. Stands in for a future requests
-        # that encodes params differently — why that pass is there at all.
+        # Exercises the structural `apikey=...` pass on its own: the key is
+        # percent-encoded character by character, so neither the raw key nor its
+        # quote_plus form appears for the other replaces to find.
         exotic = "".join(f"%{ord(c):02x}" for c in KEY)
         boom = requests.ConnectionError(
             f"Max retries exceeded with url: /GetQueryStats?apikey={exotic}&siteUrl=x")
@@ -107,15 +107,18 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
     def test_transport_failure_is_redacted_too(self):
         # No response at all, so a different branch: the message comes from
         # urllib3 and still quotes the keyed URL.
+        # Spaced key on purpose: its quote_plus form differs from the raw key, so
+        # this also covers the encoded spelling landing at the end of the message.
         boom = requests.ConnectionError(
             f"HTTPSConnectionPool(host='ssl.bing.com', port=443): Max retries exceeded "
-            f"with url: /webmaster/api.svc/json/GetQueryStats?apikey={quote_plus(KEY)}")
+            f"with url: /webmaster/api.svc/json/GetQueryStats?apikey={quote_plus(SPACED_KEY)}")
 
         def raising_get(*a, **k):
             raise boom
 
-        err = error_from(KEY, raising_get)
-        self.assertNotIn(KEY, str(err))
+        err = error_from(SPACED_KEY, raising_get)
+        self.assertNotIn(quote_plus(SPACED_KEY), str(err))
+        self.assertNotIn("s3cret", str(err))
         self.assertIsNone(err.status_code)
 
     def test_nothing_chains_the_unredacted_original(self):
