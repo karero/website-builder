@@ -24,6 +24,7 @@ Dependencies: requests (see ../requirements.txt)
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -40,7 +41,11 @@ API = "https://ssl.bing.com/webmaster/api.svc/json"
 
 
 class BingApiError(requests.RequestException):
-    """A failed Bing call, with the API key already redacted from the message."""
+    """A failed Bing call, with the API key already redacted from the message.
+
+    The original exception's request/response are deliberately NOT propagated:
+    both carry the keyed URL (`.url`), which would undo the redaction.
+    """
 
 
 # Striking distance = ranking on roughly page 1-2 but not yet Top 10.
@@ -66,8 +71,9 @@ def pct(x):
 def _fetch(endpoint, site, key):
     """GET one Bing endpoint and return the rows under the `d` node.
 
-    The API key travels as a query parameter, so every `requests` error message
-    (HTTPError, ConnectionError, Timeout, ...) embeds the request URL WITH the key.
+    The API key travels as a query parameter, so most `requests` error messages
+    (HTTPError, ConnectionError, ...) embed the request URL WITH the key; the rest
+    embed nothing sensitive, and redaction is a no-op on them.
     Callers print those messages to stderr, and the scheduled runs redirect stderr
     into a log file — so redact the key here, once, before anyone can print it.
     The redacted error is raised OUTSIDE the except block on purpose: that way
@@ -84,10 +90,14 @@ def _fetch(endpoint, site, key):
             msg = msg.replace(key, "<redacted>")
             # requests encodes params with quote_plus (space → "+"), so match that
             msg = msg.replace(quote_plus(key), "<redacted>")
+        # Belt and braces: also blank the apikey= query value structurally, so a
+        # future change in how requests encodes params can't quietly re-leak it.
+        # Literal pattern on purpose — never build a regex from the key itself.
+        msg = re.sub(r"(apikey=)[^&\s]+", r"\1<redacted>", msg, flags=re.IGNORECASE)
         err = BingApiError(f"{type(e).__name__}: {msg}")
     else:
         return r.json().get("d", []) or []
-    raise err
+    raise err  # deliberate: outside the except block, see docstring
 
 
 def get_query_stats(site, key):
