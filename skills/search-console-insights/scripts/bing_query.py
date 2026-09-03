@@ -26,7 +26,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote_plus
 
 from _lang_normalize import fold
 
@@ -37,6 +37,12 @@ except ImportError:
     sys.exit(2)
 
 API = "https://ssl.bing.com/webmaster/api.svc/json"
+
+
+class BingApiError(requests.RequestException):
+    """A failed Bing call, with the API key already redacted from the message."""
+
+
 # Striking distance = ranking on roughly page 1-2 but not yet Top 10.
 STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
 # Same rationale as gsc_query.py: an average position over a handful of
@@ -65,7 +71,8 @@ def _fetch(endpoint, site, key):
     Callers print those messages to stderr, and the scheduled runs redirect stderr
     into a log file — so redact the key here, once, before anyone can print it.
     The redacted error is raised OUTSIDE the except block on purpose: that way
-    neither __cause__ nor __context__ keeps the unredacted original alive.
+    neither __cause__ nor __context__ keeps the unredacted original alive
+    (`raise ... from None` inside the handler would still keep it in __context__).
     """
     try:
         r = requests.get(f"{API}/{endpoint}",
@@ -75,8 +82,9 @@ def _fetch(endpoint, site, key):
         msg = str(e)
         if key:
             msg = msg.replace(key, "<redacted>")
-            msg = msg.replace(quote(key, safe=""), "<redacted>")  # URL-encoded form
-        err = RuntimeError(f"{type(e).__name__}: {msg}")
+            # requests encodes params with quote_plus (space → "+"), so match that
+            msg = msg.replace(quote_plus(key), "<redacted>")
+        err = BingApiError(f"{type(e).__name__}: {msg}")
     else:
         return r.json().get("d", []) or []
     raise err
