@@ -48,6 +48,24 @@ case "$cmd" in
     label="$(label_for "$domain")"
     plist="$(plist_for "$domain")"
     log="$LOG_DIR/$(sanitize "$domain").log"
+    # Per-site settings travel in the plist's environment: GSC_HISTORY_CSV (this
+    # site's own history file) and GSC_COUNTRY (market filter). Take them from the
+    # caller's environment; otherwise keep what THIS domain's existing plist already
+    # carries. Re-installing (to add a keyword, say) used to rewrite the plist
+    # without them, so a site whose history lived in its own file silently went
+    # back to the shared default -- one trend split across two files.
+    hist="${GSC_HISTORY_CSV:-}"; country="${GSC_COUNTRY:-}"
+    if [ -f "$plist" ] && [ "$(plutil -extract ProgramArguments.2 raw -o - "$plist" 2>/dev/null || true)" = "$domain" ]; then
+      [ -n "$hist" ] || hist="$(plutil -extract EnvironmentVariables.GSC_HISTORY_CSV raw -o - "$plist" 2>/dev/null || true)"
+      [ -n "$country" ] || country="$(plutil -extract EnvironmentVariables.GSC_COUNTRY raw -o - "$plist" 2>/dev/null || true)"
+    fi
+    env_block=""
+    if [ -n "$hist" ] || [ -n "$country" ]; then
+      env_block="  <key>EnvironmentVariables</key>"$'\n'"  <dict>"$'\n'
+      [ -n "$hist" ] && env_block+="    <key>GSC_HISTORY_CSV</key><string>$hist</string>"$'\n'
+      [ -n "$country" ] && env_block+="    <key>GSC_COUNTRY</key><string>$country</string>"$'\n'
+      env_block+="  </dict>"
+    fi
     cat > "$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -69,6 +87,7 @@ case "$cmd" in
   <key>StandardOutPath</key><string>$log</string>
   <key>StandardErrorPath</key><string>$log</string>
   <key>RunAtLoad</key><false/>
+${env_block}
 </dict></plist>
 PLIST
     # Reload idempotently. bootout/bootstrap is the modern path; fall back to load/unload.
@@ -77,6 +96,8 @@ PLIST
     echo "✓ Weekly tracking scheduled for $domain — weekday $weekday at ${hour}:00."
     echo "  label : $label"
     echo "  log   : $log"
+    echo "  history: ${hist:-$HOME/.config/gsc-insights/history.csv (shared default)}"
+    [ -n "$country" ] && echo "  country: $country"
     echo "  test now:  bash \"$DIR/track.sh\" \"$domain\" \"$keywords\""
     ;;
   remove)

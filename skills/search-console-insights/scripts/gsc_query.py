@@ -38,7 +38,7 @@ import os
 import sys
 from pathlib import Path
 
-from _lang_normalize import fold
+from _lang_normalize import fold, match_rank
 
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 DEFAULT_TOKEN = Path.home() / ".config" / "gsc-insights" / "token.json"
@@ -182,7 +182,9 @@ def match_keywords(query_rows, keywords):
     Tokens and rows are folded (casefold + German ä/ö/ü/ß) so 'AI Treffen
     München' matches GSC rows spelled 'ai treffen muenchen' and vice versa —
     they are distinct query strings in GSC but the same searcher intent.
-    Returns list of (keyword, matched_rows_sorted_by_impressions).
+    Returns list of (keyword, matched_rows) with the best match first: the
+    exact phrase if reported, else the closest wording, then by impressions
+    (see match_rank() for why volume alone picked the wrong query).
     """
     results = []
     for kw in keywords:
@@ -191,7 +193,8 @@ def match_keywords(query_rows, keywords):
             r for r in query_rows
             if all(t in fold(r["keys"][0]) for t in tokens)
         ]
-        matched.sort(key=lambda r: r["impressions"], reverse=True)
+        matched.sort(key=lambda r: (match_rank(fold(r["keys"][0]), tokens),
+                                    -r["impressions"]))
         results.append((kw, matched))
     return results
 

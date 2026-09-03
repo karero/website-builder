@@ -347,9 +347,13 @@ key includes the window/country, so an ad-hoc pull at a *different* window than 
 
 ## Weekly auto-tracking (opt-in, per site) — ask, don't just mention
 
-German-market sites: export `GSC_COUNTRY=deu` in the tracker's env file so the tracked
-history matches your ad-hoc `--country deu` reports — otherwise the trend is computed on
-blended-global numbers while your reports are market-filtered, and the two disagree.
+German-market sites: install with `GSC_COUNTRY=deu` in the environment (it lands in that
+site's launchd plist) so the tracked history matches your ad-hoc `--country deu` reports —
+otherwise the trend is computed on blended-global numbers while your reports are
+market-filtered, and the two disagree. The same goes for `GSC_HISTORY_CSV` if a site should
+keep its history in its own file (optional — the shared default file already keeps sites
+apart by a `site` column). Re-installing a site (to change keywords or the time) keeps both
+settings from its existing plist unless you override them; the install output prints them.
 
 **Check `bash scripts/schedule_tracking.sh status <site>` (macOS)** — first onboarding
 (references/onboarding.md Step 7) or any later ranking check on a site connected before this
@@ -373,7 +377,7 @@ bash scripts/schedule_tracking.sh list                  # everything scheduled (
 bash scripts/schedule_tracking.sh remove example.com
 ```
 
-Each job runs `track.sh` weekly (GSC + Bing → the shared history CSV → trend), logging to
+Each job runs `track.sh` weekly (GSC + Bing → the history CSV → trend), logging to
 `~/.config/gsc-insights/logs/<domain>.log`. A month later, *"is my ranking improving?"*
 answers from real data instead of a single snapshot.
 

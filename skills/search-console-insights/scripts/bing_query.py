@@ -27,7 +27,7 @@ import os
 import sys
 from pathlib import Path
 
-from _lang_normalize import fold
+from _lang_normalize import fold, match_rank
 
 try:
     import requests
@@ -128,12 +128,14 @@ def get_page_stats(site, key):
 
 def match_keywords(rows, keywords):
     """Substring (token-AND, folded) match — mirrors gsc_query.py, incl. the
-    German umlaut/ß folding ('München' matches rows spelled 'muenchen')."""
+    German umlaut/ß folding ('München' matches rows spelled 'muenchen') and
+    the best-match order (exact phrase, then closest wording, then volume —
+    see match_rank())."""
     res = []
     for kw in keywords:
         toks = [t for t in fold(kw).split() if t]
         m = [r for r in rows if all(t in fold(r["query"]) for t in toks)]
-        m.sort(key=lambda r: r["impressions"], reverse=True)
+        m.sort(key=lambda r: (match_rank(fold(r["query"]), toks), -r["impressions"]))
         res.append((kw, m))
     return res
 
