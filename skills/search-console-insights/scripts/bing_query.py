@@ -24,8 +24,10 @@ Dependencies: requests (see ../requirements.txt)
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from _history import NOISE_IMPRESSIONS
 from _lang_normalize import match_keywords as _match_keywords
@@ -37,6 +39,21 @@ except ImportError:
     sys.exit(2)
 
 API = "https://ssl.bing.com/webmaster/api.svc/json"
+
+
+class BingApiError(requests.RequestException):
+    """A failed Bing call, with the API key already redacted from the message.
+
+    The original exception's request — and its response, when there is one —
+    are deliberately NOT propagated: both carry the keyed URL (`.url`), which
+    would undo the redaction. `status_code` is copied over on its own since a
+    bare number isn't sensitive and lets a caller branch on 4xx vs 5xx.
+    """
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
 # Striking distance = ranking on roughly page 1-2 but not yet Top 10.
 STRIKING_MIN, STRIKING_MAX = 8.0, 20.0
 # Same rationale as gsc_query.py: an average position over a handful of
@@ -57,12 +74,42 @@ def pct(x):
     return f"{x * 100:.1f}%"
 
 
+def _fetch(endpoint, site, key):
+    """GET one Bing endpoint and return the rows under the `d` node.
+
+    The API key travels as a query parameter, so most `requests` error messages
+    (HTTPError, ConnectionError, ...) embed the request URL WITH the key; the rest
+    embed nothing sensitive, and redaction is a no-op on them.
+    Callers print those messages to stderr, and the scheduled runs redirect stderr
+    into a log file — so redact the key here, once, before anyone can print it.
+    The redacted error is raised OUTSIDE the except block on purpose: that way
+    neither __cause__ nor __context__ keeps the unredacted original alive
+    (`raise ... from None` inside the handler would still keep it in __context__).
+    """
+    try:
+        r = requests.get(f"{API}/{endpoint}",
+                         params={"apikey": key, "siteUrl": site}, timeout=30)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        msg = str(e)
+        if key:
+            msg = msg.replace(key, "<redacted>")
+            # requests encodes params with quote_plus (space → "+"), so match that
+            msg = msg.replace(quote_plus(key), "<redacted>")
+        # Belt and braces: also blank the apikey= query value structurally, so a
+        # future change in how requests encodes params can't quietly re-leak it.
+        # Literal pattern on purpose — never build a regex from the key itself.
+        msg = re.sub(r"(apikey=)[^&\s]+", r"\1<redacted>", msg, flags=re.IGNORECASE)
+        err = BingApiError(f"{type(e).__name__}: {msg}",
+                           status_code=getattr(e.response, "status_code", None))
+    else:
+        return r.json().get("d", []) or []
+    raise err  # deliberate: outside the except block, see docstring
+
+
 def get_query_stats(site, key):
     """GetQueryStats → normalized rows. Bing wraps the list under the `d` node."""
-    r = requests.get(f"{API}/GetQueryStats",
-                     params={"apikey": key, "siteUrl": site}, timeout=30)
-    r.raise_for_status()
-    rows = r.json().get("d", []) or []
+    rows = _fetch("GetQueryStats", site, key)
     # Bing can return MORE than one row per query (observed live — e.g. per-date or
     # per-market buckets), so fold to one row per query: sum clicks/impressions and
     # impression-weight the average position (matches how GSC aggregates a period).
@@ -102,10 +149,7 @@ def fmt(rows, limit=20, key="query", label="Query"):
 def get_page_stats(site, key):
     """GetPageStats — Bing reuses the QueryStats schema, so the PAGE URL lives in the
     `Query` field (Page/Url come back null). Aggregate by URL like get_query_stats."""
-    r = requests.get(f"{API}/GetPageStats",
-                     params={"apikey": key, "siteUrl": site}, timeout=30)
-    r.raise_for_status()
-    rows = r.json().get("d", []) or []
+    rows = _fetch("GetPageStats", site, key)
     agg = {}
     for it in rows:
         url = it.get("Query", "")  # the URL is in Query for GetPageStats
