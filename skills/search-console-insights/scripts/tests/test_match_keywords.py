@@ -58,6 +58,7 @@ class BestMatch(unittest.TestCase):
         self.assertEqual(best("Event Kalender", ("eventkalender muenchen", 40)),
                          ["eventkalender muenchen"])
         self.assertEqual(best("KI Events München", ("kino events muenchen", 40)), [])
+        self.assertEqual(best("KI", ("kino programm", 40)), [])
 
     def test_no_match_reports_empty(self):
         self.assertEqual(best("AI Treffen München", ("ai events munich", 50)), [])

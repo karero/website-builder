@@ -76,8 +76,10 @@ def match_keywords(rows, keywords, text_of, min_impressions):
         ranked = []
         for r in rows:
             words = words_of(text_of(r))
+            # The solid form only means something for a multi-word keyword;
+            # for one word it would just re-open the short-word loophole.
             if not (all(any(word_matches(w, t) for w in words) for t in tokens)
-                    or any(w.startswith(solid) for w in words)):
+                    or (len(tokens) > 1 and any(w.startswith(solid) for w in words))):
                 continue
             impressions = r["impressions"]
             exact = sorted(words) == sorted(tokens)
