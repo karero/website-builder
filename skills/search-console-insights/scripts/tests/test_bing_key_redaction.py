@@ -8,8 +8,9 @@ written to disk. Observed live 2026-09-03: one 400 for an unregistered site put
 the real key in that log.
 
 Scope: `_fetch`, where the redaction happens, reached through `get_query_stats`.
-Every caller downstream of it prints whatever it raises, so guarding the message
-here covers them all.
+That covers every caller which prints only the raised error — which is all of them
+today. The message is not the sole carrier, so the error's attached response and
+request are checked too.
 
 Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tests
 """
@@ -30,11 +31,14 @@ SPACED_KEY = "s3cret key value"  # a pasted key that kept a space, which 400s an
 SITE = "https://example.com"
 
 
-def keyed_400(key):
-    """A 400 whose URL is built by requests' own encoder, so the fixture tracks
-    however requests really spells the key rather than a guess that can drift."""
-    prepared = requests.Request("GET", f"{bing_query.API}/GetQueryStats",
-                                params={"apikey": key, "siteUrl": SITE}).prepare()
+def keyed_400(*args, **kwargs):
+    """A 400 built from the request production actually made — the stub hands its
+    own arguments straight here, so the URL under test is the one
+    `get_query_stats` really constructs, encoded by requests itself. Fabricating
+    it here instead would only ever prove redaction works on this file's idea of
+    the URL, and would stay green through a parameter rename."""
+    prepared = requests.Request("GET", args[0] if args else kwargs["url"],
+                                params=kwargs.get("params")).prepare()
     r = requests.Response()
     r.status_code = 400
     r.reason = "Bad Request"
@@ -65,8 +69,17 @@ def error_from(key, get):
 
 
 class KeyNeverReachesTheMessage(unittest.TestCase):
+    def assertCarriesNothingKeyed(self, err):
+        """The checks that must hold on every branch, not just the one tested:
+        nothing chains the unredacted original, and no keyed URL rides along on
+        an attached response or request."""
+        self.assertIsNone(err.__cause__)
+        self.assertIsNone(err.__context__)
+        self.assertIsNone(err.response)
+        self.assertIsNone(err.request)
+
     def test_http_error_text_carries_no_key(self):
-        err = error_from(KEY, lambda *a, **k: keyed_400(KEY))
+        err = error_from(KEY, keyed_400)
         self.assertNotIn(KEY, str(err))
         self.assertIn("apikey=<redacted>", str(err))
 
@@ -74,7 +87,7 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
         # requests encodes params with quote_plus, so a space reaches the URL as
         # "+", not "%20". Matching only the raw key or the quote() form missed it
         # and wrote the key to the log — the bug the first review round caught.
-        err = error_from(SPACED_KEY, lambda *a, **k: keyed_400(SPACED_KEY))
+        err = error_from(SPACED_KEY, keyed_400)
         self.assertNotIn(quote_plus(SPACED_KEY), str(err))
         self.assertNotIn("s3cret", str(err))
 
@@ -120,29 +133,26 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
         self.assertNotIn(quote_plus(SPACED_KEY), str(err))
         self.assertNotIn("s3cret", str(err))
         self.assertIsNone(err.status_code)
+        # Same guarantees as the HTTP branch: one raise serves both today, and if
+        # that is ever split, this branch is held to the same standard.
+        self.assertCarriesNothingKeyed(err)
 
-    def test_nothing_chains_the_unredacted_original(self):
-        # _fetch builds the error inside `except` but raises it OUTSIDE, so the
-        # original — whose message still holds the key — is never attached.
-        # Moving that raise back inside, even as `raise ... from None`, leaves the
-        # original on __context__: hidden from the printed traceback, still
-        # reachable by anything that walks the chain. Nothing else would fail.
-        err = error_from(KEY, lambda *a, **k: keyed_400(KEY))
-        self.assertIsNone(err.__cause__)
-        self.assertIsNone(err.__context__)
-
-    def test_the_keyed_response_and_request_are_not_carried(self):
-        # Both hold the keyed URL on `.url`, so attaching either would hand the
-        # key straight back to any caller that looked — with the message itself
-        # still clean, and every assertion above still green.
-        err = error_from(KEY, lambda *a, **k: keyed_400(KEY))
-        self.assertIsNone(err.response)
-        self.assertIsNone(err.request)
+    def test_nothing_keyed_rides_along_with_the_error(self):
+        # Two ways the key escapes a clean message. _fetch builds the error inside
+        # `except` but raises it OUTSIDE, so the original — whose message still
+        # holds the key — is never chained; moving that raise back inside, even as
+        # `raise ... from None`, leaves it on __context__, hidden from the printed
+        # traceback but reachable by anything walking the chain. And the response
+        # and request both carry the keyed URL on `.url`, so attaching either
+        # hands the key straight to a caller that looks, with the message itself
+        # still clean and every other assertion here still green.
+        err = error_from(KEY, keyed_400)
+        self.assertCarriesNothingKeyed(err)
 
     def test_status_code_still_reaches_the_caller(self):
         # The response itself is dropped, so the bare number is copied across on
         # purpose — a caller branching on 4xx vs 5xx has nothing else left to read.
-        err = error_from(KEY, lambda *a, **k: keyed_400(KEY))
+        err = error_from(KEY, keyed_400)
         self.assertEqual(err.status_code, 400)
 
 
