@@ -3,7 +3,7 @@
 The key travels as a query parameter, so `requests` puts it in the URL it quotes
 back in every transport error. `bing_query` prints those messages to stderr, and
 the weekly launchd jobs redirect stderr into
-`~/.config/gsc-insights/logs/<domain>.log` — so anything reaching a message is
+`~/.config/gsc-insights/logs/<domain-with-dots-as-dashes>.log` — so anything reaching a message is
 written to disk. Observed live 2026-09-03: one 400 for an unregistered site put
 the real key in that log.
 

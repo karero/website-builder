@@ -4,7 +4,7 @@ Quick single-pass review (requested scope, not the full blocking multi-round gat
 
 ## Artifact
 `skills/new-website/templates/astro/tests/images.spec.ts` — adds a rendered-vs-declared
-aspect-ratio check to the images test, porting a fix that shipped live on genai-wednesday.de
+aspect-ratio check to the images test, porting a fix that shipped live on a real site built with this kit
 (a squished circular logo caused by CSS setting only one of width/height, no object-fit).
 
 ## Reviewers run

@@ -117,7 +117,4 @@ for a fourth. The judgment against it: what carries the weight here is the mutat
 table, not the rounds. Every invariant has been shown to fail when the source is
 broken in the specific way it guards against, which is stronger evidence than another
 opinion, and round 3's own CLEAN list arrived at that table independently. A fourth
-round would most likely return more of what round 3's declined nits already were. What carries the weight here is not the
-review rounds but the mutation table — every invariant has been shown to fail when
-the source is broken in the specific way the test claims to guard against, which is
-the only evidence that separates a real guard from a green run.
+round would most likely return more of what round 3's declined nits already were.
