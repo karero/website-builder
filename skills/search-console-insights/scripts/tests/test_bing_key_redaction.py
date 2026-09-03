@@ -1,11 +1,15 @@
 """The Bing API key must never survive into an error message.
 
-The key travels as a query parameter, so `requests` puts it in the URL it
-quotes back in every transport error. `bing_query` and `insights` both print
-those messages to stderr, and the weekly launchd jobs redirect stderr into
+The key travels as a query parameter, so `requests` puts it in the URL it quotes
+back in every transport error. `bing_query` prints those messages to stderr, and
+the weekly launchd jobs redirect stderr into
 `~/.config/gsc-insights/logs/<domain>.log` — so anything reaching a message is
 written to disk. Observed live 2026-09-03: one 400 for an unregistered site put
 the real key in that log.
+
+Scope: `_fetch`, where the redaction happens, reached through `get_query_stats`.
+Every caller downstream of it prints whatever it raises, so guarding the message
+here covers them all.
 
 Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tests
 """
@@ -27,23 +31,34 @@ SITE = "https://example.com"
 
 
 def keyed_400(key):
-    """A real 400 Response carrying the URL requests would have built for `key`,
-    so the text under test is the genuine message and not an imitation of it."""
+    """A 400 whose URL is built by requests' own encoder, so the fixture tracks
+    however requests really spells the key rather than a guess that can drift."""
+    prepared = requests.Request("GET", f"{bing_query.API}/GetQueryStats",
+                                params={"apikey": key, "siteUrl": SITE}).prepare()
     r = requests.Response()
     r.status_code = 400
     r.reason = "Bad Request"
-    r.url = (f"{bing_query.API}/GetQueryStats"
-             f"?apikey={quote_plus(key)}&siteUrl={quote_plus(SITE)}")
+    r.url = prepared.url
     return r
 
 
 def error_from(key, get):
-    """Call the real code path with `requests.get` stubbed out, and hand back
-    the error it raised. No network, no key ever leaving this process."""
-    with mock.patch.object(bing_query.requests, "get", get):
+    """Call the real code path with `requests.get` stubbed out, and hand back the
+    error it raised. Insists the stub was reached: if the code is ever refactored
+    onto another transport, this fails loudly instead of quietly reaching the
+    network and passing anyway."""
+    reached = []
+
+    def stub(*a, **k):
+        reached.append(1)
+        return get(*a, **k)
+
+    with mock.patch.object(bing_query.requests, "get", stub):
         try:
             bing_query.get_query_stats(SITE, key)
         except requests.RequestException as e:
+            if not reached:
+                raise AssertionError("the stubbed transport was never called")
             return e
     raise AssertionError("the call was expected to fail, but returned")
 
@@ -59,15 +74,14 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
         # "+", not "%20". Matching only the raw key or the quote() form missed it
         # and wrote the key to the log — the bug the first review round caught.
         err = error_from(SPACED_KEY, lambda *a, **k: keyed_400(SPACED_KEY))
-        self.assertNotIn(SPACED_KEY, str(err))
         self.assertNotIn(quote_plus(SPACED_KEY), str(err))
         self.assertNotIn("s3cret", str(err))
 
     def test_an_encoding_we_do_not_predict_is_still_caught(self):
-        # Only the structural `apikey=...` pass can catch this one: the key is
-        # percent-encoded character by character, so neither the raw key nor its
-        # quote_plus form appears. Stands in for a future requests/urllib3 that
-        # encodes params differently — the reason that pass exists at all.
+        # Exercises the structural `apikey=...` pass: the key is percent-encoded
+        # character by character, so neither the raw key nor its quote_plus form
+        # appears for the other replaces to find. Stands in for a future requests
+        # that encodes params differently — why that pass is there at all.
         exotic = "".join(f"%{ord(c):02x}" for c in KEY)
         boom = requests.ConnectionError(
             f"Max retries exceeded with url: /GetQueryStats?apikey={exotic}&siteUrl=x")
@@ -79,9 +93,9 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
         self.assertNotIn(exotic, str(err))
 
     def test_the_key_is_caught_outside_an_apikey_parameter(self):
-        # And only the plain key replace can catch this one: the key is quoted
-        # without the `apikey=` prefix the structural pass keys on. Stands in for
-        # any message shape that repeats the value somewhere else.
+        # Exercises the plain key replace: the key is quoted without the `apikey=`
+        # prefix the structural pass keys on. Stands in for any message shape that
+        # repeats the value somewhere else.
         boom = requests.ConnectionError(f"Tunnel connection failed, sent token {KEY}")
 
         def raising_get(*a, **k):
@@ -102,6 +116,7 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
 
         err = error_from(KEY, raising_get)
         self.assertNotIn(KEY, str(err))
+        self.assertIsNone(err.status_code)
 
     def test_nothing_chains_the_unredacted_original(self):
         # _fetch builds the error inside `except` but raises it OUTSIDE, so the
@@ -113,13 +128,19 @@ class KeyNeverReachesTheMessage(unittest.TestCase):
         self.assertIsNone(err.__cause__)
         self.assertIsNone(err.__context__)
 
+    def test_the_keyed_response_and_request_are_not_carried(self):
+        # Both hold the keyed URL on `.url`, so attaching either would hand the
+        # key straight back to any caller that looked — with the message itself
+        # still clean, and every assertion above still green.
+        err = error_from(KEY, lambda *a, **k: keyed_400(KEY))
+        self.assertIsNone(err.response)
+        self.assertIsNone(err.request)
+
     def test_status_code_still_reaches_the_caller(self):
-        # The response itself is dropped (its .url is keyed), so the bare number
-        # is copied across on purpose — a caller branching on 4xx vs 5xx has
-        # nothing else left to read.
+        # The response itself is dropped, so the bare number is copied across on
+        # purpose — a caller branching on 4xx vs 5xx has nothing else left to read.
         err = error_from(KEY, lambda *a, **k: keyed_400(KEY))
         self.assertEqual(err.status_code, 400)
-        self.assertIsInstance(err, requests.RequestException)
 
 
 if __name__ == "__main__":
