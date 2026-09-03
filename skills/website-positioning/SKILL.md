@@ -108,6 +108,8 @@ genuinely term-free page, add it to `POSITIONING_EXEMPT`.
 
 ## Boundaries (do not duplicate)
 
+- **Quick fresh-eyes check of an existing site** → `website-positioning-check`
+  (read-only diagnostic; come back here to rework the spine if it finds a problem).
 - **Tone of voice, EEAT, page copy** → `website-content-guide` (reads this file).
 - **Keyword / SERP research** → `seo-audit`. Positioning leads; keywords follow and
   must not bend the spine into stuffing.
