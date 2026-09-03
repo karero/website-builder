@@ -19,7 +19,9 @@ Owns the **how it says it** layer of a new site: tone of voice and EEAT signals,
 captured in the per-site docs that everything downstream reads. **Positioning**
 (what you offer, for whom, the market category) is owned by `website-positioning`
 and worked out first; this guide reads it from `POSITIONING.md` and must stay
-consistent with it — it does not redefine it.
+consistent with it — it does not redefine it. A quick "does this still read
+clearly to a stranger" check on an already-built site is `website-positioning-check`,
+not this guide — it's a read-only diagnostic, not a voice/EEAT audit.
 
 ## Outputs
 

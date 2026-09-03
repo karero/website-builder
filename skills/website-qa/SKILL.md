@@ -57,7 +57,8 @@ cosmetics; red → green → commit.
   in the body. Hermetic string containment, not a density check (the `website-positioning`
   spine). Empty map = green from commit 1. Also **warns (without failing)** when a `PAGES`
   route has no entry and isn't in `POSITIONING_EXEMPT` — an un-positioned content page is a
-  lost opportunity, surfaced rather than silent.
+  lost opportunity, surfaced rather than silent. This is a mechanical string check, not a
+  judgment read — for "does the offer actually read clearly", see `website-positioning-check`.
 - `email.spec.ts` — no plaintext (harvestable) email address in the served HTML
   (addresses go through `<EmailLink>`, which obfuscates; the `website-design-system` rule).
 - `links.spec.ts` — offline outgoing-link guard: no `STALE_DOMAINS` (domains you've
