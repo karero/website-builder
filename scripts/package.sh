@@ -53,7 +53,6 @@ REQUIRED=(
   docs/CODEX.md
   docs/CODEX-TEST.md
   skills/new-website/SKILL.md
-  skills/website-positioning-check/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
   skills/new-website/templates/PUBLISHING.md
 )

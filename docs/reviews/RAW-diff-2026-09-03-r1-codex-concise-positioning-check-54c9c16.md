@@ -1,0 +1,31 @@
+# RAW — kimi-k3:cloud via ollama_review.sh --diff, 2026-09-03, artifact origin/main...54c9c16
+
+## RANKED FINDINGS
+
+1. **[RISK]** `skills/website-positioning-check/SKILL.md` — §Inspect, step 1 ("`npm run build` writes only the gitignored `dist/`, so it is not an edit") — stated as a universal fact, but many real builds write more (pre/postbuild hooks, generated files under `src/`, `.astro`/`.next`/`.cache` dirs, sitemap/feed injection), and the build may require `npm install`, which can mutate lockfiles — this silently breaks the skill's headline "Read-only" guarantee that the rest of the doc leans on. Fix: qualify it ("writes to ignored output on a standard scaffold; check `package.json` scripts and run `git status` before/after — if the tree isn't clean, say so and stop editing by default"), or make live-URL/source reading the default and build opt-in.
+
+2. **[BUG]** `README.md` (skills/ tree, "website-* siblings (run in order)" line) vs `skills/new-website/SKILL.md` (§"Sibling skills (run in order…)") — the two canonical docs now state different run orders (README: content-guide → design-system → seo-geo; SKILL.md and the `cp` block: content-guide → seo-geo → design-system), so at least one is factually wrong right now; README also lists `permissions` as in-order while SKILL.md expressly keeps it outside the chain ("Plus … website-permissions"). Predates the diff, but this diff re-edited that exact README clause without fixing it. Fix: make README mirror SKILL.md's order and move `permissions` out of the ordered list (or drop "(run in order)" from README).
+
+3. **[RISK]** `skills/new-website/SKILL.md` ("twenty-two always-on skills") — only this one count was bumped 21→22; any other enumeration of the skill set/count (docs, `docs/CODEX.md`, specs like a skills/structure test, plugin/marketplace manifests, install/copy hooks) is now stale or failing, and the diff shows no test or grep evidence that 22 is true repo-wide. Fix: search for "twenty-one", "21 ", and any per-skill lists outside this file; update them or derive the count from a single source (e.g., a generator or a spec that asserts the set).
+
+4. **[RISK]** `skills/website-positioning/SKILL.md` §Boundaries — reciprocity is one-directional: only `website-positioning` points to the new skill, while `website-review`, `website-qa`, and `website-content-guide` (whose triggers plausibly overlap "fresh eyes on the homepage" / "does the site make sense to a stranger") are unchanged, so routing still depends solely on positioning-check's own "Do not use" clause winning the match. Fix: add reciprocal boundary lines ("quick read-only positioning check → `website-positioning-check`") to those skills' Boundaries/descriptions.
+
+5. **[NIT]** `scripts/package.sh` REQUIRED — adding only `skills/website-positioning-check/SKILL.md` makes the membership criterion ambiguous: the list doesn't include any other `website-*` skill's SKILL.md, so it's neither a per-skill existence check nor a documented sentinel set. Fix: state the criterion in a comment, or loop over `skills/*/SKILL.md` instead of hand-picking.
+
+6. **[NIT]** `skills/website-positioning-check/SKILL.md` — "Return exactly this shape" vs "Omit the Core line when no replacement is needed" — "exactly" overclaims given the explicitly optional section. Fix: "Return this shape, omitting Core line when no replacement is needed."
+
+7. **[NIT]** `skills/website-positioning-check/SKILL.md` §Inspect, step 1 — the fallback chain is npm/Astro/Next-centric (`npm run build` → `dist/` → `src/pages/`); Hugo (`public/`/`content/`), Jekyll (`_site/`), or plain-HTML sites dead-end at step 1. Fix: genericize the final fallback ("read the highest-level page source: `src/pages`, `app/`, `content/`, or the site's `*.html`").
+
+8. **[NIT]** `skills/new-website/SKILL.md` §"Skills travel with the repo" — "The always-on set is … the optional `website-positioning-check` …" puts the word "optional" inside the always-on enumeration before the always-copied≠always-run definition lands, so it reads self-contradictory on first pass. Fix: reorder the definition earlier or write "plus `website-positioning-check` (optional to run, always copied)".
+
+## CHECKED — CLEAN
+
+- **Path/name agreement:** frontmatter `name: website-positioning-check` == directory `skills/website-positioning-check/` == package.sh REQUIRED entry == `cp -RL` target — all four spellings identical; REQUIRED points at a file this diff creates (no dangling reference).
+- **Count arithmetic:** 21→22 is consistent with exactly one skill added to the always-on enumeration and the copy list; the visible enumeration delta is +1 and matches (no double-count or missing +1 within the shown text).
+- **Pipeline placement:** positioning-check is kept out of every "run in order" list (README places it after a semicolon; SKILL.md places it after the chain), consistent with "it is not a pipeline gate" in all three docs.
+- **"seven core website-* siblings" wording:** correctly disambiguates the chain from the other two website-* skills (`website-permissions`, `website-positioning-check`) that aren't run in order — avoids an off-by-one in the enumeration.
+- **Division-of-labor reciprocity (the pair that was edited):** positioning-check's negative triggers (not website-positioning/copywriting/SEO-audit/website-review) match website-positioning's new boundary bullet, including the "rework the spine here" handback.
+- **Internal consistency of the new skill:** Inspect step 2's "CTA target missing → make that the Primary blur" matches the **Broken** verdict's "main CTA leads nowhere"; the 300-word cap is reconciled with the six labeled fields (labels explicitly excluded); "Core line" omission is explicitly permitted (though see nit 6 on "exactly").
+- **Handoff chain:** positioning-check → `website-positioning` (source of truth) → `copywriting` → tests + `website-review` mirrors the sibling responsibilities as described in `new-website/SKILL.md`.
+- **README clause:** the added text does not alter the existing bundled-deps grouping and doesn't re-add positioning-check elsewhere (no duplicate listing).
+- **New file frontmatter:** well-formed YAML (`description: >` folded block), no tabs, no missing required `name`/`description` keys, name matches directory convention.

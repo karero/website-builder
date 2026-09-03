@@ -31,9 +31,11 @@ Read like an unfamiliar visitor before adopting the site's internal vocabulary.
 Inspect, in this order:
 
 1. **The rendered homepage.** A live URL if the user gives one. Otherwise build
-   the site (`npm run build` writes only the gitignored `dist/`, so it is not an
-   edit) and read `dist/index.html`. If you cannot build, read `src/pages/`. Do
-   not trust a `dist/` you did not just build — it may be stale.
+   the site and read the built homepage (`dist/index.html` on a kit-built site;
+   there `npm run build` writes only gitignored output). Confirm with
+   `git status` that the tree is still clean afterwards; if it is not, say so.
+   If you cannot build, read the homepage source (`src/pages/` on a kit site).
+   Do not trust a build you did not just make — it may be stale.
 2. **The primary offer page** — the services, product, or offer page the
    homepage's main CTA leads to. Follow it even when it leaves the site (a
    repo, an app store, a booking tool): the offer is wherever the CTA goes. If
@@ -79,7 +81,7 @@ Distinguish observation from inference where it changes the advice; do not label
 every sentence. Flag missing evidence; never invent it. Bold copy may be good.
 Unsupported certainty is not.
 
-## Return exactly this shape
+## Return this shape
 
 **Verdict:** Clear / Blurred / Broken
 
