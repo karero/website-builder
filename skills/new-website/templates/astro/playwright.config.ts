@@ -1,6 +1,19 @@
 import { defineConfig, devices } from '@playwright/test';
+import { SITE } from './src/config';
 
-const PORT = 4329;
+// One preview port per site, derived from SITE.url, so two sites on the same machine
+// never test against each other's server. Deliberately stable (same site → same
+// port) rather than random: the port appears in baseURL and in error messages.
+// Range 4300–4999. FNV-1a, 32-bit.
+function portFor(key: string): number {
+  let h = 2166136261;
+  for (const ch of key) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return 4300 + (h % 700);
+}
+const PORT = portFor(SITE.url);
 const BASE = `http://localhost:${PORT}`;
 
 // Tests run against a PRODUCTION build served by `astro preview` — the same static
@@ -17,7 +30,12 @@ export default defineConfig({
     command: `npm run build && npm run preview -- --port ${PORT}`,
     url: `${BASE}/`,
     timeout: 120_000,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse a server that already holds the port. Reusing skips the build and
+    // runs the tests against whatever is listening — a stale build of this site, or an
+    // orphaned preview of another one (seen live: a leftover `astro preview` held the
+    // shared port for two days and a second site's tests passed against its build).
+    // "Port already in use" is the honest outcome: stop the stale preview and re-run.
+    reuseExistingServer: false,
     // Astro >=7.2's `astro preview` auto-daemonizes when it detects an AI coding
     // agent as its caller (isRunByAgent()), even without --background — the launcher
     // process then exits immediately and Playwright reports "exited early" even
