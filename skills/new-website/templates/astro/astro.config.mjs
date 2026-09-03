@@ -18,6 +18,10 @@ export default defineConfig({
     format: 'file',                 // emit /about.html → Cloudflare Pages serves it at /about (no slash)
     inlineStylesheets: 'always',    // drop the render-blocking CSS request (LCP)
   },
+  // The test suite's preview must fail if its port is taken, not slide to the next free
+  // one (Vite's default): Playwright would then wait on the wrong port and report a
+  // timeout instead of the real cause. See webServer in playwright.config.ts.
+  vite: { preview: { strictPort: true } },
   integrations: [
     // No lastmod: stamping build time on every URL tells crawlers all pages changed
     // when none did. /404 needs no filter — @astrojs/sitemap excludes status-code
