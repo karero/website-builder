@@ -28,6 +28,10 @@ site_country_set="${GSC_COUNTRY+set}"; site_country="${GSC_COUNTRY:-}"
 [ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
 [ -n "$site_csv_set" ] && GSC_HISTORY_CSV="$site_csv"
 [ -n "$site_country_set" ] && GSC_COUNTRY="$site_country"
+# An empty value means "none": drop it so the Python scripts (which read
+# os.environ.get with a default) never see "" as a file name or a country.
+[ -n "${GSC_HISTORY_CSV:-}" ] || unset GSC_HISTORY_CSV
+[ -n "${GSC_COUNTRY:-}" ] || unset GSC_COUNTRY
 CSV="${GSC_HISTORY_CSV:-$HOME/.config/gsc-insights/history.csv}"
 
 # Exit 4 from either script means "the report/pull itself succeeded but the

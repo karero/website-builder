@@ -336,8 +336,8 @@ compared side has under 10 impressions (noise), `‡` = the tracked window or co
 filter changed between runs, or the earlier row predates the config columns (both
 recorded in the CSV, so the trend flags its own config breaks; only a move between
 two pre-schema runs leaves no record to flag). The best-matching query for a keyword is
-chosen so: queries with enough impressions to trust (10+, the `~` floor) come first; among
-equals the exact phrase beats a variant; then volume decides. The first run after that rule
+chosen so: queries with enough impressions to trust (10+, the `~` floor) come first; on the
+same side of that floor the exact phrase beats a variant; then volume decides. The first run after that rule
 changed (2026-09-03) may show `≠` on keywords whose tracked query moved: a redefinition,
 not a rank move. The first run just seeds the history —
 re-run **every 1–2 weeks** to watch the needle, or see "Weekly auto-tracking" below to stop
@@ -352,8 +352,10 @@ key includes the window/country, so an ad-hoc pull at a *different* window than 
 ## Weekly auto-tracking (opt-in, per site) — ask, don't just mention
 
 German-market sites: install with `GSC_COUNTRY=deu` in the environment. It is stored in
-that site's launchd plist and wins over anything in `~/.config/gsc-insights/.env` (if you
-once put `GSC_COUNTRY` or `GSC_HISTORY_CSV` there, remove them — `.env` is for API keys).
+that site's launchd plist and wins over anything in `~/.config/gsc-insights/.env`. Keep
+`.env` for API keys: a `GSC_HISTORY_CSV` there would redirect every ad-hoc run, so remove
+it; a `GSC_COUNTRY` there is harmless for scheduled runs now but does nothing for ad-hoc
+reports — those take `--country` explicitly.
 Without it the trend is computed on blended-global numbers while your reports are
 market-filtered, and the two disagree. `GSC_HISTORY_CSV` works the same way if a site must
 keep its history in its own file, but prefer the shared default: it already keeps sites

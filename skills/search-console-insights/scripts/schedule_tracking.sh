@@ -62,7 +62,7 @@ case "$cmd" in
     # the plist without them, so a site whose history lived in its own file silently
     # went back to the shared default -- one trend split across two files. Domains
     # are case-insensitive, and so is the "is this the same site" check; the
-    # sanitize() collision case ("a.b-c.com" vs "a-b.c.com") still refuses.
+    # sanitize() collision case ("a.b-c.com" vs "a-b.c.com") carries nothing over.
     if [ "$(lower "$(plist_domain "$plist")")" = "$(lower "$domain")" ]; then
       [ -n "${GSC_HISTORY_CSV+set}" ] || GSC_HISTORY_CSV="$(plist_env "$plist" GSC_HISTORY_CSV)"
       [ -n "${GSC_COUNTRY+set}" ] || GSC_COUNTRY="$(plist_env "$plist" GSC_COUNTRY)"
@@ -104,7 +104,8 @@ PLIST
     echo "  log   : $log"
     echo "  history: ${hist:-(shared default file)}"
     echo "  country: ${country:-(none — blended global numbers)}"
-    echo "  test now:  bash \"$DIR/track.sh\" \"$domain\" \"$keywords\""
+    # Same environment the job gets, so a hand run lands in the same history file.
+    echo "  test now:  GSC_HISTORY_CSV=\"$hist\" GSC_COUNTRY=\"$country\" bash \"$DIR/track.sh\" \"$domain\" \"$keywords\""
     ;;
   remove)
     domain="${1:?domain required}"
