@@ -32,6 +32,10 @@ import os
 import re
 import sys
 
+# Under this many impressions a compared side is noise: the trend marks the move
+# `~`, and the keyword matcher won't headline such a row over a trustworthy one.
+NOISE_IMPRESSIONS = 10
+
 FIELDS = ["date", "site", "source", "keyword", "query", "position", "impressions",
           "clicks", "window", "country"]
 # The two header shapes this tool has ever written, oldest first -- each one
@@ -263,9 +267,9 @@ def print_trend(csv_path):
         imprs = [i for i in (_impr(r) for r in (now, prev)
                              if r is not None and _pos(r) is not None)
                  if i is not None]
-        if prev is not None and imprs and min(imprs) < 10:
+        if prev is not None and imprs and min(imprs) < NOISE_IMPRESSIONS:
             move += " ~"
-            legend["~"] = ("~ a compared side has under 10 impressions — "
+            legend["~"] = (f"~ a compared side has under {NOISE_IMPRESSIONS} impressions — "
                            "movement is noise at this volume")
         cfg_now = (now.get("window") or "", now.get("country") or "")
         cfg_prev = (((prev or {}).get("window")) or "", ((prev or {}).get("country")) or "")

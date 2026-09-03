@@ -1,4 +1,5 @@
-"""Shared language normalization for keyword matching (gsc_query, bing_query).
+"""Shared keyword matching for gsc_query and bing_query: how a reported query
+is matched to a target keyword, and which match stands for the keyword.
 
 German searchers type both umlaut and ASCII forms ("münchen" and "muenchen",
 "fußball" and "fussball") and GSC/Bing report them as DISTINCT query strings —
@@ -9,6 +10,7 @@ str.casefold() already maps ß→ss; the umlaut→digraph mapping is German
 orthography (ä→ae, ö→oe, ü→ue), applied after casefold.
 """
 
+import re
 import unicodedata
 
 _FOLD = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue"})
@@ -26,22 +28,51 @@ def fold(s: str) -> str:
     return unicodedata.normalize("NFC", s).casefold().translate(_FOLD)
 
 
-def match_rank(folded_query: str, tokens: list) -> tuple:
-    """Sort key for the queries that matched one target keyword: lower is a
-    better "best match". Pair it with -impressions as the tie-breaker.
+def words_of(s: str) -> list:
+    """Folded words, split on anything that isn't a letter or digit — so the
+    hyphenated compound "ki-events" yields the same words as "ki events"."""
+    return re.findall(r"[^\W_]+", fold(s))
 
-    Ranking by impressions alone let an 8-impression, fifteen-word query
-    ("german ai tech industry meetups munich berlin hamburg ...") beat the
-    exact phrase "ai events munich" (3 impressions) as the reported position
-    for the keyword -- and the history then tracked that long-tail query, for
-    two different keywords at once (seen live, 2026-09-03). The keyword IS the
-    question the owner asked, so:
-      1. the exact phrase, when Google/Bing reported it, is the answer;
-      2. otherwise the query with the fewest extra words is closest to that
-         intent ("ai events in munich" over a sentence that merely contains
-         the tokens);
-      3. only then does volume decide.
+
+def match_keywords(rows, keywords, text_of, min_impressions):
+    """Match each target keyword against reported query rows.
+
+    A row matches when every word of the keyword starts some word of the
+    query, so 'AI Events Munich' also catches 'ai events in munich' and
+    'ai event' catches 'ai events'. Whole-word prefixes, not substrings:
+    the earlier substring rule let 'ai' match inside 'main' and 'train'.
+
+    Returns [(keyword, matched_rows)] with the best match first. That first
+    row is what the report quotes and the history tracks, so the order is the
+    whole point:
+      1. rows with at least min_impressions come before thinner ones — the
+         trend's own noise floor (a compared side under it earns the `~`
+         marker), so the headline is never a row the tracker calls noise
+         when a trustworthy one exists;
+      2. among those, the keyword itself (same words, any order) beats a
+         variant: it is literally the question the owner asked;
+      3. then impressions decide — the wording people actually type.
+    Volume alone once let an 8-impression fifteen-word query outrank the
+    exact phrase (3 impressions), and the history tracked that long-tail
+    query under two keywords at once (2026-09-03). Exactness alone would
+    flip a keyword between a 2-impression exact row and a 300-impression
+    variant whenever GSC's anonymisation drops the thin row for a week; the
+    floor keeps the tracked query stable.
     """
-    words = folded_query.split()
-    exact = words == tokens
-    return (0 if exact else 1, max(len(words) - len(tokens), 0))
+    results = []
+    for kw in keywords:
+        tokens = words_of(kw)
+        if not tokens:
+            results.append((kw, []))
+            continue
+        ranked = []
+        for r in rows:
+            words = words_of(text_of(r))
+            if not all(any(w.startswith(t) for w in words) for t in tokens):
+                continue
+            impressions = r["impressions"]
+            exact = sorted(words) == sorted(tokens)
+            ranked.append(((impressions < min_impressions, not exact, -impressions), r))
+        ranked.sort(key=lambda x: x[0])
+        results.append((kw, [r for _, r in ranked]))
+    return results

@@ -16,10 +16,14 @@ DOMAIN="${1:?domain required (e.g. example.com)}"
 KEYWORDS="${2:?keywords required (comma-separated)}"
 
 [ -x "$PY" ] || { echo "✗ venv missing at $PY — see SKILL.md setup"; exit 1; }
+# Per-site settings arrive in the environment from the site's launchd plist
+# (schedule_tracking.sh install). The shared .env holds API keys; sourcing it
+# with `set -a` would overwrite those per-site values with any stale global
+# ones, so hold them across the source and put them back: per-site beats global.
+site_csv="${GSC_HISTORY_CSV:-}"; site_country="${GSC_COUNTRY:-}"
 [ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
-# Resolved AFTER sourcing .env, so a GSC_HISTORY_CSV set there (the natural
-# place for it, alongside every other env var this tool uses) actually takes
-# effect for scheduled runs -- not just ad-hoc python invocations.
+GSC_HISTORY_CSV="${site_csv:-${GSC_HISTORY_CSV:-}}"
+GSC_COUNTRY="${site_country:-${GSC_COUNTRY:-}}"
 CSV="${GSC_HISTORY_CSV:-$HOME/.config/gsc-insights/history.csv}"
 
 # Exit 4 from either script means "the report/pull itself succeeded but the

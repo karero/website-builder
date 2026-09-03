@@ -76,8 +76,8 @@ Claude session, they just ask:
   - *"track my rankings automatically / every week"* (offers to schedule it, per site)
 
 **Default behavior (agent):** for the slash command or a general "where do I rank" ask,
-source the env file first, same as `track.sh` does, so `BING_API_KEY`/`GSC_HISTORY_CSV`/etc.
-are actually picked up (`insights.py` reads plain `os.environ` — it does not source the file
+source the env file first, same as `track.sh` does, so `BING_API_KEY`/`SERPER_API_KEY` are
+actually picked up (`insights.py` reads plain `os.environ` — it does not source the file
 itself), then run the **combined** view:
 ```bash
 [ -f ~/.config/gsc-insights/.env ] && { set -a; . ~/.config/gsc-insights/.env; set +a; }
@@ -335,7 +335,10 @@ aren't real rank changes: `≠` = the best-matching query changed between runs, 
 compared side has under 10 impressions (noise), `‡` = the tracked window or country
 filter changed between runs, or the earlier row predates the config columns (both
 recorded in the CSV, so the trend flags its own config breaks; only a move between
-two pre-schema runs leaves no record to flag). The first run just seeds the history —
+two pre-schema runs leaves no record to flag). The best-matching query for a keyword is
+the exact phrase when it has enough impressions to trust, else the highest-volume
+variant — so the first run after that rule changed (2026-09-03) may show `≠` on keywords
+whose tracked query moved: a redefinition, not a rank move. The first run just seeds the history —
 re-run **every 1–2 weeks** to watch the needle, or see "Weekly auto-tracking" below to stop
 relying on remembering. (Every query script — `gsc_query.py`, `bing_query.py`,
 `insights.py` — appends to the history CSV **by default** now whenever `--keywords` is set,
@@ -347,13 +350,16 @@ key includes the window/country, so an ad-hoc pull at a *different* window than 
 
 ## Weekly auto-tracking (opt-in, per site) — ask, don't just mention
 
-German-market sites: install with `GSC_COUNTRY=deu` in the environment (it lands in that
-site's launchd plist) so the tracked history matches your ad-hoc `--country deu` reports —
-otherwise the trend is computed on blended-global numbers while your reports are
-market-filtered, and the two disagree. The same goes for `GSC_HISTORY_CSV` if a site should
-keep its history in its own file (optional — the shared default file already keeps sites
-apart by a `site` column). Re-installing a site (to change keywords or the time) keeps both
-settings from its existing plist unless you override them; the install output prints them.
+German-market sites: install with `GSC_COUNTRY=deu` in the environment. It is stored in
+that site's launchd plist and wins over anything in `~/.config/gsc-insights/.env` (if you
+once put `GSC_COUNTRY` or `GSC_HISTORY_CSV` there, remove them — `.env` is for API keys).
+Without it the trend is computed on blended-global numbers while your reports are
+market-filtered, and the two disagree. `GSC_HISTORY_CSV` works the same way if a site must
+keep its history in its own file, but prefer the shared default: it already keeps sites
+apart by a `site` column, and ad-hoc runs don't read the plist, so a per-site file splits
+that site's history between the file the job writes and the file `insights.py` writes.
+Re-installing a site (to change keywords or the time) carries both settings over from its
+existing plist; set one to an empty value to clear it. The install output prints both.
 
 **Check `bash scripts/schedule_tracking.sh status <site>` (macOS)** — first onboarding
 (references/onboarding.md Step 7) or any later ranking check on a site connected before this

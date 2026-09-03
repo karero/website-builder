@@ -27,7 +27,8 @@ import os
 import sys
 from pathlib import Path
 
-from _lang_normalize import fold, match_rank
+from _history import NOISE_IMPRESSIONS
+from _lang_normalize import match_keywords as _match_keywords
 
 try:
     import requests
@@ -127,17 +128,9 @@ def get_page_stats(site, key):
 
 
 def match_keywords(rows, keywords):
-    """Substring (token-AND, folded) match — mirrors gsc_query.py, incl. the
-    German umlaut/ß folding ('München' matches rows spelled 'muenchen') and
-    the best-match order (exact phrase, then closest wording, then volume —
-    see match_rank())."""
-    res = []
-    for kw in keywords:
-        toks = [t for t in fold(kw).split() if t]
-        m = [r for r in rows if all(t in fold(r["query"]) for t in toks)]
-        m.sort(key=lambda r: (match_rank(fold(r["query"]), toks), -r["impressions"]))
-        res.append((kw, m))
-    return res
+    """[(keyword, matched_rows)], best match first — the one matcher shared
+    with gsc_query.py (see _lang_normalize), same trend noise floor."""
+    return _match_keywords(rows, keywords, lambda r: r["query"], NOISE_IMPRESSIONS)
 
 
 def build_report(site, rows, kw_matches, page_rows=None):
@@ -202,8 +195,12 @@ def build_report(site, rows, kw_matches, page_rows=None):
             continue
         b = m[0]
         L.append(f"- **{kw}** — `{b['query']}`: avg position **{b['position']:.1f}**, "
-                 f"{int(b['impressions'])} impr, {int(b['clicks'])} clicks, CTR {pct(b['ctr'])}"
-                 + (f" _(+{len(m) - 1} related)_" if len(m) > 1 else ""))
+                 f"{int(b['impressions'])} impr, {int(b['clicks'])} clicks, CTR {pct(b['ctr'])}")
+        for r in m[1:3]:  # runners-up, so the pick can be checked at a glance
+            L.append(f"  - also `{r['query']}`: position {r['position']:.1f}, "
+                     f"{int(r['impressions'])} impr")
+        if len(m) > 3:
+            L.append(f"  - _+{len(m) - 3} more variants_")
     L.append("")
 
     in_range = [r for r in rows
