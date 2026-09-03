@@ -2,7 +2,8 @@
 # schedule_tracking.sh — opt-in WEEKLY trend tracking via launchd (macOS).
 #
 # Runs track.sh on a schedule (GSC + Bing → history CSV → trend), logging to
-# ~/.config/gsc-insights/logs/<domain>.log, so the trend data accumulates unattended
+# ~/.config/gsc-insights/logs/<domain>.log (dots become dashes: example-com.log), so the
+# trend data accumulates unattended
 # and "is my ranking improving?" always has real week-over-week history to answer from.
 #
 # One LaunchAgent PER SITE — the user chooses which sites to schedule and can remove
@@ -145,7 +146,7 @@ PLIST
     fi
     ;;
   *)
-    echo "usage: schedule_tracking.sh install <domain> \"<keywords>\" [weekday 1-7] [hour 0-23]"
+    echo "usage: schedule_tracking.sh install <domain> \"<keywords>\" [weekday 0-7] [hour 0-23]"
     echo "       schedule_tracking.sh remove <domain>"
     echo "       schedule_tracking.sh list"
     echo "       schedule_tracking.sh status <domain>"

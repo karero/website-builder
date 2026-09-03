@@ -31,7 +31,7 @@ catches what a test suite can't — cross-file drift and half-done work.
   nav, the sitemap, internal links and canonical, so consistency can silently break.
 - It is **read-only**: produce a ranked list, then fix BUGs before launch. Don't
   fix-and-forget — surface first (Rule 12: never hide a skipped or broken thing).
-- For just "is the offer clear to a stranger" on a site that's already live —
+- For just "is the offer clear to a stranger" on a site that's already built —
   faster and narrower than this full audit — use `website-positioning-check`.
 
 ## Review depth — the owner chooses, every time

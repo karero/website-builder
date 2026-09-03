@@ -34,3 +34,6 @@ pending owner. Fixes are docs/prompt-only and were not re-sent — same stop rul
 2026-08-29 trail: a round with no behavior-level BUG/RISK closes on local verification.
 Validators after fixes: `check_clean`, `check_model_agnostic`, `check_skill_budgets`,
 `check_template_coverage` all OK.
+
+Addendum: the owner reversed the K4 waiver; the reciprocal pointers were implemented in
+PR #96.

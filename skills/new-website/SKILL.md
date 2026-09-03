@@ -40,8 +40,9 @@ Sibling skills (run in order, each usable on its own):
 `website-positioning` · `website-content-guide` · `website-seo-geo` ·
 `website-design-system` · `website-testimonials` · `website-qa` ·
 `website-review`. `website-positioning-check` is an optional, read-only one-screen
-diagnostic after positioning or whenever the offer starts to feel blurred; it is not a
-pipeline gate. Plus `outgoing-link-audit` — the pre-launch / monthly external-link
+diagnostic for a site that already has pages — run it after the build, or whenever the
+offer starts to feel blurred; it is not a pipeline gate. Plus `outgoing-link-audit` — the
+pre-launch / monthly external-link
 liveness sweep (only relevant once the site links out); `internal-link-audit` — the
 internal-linking sweep that finds orphaned + thin pages and suggests where to cross-link
 (run after adding a batch of pages); `website-permissions` — install + safely extend the
@@ -260,7 +261,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    necessarily always **run**: `business-listings-setup` travels with every repo but
    only executes when §4a's gate says the site is a claimable entity — it still needs
    to be in the repo so a later session can run it once that's true. The always-on set is the
-   seven core `website-*` siblings, the optional `website-positioning-check`,
+   seven core `website-*` siblings, `website-positioning-check` (always copied, optional to run),
    the three SEO-depth skills they delegate to — `ai-seo`, `schema-markup`,
    `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,

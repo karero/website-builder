@@ -53,8 +53,8 @@ near-empty, **say so honestly** — data accrues over days; that's not a failure
 ### Step 6 — THEN teach them how to use it (SKILL.md's "Once connected"). Don't skip this.
 
 ### Step 7 — Ask about weekly tracking, for THIS site specifically
-Every ad-hoc run now quietly builds position history on its own (Phase 1 auto-appends
-to the history CSV), but that still only happens when someone remembers to ask. On
+Every ad-hoc run now quietly builds position history on its own (every query script
+auto-appends to the history CSV), but that still only happens when someone remembers to ask. On
 macOS, check `bash scripts/schedule_tracking.sh status <site>` (exact match for this
 one domain — not `list`, whose sanitized labels can collide between different domains);
 on Linux there's nothing to query (no systemd/cron integration here), so just ask
