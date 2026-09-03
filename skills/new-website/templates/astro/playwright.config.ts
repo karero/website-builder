@@ -4,14 +4,14 @@ import { SITE } from './src/config';
 // One preview port per site, derived from SITE.url, so two sites on the same machine
 // never test against each other's server. Deliberately stable (same site → same
 // port) rather than random: the port appears in baseURL and in error messages.
-// Range 4300–4999. FNV-1a, 32-bit.
+// Range 4330–4999, which leaves out 4321 (`astro dev`'s default). FNV-1a, 32-bit.
 function portFor(key: string): number {
   let h = 2166136261;
   for (const ch of key) {
     h ^= ch.charCodeAt(0);
     h = Math.imul(h, 16777619) >>> 0;
   }
-  return 4300 + (h % 700);
+  return 4330 + (h % 670);
 }
 const PORT = portFor(SITE.url);
 const BASE = `http://localhost:${PORT}`;
@@ -33,8 +33,13 @@ export default defineConfig({
     // Never reuse a server that already holds the port. Reusing skips the build and
     // runs the tests against whatever is listening — a stale build of this site, or an
     // orphaned preview of another one (seen live: a leftover `astro preview` held the
-    // shared port for two days and a second site's tests passed against its build).
-    // "Port already in use" is the honest outcome: stop the stale preview and re-run.
+    // then-shared port for two days and a second site's tests passed against its build).
+    // The honest outcome is Playwright's "<url> is already used, make sure that nothing
+    // is running on the port/url or set reuseExistingServer:true": stop the stale
+    // preview and re-run — do NOT take the message's second suggestion, that is the
+    // silent-reuse bug this line exists to prevent. (A non-HTTP squatter is caught by
+    // `strictPort` in astro.config.mjs instead: the preview refuses to start and this
+    // run fails with "Process from config.webServer was not able to start".)
     reuseExistingServer: false,
     // Astro >=7.2's `astro preview` auto-daemonizes when it detects an AI coding
     // agent as its caller (isRunByAgent()), even without --background — the launcher
