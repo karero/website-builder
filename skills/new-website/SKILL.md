@@ -39,7 +39,9 @@ Everything needed is bundled here:
 Sibling skills (run in order, each usable on its own):
 `website-positioning` · `website-content-guide` · `website-seo-geo` ·
 `website-design-system` · `website-testimonials` · `website-qa` ·
-`website-review`. Plus `outgoing-link-audit` — the pre-launch / monthly external-link
+`website-review`. `website-positioning-check` is an optional, read-only one-screen
+diagnostic after positioning or whenever the offer starts to feel blurred; it is not a
+pipeline gate. Plus `outgoing-link-audit` — the pre-launch / monthly external-link
 liveness sweep (only relevant once the site links out); `internal-link-audit` — the
 internal-linking sweep that finds orphaned + thin pages and suggests where to cross-link
 (run after adding a batch of pages); `website-permissions` — install + safely extend the
@@ -252,14 +254,15 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the twenty-one always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-two always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
    only executes when §4a's gate says the site is a claimable entity — it still needs
-   to be in the repo so a later session can run it once that's true. The always-on set is the seven
-   `website-*` siblings, the three SEO-depth skills they delegate to —
-   `ai-seo`, `schema-markup`, `seo-audit` — `site-architecture` (IA), the three
+   to be in the repo so a later session can run it once that's true. The always-on set is the
+   seven core `website-*` siblings, the optional `website-positioning-check`,
+   the three SEO-depth skills they delegate to — `ai-seo`, `schema-markup`,
+   `seo-audit` — `site-architecture` (IA), the three
    marketing skills the pipeline delegates to — `customer-research`, `copywriting`,
    `image` — plus `outgoing-link-audit` (external link sweep), `internal-link-audit`
    (orphan/thin-page sweep), `og-images` (per-page share cards),
@@ -275,6 +278,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```bash
    mkdir -p "$PROJECT_SKILLS_DIR"
    cp -RL "$SKILLS_ROOT"/website-positioning \
+         "$SKILLS_ROOT"/website-positioning-check \
          "$SKILLS_ROOT"/website-content-guide \
          "$SKILLS_ROOT"/website-seo-geo \
          "$SKILLS_ROOT"/website-design-system \
