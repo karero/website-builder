@@ -17,13 +17,17 @@ KEYWORDS="${2:?keywords required (comma-separated)}"
 
 [ -x "$PY" ] || { echo "✗ venv missing at $PY — see SKILL.md setup"; exit 1; }
 # Per-site settings arrive in the environment from the site's launchd plist
-# (schedule_tracking.sh install). The shared .env holds API keys; sourcing it
-# with `set -a` would overwrite those per-site values with any stale global
-# ones, so hold them across the source and put them back: per-site beats global.
-site_csv="${GSC_HISTORY_CSV:-}"; site_country="${GSC_COUNTRY:-}"
+# (schedule_tracking.sh install writes both keys, an empty one meaning "none").
+# The shared .env holds API keys; sourcing it with `set -a` would overwrite
+# those per-site values with any stale global ones, so hold them across the
+# source and put them back. Set-ness, not non-emptiness, is what counts: a
+# site installed with an empty country must run unfiltered even if .env still
+# says deu. Unset (an ad-hoc run by hand) keeps the .env fallback.
+site_csv_set="${GSC_HISTORY_CSV+set}"; site_csv="${GSC_HISTORY_CSV:-}"
+site_country_set="${GSC_COUNTRY+set}"; site_country="${GSC_COUNTRY:-}"
 [ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
-GSC_HISTORY_CSV="${site_csv:-${GSC_HISTORY_CSV:-}}"
-GSC_COUNTRY="${site_country:-${GSC_COUNTRY:-}}"
+[ -n "$site_csv_set" ] && GSC_HISTORY_CSV="$site_csv"
+[ -n "$site_country_set" ] && GSC_COUNTRY="$site_country"
 CSV="${GSC_HISTORY_CSV:-$HOME/.config/gsc-insights/history.csv}"
 
 # Exit 4 from either script means "the report/pull itself succeeded but the

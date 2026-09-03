@@ -53,6 +53,12 @@ class BestMatch(unittest.TestCase):
         order = best("KI Events München", ("ki-events muenchen", 6))
         self.assertEqual(order, ["ki-events muenchen"])
 
+    def test_solid_german_compound_matches_but_short_words_need_a_whole_word(self):
+        # Germans write compounds solid; "ki" must still not catch "kino".
+        self.assertEqual(best("Event Kalender", ("eventkalender muenchen", 40)),
+                         ["eventkalender muenchen"])
+        self.assertEqual(best("KI Events München", ("kino events muenchen", 40)), [])
+
     def test_no_match_reports_empty(self):
         self.assertEqual(best("AI Treffen München", ("ai events munich", 50)), [])
 

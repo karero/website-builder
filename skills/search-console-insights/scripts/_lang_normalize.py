@@ -41,6 +41,10 @@ def match_keywords(rows, keywords, text_of, min_impressions):
     query, so 'AI Events Munich' also catches 'ai events in munich' and
     'ai event' catches 'ai events'. Whole-word prefixes, not substrings:
     the earlier substring rule let 'ai' match inside 'main' and 'train'.
+    Two exceptions keep German working: a one- or two-letter word must match
+    a whole word ('ki' must not catch 'kino'), and the keyword run together
+    also counts, because Germans write compounds solid ('Event Kalender'
+    catches 'eventkalender münchen').
 
     Returns [(keyword, matched_rows)] with the best match first. That first
     row is what the report quotes and the history tracks, so the order is the
@@ -59,16 +63,21 @@ def match_keywords(rows, keywords, text_of, min_impressions):
     variant whenever GSC's anonymisation drops the thin row for a week; the
     floor keeps the tracked query stable.
     """
+    def word_matches(w, t):
+        return w == t if len(t) <= 2 else w.startswith(t)
+
     results = []
     for kw in keywords:
         tokens = words_of(kw)
         if not tokens:
             results.append((kw, []))
             continue
+        solid = "".join(tokens)
         ranked = []
         for r in rows:
             words = words_of(text_of(r))
-            if not all(any(w.startswith(t) for w in words) for t in tokens):
+            if not (all(any(word_matches(w, t) for w in words) for t in tokens)
+                    or any(w.startswith(solid) for w in words)):
                 continue
             impressions = r["impressions"]
             exact = sorted(words) == sorted(tokens)

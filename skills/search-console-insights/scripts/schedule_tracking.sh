@@ -72,11 +72,11 @@ case "$cmd" in
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>$label</string>
+  <key>Label</key><string>$(xml_esc "$label")</string>
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>$DIR/track.sh</string>
+    <string>$(xml_esc "$DIR/track.sh")</string>
     <string>$(xml_esc "$domain")</string>
     <string>$(xml_esc "$keywords")</string>
   </array>
@@ -91,8 +91,8 @@ case "$cmd" in
     <key>Hour</key><integer>$hour</integer>
     <key>Minute</key><integer>0</integer>
   </dict>
-  <key>StandardOutPath</key><string>$log</string>
-  <key>StandardErrorPath</key><string>$log</string>
+  <key>StandardOutPath</key><string>$(xml_esc "$log")</string>
+  <key>StandardErrorPath</key><string>$(xml_esc "$log")</string>
   <key>RunAtLoad</key><false/>
 </dict></plist>
 PLIST

@@ -336,9 +336,10 @@ compared side has under 10 impressions (noise), `‡` = the tracked window or co
 filter changed between runs, or the earlier row predates the config columns (both
 recorded in the CSV, so the trend flags its own config breaks; only a move between
 two pre-schema runs leaves no record to flag). The best-matching query for a keyword is
-the exact phrase when it has enough impressions to trust, else the highest-volume
-variant — so the first run after that rule changed (2026-09-03) may show `≠` on keywords
-whose tracked query moved: a redefinition, not a rank move. The first run just seeds the history —
+chosen so: queries with enough impressions to trust (10+, the `~` floor) come first; among
+equals the exact phrase beats a variant; then volume decides. The first run after that rule
+changed (2026-09-03) may show `≠` on keywords whose tracked query moved: a redefinition,
+not a rank move. The first run just seeds the history —
 re-run **every 1–2 weeks** to watch the needle, or see "Weekly auto-tracking" below to stop
 relying on remembering. (Every query script — `gsc_query.py`, `bing_query.py`,
 `insights.py` — appends to the history CSV **by default** now whenever `--keywords` is set,
