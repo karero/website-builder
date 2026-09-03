@@ -38,7 +38,8 @@ import os
 import sys
 from pathlib import Path
 
-from _lang_normalize import fold
+from _history import NOISE_IMPRESSIONS
+from _lang_normalize import match_keywords as _match_keywords
 
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 DEFAULT_TOKEN = Path.home() / ".config" / "gsc-insights" / "token.json"
@@ -175,25 +176,11 @@ def fmt_rows(rows, dim_label, limit=20):
 
 
 def match_keywords(query_rows, keywords):
-    """Substring match each target keyword against query rows (folded).
-
-    A keyword like 'AI Events Munich' should also catch 'ai events in munich',
-    so we match on all whitespace-split tokens being present in the query.
-    Tokens and rows are folded (casefold + German ä/ö/ü/ß) so 'AI Treffen
-    München' matches GSC rows spelled 'ai treffen muenchen' and vice versa —
-    they are distinct query strings in GSC but the same searcher intent.
-    Returns list of (keyword, matched_rows_sorted_by_impressions).
-    """
-    results = []
-    for kw in keywords:
-        tokens = [t for t in fold(kw).split() if t]
-        matched = [
-            r for r in query_rows
-            if all(t in fold(r["keys"][0]) for t in tokens)
-        ]
-        matched.sort(key=lambda r: r["impressions"], reverse=True)
-        results.append((kw, matched))
-    return results
+    """[(keyword, matched_rows)], best match first — see _lang_normalize.
+    The floor is the trend's own: a row the tracker would flag as noise (`~`)
+    shouldn't be the headline over one it wouldn't."""
+    return _match_keywords(query_rows, keywords, lambda r: r["keys"][0],
+                           NOISE_IMPRESSIONS)
 
 
 def build_report(site, start, end, top_queries, top_pages, kw_matches,
@@ -366,9 +353,14 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
         L.append(f"- **{kw}** — best match `{best['keys'][0]}`: "
                  f"avg position **{best['position']:.1f}**, "
                  f"{int(best['impressions'])} impr, {int(best['clicks'])} clicks, "
-                 f"CTR {pct(best['ctr'])}"
-                 + (f" _(+{len(matched) - 1} related variants)_"
-                    if len(matched) > 1 else ""))
+                 f"CTR {pct(best['ctr'])}")
+        # Show the runners-up so the pick can be checked at a glance — a mis-pick
+        # was invisible when only the winner printed.
+        for r in matched[1:3]:
+            L.append(f"  - also `{r['keys'][0]}`: position {r['position']:.1f}, "
+                     f"{int(r['impressions'])} impr")
+        if len(matched) > 3:
+            L.append(f"  - _+{len(matched) - 3} more variants_")
     L.append("")
 
     # --- Striking distance -------------------------------------------------

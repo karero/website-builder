@@ -16,10 +16,22 @@ DOMAIN="${1:?domain required (e.g. example.com)}"
 KEYWORDS="${2:?keywords required (comma-separated)}"
 
 [ -x "$PY" ] || { echo "✗ venv missing at $PY — see SKILL.md setup"; exit 1; }
+# Per-site settings arrive in the environment from the site's launchd plist
+# (schedule_tracking.sh install writes both keys, an empty one meaning "none").
+# The shared .env holds API keys; sourcing it with `set -a` would overwrite
+# those per-site values with any stale global ones, so hold them across the
+# source and put them back. Set-ness, not non-emptiness, is what counts: a
+# site installed with an empty country must run unfiltered even if .env still
+# says deu. Unset (an ad-hoc run by hand) keeps the .env fallback.
+site_csv_set="${GSC_HISTORY_CSV+set}"; site_csv="${GSC_HISTORY_CSV:-}"
+site_country_set="${GSC_COUNTRY+set}"; site_country="${GSC_COUNTRY:-}"
 [ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
-# Resolved AFTER sourcing .env, so a GSC_HISTORY_CSV set there (the natural
-# place for it, alongside every other env var this tool uses) actually takes
-# effect for scheduled runs -- not just ad-hoc python invocations.
+[ -n "$site_csv_set" ] && GSC_HISTORY_CSV="$site_csv"
+[ -n "$site_country_set" ] && GSC_COUNTRY="$site_country"
+# An empty value means "none": drop it so the Python scripts (which read
+# os.environ.get with a default) never see "" as a file name or a country.
+[ -n "${GSC_HISTORY_CSV:-}" ] || unset GSC_HISTORY_CSV
+[ -n "${GSC_COUNTRY:-}" ] || unset GSC_COUNTRY
 CSV="${GSC_HISTORY_CSV:-$HOME/.config/gsc-insights/history.csv}"
 
 # Exit 4 from either script means "the report/pull itself succeeded but the
