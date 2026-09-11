@@ -15,7 +15,7 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## fail if the suite has personal data or credentials, independent-review names a concrete model, an astro template file is unbucketed, a skill exceeds its size budget, or an independent-review self-check fails (each script's header says what it checks)
+check:     ## fail if the suite has personal data or credentials, independent-review names a concrete model, an astro template file is unbucketed, a skill description exceeds its hard limit, or an independent-review self-check fails (each script's header says what it checks)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_model_agnostic.sh
 	@bash scripts/check_template_coverage.sh

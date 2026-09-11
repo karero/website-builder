@@ -7,8 +7,9 @@ fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/i
 [ -n "$fn" ] || { echo "FAIL: could not extract looks_like_review"; exit 1; }
 # eval must only ever see the function: if the extraction ran past its closing brace, it would run
 # the rest of the script (reviewer CLIs included).
-[ "$(printf '%s\n' "$fn" | tail -n 1)" = "}" ] && [ "$(printf '%s\n' "$fn" | wc -l)" -lt 120 ] \
-  || { echo "FAIL: extraction did not stop at looks_like_review's closing brace"; exit 1; }
+[ "$(printf '%s\n' "$fn" | tail -n 1)" = "}" ] \
+  && [ "$(printf '%s\n' "$fn" | grep -cE '^[A-Za-z_][A-Za-z0-9_]*\(\) *\{')" = 1 ] \
+  || { echo "FAIL: extraction did not stop at looks_like_review's own closing brace"; exit 1; }
 eval "$fn"
 fail=0
 check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
