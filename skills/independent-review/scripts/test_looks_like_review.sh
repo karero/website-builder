@@ -15,6 +15,11 @@ check accept "plain single finding" "1. RISK — c.rb:3 — z could break on nor
 check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
 1. BUG — a.rb:1 — x is wrong now.
 2. RISK — b.rb:2 — y breaks on normal change."
+check accept "clean verdict: no findings" "No findings."
+check accept "clean verdict: findings none" "Ranked findings: none."
+check accept "clean verdict: no BUG / RISK / NIT" "No BUG / RISK / NIT findings in this diff."
+check reject "empty output" ""
+check reject "unrelated output: a rate-limit error" "Error: 429 Too Many Requests: you have reached your weekly usage limit"
 check reject "bare refusal" "I cannot review this content."
 check reject "refusal disguised as a lone finding" "- BUG: I cannot review this file because it is too long."
 check reject "access refusal as a lone finding" "- BUG: I cannot access the file."
