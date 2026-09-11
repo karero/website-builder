@@ -17,8 +17,8 @@
 # thing that answered" isn't enough independence for a high-stakes planning
 # doc by default. This is advisory, not enforced: an explicit --first-success
 # on a plan is HONORED (stops after 1 reviewer), not overridden — a caller's
-# conscious choice for a lower-stakes plan. A stderr note fires either way
-# when a plan lands with <2 reviewers (see SUCCESS_COUNT below).
+# conscious choice for a lower-stakes plan. A note fires either way when a
+# plan — or a diff — lands with <2 reviewers (see report_round below).
 #
 # Exit 0 only means "≥1 reviewer produced output" — the VERDICT (unaddressed
 # BUG / unwaived RISK = gate FAIL) is enforced by the skill from the findings,
@@ -33,6 +33,11 @@
 # soft/recoverable signal, not a terminal FAIL. Same number, different
 # contract: this script drives its own internal cascade and never expects a
 # caller to treat its exit 4 as anything but final.
+#
+# A PARTIAL round is not hidden behind exit 0: every tier that was attempted
+# leaves a stdout section — its review, or "## Independent review — <tier> —
+# FAILED" quoting its error — and the run ends with one "reviewers:" line
+# (e.g. "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: …)").
 #
 # SECURITY. The preferred reviewer, `codex exec -s read-only`, runs in a GENUINE
 # read-only sandbox — model-generated shell commands cannot write to your repo.
@@ -295,8 +300,8 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 : >"$RAW_DIR/.write-probe" && rm -f -- "$RAW_DIR/.write-probe" || { printf 'RAW_DIR not writable: %s\n' "$RAW_DIR" >&2; exit 2; }
 # A REUSED caller-supplied RAW_DIR must not serve a previous run's partials to the
 # clerk. Cleared once, centrally: a tier can be skipped INSIDE its function or at
-# the dispatcher (`command -v ollama && …`), and a per-function rm misses the
-# latter. Checked: stale files surviving silently would defeat the point.
+# the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
+# misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR/codex.out" "$RAW_DIR/codex.err" "$RAW_DIR/agy.out" "$RAW_DIR/agy.err" "$RAW_DIR/ollama.out" "$RAW_DIR/ollama.err" \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 
@@ -346,7 +351,9 @@ looks_like_review() {
 }
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
-#     non-review output) / 3 (unavailable). Callers fall through on non-zero. ------
+#     non-review output) / 3 (unavailable). Callers fall through on non-zero. A
+#     tier returning 1 sets WHY to a short reason for its FAILED section (see
+#     attempt() below). ------
 # PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort as
 # the daily-driver default) and ~/.codex/auth.json; `exec -s read-only` gives a GENUINE
 # read-only sandbox — its shell commands can't touch your repo. The binary may not be
@@ -372,9 +379,9 @@ run_codex() {
     # content is never re-parsed for $()/backticks by bash on expansion,
     # verified empirically, so that class of attack doesn't apply here.
     case "$CODEX_MODEL" in
-      *'"'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal double-quote — cannot safely pass it to codex's -c model=... config value. Remove the quote." >&2; return 1 ;;
-      *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; return 1 ;;
-      *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; return 1 ;;
+      *'"'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal double-quote — cannot safely pass it to codex's -c model=... config value. Remove the quote." >&2; WHY="CODEX_MODEL rejected: contains a double-quote"; return 1 ;;
+      *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; WHY="CODEX_MODEL rejected: contains a newline"; return 1 ;;
+      *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; WHY="CODEX_MODEL rejected: contains a backslash"; return 1 ;;
     esac
     "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   else
@@ -390,12 +397,12 @@ run_codex() {
       echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" failed (exit $rc) — full stderr: $RAW_DIR/codex.err" >&2
       tail -20 "$RAW_DIR/codex.err" >&2 2>/dev/null
     fi
-    return 1
+    why_cli $rc; return 1
   fi
   local out; out="$(cat "$RAW_DIR/codex.out")"
   if ! looks_like_review "$out"; then
     [ -n "${CODEX_MODEL:-}" ] && echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" ran but returned non-review output" >&2
-    return 1
+    WHY="$NOT_A_REVIEW"; return 1
   fi
   # ^model[[:space:]]*= (not bare ^model): config.toml also has a
   # model_reasoning_effort key, which a bare ^model prefix match also catches —
@@ -429,9 +436,9 @@ run_agy() {
     ( cd "$sbox" && agy --sandbox -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
   fi
   rm -rf "$sbox"
-  { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || return 1
+  { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || { why_cli $rc; return 1; }
   out="$(cat "$RAW_DIR/agy.out")"
-  looks_like_review "$out" || return 1
+  looks_like_review "$out" || { WHY="$NOT_A_REVIEW"; return 1; }
   # PROMPT_PORTABLE asks this tier to open with a MODE line declaring whether it could actually
   # inspect files. That is a PROMPT-level contract with no enforcement, so check it here: a missing
   # MODE line means the tier ignored the contract and its verification claims are unattributable.
@@ -445,12 +452,16 @@ run_agy() {
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
-  ollama list >/dev/null 2>&1 || return 3
+  command -v ollama >/dev/null 2>&1 || return 3
+  # A model is named and the CLI is present, so a failing listing is an attempted tier
+  # that failed (daemon down, broken install) — keep its error for the FAILED section.
+  ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
   local is_local=1
   is_cloud_ollama_tag "$OLLAMA_MODEL" && is_local=0
   local tmp="$RAW_DIR/ollama.out" rc
   ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
-  { [ $rc -eq 0 ] && [ -s "$tmp" ] && looks_like_review "$(cat "$tmp")"; } || return 1
+  { [ $rc -eq 0 ] && [ -s "$tmp" ]; } || { why_cli $rc; return 1; }
+  looks_like_review "$(cat "$tmp")" || { WHY="$NOT_A_REVIEW"; return 1; }
     # Plain ANSI-stripping is not enough: ollama's own word-wrap redraw ("cursor
   # back N" + "erase to end of line", emitted even when stdout is a file, not
   # a tty) only ERASES on a real terminal — a dumb strip leaves the erased
@@ -479,7 +490,10 @@ run_ollama() {
     my $s = eval { decode("UTF-8", $_, FB_CROAK) };
     if (!defined $s) { print STDERR "ollama output is not valid UTF-8 — refusing to filter it\n"; exit 3; }
     my $out = "";
-    while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[0-9;?]*[A-Za-z])/gc) {
+    # Every escape shape is consumed, and anything the loop cannot parse fails the tier:
+    # an unrecognised escape (e.g. ESC[0~) used to end the loop, silently dropping the
+    # rest of the review while the tier still counted (round 2, Codex; pre-existing).
+    while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\e\][^\a\e]*(?:\a|\e\\)|\e[\x20-\x2f]*[\x30-\x7e])/gc) {
       if (defined $1) { $out .= $1; next; }
       next unless defined $2;
       my $n = $2;
@@ -487,6 +501,7 @@ run_ollama() {
       $n = $line_len if $n > $line_len;
       substr($out, length($out) - $n, $n, "") if $n > 0;
     }
+    if ((pos($s) // 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
     print encode("UTF-8", $out);
   ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
   # The filter's exit status was previously discarded, and the section header was printed BEFORE
@@ -494,7 +509,7 @@ run_ollama() {
   # as a successful tier. Stage first, check, and only then emit anything.
   if [ $prc -ne 0 ] || [ ! -s "$filtered" ]; then
     echo "ollama tier: output filter failed (exit $prc) — treating the tier as failed, see $RAW_DIR/ollama.err" >&2
-    return 1
+    WHY="output filter failed (exit $prc)"; return 1
   fi
   printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
   cat "$filtered"
@@ -506,7 +521,7 @@ run_ollama() {
   # the one intentional exception.
   if [ $is_local -eq 1 ] && [ "$LOCAL_ONLY" != "1" ]; then
     echo "⚠ '$OLLAMA_MODEL' looks LOCAL — sanity pass only, gate NOT satisfied by this tier. Prefer codex or a named cloud model." >&2
-    return 1
+    WHY="local model: sanity pass only"; TIER_PRINTED=1; return 1
   fi
 }
 
@@ -514,35 +529,173 @@ run_ollama() {
 #     section printed (the caller consolidates). Antigravity only runs when
 #     --with-antigravity/WITH_ANTIGRAVITY=1 opted it in for this run.
 #     --first-success stops at the first tier that returns findings (quick
-#     mode; not honored for plan type — see the override above). Exit 0 iff
+#     mode; honored for a plan too, with a note — see the override above). Exit 0 iff
 #     at least one reviewer succeeded — the caller still judges the findings.
+#     A tier that ran and failed gets a FAILED section instead, and a
+#     "reviewers:" line closes every run (attempt/report_round below).
 # (tier 3 = the HOST agent's fresh-eyes pass — whatever family the host is — run by
 #  the orchestrating skill, not this script)
+#
+# Why the FAILED sections exist: on 2026-09-11 the ollama-cloud tier hit its weekly
+# quota (HTTP 429). The error landed only in $RAW_DIR/ollama.err, stdout carried the
+# codex section alone, and the exit was 0 — so a one-reviewer round read as a clean
+# pair. A failure must be visible where the caller consolidates: on stdout.
+NOT_A_REVIEW="output is not a review"
+# A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
+# every other failure (fix the CLI, sign-in or model name), so it is named apart.
+# No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
+# (round 2, kimi).
+QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits)|exceeded your( current)? quota'
+why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
+  if [ "$1" -ne 0 ]; then WHY="exit $1"; else WHY="exit 0 but no output"; fi
+}
+# The last few lines of a tier's .err/.out, readable. The ollama CLI writes spinner
+# frames and cursor/sync-mode escapes (ESC[?25l, ESC[1G, ESC[K …) into stderr even
+# when it is a file: ESC[nG and CR redraw the line, so they become line breaks;
+# every other CSI, OSC and ESC sequence, the remaining control characters and the
+# braille spinner glyphs are dropped; blank and repeated lines collapse. Erases are
+# NOT emulated (run_ollama's filter does that for the review body), so a quoted
+# redrawn line may keep fragments. Decoding substitutes U+FFFD for bad bytes rather
+# than failing: `tail -c` cuts on a byte, often inside a 3-byte spinner glyph, and a
+# strict or -C decode then kills perl and loses the quote (round 2, Fable).
+readable_tail() {
+  [ -s "$1" ] || return 0
+  tail -c 65536 "$1" | perl -0777 -MEncode=decode,encode -ne '
+    $_ = decode("UTF-8", $_);                       # bad bytes become U+FFFD
+    s/\e\[[0-9;?]*G|\r/\n/g;                        # cursor-to-column / CR: a redraw
+    s/\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]//g;   # any other CSI (ECMA-48 grammar)
+    s/\e\][^\a\e]*(?:\a|\e\\)?//g;                  # OSC
+    s/\e[\x20-\x2f]*[\x30-\x7e]?//g;                # any other ESC sequence
+    s/[\x00-\x08\x0b-\x1f\x7f]//g;                  # remaining control characters
+    s/[\x{2800}-\x{28FF}]//g;                       # braille spinner frames
+    my (@l, $prev);
+    for (split /\n/) {
+      s/\s+$//;
+      next if $_ eq "" or (defined $prev and $_ eq $prev);
+      push @l, $_; $prev = $_;
+    }
+    splice(@l, 0, @l - 8) if @l > 8;
+    print encode("UTF-8", "$_\n") for @l;
+  ' 2>/dev/null
+}
+# attempt <label> <file stem> <run function> — run one tier and record its outcome
+# in SUMMARY. A tier that ran and failed prints a FAILED section quoting its error.
+SUMMARY="" ; WHY="" ; TIER_PRINTED=0
+attempt() {
+  local label="$1" stem="$2" rc err="" out="" model="" outcome reason
+  WHY="" ; TIER_PRINTED=0
+  "$3"; rc=$?
+  if [ $rc -eq 0 ]; then
+    OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); outcome="OK"
+  elif [ $rc -eq 3 ]; then
+    outcome="SKIPPED (not available)"
+  elif [ $TIER_PRINTED -eq 1 ]; then
+    outcome="NOT COUNTED ($WHY)"          # its review is above; policy keeps it off the gate
+  else
+    err="$(readable_tail "$RAW_DIR/$stem.err")"
+    # Stdout is quoted too: a non-review answer (refusal, sign-in notice), or an error a
+    # CLI printed there before exiting non-zero, is itself the evidence.
+    out="$(readable_tail "$RAW_DIR/$stem.out")"
+    # Quota is read only from lines shaped like an error record ("Error: …", "ERROR: …",
+    # "[time] stream error: …", "<timestamp> ERROR …"). Codex echoes the reviewed artifact
+    # into its stderr, so a bare mention of "429" in the text under review must not decide
+    # the remedy; an unrecognised shape stays unclassified, and the quoted lines let a
+    # human decide. A tier whose answer was rejected as not a review DID answer, so it is
+    # never a quota or setup failure, whatever its text says. The shape is not proof of
+    # provenance — a plan line echoed into codex's stderr can take it — so an indented
+    # line (a diff's context lines start with a space) never counts, and the exit status
+    # stays in the summary beside the quota label (round 2, Codex).
+    if [ "$WHY" = "$NOT_A_REVIEW" ]; then
+      outcome="FAILED ($NOT_A_REVIEW)"
+      reason="the reviewer answered, but its answer did not pass the review check (a refusal-shaped or finding-less reply). Not a quota or setup problem: read the quoted stdout, and if it is a real review, count it by hand from the raw file."
+    elif printf '%s\n%s\n' "$err" "$out" \
+        | grep -iE '^(\[[^]]*\][[:space:]]*)*([^[:space:]]+[[:space:]]+)?(error|fatal)\b' \
+        | grep -qiE "$QUOTA_RE"; then
+      outcome="FAILED (${WHY:-exit $rc}; quota/rate limit: wait or add credits)"
+      reason="${WHY:-exit $rc}; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead."
+    else
+      outcome="FAILED (${WHY:-exit $rc})"
+      reason="${WHY:-exit $rc}; no quota or rate-limit error recognised below. Read the quoted lines, then check the CLI, its sign-in and the model name."
+    fi
+    case "$stem" in
+      codex)  model="${CODEX_MODEL:-}" ;;
+      ollama) model="${OLLAMA_MODEL:-}" ;;
+      agy)    model="${AGY_MODEL:-}" ;;
+    esac
+    printf '## Independent review — %s — FAILED\n\n' "$label"
+    [ -n "$model" ] && printf 'Model: %s\n' "$model"
+    printf 'Reason: %s\n' "$reason"
+    if [ -n "$err" ]; then
+      printf '\nLast lines of its stderr (full file: %s):\n\n' "$RAW_DIR/$stem.err"
+      printf '%s\n' "$err" | sed 's/^/    /'
+    elif [ -s "$RAW_DIR/$stem.err" ]; then
+      printf '\nIts stderr held nothing readable once terminal control codes were removed; read the raw file: %s\n' "$RAW_DIR/$stem.err"
+    else
+      printf '\nNo stderr captured (%s).\n' "$RAW_DIR/$stem.err"
+    fi
+    if [ -n "$out" ]; then
+      printf '\nLast lines of its stdout (full file: %s):\n\n' "$RAW_DIR/$stem.out"
+      printf '%s\n' "$out" | sed 's/^/    /'
+    fi
+    printf '\n'
+  fi
+  SUMMARY="${SUMMARY:+$SUMMARY, }$label $outcome"
+  return $rc
+}
+# One summary line for the round, on stdout (where the caller consolidates) and on
+# stderr (where a human watching a redirected run looks), plus a note whenever
+# fewer than 2 reviewers counted toward the gate — PLAN and DIFF alike. ("Counted",
+# not "external": under --local-only the one local reviewer counts, degraded.)
+report_round() {
+  local line="reviewers: ${SUMMARY:-none attempted}" note="" gate
+  gate="$(printf '%s' "$TYPE" | tr '[:lower:]' '[:upper:]')"
+  if [ "$SUCCESS_COUNT" -lt 2 ]; then
+    note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
+    if [ "$LOCAL_ONLY" = "1" ]; then
+      note="$note — --local-only, degraded by owner choice."
+    elif [ "$FIRST_SUCCESS" = "1" ]; then
+      note="$note — --first-success was requested."
+    else
+      case "$SUMMARY" in
+        *FAILED*) note="$note. Treat it as degraded, not as a clean pair: each FAILED section above names its remedy; or consider --with-antigravity or a manual paste round." ;;
+        *)        note="$note: the standard pair did not both run. Set up the missing reviewer (see SKIPPED above), or consider --with-antigravity or a manual paste round." ;;
+      esac
+    fi
+  fi
+  printf '\n---\n%s\n' "$line"
+  printf '%s\n' "$line" >&2
+  if [ -n "$note" ]; then printf '%s\n' "$note"; printf '%s\n' "$note" >&2; fi
+}
+OLLAMA_LABEL="ollama"
+if [ -n "${OLLAMA_MODEL:-}" ]; then
+  if is_cloud_ollama_tag "$OLLAMA_MODEL"; then OLLAMA_LABEL="ollama-cloud"; else OLLAMA_LABEL="ollama-local"; fi
+fi
+# run_ollama itself returns 3 (skipped) when the CLI is missing, so no dispatcher
+# guard is needed — and without one, a missing CLI still shows in the summary.
 OK=0 ; SUCCESS_COUNT=0
 if [ "$LOCAL_ONLY" = "1" ]; then
   # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
   echo "── LOCAL-ONLY mode: external reviewers skipped; gate is DEGRADED by owner choice ──" >&2
-  command -v ollama >/dev/null && run_ollama && OK=1
-  [ $OK -eq 1 ] && { echo "raw output: $RAW_DIR" >&2; exit 0; }
+  attempt "$OLLAMA_LABEL" ollama run_ollama
+elif [ "$FIRST_SUCCESS" = "1" ]; then
+  attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
+  [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                     # 2. ollama-cloud
+  [ $OK -eq 1 ] || { [ "$WITH_ANTIGRAVITY" = "1" ] && attempt antigravity agy run_agy; }   # 3. agy, opt-in only
+else
+  attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
+  attempt "$OLLAMA_LABEL" ollama run_ollama                                      # 2. ollama cloud/local
+  if [ "$WITH_ANTIGRAVITY" = "1" ]; then
+    attempt antigravity agy run_agy                                              # 3. agy, opt-in only
+  fi
+fi
+report_round
+[ $OK -eq 1 ] && { echo "raw output: $RAW_DIR" >&2; exit 0; }
+if [ "$LOCAL_ONLY" = "1" ]; then
   echo "local-only: no local reviewer produced a review (need OLLAMA_MODEL=<local model>)." >&2
   echo "Run the host fresh-eyes pass; do NOT paste externally in local-only mode." >&2
   exit 4
-elif [ "$FIRST_SUCCESS" = "1" ]; then
-  run_codex && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }                     # 1. OpenAI Codex CLI
-  [ $OK -eq 1 ] || { command -v ollama >/dev/null && run_ollama && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }; }  # 2. ollama-cloud
-  [ $OK -eq 1 ] || { [ "$WITH_ANTIGRAVITY" = "1" ] && run_agy && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }; }    # 3. agy, opt-in only
-else
-  run_codex  && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }                    # 1. OpenAI Codex CLI
-  command -v ollama >/dev/null && run_ollama && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }  # 2. ollama cloud/local
-  if [ "$WITH_ANTIGRAVITY" = "1" ]; then
-    run_agy && { OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); }                     # 3. agy, opt-in only
-  fi
 fi
-if [ "$TYPE" = "plan" ] && [ "$SUCCESS_COUNT" -lt 2 ]; then
-  echo "⚠ plan gate wants ≥2 independent reviewers; only $SUCCESS_COUNT produced output. Treat as degraded — consider --with-antigravity or a manual paste round." >&2
-fi
-[ $OK -eq 1 ] && { echo "raw output: $RAW_DIR" >&2; exit 0; }
 
 # No automated reviewer succeeded — DO NOT exit 0. Emit the manual prompt + FAIL (tier 6).
 cat >&2 <<'EOF'
