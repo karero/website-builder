@@ -11,7 +11,9 @@ name: clean
 # limit: limit values, the shrink-only allowlist for pre-existing overages, and the
 # warn-only SKILL.md line budget all live in scripts/check_skill_budgets.sh. It also runs
 # independent-review's check that a reviewer which fails is reported rather than hidden
-# (skills/independent-review/scripts/test_failed_tier_report.sh).
+# (skills/independent-review/scripts/test_failed_tier_report.sh) and the regression cases for
+# which reviewer output it counts as a review
+# (skills/independent-review/scripts/test_looks_like_review.sh).
 on:
   push:
   pull_request:
@@ -46,3 +48,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check a failed reviewer is reported, not hidden behind exit 0
         run: bash skills/independent-review/scripts/test_failed_tier_report.sh
+  review-validator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check which reviewer output independent-review counts as a review
+        run: bash skills/independent-review/scripts/test_looks_like_review.sh

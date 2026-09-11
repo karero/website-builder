@@ -22,4 +22,6 @@ check accept "real multi-finding review with a refusal-like aside" "I could not 
 check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
 check reject "access refusal without the UNVERIFIABLE marker" "- BUG: I cannot access the file."
 check reject "review refusal even with the marker" "- BUG: I cannot review this file. UNVERIFIABLE."
+check reject "access refusal that copies the marker" "- BUG: I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
+check reject "access refusal with the marker and a clean verdict" "I cannot access the file. UNVERIFIABLE. No findings."
 exit $fail
