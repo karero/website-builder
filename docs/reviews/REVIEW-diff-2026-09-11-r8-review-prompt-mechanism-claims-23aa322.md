@@ -61,28 +61,28 @@ Source: `c` = Codex, `o` = ollama-cloud.
 | 2o4 | RISK | the pre-existing "may narrate checks it never performed" is itself an unmeasured claim | **fixed** `c1c3e83`, marked a hypothesis (declined as out of scope in `0fb6b09`, taken when raised again) |
 | 2o5 | RISK | the round header's "bash -n passes" was unsupported | **refuted**: a claim in the round header, not the change; Codex ran `bash -n` in rounds 5–8 and it passed |
 | 2o6 | NIT | the comment paraphrased the prompt sentence and drifted from it | **fixed** `0fb6b09`: it quotes the sentence's opening |
-| 2o7 | NIT | the UNVERIFIABLE rule appears twice, and the new one drops the scoping | **declined** `0fb6b09`: the load-bearing scope carries through. Needs owner sign-off |
+| 2o7 | NIT | the UNVERIFIABLE rule appears twice, and the new one drops the scoping | **declined** `0fb6b09`: the load-bearing scope carries through. Owner signed off 2026-09-11 |
 | 2o8 | NIT | "each" was ambiguous between per claim and per finding | **fixed** `0fb6b09`: per finding |
 | 3c1 | RISK | the rationale tying a missing "cannot" to fabricated verification has no evidence | **fixed** `c1c3e83`: marked a hypothesis |
 | 3o1 | RISK | "every tier receives it" did not follow from grepping the assignments | **fixed** `c1c3e83`: says each tier prompt embeds `PROMPT_CORE` and every call passes one; Codex verified both in rounds 5, 7 and 8 |
 | 3o2 | RISK | "a measurement shown" was not tied to anything the reviewer did | **fixed** `c1c3e83`: "a measurement you reproduced" |
-| 3o3 | NIT | the support list omits the component's own source | **declined** `c1c3e83`: source shows what the code says, not what a particular version with a particular configuration does, which is the distinction the sentence draws. Needs owner sign-off |
+| 3o3 | NIT | the support list omits the component's own source | **declined** `c1c3e83`: source shows what the code says, not what a particular version with a particular configuration does, which is the distinction the sentence draws. Owner signed off 2026-09-11 |
 | 3o4 | NIT | "each begin with" states a position; inclusion is what matters | **fixed** `c1c3e83`: "each embed" |
-| 3o5 | NIT | no materiality valve in `PROMPT_CORE` | **declined** `c1c3e83`: the inline definition of load-bearing is that valve. Needs owner sign-off |
-| 4c1 | BUG | a valid lone UNVERIFIABLE finding saying "I cannot read" is rejected as a refusal | **deferred**, pre-existing: it reproduces on `origin/main`. Two fixes (`1ef38ab`, `90ef324`) were bypassed and then withdrawn in `0f6bc9c`; see the judgment call above. Now B-REFUSAL-TEXT, pinned KNOWN WRONG |
+| 3o5 | NIT | no materiality valve in `PROMPT_CORE` | **declined** `c1c3e83`: the inline definition of load-bearing is that valve. Owner signed off 2026-09-11 |
+| 4c1 | BUG | a valid lone UNVERIFIABLE finding saying "I cannot read" is rejected as a refusal | **deferred**, pre-existing: it reproduces on `origin/main`. Two fixes (`1ef38ab`, `90ef324`) were bypassed and then withdrawn in `0f6bc9c`; see the judgment call above. Now B-REFUSAL-TEXT, pinned KNOWN WRONG. Deferral signed off by the owner 2026-09-11 |
 | 4c2 | RISK | "reduces the chance of acting on embedded directives" asserts an unmeasured effect | **fixed** `1ef38ab`: marked a hypothesis |
 | 4o1 | RISK | the embedding and call-site claims exceeded a name search | **refuted**: Codex traced every embedding and call site in rounds 5, 7 and 8 |
 | 4o2 | RISK | the round header's TYPE=plan rendering claim was unsupported | **refuted**: Codex executed the prompt assignments with TYPE=plan and TYPE=diff in round 5 |
 | 4o3 | RISK | the round header's "bash -n passes" was unsupported | **refuted**: as 2o5 |
-| 4o4 | NIT | challenges the 3o3 declination | **declined**: same reason as 3o3. Needs owner sign-off |
+| 4o4 | NIT | challenges the 3o3 declination | **declined**: same reason as 3o3. Owner signed off 2026-09-11 |
 | 4o5 | NIT | the RISK definition did not cover the new class of unsupported claim | **fixed** `1ef38ab`: the RISK gloss names it |
 | 4o6 | NIT | the hedge covered the premise but not "harmful" and "worse than redundant" | **fixed** `1ef38ab`: "on the hypothesis below" |
 | 4o7 | NIT | a garbled hedge ("earlier than reviewers already did") | **fixed**: the phrase no longer appears in the file |
 | 4o8 | NIT | the comment's quoted anchor spanned a line break, so `grep -F` found nothing | **fixed** `1ef38ab`: the anchor is on one line (`grep -F` finds it at lines 233 and 240) |
 | 5c1 | BUG | the marker exemption admitted access refusals, where `origin/main` rejects them (reproduced) | **fixed** by withdrawing the exemption (`0f6bc9c`); both cases pinned as rejects |
-| 5c2 | BUG | a lone real finding saying "cannot return JSON" is rejected | **deferred**, pre-existing (reproduces on `origin/main`): B-REFUSAL-TEXT, pinned KNOWN WRONG |
-| 5c3 | BUG | two refusal-shaped findings bypass the refusal check; the comment said task refusals are "always" rejected | comment **fixed** `90ef324`; behaviour **deferred**, pre-existing: B-REFUSAL-TEXT, pinned KNOWN WRONG |
-| 5c4 | RISK | the comments' claim that `-s read-only` blocks writes has no checked support | **deferred**, pre-existing (this change only re-wraps the sentences): R-SANDBOX. Needs owner sign-off |
+| 5c2 | BUG | a lone real finding saying "cannot return JSON" is rejected | **deferred**, pre-existing (reproduces on `origin/main`): B-REFUSAL-TEXT, pinned KNOWN WRONG. Deferral signed off by the owner 2026-09-11 |
+| 5c3 | BUG | two refusal-shaped findings bypass the refusal check; the comment said task refusals are "always" rejected | comment **fixed** `90ef324`; behaviour **deferred**, pre-existing: B-REFUSAL-TEXT, pinned KNOWN WRONG. Deferral signed off by the owner 2026-09-11 |
+| 5c4 | RISK | the comments' claim that `-s read-only` blocks writes has no checked support | **deferred**, pre-existing (this change only re-wraps the sentences): R-SANDBOX. Owner signed off 2026-09-11 |
 | 5c5 | RISK | the new test ran nowhere | **fixed** `90ef324`: `make check` and a fifth `clean.yml` job |
 | 6c1 | BUG | the anchor exemption let "- BUG: foo.rb:12 — I cannot access the file. UNVERIFIABLE." count as a review | **fixed** by withdrawing the exemption (`0f6bc9c`); case pinned as a reject |
 | 6c2 | BUG | the anchor regex required a file extension (`Makefile:18` rejected) | **fixed** by the same withdrawal: the regex is gone |
@@ -98,5 +98,6 @@ Repeats not counted as distinct: 6c3 and 6c4, 7c1 and 7c2, and 8c1 and 8c2 re-re
   stop rule: a round with no new behaviour-level BUG or RISK closes on local verification.
 - Its other two findings were the pre-existing gaps already deferred.
 - `make check` passes, and the test suite passes 17 of 17.
-- **Needs the owner's sign-off**: the four declined NITs (2o7, 3o3, 3o5, 4o4) and the four
-  deferrals (4c1, 5c2, 5c3, 5c4), which are recorded in `OPEN-FINDINGS-independent-review.md`.
+- **Owner sign-off, 2026-09-11**, quoted: "sign off all eight". It covers the four declined NITs
+  (2o7, 3o3, 3o5, 4o4) and the four deferrals (4c1, 5c2, 5c3, 5c4), which are recorded in
+  `OPEN-FINDINGS-independent-review.md`.
