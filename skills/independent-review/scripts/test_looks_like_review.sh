@@ -11,17 +11,20 @@ check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
   if looks_like_review "$3"; then got=accept; else got=reject; fi
   if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
 }
-check accept "honest single finding that reports missing evidence" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
-
-CLEAN: checked the caller's arguments."
-check reject "refusal disguised as a lone finding" "- BUG: I cannot review this file because it is too long."
-check reject "bare refusal" "I cannot review this content."
+check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
 check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
 1. BUG — a.rb:1 — x is wrong now.
 2. RISK — b.rb:2 — y breaks on normal change."
-check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
-check reject "access refusal without the UNVERIFIABLE marker" "- BUG: I cannot access the file."
-check reject "review refusal even with the marker" "- BUG: I cannot review this file. UNVERIFIABLE."
+check reject "bare refusal" "I cannot review this content."
+check reject "refusal disguised as a lone finding" "- BUG: I cannot review this file because it is too long."
+check reject "access refusal as a lone finding" "- BUG: I cannot access the file."
+check reject "review refusal with the UNVERIFIABLE marker" "- BUG: I cannot review this file. UNVERIFIABLE."
 check reject "access refusal that copies the marker" "- BUG: I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
 check reject "access refusal with the marker and a clean verdict" "I cannot access the file. UNVERIFIABLE. No findings."
+check reject "access refusal that copies the marker and an anchor" "- BUG: foo.rb:12 — I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
+# The price of the three cases above: an honest lone finding that cannot read its evidence also
+# rejects, because by its text alone it cannot be told from them.
+check reject "honest lone finding that cannot read its evidence" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
+
+CLEAN: checked the caller's arguments."
 exit $fail

@@ -346,25 +346,13 @@ looks_like_review() {
   #    rejected. Verified against the original disguised-refusal exploit
   #    shape (still rejected), a bare no-findings refusal (still rejected),
   #    and both real captured failures above (now accepted).
-  #    With at most one finding, the verbs split in two. Refusing the TASK --
-  #    "cannot review/return/provide/complete" -- rejects. Being unable to reach
-  #    EVIDENCE -- "cannot access/read/open/see" -- rejects too, unless the response
-  #    says UNVERIFIABLE and its finding line carries a file:line anchor. PROMPT_CORE
-  #    tells reviewers to mark a check they cannot perform UNVERIFIABLE, so
-  #    "1. RISK - foo.rb:12 - I cannot read Y ... UNVERIFIABLE" reports missing
-  #    evidence about a located claim. The anchor separates it from an access refusal
-  #    that copies the marker ("- BUG: I cannot access the file. UNVERIFIABLE."). A
-  #    finding anchored only by a heading still rejects, as it did before the split.
-  #    Two gaps are older than the split and not fixed here: a lone finding saying
-  #    "the handler cannot return JSON" rejects, and two refusal-shaped findings
-  #    accept. Change this together with the word in PROMPT_CORE. Cases:
-  #    test_looks_like_review.sh.
+  #    A lone finding that says it cannot read its evidence rejects too, even when
+  #    marked UNVERIFIABLE as PROMPT_CORE asks. Two exemptions were tried and dropped
+  #    after review (2026-09-11): the marker alone, then the marker plus a file:line
+  #    anchor. Each let a refusal through, because a refusal can copy any text a
+  #    finding carries. Cases: test_looks_like_review.sh.
   if [ "$finding_count" -le 1 ]; then
-    printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (review|return|provide|complete)\b" && return 1
-    if printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|see)\b"; then
-      printf '%s\n' "$1" | grep -qiE '\bUNVERIFIABLE\b' || return 1
-      printf '%s\n' "$1" | grep -qiE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b.*[[:alnum:]_/-]\.[[:alnum:]]+:[0-9]+' || return 1
-    fi
+    printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
   fi
   # 2. structured findings (list/heading-anchored severity)
   [ "$finding_count" -gt 0 ] && return 0
