@@ -48,6 +48,8 @@ case "${CODEX_STUB:-ok}" in
         # assumed, not captured from a real codex quota refusal.
         printf '%s\n' '2026-09-11T19:24:25.123Z ERROR codex_core::client: unexpected status 429 Too Many Requests' \
           'tokens used' '0' 'session end' 'bye' >&2; exit 1 ;;
+  diskquota) # a local setup failure that merely contains the word "quota"
+        echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -187,6 +189,8 @@ check "listfail: summary names the preflight" has listfail.out "ollama-cloud FAI
 run listfailauto CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
 check "listfailauto: skipped, with the startup note on stderr" has listfailauto.err "'ollama list' failed — cannot auto-detect"
 check "listfailauto: summary says SKIPPED" has listfailauto.out "reviewers: codex OK, ollama SKIPPED (not available)"
+check "listfailauto: the note fits a skip, not a failure (round 2, kimi)" has listfailauto.out "the standard pair did not both run"
+check "listfailauto: no pointer to a FAILED section that is not there" lacks listfailauto.out "each FAILED section above"
 
 # 11. Escapes outside the simple ESC[..letter shape are stripped too.
 run oddesc CODEX_STUB=ok OLLAMA_STUB=oddesc bash "$SCRIPT" "$T/change.diff"
@@ -229,6 +233,10 @@ check "oddbody: no escape bytes" lacks oddbody.out $'\033'
 # 17. ...and fails the tier on one it cannot parse, rather than counting a truncated review.
 run strayesc CODEX_STUB=ok OLLAMA_STUB=strayesc bash "$SCRIPT" "$T/change.diff"
 check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: codex OK, ollama-cloud FAILED (output filter failed (exit 4))"
+
+# 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, kimi).
+run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
+check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
