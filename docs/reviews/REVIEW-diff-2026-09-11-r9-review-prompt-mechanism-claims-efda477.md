@@ -1,6 +1,6 @@
-# Independent review trail — DIFF gate, rounds 1–8: the mechanism-claim prompt sentence
+# Independent review trail — DIFF gate, rounds 1–9: the mechanism-claim prompt sentence
 
-**Eight rounds, 48 findings (42 distinct: rounds 6–8 re-reported two older validator gaps each
+**Nine rounds, 50 findings (42 distinct: rounds 6–9 re-reported the older validator gaps each
 time).** Of the 42: 30 fixed, 4 refuted, 4 declined, 4 pre-existing and deferred to
 `OPEN-FINDINGS-independent-review.md`.
 
@@ -11,16 +11,16 @@ time).** Of the 42: 30 fixed, 4 refuted, 4 declined, 4 pre-existing and deferred
   (run by `make check` and a fifth `clean.yml` job).
 - **Artifact**: the branch diff against `origin/main` each round, with trail files excluded.
 - **Reviewers**: Codex (`exec -s read-only`) and ollama-cloud. **Rounds 1–4 ran both seats; rounds
-  5–8 ran Codex alone**, because the ollama-cloud seat returned `429 Too Many Requests` (weekly
+  5–9 ran Codex alone**, because the ollama-cloud seat returned `429 Too Many Requests` (weekly
   usage limit) every time. Codex is cross-model for a Claude host, so each round still met the
-  independence rule, but rounds 5–8 are degraded to one seat.
-- **Data check**: repository content only. The secret-word scan returned 0 in rounds 6–8. The
+  independence rule, but rounds 5–9 are degraded to one seat.
+- **Data check**: repository content only. The secret-word scan returned 0 in rounds 6–9. The
   launch logs of rounds 1–5 are not part of this record.
 - **Raw output**: not committed. The captures contain local filesystem paths and an account
   handle, and this repository is public.
 - **Commits reviewed**: r1 `b952c6f`, r2 `e71c133`, r3 `0fb6b09`, r4 `c1c3e83`, r5 `1ef38ab`,
-  r6 `90ef324`, r7 `0f6bc9c`, r8 `3dde786`. The final commit, `23aa322`, closed on local
-  verification (see "Gate closure").
+  r6 `90ef324`, r7 `0f6bc9c`, r8 `3dde786`, r9 `efda477`. `23aa322` closed round 8 on local
+  verification; round 9 re-gated the `SKILL.md` sync (see the last section).
 
 ## The judgment call: the validator exemption was withdrawn
 
@@ -89,7 +89,8 @@ Source: `c` = Codex, `o` = ollama-cloud.
 | 7c3 | BUG | OPEN-FINDINGS cited test cases for three behaviours; two were missing | **fixed** `3dde786`: all three present and labelled KNOWN WRONG |
 | 8c3 | RISK | no case expects a clean review to pass: with the clean-verdict matcher replaced by `return 1`, all 12 cases still passed | **fixed** `23aa322`: three clean verdicts (accept), empty output and a rate-limit error (reject). The same mutation now fails three cases |
 
-Repeats not counted as distinct: 6c3 and 6c4, 7c1 and 7c2, and 8c1 and 8c2 re-report 5c3 and 5c2.
+Repeats not counted as distinct: 6c3 and 6c4, 7c1 and 7c2, and 8c1 and 8c2 re-report 5c3 and 5c2; 9c1
+and 9c2 re-report B-REFUSAL-TEXT (4c1, 5c2, 5c3) and R-SANDBOX (5c4).
 
 ## Gate closure
 
@@ -101,3 +102,17 @@ Repeats not counted as distinct: 6c3 and 6c4, 7c1 and 7c2, and 8c1 and 8c2 re-re
 - **Owner sign-off, 2026-09-11**, quoted: "sign off all eight". It covers the four declined NITs
   (2o7, 3o3, 3o5, 4o4) and the four deferrals (4c1, 5c2, 5c3, 5c4), which are recorded in
   `OPEN-FINDINGS-independent-review.md`.
+
+## Round 9: narrow re-gate after the `SKILL.md` sync (`efda477`)
+
+A website-builder-side check after round 8 found that `SKILL.md` carried its own copy of the
+reviewer prompt. The fresh-eyes pass uses that copy. It lacked the new sentence and still said
+"do not modify files or run commands". `efda477` makes it quote `PROMPT_CORE` word for word. A
+local check compares the two after whitespace normalisation, and it reports a planted one-word
+drift. Reviewed by Codex alone; ollama-cloud was still at its weekly limit.
+
+- **No new finding.** Codex verified that the block matches `PROMPT_CORE` word for word, that only
+  `SKILL.md` changed after the sign-off commit, and that every tier's prompt embeds the core.
+- It re-reported B-REFUSAL-TEXT and R-SANDBOX, both deferred with the owner's sign-off.
+- It called the round header's scope line an injection attempt and treated it as an author
+  request. Noted, no action.
