@@ -220,21 +220,20 @@ unset PROMPT 2>/dev/null || true
 # On the injection guard below: it is MITIGATION, not a security boundary. The artifact sits at
 # the same prompt priority as these instructions, and no wording changes that. It is meant to
 # reduce the chance of a model acting on embedded directives (a hypothesis, not measured), and it
-# asks for such text to be reported; it does not make the artifact safe to trust. The real
+# asks for such text to be reported; it does not make the artifact safe to trust. The intended
 # boundary is the sandbox, which is why the tooled tier is also told to stay in-project and make
-# no network calls.
+# no network calls; that the sandbox holds is not tested (R-SANDBOX in OPEN-FINDINGS).
 #
 # The old single prompt ended "Review ONLY — do not modify files or run commands" one sentence
 # after "Do NOT trust the ${TYPE}'s own line numbers or claims". Not a strict logical
 # contradiction — a reviewer can withhold belief without verifying — but it demanded skepticism
 # while removing the only means of RESOLVING it, so unverifiable claims came back as silence
-# rather than as findings. For codex, only the "do not modify files" HALF was redundant —
-# `-s read-only` already blocks writes. The "do not run commands" half was neither enforced nor
-# redundant: it was the load-bearing half, and — on the hypothesis below — the harmful one. For
-# the tool-less tiers the whole sentence was, on the same hypothesis, worse than redundant: a model
-# told not to run commands, but never told it CANNOT, may narrate checks it never performed (a
-# hypothesis, not measured).
-#
+# rather than as findings. For codex, only the "do not modify files" HALF was redundant — `-s
+# read-only` is meant to block writes (untested: R-SANDBOX). The "do not run commands" half was
+# neither enforced nor redundant: it was the load-bearing half, and — on the hypothesis below —
+# the harmful one. For the tool-less tiers the whole sentence was, on the same hypothesis, worse
+# than redundant: a model told not to run commands, but never told it CANNOT, may narrate checks
+# it never performed (a hypothesis, not measured).#
 # The sentence beginning 'Flag, as at least a RISK' is in PROMPT_CORE, which PROMPT_TOOLED,
 # PROMPT_TEXTONLY and PROMPT_PORTABLE each embed, and every reviewer call below passes one of
 # those three. Whether the sentence surfaces claims reviewers would otherwise miss is not measured.
