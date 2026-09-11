@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Regression cases for looks_like_review() in independent_review.sh: which reviewer output counts as
+# a review, and which as a refusal. Run: bash skills/independent-review/scripts/test_looks_like_review.sh
+set -u
+here="$(cd "$(dirname "$0")" && pwd)"
+fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/independent_review.sh")"
+[ -n "$fn" ] || { echo "FAIL: could not extract looks_like_review"; exit 1; }
+eval "$fn"
+fail=0
+check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
+  if looks_like_review "$3"; then got=accept; else got=reject; fi
+  if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
+}
+check accept "honest single finding that reports missing evidence" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
+
+CLEAN: checked the caller's arguments."
+check reject "refusal disguised as a lone finding" "- BUG: I cannot review this file because it is too long."
+check reject "bare refusal" "I cannot review this content."
+check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
+1. BUG — a.rb:1 — x is wrong now.
+2. RISK — b.rb:2 — y breaks on normal change."
+check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
+check reject "access refusal without the UNVERIFIABLE marker" "- BUG: I cannot access the file."
+check reject "review refusal even with the marker" "- BUG: I cannot review this file. UNVERIFIABLE."
+exit $fail
