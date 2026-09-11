@@ -452,7 +452,10 @@ run_agy() {
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
-  ollama list >/dev/null 2>&1 || return 3
+  command -v ollama >/dev/null 2>&1 || return 3
+  # A model is named and the CLI is present, so a failing listing is an attempted tier
+  # that failed (daemon down, broken install) — keep its error for the FAILED section.
+  ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
   local is_local=1
   is_cloud_ollama_tag "$OLLAMA_MODEL" && is_local=0
   local tmp="$RAW_DIR/ollama.out" rc
@@ -522,7 +525,7 @@ run_ollama() {
 #     section printed (the caller consolidates). Antigravity only runs when
 #     --with-antigravity/WITH_ANTIGRAVITY=1 opted it in for this run.
 #     --first-success stops at the first tier that returns findings (quick
-#     mode; not honored for plan type — see the override above). Exit 0 iff
+#     mode; honored for a plan too, with a note — see the override above). Exit 0 iff
 #     at least one reviewer succeeded — the caller still judges the findings.
 #     A tier that ran and failed gets a FAILED section instead, and a
 #     "reviewers:" line closes every run (attempt/report_round below).
@@ -543,18 +546,20 @@ why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
 # The last few lines of a tier's .err/.out, readable. The ollama CLI writes spinner
 # frames and cursor/sync-mode escapes (ESC[?25l, ESC[1G, ESC[K …) into stderr even
 # when it is a file: ESC[nG and CR redraw the line, so they become line breaks;
-# every other escape and the braille spinner glyphs are dropped; blank and repeated
-# lines collapse. Lax decoding on purpose — this is a quote for a human, not the
-# review body the strict filter in run_ollama protects. Only the TAIL is quoted and
-# classified: codex echoes the whole reviewed artifact into its stderr, and a diff
-# that merely mentions "429" must not turn an auth failure into a quota one.
+# every other CSI, OSC and ESC sequence, the remaining control characters and the
+# braille spinner glyphs are dropped; blank and repeated lines collapse. Erases are
+# NOT emulated (run_ollama's filter does that for the review body), so a quoted
+# redrawn line may keep fragments. Lax decoding on purpose — this is a quote for a
+# human, not the review body the strict filter protects.
 readable_tail() {
   [ -s "$1" ] || return 0
   tail -c 65536 "$1" | perl -0777 -CSD -ne '
-    s/\e\[[0-9;?]*G|\r/\n/g;
-    s/\e\[[0-9;?]*[A-Za-z]//g;
-    s/\e\][^\a\e]*(?:\a|\e\\)?//g;
-    s/[\x{2800}-\x{28FF}]//g;
+    s/\e\[[0-9;?]*G|\r/\n/g;                        # cursor-to-column / CR: a redraw
+    s/\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]//g;   # any other CSI (ECMA-48 grammar)
+    s/\e\][^\a\e]*(?:\a|\e\\)?//g;                  # OSC
+    s/\e[\x20-\x2f]*[\x30-\x7e]?//g;                # any other ESC sequence
+    s/[\x00-\x08\x0b-\x1f\x7f]//g;                  # remaining control characters
+    s/[\x{2800}-\x{28FF}]//g;                       # braille spinner frames
     my (@l, $prev);
     for (split /\n/) {
       s/\s+$//;
@@ -580,14 +585,21 @@ attempt() {
     outcome="NOT COUNTED ($WHY)"          # its review is above; policy keeps it off the gate
   else
     err="$(readable_tail "$RAW_DIR/$stem.err")"
-    # A non-review stdout (refusal, sign-in notice) is itself the error — quote it too.
-    [ "$WHY" = "$NOT_A_REVIEW" ] && out="$(readable_tail "$RAW_DIR/$stem.out")"
-    if printf '%s\n%s\n' "$err" "$out" | grep -qiE "$QUOTA_RE"; then
+    # Stdout is quoted too: a non-review answer (refusal, sign-in notice), or an error a
+    # CLI printed there before exiting non-zero, is itself the evidence.
+    out="$(readable_tail "$RAW_DIR/$stem.out")"
+    # Quota is read only from lines shaped like an error record ("Error: …", "ERROR: …",
+    # "[time] stream error: …"). Codex echoes the reviewed artifact into its stderr, so a
+    # bare mention of "429" in the text under review must not decide the remedy; an
+    # unrecognised shape stays unclassified, and the quoted lines let a human decide.
+    if printf '%s\n%s\n' "$err" "$out" \
+        | grep -iE '^[[:space:]]*(\[[^]]*\][[:space:]]*)*([[:alnum:]_-]+[[:space:]]+)?(error|fatal)\b' \
+        | grep -qiE "$QUOTA_RE"; then
       outcome="FAILED (quota/rate limit: wait or add credits)"
-      reason="quota or rate limit — the provider refused the request. Wait for the limit to reset or add credits; the setup itself is fine."
+      reason="the quoted error reads as a quota or rate limit. Wait for the limit to reset or add credits."
     else
       outcome="FAILED (${WHY:-exit $rc})"
-      reason="${WHY:-exit $rc} — not a quota error: check the CLI, its sign-in and the model name."
+      reason="${WHY:-exit $rc}; no quota or rate-limit error recognised below. Read the quoted lines, then check the CLI, its sign-in and the model name."
     fi
     case "$stem" in
       codex)  model="${CODEX_MODEL:-}" ;;
@@ -600,11 +612,13 @@ attempt() {
     if [ -n "$err" ]; then
       printf '\nLast lines of its stderr (full file: %s):\n\n' "$RAW_DIR/$stem.err"
       printf '%s\n' "$err" | sed 's/^/    /'
+    elif [ -s "$RAW_DIR/$stem.err" ]; then
+      printf '\nIts stderr held nothing readable once terminal control codes were removed; read the raw file: %s\n' "$RAW_DIR/$stem.err"
     else
       printf '\nNo stderr captured (%s).\n' "$RAW_DIR/$stem.err"
     fi
     if [ -n "$out" ]; then
-      printf '\nLast lines of its stdout, which is not a review (full file: %s):\n\n' "$RAW_DIR/$stem.out"
+      printf '\nLast lines of its stdout (full file: %s):\n\n' "$RAW_DIR/$stem.out"
       printf '%s\n' "$out" | sed 's/^/    /'
     fi
     printf '\n'
@@ -614,12 +628,13 @@ attempt() {
 }
 # One summary line for the round, on stdout (where the caller consolidates) and on
 # stderr (where a human watching a redirected run looks), plus a note whenever
-# fewer than 2 external reviewers succeeded — PLAN and DIFF alike.
+# fewer than 2 reviewers counted toward the gate — PLAN and DIFF alike. ("Counted",
+# not "external": under --local-only the one local reviewer counts, degraded.)
 report_round() {
   local line="reviewers: ${SUMMARY:-none attempted}" note="" gate
   gate="$(printf '%s' "$TYPE" | tr '[:lower:]' '[:upper:]')"
   if [ "$SUCCESS_COUNT" -lt 2 ]; then
-    note="⚠ $gate round landed with $SUCCESS_COUNT successful external reviewer(s), fewer than the 2 of the standard pair"
+    note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
     if [ "$LOCAL_ONLY" = "1" ]; then
       note="$note — --local-only, degraded by owner choice."
     elif [ "$FIRST_SUCCESS" = "1" ]; then
