@@ -490,7 +490,10 @@ run_ollama() {
     my $s = eval { decode("UTF-8", $_, FB_CROAK) };
     if (!defined $s) { print STDERR "ollama output is not valid UTF-8 — refusing to filter it\n"; exit 3; }
     my $out = "";
-    while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[0-9;?]*[A-Za-z])/gc) {
+    # Every escape shape is consumed, and anything the loop cannot parse fails the tier:
+    # an unrecognised escape (e.g. ESC[0~) used to end the loop, silently dropping the
+    # rest of the review while the tier still counted (round 2, Codex; pre-existing).
+    while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\e\][^\a\e]*(?:\a|\e\\)|\e[\x20-\x2f]*[\x30-\x7e])/gc) {
       if (defined $1) { $out .= $1; next; }
       next unless defined $2;
       my $n = $2;
@@ -498,6 +501,7 @@ run_ollama() {
       $n = $line_len if $n > $line_len;
       substr($out, length($out) - $n, $n, "") if $n > 0;
     }
+    if ((pos($s) // 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
     print encode("UTF-8", $out);
   ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
   # The filter's exit status was previously discarded, and the section header was printed BEFORE
@@ -549,11 +553,13 @@ why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
 # every other CSI, OSC and ESC sequence, the remaining control characters and the
 # braille spinner glyphs are dropped; blank and repeated lines collapse. Erases are
 # NOT emulated (run_ollama's filter does that for the review body), so a quoted
-# redrawn line may keep fragments. Lax decoding on purpose — this is a quote for a
-# human, not the review body the strict filter protects.
+# redrawn line may keep fragments. Decoding substitutes U+FFFD for bad bytes rather
+# than failing: `tail -c` cuts on a byte, often inside a 3-byte spinner glyph, and a
+# strict or -C decode then kills perl and loses the quote (round 2, Fable).
 readable_tail() {
   [ -s "$1" ] || return 0
-  tail -c 65536 "$1" | perl -0777 -CSD -ne '
+  tail -c 65536 "$1" | perl -0777 -MEncode=decode,encode -ne '
+    $_ = decode("UTF-8", $_);                       # bad bytes become U+FFFD
     s/\e\[[0-9;?]*G|\r/\n/g;                        # cursor-to-column / CR: a redraw
     s/\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]//g;   # any other CSI (ECMA-48 grammar)
     s/\e\][^\a\e]*(?:\a|\e\\)?//g;                  # OSC
@@ -566,8 +572,8 @@ readable_tail() {
       next if $_ eq "" or (defined $prev and $_ eq $prev);
       push @l, $_; $prev = $_;
     }
-    splice(@l, 0, @l - 5) if @l > 5;
-    print "$_\n" for @l;
+    splice(@l, 0, @l - 8) if @l > 8;
+    print encode("UTF-8", "$_\n") for @l;
   ' 2>/dev/null
 }
 # attempt <label> <file stem> <run function> — run one tier and record its outcome
@@ -589,14 +595,22 @@ attempt() {
     # CLI printed there before exiting non-zero, is itself the evidence.
     out="$(readable_tail "$RAW_DIR/$stem.out")"
     # Quota is read only from lines shaped like an error record ("Error: …", "ERROR: …",
-    # "[time] stream error: …"). Codex echoes the reviewed artifact into its stderr, so a
-    # bare mention of "429" in the text under review must not decide the remedy; an
-    # unrecognised shape stays unclassified, and the quoted lines let a human decide.
-    if printf '%s\n%s\n' "$err" "$out" \
-        | grep -iE '^[[:space:]]*(\[[^]]*\][[:space:]]*)*([[:alnum:]_-]+[[:space:]]+)?(error|fatal)\b' \
+    # "[time] stream error: …", "<timestamp> ERROR …"). Codex echoes the reviewed artifact
+    # into its stderr, so a bare mention of "429" in the text under review must not decide
+    # the remedy; an unrecognised shape stays unclassified, and the quoted lines let a
+    # human decide. A tier whose answer was rejected as not a review DID answer, so it is
+    # never a quota or setup failure, whatever its text says. The shape is not proof of
+    # provenance — a plan line echoed into codex's stderr can take it — so an indented
+    # line (a diff's context lines start with a space) never counts, and the exit status
+    # stays in the summary beside the quota label (round 2, Codex).
+    if [ "$WHY" = "$NOT_A_REVIEW" ]; then
+      outcome="FAILED ($NOT_A_REVIEW)"
+      reason="the reviewer answered, but its answer did not pass the review check (a refusal-shaped or finding-less reply). Not a quota or setup problem: read the quoted stdout, and if it is a real review, count it by hand from the raw file."
+    elif printf '%s\n%s\n' "$err" "$out" \
+        | grep -iE '^(\[[^]]*\][[:space:]]*)*([^[:space:]]+[[:space:]]+)?(error|fatal)\b' \
         | grep -qiE "$QUOTA_RE"; then
-      outcome="FAILED (quota/rate limit: wait or add credits)"
-      reason="the quoted error reads as a quota or rate limit. Wait for the limit to reset or add credits."
+      outcome="FAILED (${WHY:-exit $rc}; quota/rate limit: wait or add credits)"
+      reason="${WHY:-exit $rc}; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead."
     else
       outcome="FAILED (${WHY:-exit $rc})"
       reason="${WHY:-exit $rc}; no quota or rate-limit error recognised below. Read the quoted lines, then check the CLI, its sign-in and the model name."
@@ -640,7 +654,7 @@ report_round() {
     elif [ "$FIRST_SUCCESS" = "1" ]; then
       note="$note — --first-success was requested."
     else
-      note="$note. Treat it as degraded, not as a clean pair: rerun once the failed tier recovers, or consider --with-antigravity or a manual paste round."
+      note="$note. Treat it as degraded, not as a clean pair: each FAILED section above names its remedy; or consider --with-antigravity or a manual paste round."
     fi
   fi
   printf '\n---\n%s\n' "$line"

@@ -41,6 +41,13 @@ case "${CODEX_STUB:-ok}" in
   authshort) # the same, with the artifact line right next to the error
         printf '%s\n' 'user' '+retry on HTTP 429 Too Many Requests after a pause' >&2
         echo "ERROR: not signed in - run codex login" >&2; exit 1 ;;
+  authctx) # a diff CONTEXT line (leading space) shaped like an error, then the real one
+        printf '%s\n' 'user' ' ERROR: 429 Too Many Requests in the old handler' >&2
+        echo "ERROR: not signed in - run codex login" >&2; exit 1 ;;
+  tracing429) # a tracing-style error line followed by trailer lines. The shape is
+        # assumed, not captured from a real codex quota refusal.
+        printf '%s\n' '2026-09-11T19:24:25.123Z ERROR codex_core::client: unexpected status 429 Too Many Requests' \
+          'tokens used' '0' 'session end' 'bye' >&2; exit 1 ;;
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -63,6 +70,15 @@ case "${OLLAMA_STUB:-ok}" in
   oddesc) # escapes outside the ESC[...letter shape: ESC[0~ (final byte ~), a charset
           # designation ESC(B, and a BEL
           printf '\033[0~\033[2;5H\033(BError: bad model\007\n' >&2; exit 1 ;;
+  oddbody) # a review body with an escape the redraw filter does not emulate
+          printf 'Introduction\n\033[0~1. BUG: important finding\n- NIT: second finding\n' ;;
+  strayesc) # a review body ending in a lone ESC the filter cannot parse
+          printf '%s\n' '- BUG: one' '- NIT: two'; printf '\033' ;;
+  utf8cut) # stderr starting mid-glyph, as `tail -c` produces: two continuation bytes
+          printf '\240\231 spinner\nError: 429 Too Many Requests: weekly usage limit reached\n' >&2; exit 1 ;;
+  notreview) # a reply the refusal check rejects, carrying a decoy error-shaped 429 line
+          printf '%s\n' 'No findings.' 'I could not read the retry code.' \
+            'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
 esac
 EOF
 chmod +x "$T/bin/codex" "$T/bin/ollama"
@@ -93,9 +109,9 @@ check "incident: the failed tier gets its own section on stdout" has incident.ou
 check "incident: the section quotes the tier's error" has incident.out "Error: 429 Too Many Requests"
 check "incident: no terminal escape bytes reach stdout" lacks incident.out $'\033'
 check "incident: no spinner glyphs reach stdout" lacks incident.out '⠙'
-check "incident: summary names the quota failure" has incident.out "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: wait or add credits)"
+check "incident: summary names the quota failure" has incident.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
 check "incident: a DIFF round with 1 reviewer says so" has incident.out "⚠ DIFF round landed with 1 reviewer(s) counted toward the gate"
-check "incident: the summary also reaches stderr" has incident.err "reviewers: codex OK, ollama-cloud FAILED (quota"
+check "incident: the summary also reaches stderr" has incident.err "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota"
 
 # 2. The normal pair: both reviews, no FAILED section, no degraded note.
 run pair bash "$SCRIPT" "$T/change.diff"
@@ -131,7 +147,7 @@ run none CODEX_STUB=auth OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "none: exit 4" rc_is none 4
 check "none: codex FAILED section" has none.out "## Independent review — codex — FAILED"
 check "none: ollama FAILED section" has none.out "## Independent review — ollama-cloud — FAILED"
-check "none: summary tells the two failures apart" has none.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (quota/rate limit"
+check "none: summary tells the two failures apart" has none.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (exit 1; quota/rate limit"
 check "none: note says 0 reviewers" has none.out "landed with 0 reviewer(s) counted toward the gate"
 check "none: manual paste prompt still printed" has none.out "--- BEGIN diff ---"
 
@@ -160,7 +176,7 @@ check "localonly: not described as external" lacks localonly.out "external revie
 # 9. An error printed on STDOUT before a non-zero exit is quoted and classified.
 run out429 CODEX_STUB=ok OLLAMA_STUB=out429 bash "$SCRIPT" "$T/change.diff"
 check "out429: stdout is quoted" has out429.out "    Error: 429 Too Many Requests: weekly usage limit reached"
-check "out429: classified as quota" has out429.out "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: wait or add credits)"
+check "out429: classified as quota" has out429.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
 
 # 10. A named model whose `ollama list` fails (daemon down) is a FAILED tier with its
 #     error, not a silent SKIPPED; with no model named, it is skipped and stderr says why.
@@ -177,6 +193,42 @@ run oddesc CODEX_STUB=ok OLLAMA_STUB=oddesc bash "$SCRIPT" "$T/change.diff"
 check "oddesc: the error text survives" has oddesc.out "    Error: bad model"
 check "oddesc: no escape bytes reach stdout" lacks oddesc.out $'\033'
 check "oddesc: no BEL reaches stdout" lacks oddesc.out $'\007'
+
+# 12. stderr cut mid-glyph (tail -c cuts on bytes) must not kill the quote (round 2, Fable).
+run utf8cut CODEX_STUB=ok OLLAMA_STUB=utf8cut bash "$SCRIPT" "$T/change.diff"
+check "utf8cut: the error is still quoted" has utf8cut.out "    Error: 429 Too Many Requests: weekly usage limit reached"
+check "utf8cut: and classified as quota" has utf8cut.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
+
+# 13. A reply rejected as not a review: its own outcome, never quota or setup advice,
+#     even with an error-shaped 429 line in it (round 2, Fable; the other branch's reviewers).
+run notreview CODEX_STUB=ok OLLAMA_STUB=notreview bash "$SCRIPT" "$T/change.diff"
+check "notreview: exit 0 (codex counted)" rc_is notreview 0
+check "notreview: FAILED section" has notreview.out "## Independent review — ollama-cloud — FAILED"
+check "notreview: summary names the rejection" has notreview.out "reviewers: codex OK, ollama-cloud FAILED (output is not a review)"
+check "notreview: the reply is quoted" has notreview.out "    I could not read the retry code."
+check "notreview: not a quota or setup problem" has notreview.out "Not a quota or setup problem"
+check "notreview: the decoy 429 is not read as quota" lacks notreview.out "quota/rate limit"
+check "notreview: no sign-in advice" lacks notreview.out "sign-in"
+
+# 14. A tracing-style codex error with trailer lines after it is still classified.
+run tracing CODEX_STUB=tracing429 bash "$SCRIPT" "$T/change.diff"
+check "tracing: codex classified as quota" has tracing.out "reviewers: codex FAILED (exit 1; quota/rate limit: wait or add credits), ollama-cloud OK"
+
+# 15. A diff context line (leading space) shaped like an error is not read as quota
+#     (round 2, Codex).
+run codexctx CODEX_STUB=authctx bash "$SCRIPT" "$T/change.diff"
+check "codexctx: an indented artifact line is not read as quota" has codexctx.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
+
+# 16. The review-body filter consumes an escape it does not emulate (ESC[0~) instead of
+#     silently ending the review there (round 2, Codex; pre-existing on main)...
+run oddbody CODEX_STUB=ok OLLAMA_STUB=oddbody bash "$SCRIPT" "$T/change.diff"
+check "oddbody: the finding after the escape survives" has oddbody.out "1. BUG: important finding"
+check "oddbody: counted" has oddbody.out "reviewers: codex OK, ollama-cloud OK"
+check "oddbody: no escape bytes" lacks oddbody.out $'\033'
+
+# 17. ...and fails the tier on one it cannot parse, rather than counting a truncated review.
+run strayesc CODEX_STUB=ok OLLAMA_STUB=strayesc bash "$SCRIPT" "$T/change.diff"
+check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: codex OK, ollama-cloud FAILED (output filter failed (exit 4))"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
