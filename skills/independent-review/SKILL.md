@@ -132,7 +132,8 @@ DIFF included, not only PLAN; `--first-success` reduces either to a single revie
 **PLAN additionally treats fewer than 2 as worth flagging**: a plan is often high-stakes
 enough that "whichever one answered first" isn't enough independence, so the script
 notes it explicitly (see Procedure below) whenever a plan lands with fewer than 2
-reviewers — DIFF gets no equivalent note. This is a default expectation, not a hard
+reviewers. The same note fires for a DIFF round too: a tier that fails quietly is
+how a one-reviewer round once passed for a pair. This is a default expectation, not a hard
 floor: passing `--first-success` on a plan is a caller's conscious choice to accept one
 reviewer instead (the script honors this, it does not override it — see the
 credit-cost tradeoff this represents). If a
@@ -217,7 +218,10 @@ teach the plain-language trigger phrases.
    right, and always when piping a plan through stdin (a piped plan
    otherwise silently loses the PLAN gate's <2-reviewers flag and gets
    mis-named as a diff trail). Default runs the standard pair (Codex + ollama-cloud) and prints one
-   section per reviewer; `--first-success` is the quick mode (for a `--plan`
+   section per reviewer it attempted — its review, or `## Independent review — <tier> — FAILED`
+   quoting the tier's error — then one closing line such as `reviewers: codex OK, ollama-cloud
+   FAILED (quota/rate limit: wait or add credits)`. Read that line before consolidating: exit 0
+   means at least one reviewer succeeded, not that the pair did. `--first-success` is the quick mode (for a `--plan`
    this deliberately drops from the default 2 reviewers to 1 — a conscious
    choice for lower-stakes plans, honored not overridden — see the reviewer
    stack above). Add `--with-antigravity` only when it's genuinely worth
