@@ -24,7 +24,13 @@ check reject "access refusal with the marker and a clean verdict" "I cannot acce
 check reject "access refusal that copies the marker and an anchor" "- BUG: foo.rb:12 — I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
 # The price of the three cases above: an honest lone finding that cannot read its evidence also
 # rejects, because by its text alone it cannot be told from them.
-check reject "honest lone finding that cannot read its evidence" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
+check reject "KNOWN WRONG: an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
 
 CLEAN: checked the caller's arguments."
+# Known wrong too, and tracked with the case above as B-REFUSAL-TEXT in
+# docs/reviews/OPEN-FINDINGS-independent-review.md. These pin today's behaviour, so a fix has to
+# change them on purpose.
+check accept "KNOWN WRONG: two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
+2. RISK — I cannot access the repository."
+check reject "KNOWN WRONG: a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
 exit $fail
