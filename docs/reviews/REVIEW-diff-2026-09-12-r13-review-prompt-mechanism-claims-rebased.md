@@ -73,7 +73,8 @@ is the configuration requested, not what the CLI enforces.
 
 ## The pilot, before this goes anywhere near the gate this Mac runs
 
-Eight real review gates from the apreet repos — three code changes, five docs changes, 53 to
+Eight real review gates from a private multi-repo project — three code changes, five docs
+changes, 53 to
 1,216 diff lines — each run **twice**: once through this branch's script by path, once through
 the pinned `c2c0333` copy, same artifact, same cwd, same reviewer pair. 16 runs, 32 seats.
 
@@ -119,7 +120,7 @@ findings list, where they would block the gate, and become entries that do not.
 
 **What it does not support:** any claim about **rounds per change**. Each gate here is one round
 on an already-merged change; measuring rounds needs iterating fixes to convergence. For scale, the
-recent apreet-stack trails run 4–8 rounds and 20–65 findings per change.
+recent trails in that project run 4–8 rounds and 20–65 findings per change.
 
 ### One result that contradicts a claim this round makes
 
