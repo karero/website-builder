@@ -38,6 +38,10 @@ rp() { git -C "$1" rev-parse --path-format=absolute "$2" 2>/dev/null || true; }
 
 repo_common="$(rp "$REPO_DIR" --git-common-dir)"
 one_abs_dir "$repo_common" || repo_common=""
+# Say when the guard is off, rather than clobbering a pin in silence.
+if [ -z "$repo_common" ] && [ -n "$(git -C "$REPO_DIR" rev-parse --git-common-dir 2>/dev/null || true)" ]; then
+  echo "note: this git cannot report absolute paths (rev-parse --path-format), so pin detection is off and every symlink is refreshed"
+fi
 
 for src in "$REPO_DIR"/skills/*/; do
   name="$(basename "$src")"
@@ -46,17 +50,30 @@ for src in "$REPO_DIR"/skills/*/; do
   if [ -L "$link" ]; then
     # cd -P through the link resolves a relative target and fails on a dangling one.
     target="$(cd -P "$link" 2>/dev/null && pwd || true)"
+    keep=0
     if [ "$FORCE" = 0 ] && [ -n "$repo_common" ] && [ -n "$target" ] && [ "$target" != "$own" ]; then
       link_common="$(rp "$target" --git-common-dir)"
       link_git="$(rp "$target" --git-dir)"
       link_top="$(rp "$target" --show-toplevel)"
-      if one_abs_dir "$link_common" && one_abs_dir "$link_git" && one_abs_dir "$link_top" &&
-         [ "$link_common" = "$repo_common" ] &&        # this repo
-         [ "$link_git" != "$link_common" ] &&          # a linked worktree, not the checkout
-         [ "$target" = "$link_top/skills/$name" ]; then # and the same skill
-        echo "kept pinned $name → $target (linked worktree of this repo; --force relinks)"
-        continue
+      if one_abs_dir "$link_common" && one_abs_dir "$link_git" && one_abs_dir "$link_top"; then
+        # Physical on both sides: a textual compare would miss a pin reached through a
+        # symlinked path, and failing there silently relinks it.
+        wt="$(cd -P "$link_top/skills/$name" 2>/dev/null && pwd || true)"
+        if [ "$link_common" = "$repo_common" ] &&     # this repo
+           [ "$link_git" != "$link_common" ] &&       # a linked worktree, not the checkout
+           [ -n "$wt" ] && [ "$target" = "$wt" ]; then # and the same skill
+          keep=1
+        fi
       fi
+    fi
+    if [ "$keep" = 1 ]; then
+      echo "kept pinned $name → $target (linked worktree of this repo; --force relinks)"
+      continue
+    fi
+    # Never move a link away from somewhere else in silence — including a pin whose
+    # worktree git can no longer read, which is exactly when silence would hurt.
+    if [ -n "$target" ] && [ "$target" != "$own" ]; then
+      echo "relinking $name (was → $target)"
     fi
     rm "$link"                                   # stale/our symlink → refresh
   elif [ -e "$link" ]; then

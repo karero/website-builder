@@ -15,7 +15,7 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## fail if any personal name / contact info / credential is in the suite, independent-review names a concrete model (it must stay model-agnostic), a new astro template file isn't bucketed (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE), a skill description exceeds the skill-spec hard limit (limits + shrink-only allowlist: scripts/check_skill_budgets.sh), independent-review hides a failed reviewer (test_failed_tier_report.sh), or an installer clobbers a skill pinned to another worktree (test_install_pin.sh)
+check:     ## run every suite guard: no personal data or credentials, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, no installer clobbering a pinned skill (each script's header says what it checks; the installer test needs git)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_model_agnostic.sh
 	@bash scripts/check_template_coverage.sh
