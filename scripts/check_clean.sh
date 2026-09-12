@@ -22,19 +22,24 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
 SCAN_NAMES_ALL="$SCAN README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs"
 SCAN_DOCS_ALL="$SCAN_NAMES_ALL LICENSE"
-# Scan only what is actually here, and say what is not: `grep -r` skips a missing path
-# silently, so naming it in the final OK line would claim a scan that never happened —
-# an OK that cannot fail. (A copy can legitimately lack one: the handoff zip ships a
-# subset.) The lists stay space-separated and unquoted on purpose — every entry is a
-# fixed, space-free path in this repo.
-keep_present() { local t out=""; for t in $1; do [ -e "$t" ] && out="${out:+$out }$t"; done; printf '%s' "$out"; }
-keep_absent()  { local t out=""; for t in $1; do [ -e "$t" ] || out="${out:+$out }$t"; done; printf '%s' "$out"; }
-SCAN_NAMES="$(keep_present "$SCAN_NAMES_ALL")"
-SCAN_DOCS="$(keep_present "$SCAN_DOCS_ALL")"
-MISSING="$(keep_absent "$SCAN_DOCS_ALL")"
-[ -n "$MISSING" ] && echo "· not present here, so not scanned: $MISSING"
-# With no paths at all, grep would read stdin and hang instead of checking anything.
-[ -n "$SCAN_DOCS" ] || { echo "FAIL — none of the scan targets exist here ($SCAN_DOCS_ALL); nothing was checked."; exit 1; }
+# Every target must be here. A missing path makes grep print a diagnostic and exit 2,
+# which this script used to send to /dev/null and read as "no hits" — so the final OK line
+# named files nobody had looked at, an OK that could not fail (found in the handoff zip,
+# which shipped no SECURITY.md while this check claimed to scan it). The zip now ships
+# every target, so a missing one means something is broken, not a legitimate subset.
+# The lists stay space-separated and unquoted on purpose — every entry is a fixed,
+# space-free path in this repo.
+SCAN_NAMES="$SCAN_NAMES_ALL"
+SCAN_DOCS="$SCAN_DOCS_ALL"
+# `set -f` so a target is never pathname-expanded — the loop wants the literal list.
+missing() { local t out=""; set -f; for t in $1; do [ -e "$t" ] || out="${out:+$out }$t"; done; set +f; printf '%s' "$out"; }
+MISSING="$(missing "$SCAN_DOCS_ALL")"
+if [ -n "$MISSING" ]; then
+  echo "FAIL — these scan targets are missing, so nothing checked them: $MISSING"
+  echo "All of them ship in the handoff zip and exist in a checkout. If a copy should"
+  echo "legitimately lack one, drop it from SCAN_NAMES_ALL/SCAN_DOCS_ALL deliberately."
+  exit 1
+fi
 fail=0
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
@@ -46,6 +51,20 @@ filter_ignored() { # stdin: grep output → stdout minus gitignored files
     esac
     git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"
   done
+}
+# grep wrapper: existence filtering says the paths are there, not that they were read.
+# grep exits 1 for "no hits" but >1 for a real failure (unreadable file, bad regex), and
+# discarding that difference is how an unscanned tree still prints OK.
+g() { # <grep args…> → matches on stdout; a scan ERROR fails the run instead of reading as clean
+  local out rc err
+  err="$(mktemp)"; out="$(command grep "$@" 2>"$err")"; rc=$?
+  if [ "$rc" -gt 1 ]; then
+    fail=1
+    echo "✗ scan error (grep exit $rc) — this check did NOT run:"
+    sed 's/^/    /' "$err"
+  fi
+  rm -f "$err"
+  printf '%s' "$out"
 }
 report() { # <label> <grep-output>
   [ -z "$2" ] && return 0
@@ -66,27 +85,27 @@ if [ -f "$DENYLIST_FILE" ]; then
   NAMES="$(grep -vE '^[[:space:]]*(#|$)' "$DENYLIST_FILE" | paste -sd'|' -)"
   # karero/website-builder is this project's OWN public repo — self-links to it (README
   # badges, clone instructions, the security policy) are the point, not a leak.
-  [ -n "$NAMES" ] && report "personal/site identifier" "$(grep -rinE "\\b(${NAMES})\\b" $SCAN_NAMES 2>/dev/null \
+  [ -n "$NAMES" ] && report "personal/site identifier" "$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES \
     | grep -viE 'github\.com/karero/website-builder')"
 else
   echo "· personal-name denylist skipped (no $DENYLIST_FILE) — generic checks still run"
 fi
 
 # 2. Personal home paths (non-portable + identifying).
-report "home path" "$(grep -rnE '/(Users|home)/[A-Za-z0-9._-]+' $SCAN_DOCS 2>/dev/null)"
+report "home path" "$(g -rnE '/(Users|home)/[A-Za-z0-9._-]+' $SCAN_DOCS)"
 
 # 3. Real email addresses (anything that is not an obvious placeholder/markup token).
 EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
-report "email address" "$(grep -rinE "$EMAIL" $SCAN_DOCS 2>/dev/null \
+report "email address" "$(g -rinE "$EMAIL" $SCAN_DOCS \
   | grep -viE '@(example|test|domain|yoursite|site|company)\b|example\.(com|org)|@(type|id|context|media|import|2x|3x|font-face|keyframes)|(you|user|name|email|first\.last|hello|info|team)@|git@(github|gitlab)\.com')"
 
 # 4. Credential / secret formats + private keys + JWTs.
 SECRETS='(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})'
-report "credential/secret" "$(grep -rnE "$SECRETS" $SCAN_DOCS 2>/dev/null)"
+report "credential/secret" "$(g -rnE "$SECRETS" $SCAN_DOCS)"
 
 # 5. Secret-looking assignments:  (api_key|secret|token|password|...) = "longish-literal"
 ASSIGN='(api[_-]?key|secret|client[_-]?secret|access[_-]?token|auth[_-]?token|password|passwd|bearer)["'"'"' ]*[:=]["'"'"' ]*["'"'"'][^"'"'"' ]{8,}'
-report "secret-looking assignment" "$(grep -rinE "$ASSIGN" $SCAN_DOCS 2>/dev/null \
+report "secret-looking assignment" "$(g -rinE "$ASSIGN" $SCAN_DOCS \
   | grep -viE 'placeholder|example|your[_-]|<[a-z]|x{4,}|\.\.\.|process\.env|import\.meta\.env|REPLACE|TODO|\[bracket\]')"
 
 if [ "$fail" -ne 0 ]; then
