@@ -6,6 +6,8 @@
 # A symlink already pointing into ANOTHER WORKTREE of this repo is left alone: that is
 # a deliberate pin to a vetted commit, and relinking it would silently undo someone's
 # decision about which version of a skill runs. Pass --force to relink those too.
+# Pin protection is best effort: where git cannot verify a target — an old git, no git,
+# or a copy that is not a repo — links are refreshed, and a note says so.
 set -euo pipefail
 
 FORCE=0
@@ -29,8 +31,10 @@ mkdir -p "$DEST"
 # counts only when it is a single absolute directory; otherwise the guard turns itself
 # off and the old always-relink behaviour applies.
 one_abs_dir() {
+  # Git for Windows prints drive-letter paths (C:/…); the two sides are always compared
+  # with each other, so either shape is fine as long as it is one absolute directory.
   case "$1" in
-    /*) case "$1" in *"
+    /*|[A-Za-z]:/*) case "$1" in *"
 "*) return 1 ;; esac; [ -d "$1" ] ;;
     *)  return 1 ;;
   esac
@@ -39,10 +43,7 @@ rp() { git -C "$1" rev-parse --path-format=absolute "$2" 2>/dev/null || true; }
 
 repo_common="$(rp "$REPO_DIR" --git-common-dir)"
 one_abs_dir "$repo_common" || repo_common=""
-# Say when the guard is off, rather than clobbering a pin in silence.
-if [ -z "$repo_common" ] && [ -n "$(git -C "$REPO_DIR" rev-parse --git-common-dir 2>/dev/null || true)" ]; then
-  echo "note: this git cannot report absolute paths (rev-parse --path-format), so pin detection is off and every symlink is refreshed"
-fi
+relinked_foreign=0
 
 for src in "$REPO_DIR"/skills/*/; do
   name="$(basename "$src")"
@@ -75,6 +76,7 @@ for src in "$REPO_DIR"/skills/*/; do
     # worktree git can no longer read, which is exactly when silence would hurt.
     if [ -n "$target" ] && [ "$target" != "$own" ]; then
       echo "relinking $name (was → $target)"
+      relinked_foreign=$((relinked_foreign + 1))
     fi
     rm "$link"                                   # stale/our symlink → refresh
   elif [ -e "$link" ]; then
@@ -84,4 +86,12 @@ for src in "$REPO_DIR"/skills/*/; do
   ln -s "$REPO_DIR/skills/$name" "$link"
   echo "linked $name"
 done
+# Guard off AND links moved: say why, so a lost pin is never a silent surprise.
+if [ -z "$repo_common" ] && [ "$relinked_foreign" -gt 0 ]; then
+  if command -v git >/dev/null 2>&1; then
+    echo "note: this checkout's git metadata could not be read (an old git, or not a repo), so pin detection was off and the links above were refreshed"
+  else
+    echo "note: git was not found, so pin detection was off and the links above were refreshed"
+  fi
+fi
 echo "done → $DEST"
