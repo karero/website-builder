@@ -20,8 +20,21 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # self-match). The name denylist covers the same docs EXCEPT LICENSE, which legitimately
 # carries the owner's real name + clone URLs (2026-07-17: widened from skills/-only after
 # docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
-SCAN_NAMES="$SCAN README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs"
-SCAN_DOCS="$SCAN_NAMES LICENSE"
+SCAN_NAMES_ALL="$SCAN README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs"
+SCAN_DOCS_ALL="$SCAN_NAMES_ALL LICENSE"
+# Scan only what is actually here, and say what is not: `grep -r` skips a missing path
+# silently, so naming it in the final OK line would claim a scan that never happened —
+# an OK that cannot fail. (A copy can legitimately lack one: the handoff zip ships a
+# subset.) The lists stay space-separated and unquoted on purpose — every entry is a
+# fixed, space-free path in this repo.
+keep_present() { local t out=""; for t in $1; do [ -e "$t" ] && out="${out:+$out }$t"; done; printf '%s' "$out"; }
+keep_absent()  { local t out=""; for t in $1; do [ -e "$t" ] || out="${out:+$out }$t"; done; printf '%s' "$out"; }
+SCAN_NAMES="$(keep_present "$SCAN_NAMES_ALL")"
+SCAN_DOCS="$(keep_present "$SCAN_DOCS_ALL")"
+MISSING="$(keep_absent "$SCAN_DOCS_ALL")"
+[ -n "$MISSING" ] && echo "· not present here, so not scanned: $MISSING"
+# With no paths at all, grep would read stdin and hang instead of checking anything.
+[ -n "$SCAN_DOCS" ] || { echo "FAIL — none of the scan targets exist here ($SCAN_DOCS_ALL); nothing was checked."; exit 1; }
 fail=0
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.

@@ -25,7 +25,7 @@ cd "$REPO_DIR"
 # node_modules from an unrelated earlier session balanced a 201-file zip into 9324 files (185MB)
 # before that exclusion existed; caught live 2026-08-29 (v0.23 release prep) for the other three.
 zip -r -X "$OUT/website-builder.zip" \
-  skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
+  skills docs README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
   scripts/test_install_pin.sh scripts/check_template_coverage.sh \
@@ -41,6 +41,7 @@ REQUIRED=(
   README.md
   LICENSE
   THIRD-PARTY-LICENSES.md
+  SECURITY.md
   Makefile
   scripts/install.sh
   scripts/install-codex.sh
@@ -51,6 +52,7 @@ REQUIRED=(
   scripts/check_skill_budgets.sh
   scripts/test_install_pin.sh
   scripts/check_template_coverage.sh
+  skills/independent-review/scripts/test_failed_tier_report.sh
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md
