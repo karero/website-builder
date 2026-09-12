@@ -458,8 +458,10 @@ run_codex() {
 # headless 2026-07-02.
 # (The old @google/gemini-cli path is DEPRECATED: Google discontinued its free
 # "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
-# --sandbox = terminal restrictions; -p print mode never auto-approves tool calls (we do NOT
-# pass --dangerously-skip-permissions). Run from a throwaway dir; treat output as untrusted.
+# --sandbox asks for terminal restrictions and -p print mode is meant not to auto-approve tool
+# calls (we do NOT pass --dangerously-skip-permissions). Both describe what is REQUESTED;
+# neither is tested here, the same gap as codex's (R-SANDBOX in OPEN-FINDINGS). The throwaway
+# cwd limits what a write would reach only if the CLI stays in it. Treat output as untrusted.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"
