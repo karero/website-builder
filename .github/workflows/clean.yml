@@ -13,7 +13,8 @@ name: clean
 # independent-review's own checks, in skills/independent-review/scripts/: whether a reviewer that
 # fails is reported rather than hidden (test_failed_tier_report.sh), which reviewer output counts
 # as a review (test_looks_like_review.sh), and whether SKILL.md's prompt matches the script's
-# (check_prompt_sync.sh).
+# (check_prompt_sync.sh). It also runs the check that neither installer clobbers a skill someone
+# pinned to another worktree of this repo (scripts/test_install_pin.sh).
 on:
   push:
   pull_request:
@@ -56,3 +57,9 @@ jobs:
         run: bash skills/independent-review/scripts/test_looks_like_review.sh
       - name: Check SKILL.md's reviewer prompt matches the script's
         run: bash skills/independent-review/scripts/check_prompt_sync.sh
+  install-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the installers keep a skill pinned to another worktree
+        run: bash scripts/test_install_pin.sh

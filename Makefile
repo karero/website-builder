@@ -15,7 +15,7 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## fail if the suite has personal data or credentials, independent-review names a concrete model, an astro template file is unbucketed, a skill description exceeds its hard limit, or an independent-review self-check fails (each script's header says what it checks)
+check:     ## run every suite guard: no personal data or credentials, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator and prompt-sync self-checks green, no installer clobbering a pinned skill (each script's header says what it checks; the installer test needs git)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_model_agnostic.sh
 	@bash scripts/check_template_coverage.sh
@@ -23,6 +23,7 @@ check:     ## fail if the suite has personal data or credentials, independent-re
 	@bash skills/independent-review/scripts/test_failed_tier_report.sh
 	@bash skills/independent-review/scripts/test_looks_like_review.sh
 	@bash skills/independent-review/scripts/check_prompt_sync.sh
+	@bash scripts/test_install_pin.sh
 
 smoke: package   ## shippability check: make check + build zip + verify zip contents
 	@echo "smoke OK — suite is clean and the handoff zip is complete"

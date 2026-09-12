@@ -136,6 +136,9 @@ unzip website-builder.zip && cd website-builder
 #    ~/.claude/skills/, so this one command is the whole setup — no copying by hand.
 ./scripts/install.sh          # symlinks every skill into ~/.claude/skills/ (idempotent)
                               # macOS/Linux/WSL/Git-Bash. Or: make install
+                              # A skill you pinned yourself — symlinked into another
+                              # worktree of this repo — is kept and reported;
+                              # ./scripts/install.sh --force relinks those too.
 ```
 
 ```

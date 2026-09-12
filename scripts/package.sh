@@ -28,6 +28,7 @@ zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
+  scripts/test_install_pin.sh scripts/check_template_coverage.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
 
@@ -48,6 +49,8 @@ REQUIRED=(
   scripts/whats-new.sh
   scripts/check_model_agnostic.sh
   scripts/check_skill_budgets.sh
+  scripts/test_install_pin.sh
+  scripts/check_template_coverage.sh
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md
