@@ -14,7 +14,7 @@ TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 # An assignment is the variable at the start of a statement: line start, or after a separator
 # (; & | { } ( ) &&/||), optionally behind a declaring keyword. Whole-line comments are dropped
 # first, so `# PROMPT_TOOLED="${PROMPT_CORE}` counts for nothing.
-ASSIGN_PRE='(^[[:space:]]*|[;&|{}()][[:space:]]*)((export|declare|typeset|readonly|local)[[:space:]]+)?'
+ASSIGN_PRE='(^[[:space:]]*|[;&|{}()][[:space:]]*)((export|declare|typeset|readonly|local)([[:space:]]+-[^[:space:]=]+)*[[:space:]]+)?'
 uncommented() { grep -vE '^[[:space:]]*#' "$1"; }
 assignments() { uncommented "$1" | grep -cE "${ASSIGN_PRE}$2\+?="; }
 assign_line() {  # line number of the first live assignment of $2, or empty
@@ -25,6 +25,10 @@ norm() { tr -s ' \t\n' '   ' | sed -e 's/^ //' -e 's/ $//'; }
 core_of() {  # PROMPT_CORE's value as bash assigns it, with ${TYPE} as SKILL.md writes it.
   # Extracts the ONE assignment, not a range: lines are taken from `PROMPT_CORE="` until the
   # double quotes balance, so no code that happens to sit between the prompts is ever evaluated.
+  # Balancing alone is NOT enough — `PROMPT_CORE="ok"; cmd` balances on its own line and used to
+  # run cmd (Codex, round 13). So the block must be the assignment and NOTHING else, and must
+  # carry no command substitution, before it is evaluated. Anything else yields no core, which
+  # fails the check rather than passing it.
   local block
   block="$(awk '
     /^PROMPT_CORE="/ && !p { p = 1 }
@@ -36,6 +40,10 @@ core_of() {  # PROMPT_CORE's value as bash assigns it, with ${TYPE} as SKILL.md 
       if (q % 2 == 0) exit
     }' "$1")"
   [ -n "$block" ] || return 0
+  printf '%s' "$block" | perl -0777 -ne '
+    exit 1 unless /\APROMPT_CORE="((?:[^"\\]|\\.)*)"\s*\z/s;   # the assignment, and nothing after it
+    exit 1 if $1 =~ /\$\(|`/;                                 # no command substitution to evaluate
+    exit 0' || return 0
   ( TYPE='{plan | diff}'; eval "$block" 2>/dev/null && printf '%s' "${PROMPT_CORE:-}" ) | norm
 }
 quote_of() {  # every blockquote line under SKILL.md's "The strict review prompt" heading
@@ -90,6 +98,16 @@ fires "a later 'declare' assignment of a tier prompt" "$t/e.sh" "$SKILL"
 fires "a later ';'-prefixed assignment of a tier prompt" "$t/f.sh" "$SKILL"
 { cat "$SCRIPT"; printf '\tPROMPT_TOOLED="Review this diff."\n'; } > "$t/i.sh"
 fires "a later indented assignment of a tier prompt" "$t/i.sh" "$SKILL"
+# a declaring keyword carrying OPTIONS -- bash really does reassign here (round 13, Codex)
+{ cat "$SCRIPT"; echo 'declare -x PROMPT_TOOLED="detached"'; } > "$t/j.sh"
+fires "a later 'declare -x' assignment of a tier prompt" "$t/j.sh" "$SKILL"
+# a command on the SAME line as the assignment: quote-balancing alone would evaluate it
+{ echo 'PROMPT_CORE="ok"; printf "SIDE_EFFECT\n"'; cat "$SCRIPT"; } > "$t/k.sh"
+fires "a command trailing PROMPT_CORE's own line" "$t/k.sh" "$SKILL"
+# command substitution inside the prompt text, which eval would run
+sed 's/^PROMPT_CORE="Adversarial/PROMPT_CORE="$(id) Adversarial/' "$SCRIPT" > "$t/l.sh"
+cmp -s "$SCRIPT" "$t/l.sh" && { echo "FAIL: self-test could not inject a substitution"; exit 1; }
+fires "command substitution inside PROMPT_CORE" "$t/l.sh" "$SKILL"
 # PROMPT_CORE moved after the tier prompts: still assigned once, still quoted correctly,
 # but every tier would expand it empty under `set -u`-free expansion
 awk '/^PROMPT_CORE="/{p=1} p{core = core $0 "\n"; if ($0 ~ /not an attack\."$/) p=0; next} {print} END{printf "%s", core}' "$SCRIPT" > "$t/g.sh"
