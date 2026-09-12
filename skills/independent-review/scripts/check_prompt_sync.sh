@@ -11,14 +11,18 @@ here="$(cd "$(dirname "$0")" && pwd)"
 SCRIPT="$here/independent_review.sh"; SKILL="$here/../SKILL.md"
 TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 
-# An assignment is the variable at the start of a statement: line start, or after a separator
-# (; & | { } ( ) &&/||), optionally behind a declaring keyword. Whole-line comments are dropped
-# first, so `# PROMPT_TOOLED="${PROMPT_CORE}` counts for nothing.
-ASSIGN_PRE='(^[[:space:]]*|[;&|{}()][[:space:]]*)((export|declare|typeset|readonly|local)([[:space:]]+-[^[:space:]=]+)*[[:space:]]+)?'
+# Counting assignments by recognising shell syntax was an arms race and lost it twice: a
+# declaring keyword with options (`declare -x X=`) and then a conditional (`if true; then X=`;
+# round 2, Codex) each slipped past a pattern that had just been widened for the previous one.
+# The rule is now conservative instead of clever: on any line that is not a whole-line comment,
+# ANY textual occurrence of the name followed by `=` or `+=` counts. Every syntax that assigns
+# contains one, whatever the surrounding shape, so nothing can hide behind `then`, `do`, `eval`
+# or a keyword yet to be thought of. It over-counts a mention inside a string, which fails the
+# check rather than passing it -- the safe direction for a guard.
 uncommented() { grep -vE '^[[:space:]]*#' "$1"; }
-assignments() { uncommented "$1" | grep -cE "${ASSIGN_PRE}$2\+?="; }
-assign_line() {  # line number of the first live assignment of $2, or empty
-  uncommented "$1" | grep -nE "${ASSIGN_PRE}$2\+?=" | head -1 | cut -d: -f1
+assignments() { uncommented "$1" | grep -oE "$2\+?=" | wc -l | tr -d ' '; }
+assign_line() {  # line number of the first occurrence of $2 being assigned, or empty
+  uncommented "$1" | grep -nE "$2\+?=" | head -1 | cut -d: -f1
 }
 
 norm() { tr -s ' \t\n' '   ' | sed -e 's/^ //' -e 's/ $//'; }
@@ -60,7 +64,7 @@ check() {  # $1 script, $2 SKILL.md; prints each problem, returns 1 if there is 
   for v in $TIERS; do
     n=$(assignments "$1" "$v")
     [ "$n" = 1 ] || { echo "$v is assigned $n times; expected once"; bad=1; }
-    uncommented "$1" | grep -qE "${ASSIGN_PRE}$v=\"\\\$\{PROMPT_CORE\}" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
+    uncommented "$1" | grep -qE "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
     vl=$(assign_line "$1" "$v")
     [ -n "$cl" ] && [ -n "$vl" ] && [ "$cl" -lt "$vl" ] || { echo "PROMPT_CORE is not assigned before $v"; bad=1; }
   done
@@ -96,6 +100,9 @@ fires "a commented-out tier prompt above a live one that drops PROMPT_CORE" "$t/
 fires "a later 'declare' assignment of a tier prompt" "$t/e.sh" "$SKILL"
 { cat "$SCRIPT"; echo ':; PROMPT_TOOLED="Review this diff."'; } > "$t/f.sh"
 fires "a later ';'-prefixed assignment of a tier prompt" "$t/f.sh" "$SKILL"
+# a conditional, which no widening of a statement-shape pattern had caught (round 2, Codex)
+{ cat "$SCRIPT"; echo 'if true; then PROMPT_TOOLED="detached"; fi'; } > "$t/m.sh"
+fires "a later conditional assignment of a tier prompt" "$t/m.sh" "$SKILL"
 { cat "$SCRIPT"; printf '\tPROMPT_TOOLED="Review this diff."\n'; } > "$t/i.sh"
 fires "a later indented assignment of a tier prompt" "$t/i.sh" "$SKILL"
 # a declaring keyword carrying OPTIONS -- bash really does reassign here (round 13, Codex)
