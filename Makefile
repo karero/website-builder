@@ -15,12 +15,14 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## run every suite guard: no personal data or credentials, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, no installer clobbering a pinned skill (each script's header says what it checks; the installer test needs git)
+check:     ## run every suite guard: no personal data or credentials, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator and prompt-sync self-checks green, no installer clobbering a pinned skill (each script's header says what it checks; the installer test needs git)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_model_agnostic.sh
 	@bash scripts/check_template_coverage.sh
 	@bash scripts/check_skill_budgets.sh
 	@bash skills/independent-review/scripts/test_failed_tier_report.sh
+	@bash skills/independent-review/scripts/test_looks_like_review.sh
+	@bash skills/independent-review/scripts/check_prompt_sync.sh
 	@bash scripts/test_install_pin.sh
 
 smoke: package   ## shippability check: make check + build zip + verify zip contents

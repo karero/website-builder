@@ -4,12 +4,14 @@ Living tracker. Every row is a review finding that is **not** closed. Close a ro
 refuting it (BUG), or by fixing, refuting, or recording an owner waiver (RISK/NIT) — then delete
 the row, with the disposition recorded in that round's trail.
 
-Last updated 2026-08-29, after the model-agnosticism round added B-TAGCLASS below.
+Last updated 2026-09-12, after the mechanism-claim prompt change was reconciled with the tool-less
+tier and the remaining sandbox assurances were hedged. Added 2026-09-11: B-REFUSAL-TEXT and
+R-SANDBOX. Before that, 2026-08-29, after the model-agnosticism round added B-TAGCLASS below.
 Previous update 2026-08-04, after the permission-table collapse. Reviewers to date: Codex
 `gpt-5.6-sol` (read-only), ollama-cloud `glm-5.2`, Kimi `kimi-k3:cloud`, and a host fresh-eyes
 pass (Claude Opus 5).
 
-## Gate status: one open BUG (B-TAGCLASS, pre-existing + deferred); earlier BUGs closed but NOT externally re-verified
+## Gate status: two open BUGs (B-TAGCLASS, B-REFUSAL-TEXT, both pre-existing + deferred); earlier BUGs closed but NOT externally re-verified
 
 All BUGs raised through the Kimi round are closed. **No reviewer has seen the applied result.**
 Kimi reviewed the *draft* and returned "ship with the listed fixes"; those fixes were then applied,
@@ -17,16 +19,18 @@ so the committed text is one edit-generation ahead of anything any reviewer has 
 skill's own vocabulary: `locally_verified`, not `externally_reverified`. One more round would
 close that, and is the single highest-value thing left here.
 
-## BUG — open (pre-existing, deferred out of the 2026-08-29 agnosticism PR)
+## BUG — open (pre-existing, each deferred out of the PR that found it)
 
 | id | Location | Finding | Found |
 |---|---|---|---|
 | B-TAGCLASS | `independent_review.sh` `is_cloud_ollama_tag()` + setup-guide RAM table | The `*:120b`/`*:405b`/`*:480b` arms classify locality by size suffix, but the tag alone underdetermines it: a locally-pulled `gpt-oss:120b` (the RAM table's own 96 GB+ recommendation) is refused under `--local-only`, and set explicitly outside it would count as gate-eligible cloud. Needs locality derived from ollama metadata (which store the tag actually resolves in), with ONE classifier shared by auto-detect, local-only enforcement, and gate eligibility. Pre-existing (suffix arms predate the agnosticism change); deferred because the fix is a design change, not a scrub. | Codex 2026-08-29 |
+| B-REFUSAL-TEXT | `independent_review.sh` `looks_like_review()` | Refusal detection is a text test on responses with at most one finding, and text cannot separate a refusal from a finding. Two refusal-shaped findings ("1. BUG — I cannot review the file." / "2. RISK — I cannot access the repository.") are accepted as a review; a lone real finding saying "the handler cannot return JSON" is rejected; and a lone honest finding that cannot read its evidence is rejected even when marked UNVERIFIABLE. Round 13 changed the prompt and did **not** narrow this as much as it first appeared. `PROMPT_CORE` now files an evidence gap as an UNVERIFIABLE entry rather than a finding, phrased about the claim rather than the reviewer's own access, and dictates the clean verdict word for word. Codex then showed that **the shape the prompt now prescribes is itself discarded**: `No BUG/RISK/NIT findings.` followed by `UNVERIFIABLE: library X cannot provide the stated durability` is rejected, because the refusal regex matches "cannot provide" anywhere and the reply carries no finding lines. An UNVERIFIABLE entry is *about* what a component cannot do, so this collides head-on with the rule the same round added. Pinned as a KNOWN WRONG case. **Changing the prompt cannot fix this** — it needs the status contract described below. The pilot did not hit it: every seat there carried many findings, which disables the refusal check. Two exemptions for the last case (the marker; the marker plus a file:line anchor) were tried and withdrawn on 2026-09-11, because each let a refusal through. Four more false accepts were found in round 10: a lone finding saying "I couldn't access", "I don't have access to", "I can not review" or "I was unable to view" passes as a review. Needs a design change, such as a status the reviewer states apart from its findings, not a further regex. Pre-existing: all three reproduce on the origin/main function. `test_looks_like_review.sh` pins all of these as KNOWN WRONG cases, so a fix has to change them on purpose. | Codex 2026-09-11 (rounds 4-6), ollama-cloud (round 10); deferral signed off by the owner 2026-09-11 |
 
 ## RISK — open
 
 | id | Location | Finding | Found |
 |---|---|---|---|
+| R-SANDBOX | `independent_review.sh`, the comments above `PROMPT_CORE`, the header, `run_codex` and `run_agy`; `SKILL.md`'s reviewer list | The comments above `PROMPT_CORE` said `-s read-only` "already blocks writes" and that "the real boundary is the sandbox"; since round 10 those two comments say enforcement is untested, and since round 13 so do the other three sites that carried the same assurance unhedged — the script's header SECURITY block, the comment above the Codex invocation, and SKILL.md's reviewer list. Round 4 extended it to the **Antigravity** tier, whose comment made the same two unbacked claims (`--sandbox` restricts commands; `-p` never auto-approves tool calls); both are now written as requested, not enforced. **The finding itself is still open:** every site now describes what the flag REQUESTS, which is all that was ever checked; nothing tests what either CLI enforces. Pre-existing; raised by the new mechanism-claim sentence on its first run over this file. | Codex 2026-09-11 (round 5); deferral signed off by the owner 2026-09-11 |
 | R-CI | clerk item 2 | The local `(base, head)` capture is fixed, but the marker still stamps a single SHA and nothing names **which platform field a CI gate should compare** — GitLab and GitHub differ, and "the commit actually being merged" ≠ source head under squash or merge-commit flows. **Blocked on a cross-repo decision**: a downstream repo's `review-trail-posted-gate` job depends on the current single-SHA form, so changing it is a two-repo change. | Codex r4, Kimi |
 | R-SEATS | clerk item 2 | "Every seat that participated in the verdict" is still undefined for attempted-but-failed, degraded, or manually excluded seats — an implementation can omit a required seat by declaring non-participation. Wants a required-seat roster persisted before execution. | Codex r4 |
 | R1-8 | onboarding step 2 | "Installed and authenticated" can route local-only ollama into the skip branch; `ollama list` doesn't prove a `:cloud` tag is signed in. Needs a concrete cloud-readiness probe. | Codex r1 |
