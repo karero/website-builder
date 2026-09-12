@@ -14,25 +14,30 @@ TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 # Counting assignments by recognising shell syntax was an arms race and lost it twice: a
 # declaring keyword with options (`declare -x X=`) and then a conditional (`if true; then X=`;
 # round 2, Codex) each slipped past a pattern that had just been widened for the previous one.
-# The rule is now conservative instead of clever: on any line that is not a whole-line comment,
-# ANY textual occurrence of the name followed by `=` or `+=` counts. Every syntax that assigns
-# contains one, whatever the surrounding shape, so nothing can hide behind `then`, `do`, `eval`
-# or a keyword yet to be thought of. It over-counts a mention inside a string, which fails the
-# check rather than passing it -- the safe direction for a guard.
+# The rule is conservative instead of clever: on any line that is not a whole-line comment, ANY
+# textual occurrence of the name followed by `=` or `+=` counts, plus `printf -v NAME`, which
+# assigns with no `=` at all. It over-counts a mention inside a string, which fails the check
+# rather than passing it -- the safe direction for a guard.
+#
+# The guarantee is exactly that and no more. An earlier version of this comment claimed every
+# assigning syntax contains `NAME=`; `printf -v` disproved it (round 3, Codex), and `eval` of a
+# string built at runtime, or a `declare -n` alias, would evade any textual rule. The runtime
+# backstop is `readonly` on the four prompt variables in independent_review.sh: a later write of
+# any shape fails there, whether or not this check sees it.
 uncommented() { grep -vE '^[[:space:]]*#' "$1"; }
-assignments() { uncommented "$1" | grep -oE "$2\+?=" | wc -l | tr -d ' '; }
+assignments() { uncommented "$1" | grep -oE "$2\+?=|-v[[:space:]]+$2\b" | wc -l | tr -d ' '; }
 assign_line() {  # line number of the first occurrence of $2 being assigned, or empty
   uncommented "$1" | grep -nE "$2\+?=" | head -1 | cut -d: -f1
 }
 
 norm() { tr -s ' \t\n' '   ' | sed -e 's/^ //' -e 's/ $//'; }
-core_of() {  # PROMPT_CORE's value as bash assigns it, with ${TYPE} as SKILL.md writes it.
-  # Extracts the ONE assignment, not a range: lines are taken from `PROMPT_CORE="` until the
-  # double quotes balance, so no code that happens to sit between the prompts is ever evaluated.
-  # Balancing alone is NOT enough — `PROMPT_CORE="ok"; cmd` balances on its own line and used to
-  # run cmd (Codex, round 13). So the block must be the assignment and NOTHING else, and must
-  # carry no command substitution, before it is evaluated. Anything else yields no core, which
-  # fails the check rather than passing it.
+core_of() {  # PROMPT_CORE's value, with ${TYPE} as SKILL.md writes it. NOTHING here is evaluated.
+  # eval is gone. Guarding it by filtering the text first lost twice: a command on the
+  # assignment's own line, then `$\<newline>(` -- an escaped newline splitting the `$(` the
+  # filter looked for, which bash rejoins (round 3, Codex). A filter can only reject the
+  # constructions someone thought of, so the value is now READ, never run: the one quoted
+  # string is unescaped literally, and the only expansion honoured is ${TYPE}. Any other `$`
+  # or a backtick yields no core, which fails the check rather than passing it.
   local block
   block="$(awk '
     /^PROMPT_CORE="/ && !p { p = 1 }
@@ -45,10 +50,16 @@ core_of() {  # PROMPT_CORE's value as bash assigns it, with ${TYPE} as SKILL.md 
     }' "$1")"
   [ -n "$block" ] || return 0
   printf '%s' "$block" | perl -0777 -ne '
-    exit 1 unless /\APROMPT_CORE="((?:[^"\\]|\\.)*)"\s*\z/s;   # the assignment, and nothing after it
-    exit 1 if $1 =~ /\$\(|`/;                                 # no command substitution to evaluate
-    exit 0' || return 0
-  ( TYPE='{plan | diff}'; eval "$block" 2>/dev/null && printf '%s' "${PROMPT_CORE:-}" ) | norm
+    exit 1 unless /\APROMPT_CORE="((?:[^"\\]|\\.)*)"\s*\z/s;  # the assignment, and nothing after it
+    my $v = $1;
+    $v =~ s/\\\n//g;                        # line continuations, before anything is judged
+    exit 1 if $v =~ /`/;                     # no backticks
+    my $probe = $v; $probe =~ s/\$\{TYPE\}//g;
+    exit 1 if $probe =~ /\$/;                 # no expansion other than ${TYPE}
+    $v =~ s/\$\{TYPE\}/{plan | diff}/g;
+    $v =~ s/\\(["\\\$`])/$1/g;                 # the escapes a double-quoted string honours
+    print $v;
+    exit 0' 2>/dev/null | norm
 }
 quote_of() {  # every blockquote line under SKILL.md's "The strict review prompt" heading
   awk '/^## The strict review prompt/{h=1; next} h && /^#/{exit} h && /^>/{sub(/^> ?/, ""); print}' "$1" | norm
@@ -103,6 +114,12 @@ fires "a later ';'-prefixed assignment of a tier prompt" "$t/f.sh" "$SKILL"
 # a conditional, which no widening of a statement-shape pattern had caught (round 2, Codex)
 { cat "$SCRIPT"; echo 'if true; then PROMPT_TOOLED="detached"; fi'; } > "$t/m.sh"
 fires "a later conditional assignment of a tier prompt" "$t/m.sh" "$SKILL"
+# an assignment with no `=` at all (round 3, Codex)
+{ cat "$SCRIPT"; echo 'printf -v PROMPT_TOOLED detached'; } > "$t/n.sh"
+fires "a later 'printf -v' assignment of a tier prompt" "$t/n.sh" "$SKILL"
+# an escaped newline splitting the `$(` a textual filter looks for (round 3, Codex)
+{ printf 'PROMPT_CORE="$\\\n(printf SIDE_EFFECT)"\n'; cat "$SCRIPT"; } > "$t/o.sh"
+fires "command substitution split by an escaped newline" "$t/o.sh" "$SKILL"
 { cat "$SCRIPT"; printf '\tPROMPT_TOOLED="Review this diff."\n'; } > "$t/i.sh"
 fires "a later indented assignment of a tier prompt" "$t/i.sh" "$SKILL"
 # a declaring keyword carrying OPTIONS -- bash really does reassign here (round 13, Codex)

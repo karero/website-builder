@@ -42,6 +42,8 @@ CLEAN: checked the caller's arguments."
 # change them on purpose.
 check accept "KNOWN WRONG: two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
 2. RISK — I cannot access the repository."
+check reject "KNOWN WRONG: the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
+UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
 check reject "KNOWN WRONG: a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
 check accept "KNOWN WRONG: 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
 check accept "KNOWN WRONG: 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
