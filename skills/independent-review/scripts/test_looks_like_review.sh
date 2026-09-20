@@ -23,6 +23,21 @@ check accept "real multi-finding review with a refusal-like aside" "I could not 
 check accept "clean verdict: no findings" "No findings."
 check accept "clean verdict: findings none" "Ranked findings: none."
 check accept "clean verdict: no BUG / RISK / NIT" "No BUG / RISK / NIT findings in this diff."
+# 2026-09-20: a genuine clean review was discarded because a qualifier sat between "no" and the
+# severity word. Each qualified case below rejects on the script as it was before that fix.
+check accept "clean verdict: the 2026-09-20 sentence" "No confirmed BUG or RISK in the supplied diff."
+check accept "clean verdict: the 2026-09-20 sentence inside a full clean review" "No confirmed BUG or RISK in the supplied diff. I cannot verify numeric file:line anchors without reading the files.
+
+Checked and CLEAN by static inspection:
+
+- \`cap.rb:read_count\` — rejects negative, fractional and nonnumeric counts.
+- \`server.rb:tool_description\` — explains the separate totals without encouraging addition.
+
+Coverage limits: no commands or tests were run."
+check accept "clean verdict: one qualifier, singular" "No definite BUG."
+check accept "clean verdict: lower case, plural" "I found no confirmed bugs in this change."
+check accept "clean verdict: three qualifiers" "No new or confirmed RISK."
+check accept "clean verdict: the unqualified form still passes" "No BUG or RISK."
 check reject "empty output" ""
 check reject "unrelated output: a rate-limit error" "Error: 429 Too Many Requests: you have reached your weekly usage limit"
 check reject "bare refusal" "I cannot review this content."
@@ -32,6 +47,10 @@ check reject "review refusal with the UNVERIFIABLE marker" "- BUG: I cannot revi
 check reject "access refusal that copies the marker" "- BUG: I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
 check reject "access refusal with the marker and a clean verdict" "I cannot access the file. UNVERIFIABLE. No findings."
 check reject "access refusal that copies the marker and an anchor" "- BUG: foo.rb:12 — I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
+check reject "plain refusal, no verdict" "I'm sorry, but I am unable to review this diff because the repository is not available to me."
+check reject "refusal carrying the qualified clean verdict (the refusal check runs first)" "No confirmed BUG or RISK, because I cannot access the diff you supplied."
+# The qualifiers are a literal list, not "any word": with [a-z-]+ in their place this accepts.
+check reject "'no way to find bugs' is not a clean verdict" "There is no way to find bugs in this without more context."
 # The price of the marker- and anchor-copying rejects above: an honest lone finding that cannot read its evidence also
 # rejects, because by its text alone it cannot be told from them.
 check reject "KNOWN WRONG: an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.

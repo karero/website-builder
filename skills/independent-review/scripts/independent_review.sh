@@ -385,7 +385,12 @@ looks_like_review() {
   #    BUG, RISK, or NIT..." (findings appears before, not after, the "no"). Order- and
   #    phrasing-tolerant now: matches no+findings in EITHER order, "findings: none",
   #    bare "none" as a sentence, or "no bug/risk/nit" directly.
-  printf '%s\n' "$1" | grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno (bug|risk|nit)s?\b'
+  #    Up to three qualifiers may sit between "no" and the severity word: a genuine clean
+  #    Codex review was discarded on 2026-09-20 because its verdict read "No confirmed BUG
+  #    or RISK in the supplied diff." The qualifiers are a LITERAL list on purpose — "any
+  #    word" would also accept "There is no way to find bugs in this". A refusal carrying
+  #    the same wording is still caught by check 1, which runs first.
+  printf '%s\n' "$1" | grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno ((confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely|or|and),? ){0,3}(bug|risk|nit)s?\b'
 }
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
