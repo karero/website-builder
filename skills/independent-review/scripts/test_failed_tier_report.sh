@@ -82,7 +82,7 @@ case "${OLLAMA_STUB:-ok}" in
   notreview) # a reply the refusal check rejects, carrying a decoy error-shaped 429 line
           printf '%s\n' 'No findings.' 'I could not read the retry code.' \
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
-  reply)  printf '%s\n' "$STUB_REPLY" ;;
+  reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
 esac
 EOF
 chmod +x "$T/bin/codex" "$T/bin/ollama"

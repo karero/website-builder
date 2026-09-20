@@ -12,6 +12,11 @@ fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/i
   || { echo "FAIL: extraction did not stop at looks_like_review's own closing brace"; exit 1; }
 eval "$fn"
 fail=0
+# The clean-verdict regex spells its qualifier list out twice; the copies must not drift.
+lists="$(printf '%s\n' "$fn" | grep -oE '\(confirmed\|[a-z|]+\)')"
+if [ "$(printf '%s\n' "$lists" | wc -l | tr -d ' ')" = 2 ] && [ "$(printf '%s\n' "$lists" | sort -u | wc -l | tr -d ' ')" = 1 ]; then
+  echo "ok   the two copies of the qualifier list are identical"
+else echo "FAIL the qualifier list must appear exactly twice, identically"; fail=1; fi
 check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
   if looks_like_review "$3"; then got=accept; else got=reject; fi
   if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
@@ -55,8 +60,11 @@ check reject "refusal carrying the qualified clean verdict (the refusal check ru
 check reject "'no way to find bugs' is not a clean verdict" "There is no way to find bugs in this without more context."
 check accept "clean verdict: five qualifiers, the bound" "No new, real, actual, confirmed or likely BUG."
 check reject "six qualifiers: the bound is five" "No new, real, actual, genuine, confirmed or likely BUG."
-# A conjunction may only follow a qualifier, never lead.
-check reject "'no and risk' is not a clean verdict" "I can only answer yes or no and risk being wrong."
+# A comma or conjunction may stand only between two qualifiers: never first, never last.
+check reject "leading conjunction: 'no and risk'" "I can only answer yes or no and risk being wrong."
+check reject "trailing conjunction: 'no material and risk'" "I received no material and risk guessing if I answer."
+check reject "trailing conjunction: 'No confirmed or BUG'" "No confirmed or BUG."
+check reject "trailing comma: 'no new material, bugs'" "I have no new material, bugs cannot be judged."
 # The price of the marker- and anchor-copying rejects above: an honest lone finding that cannot read its evidence also
 # rejects, because by its text alone it cannot be told from them.
 check reject "KNOWN WRONG: an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
