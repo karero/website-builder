@@ -36,7 +36,9 @@ Checked and CLEAN by static inspection:
 Coverage limits: no commands or tests were run."
 check accept "clean verdict: one qualifier, singular" "No definite BUG."
 check accept "clean verdict: lower case, plural" "I found no confirmed bugs in this change."
-check accept "clean verdict: three qualifiers" "No new or confirmed RISK."
+check accept "clean verdict: two qualifiers joined by 'or'" "No new or confirmed RISK."
+check accept "clean verdict: qualifiers separated by a comma" "No confirmed, definite BUG."
+check accept "clean verdict: three qualifiers, Oxford comma" "No new, confirmed, or likely BUG."
 check accept "clean verdict: the unqualified form still passes" "No BUG or RISK."
 check reject "empty output" ""
 check reject "unrelated output: a rate-limit error" "Error: 429 Too Many Requests: you have reached your weekly usage limit"
@@ -47,10 +49,14 @@ check reject "review refusal with the UNVERIFIABLE marker" "- BUG: I cannot revi
 check reject "access refusal that copies the marker" "- BUG: I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
 check reject "access refusal with the marker and a clean verdict" "I cannot access the file. UNVERIFIABLE. No findings."
 check reject "access refusal that copies the marker and an anchor" "- BUG: foo.rb:12 — I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
-check reject "plain refusal, no verdict" "I'm sorry, but I am unable to review this diff because the repository is not available to me."
+check reject "baseline, rejected before the fix too: plain refusal, no verdict" "I'm sorry, but I am unable to review this diff because the repository is not available to me."
 check reject "refusal carrying the qualified clean verdict (the refusal check runs first)" "No confirmed BUG or RISK, because I cannot access the diff you supplied."
 # The qualifiers are a literal list, not "any word": with [a-z-]+ in their place this accepts.
 check reject "'no way to find bugs' is not a clean verdict" "There is no way to find bugs in this without more context."
+check accept "clean verdict: five qualifiers, the bound" "No new, real, actual, confirmed or likely BUG."
+check reject "six qualifiers: the bound is five" "No new, real, actual, genuine, confirmed or likely BUG."
+# A conjunction may only follow a qualifier, never lead.
+check reject "'no and risk' is not a clean verdict" "I can only answer yes or no and risk being wrong."
 # The price of the marker- and anchor-copying rejects above: an honest lone finding that cannot read its evidence also
 # rejects, because by its text alone it cannot be told from them.
 check reject "KNOWN WRONG: an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
@@ -68,4 +74,11 @@ check accept "KNOWN WRONG: 'couldn't access' is not a refusal phrase" "1. BUG �
 check accept "KNOWN WRONG: 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
 check accept "KNOWN WRONG: 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
 check accept "KNOWN WRONG: 'unable to view' is not a refusal phrase" "- RISK: I was unable to view the diff."
+# The same four phrases in prose after a clean verdict. After a plain "No BUG or RISK" each was
+# accepted before 2026-09-20 as well; the qualified verdict is what that fix newly lets through.
+check accept "KNOWN WRONG: qualified verdict + 'couldn't access'" "No confirmed BUG or RISK, because I couldn't access the diff you supplied."
+check accept "KNOWN WRONG: qualified verdict + 'don't have access'" "No confirmed BUG or RISK, because I don't have access to the diff you supplied."
+check accept "KNOWN WRONG: qualified verdict + 'unable to view'" "No confirmed BUG or RISK: I was unable to view the diff."
+check accept "KNOWN WRONG: qualified verdict + 'can not review'" "No confirmed BUG or RISK - the diff was not attached, so I can not review it."
+check accept "KNOWN WRONG: the unqualified twin, accepted before the fix too" "No BUG or RISK, because I couldn't access the diff you supplied."
 exit $fail

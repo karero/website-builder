@@ -255,9 +255,10 @@ run verdictollama OLLAMA_STUB=reply STUB_REPLY="No confirmed BUG or RISK in the 
 check "verdictollama: the ollama seat counts the same verdict" has verdictollama.out "reviewers: codex OK, ollama-cloud OK"
 check "verdictollama: no FAILED section" lacks verdictollama.out "FAILED"
 
-# 20. ...and what must still be rejected is: a plain refusal, a refusal carrying the qualified
-#     verdict (the refusal check runs first), and "no way to find bugs" (the qualifiers are a
-#     literal list, not any word).
+# 20. ...and what must still be rejected is: a plain refusal (a baseline: rejected before the
+#     fix too), a refusal carrying the qualified verdict in a phrase the refusal check knows (it
+#     runs first; the phrases it misses are pinned KNOWN WRONG in test_looks_like_review.sh), and
+#     "no way to find bugs" (the qualifiers are a literal list, not any word).
 n=0
 for reply in "I'm sorry, but I am unable to review this diff because the repository is not available to me." \
              "No confirmed BUG or RISK, because I cannot access the diff you supplied." \
