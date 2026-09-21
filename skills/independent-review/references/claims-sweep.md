@@ -33,9 +33,11 @@ artifact uses. `<skill>` is this skill's directory; after an install that is
 
 By default it sweeps changed `*.md`, `*.markdown`, `*.txt` and `*.rst` files outside
 `docs/reviews/`, the same trail exclusion the artifact uses. Name paths after the options to
-sweep other files; they are relative to `--repo` and taken as given. A sentence counts as
-changed when it touches an added line, or a line either side of a deletion: removing "except
-on a timeout." widens the claim left behind.
+sweep other files; they are relative to `--repo` and taken as given. `--file` paths are
+relative to the current directory. A sentence counts as changed when it touches an added
+line, or a line either side of removed text: removing "except on a timeout." widens the claim
+left behind. A deleted line counts as removed when fewer than half its words survive in the
+lines added in its place; an edited line keeps most of them.
 
 Each line of output is `path:line [matched words] sentence`, or `path:first-last` when the
 sentence spans lines. The count, and anything it could not sweep, go to stderr. Exit 0 whatever
@@ -74,12 +76,13 @@ more than the tool.
 - A claim without a listed word: "X was introduced in R" claims "first" without saying it.
   The list is `WORDS` in `scripts/sweep_claims.py`; extend it there, and add a case to
   `scripts/test_sweep_claims.sh`. Bare "not" is left out on purpose: on this skill's own
-  docs, the sentences it adds are mostly contrasts ("X, not Y"), not absences. So is "should
-  not", which gives an instruction rather than making a claim about the record.
+  docs, the sentences it adds are mostly contrasts ("X, not Y"), not absences.
 - A false sentence split. The sweep does not split before a lowercase word or after "e.g." or
-  "i.e.", but another abbreviation before a capital ("Fig. 2", "Mr. Smith") still ends a
-  sentence there. If the claim word lands in the half the change did not touch, it is missed.
-- A deletion in a different paragraph from the claim it widens.
+  "i.e.", but another abbreviation before a capital or a digit ("Mr. Smith", "Fig. 2") still
+  ends a sentence there. If the claim word lands in the half the change did not touch, it is
+  missed.
+- A deletion in a different paragraph from the claim it widens, or an edit that narrows a
+  qualifier while keeping most of its words.
 - Indented (four-space) code blocks are read as text. Fenced blocks are skipped in Markdown
-  files only, since "~~~" is an underline in rst; a fence left open is reported on stderr.
+  files only, since "~~~" is an underline in rst; a fence that never closes is read as text.
 - A renamed file counts as wholly added, so all its claims are listed.

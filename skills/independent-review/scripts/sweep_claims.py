@@ -9,14 +9,15 @@ Why it reads sentences, not lines: a per-line grep for "not been attempted" cann
 "has not" at the end of one line and "been attempted" at the start of the next. So each
 paragraph, list item, heading or table cell is joined into running text, split into
 sentences, and each sentence is mapped back to its source lines. Only sentences that
-touch a line the change adds (or the lines either side of one it deletes) are reported.
+touch a line the change adds, or a line either side of text it removes, are reported.
 
 When a split is uncertain, it does not split: a sentence that runs long is still
 reported, but a false split can leave the claim word in a half the change did not touch.
 
 Past blind spots, each now pinned by test_sweep_claims.sh: a phrase wrapped across a line
 break; a sentence ending ".)" or ".*" dropped; a period inside a word ("SKILL.md") cutting
-off the start of a sentence; "e.g." or a wrapped "2024." splitting a sentence.
+off the start of a sentence; "e.g." or a wrapped "2024." (in a paragraph or a list item)
+splitting a sentence; a removed qualifier, alone or beside a new line.
 """
 import argparse
 import os
@@ -27,18 +28,19 @@ import sys
 # What counts as a claim worth checking: an absence, a universal, or an order ("first",
 # "last"). Each entry is a regex fragment, matched case-insensitively on word boundaries.
 # Extend it here. Bare "not" is left out on purpose: on this skill's own docs, the sentences
-# it adds are mostly contrasts ("X, not Y"), not absences. So is "should not": an
-# instruction, not a claim about the record.
+# it adds are mostly contrasts ("X, not Y"), not absences.
 WORDS = [
     # absences
     r"has not", r"have not", r"had not", r"is not", r"are not", r"was not", r"were not",
     r"does not", r"do not", r"did not", r"cannot", r"can not", r"could not",
     r"will not", r"would not",
-    r"(?:has|have|had|is|are|was|were|does|do|did|ca|could|wo|would)n[\u2019']t",
-    r"not been", r"not yet", r"no longer", r"never", r"nobody", r"no one", r"nothing",
-    r"none", r"neither", r"without", r"no [a-z]+", r"zero", r"impossible",
+    r"(?:has|have|had|is|are|was|were|does|do|did|ca|could|wo|would|must)n[\u2019']t",
+    r"not been", r"not yet", r"yet to", r"no longer", r"never", r"nobody", r"no one",
+    r"nothing", r"nowhere", r"none", r"neither", r"without", r"no [a-z]+", r"zero",
+    r"impossible",
     # universals, order and permanence
-    r"only", r"first", r"last", r"all", r"every", r"any", r"always", r"ever", r"whole",
+    r"only", r"first", r"last", r"all", r"every", r"any", r"every(?:thing|one|body|where)",
+    r"any(?:thing|one|body|where)", r"always", r"ever", r"whole",
     r"entire", r"exactly", r"solely", r"both", r"unchanged", r"identical", r"since",
     r"until", r"must", r"by design", r"on purpose",
 ]
@@ -53,17 +55,20 @@ NEXT_RE = re.compile(r"\s*(\S)")
 # Lines that end a block, so a sentence cannot run across two paragraphs. Blockquote
 # markers are removed first, so a quoted paragraph reads as running text too.
 QUOTE_RE = re.compile(r"^\s*(?:>\s?)+")
-FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")  # Markdown only: "~~~" is an rst underline
+# Markdown only ("~~~" is an rst underline). A backtick fence's info string has no backtick,
+# so "```x``` is inline code" is not a fence.
+FENCE_RE = re.compile(r"^\s*(?:(`{3,})[^`]*|(~{3,}).*)$")
 RULE_RE = re.compile(r"^\s*([-=*_~^])(?:\s*\1){2,}\s*$")  # thematic break, setext or rst underline
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}(?:\s|$)")
 TABLE_RE = re.compile(r"^\s*\|")
 LIST_RE = re.compile(r"^\s*(?:[-*+]|(\d{1,9})[.)])\s+")
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+WORD_CHARS_RE = re.compile(r"\w+")
 
 # The default file set: prose, minus review trails (the skill keeps those out of the
 # artifact it sends to reviewers, so their claims are not under review).
-DEFAULT_SPECS = [":(top)*.md", ":(top)*.markdown", ":(top)*.txt", ":(top)*.rst",
-                 ":(top,exclude)docs/reviews/"]
+DEFAULT_SPECS = [":(top,icase)*.md", ":(top,icase)*.markdown", ":(top,icase)*.txt",
+                 ":(top,icase)*.rst", ":(top,exclude)docs/reviews/"]
 
 
 class UsageError(Exception):
@@ -74,35 +79,39 @@ def is_markdown(path):
     return path.lower().endswith((".md", ".markdown"))
 
 
-def blocks(lines, markdown):
-    """Split a document into blocks a sentence may not cross.
+def closes(line, fence):
+    return line and set(line) == {fence[0]} and len(line) >= len(fence)
 
-    Returns (blocks, line of a code fence left open or None). A block is a list of
-    (line number, text).
-    """
-    out, cur, in_list = [], [], False
-    fence = fence_line = None
-    for n, raw in enumerate(lines, 1):
-        raw = QUOTE_RE.sub("", raw, count=1)
-        line = raw.strip()
+
+def blocks(lines, markdown):
+    """Split a document into blocks a sentence may not cross: lists of (line number, text)."""
+    lines = [QUOTE_RE.sub("", raw, count=1) for raw in lines]
+    out, cur, item_col, fence = [], [], None, None
+    for i, raw in enumerate(lines):
+        n, line = i + 1, raw.strip()
         if fence:
-            if line and set(line) == {fence[0]} and len(line) >= len(fence):
+            if closes(line, fence):
                 fence = None
             continue
         lm = LIST_RE.match(raw)
-        # Inside a paragraph, only "1." starts a list; "2024." there is wrapped text.
-        if lm and lm.group(1) and int(lm.group(1)) != 1 and cur and not in_list:
+        # Inside a paragraph, a number other than 1 starts an item only as a sibling of the
+        # item it follows; "2024." there is wrapped text, in a list item or out of one.
+        if (lm and lm.group(1) and int(lm.group(1)) != 1 and cur
+                and (item_col is None or len(raw) - len(raw.lstrip()) >= item_col)):
             lm = None
         fm = markdown and FENCE_RE.match(raw[lm.end():] if lm else raw)
+        if fm and not any(closes(later.strip(), fm.group(1) or fm.group(2))
+                          for later in lines[i + 1:]):
+            fm = None  # a fence that never closes is read as text, so nothing is lost
         if not (fm or lm or not line or RULE_RE.match(raw) or HEADING_RE.match(raw)
                 or TABLE_RE.match(raw)):
             cur.append((n, line))
             continue
         if cur:
             out.append(cur)
-        cur, in_list = [], False
+        cur, item_col = [], None
         if fm:
-            fence, fence_line = fm.group(1), n
+            fence = fm.group(1) or fm.group(2)
         elif not line or RULE_RE.match(raw):
             pass
         elif HEADING_RE.match(raw):
@@ -110,10 +119,10 @@ def blocks(lines, markdown):
         elif TABLE_RE.match(raw):
             out.extend([(n, cell.strip())] for cell in line.strip("|").split("|"))
         else:
-            cur, in_list = [(n, raw[lm.end():].strip())], True
+            cur, item_col = [(n, raw[lm.end():].strip())], lm.end()
     if cur:
         out.append(cur)
-    return out, (fence_line if fence else None)
+    return out
 
 
 def sentences(block):
@@ -144,17 +153,13 @@ def sentences(block):
         start = end
 
 
-def sweep(label, text, added, notes):
+def sweep(label, text, added):
     """Return report lines for the sentences in text that touch an added line and make a claim.
 
     added is a set of line numbers, or None for "every line".
     """
     found = []
-    parsed, open_fence = blocks(text.split("\n"), is_markdown(label))
-    if open_fence:
-        notes.append("%s: the code fence opened at line %d never closes, so the rest of the "
-                     "file was not swept" % (label, open_fence))
-    for block in parsed:
+    for block in blocks(text.split("\n"), is_markdown(label)):
         for sent, first, last in sentences(block):
             if added is not None and not any(n in added for n in range(first, last + 1)):
                 continue
@@ -170,24 +175,37 @@ def sweep(label, text, added, notes):
 
 
 def added_lines(diff):
-    """Line numbers the diff adds, plus both neighbours of a pure deletion.
+    """Line numbers the diff adds, plus the lines either side of a hunk that removes text.
 
     Counts "+" lines rather than trusting hunk ranges, which a user's diff settings can
-    widen. A pure deletion marks the lines either side of the gap, because deleting a
-    qualifier ("except on a timeout") widens the claim left behind.
+    widen. A deleted line counts as removed text when fewer than half its words survive in
+    the hunk's added lines: deleting a qualifier ("except on a timeout") widens the claim
+    left beside it, while an edited line keeps most of its words.
     """
-    added, n = set(), None
+    added, hunks, n = set(), [], None
     for line in diff.split("\n"):
         m = HUNK_RE.match(line)
         if m:
-            n = int(m.group(1))
-            if int(m.group(2) or 1) == 0:
-                added.update((n, n + 1))
-        elif n is not None and line.startswith("+"):
+            n, count = int(m.group(1)), int(m.group(2) or 1)
+            around = (n - 1, n + count) if count else (n, n + 1)
+            hunks.append((around, [], []))
+        elif n is None:
+            continue
+        elif line.startswith("+"):
             added.add(n)
             n += 1
-        elif n is not None and (line.startswith(" ") or not line):
+            hunks[-1][2].append(line[1:])
+        elif line.startswith("-"):
+            hunks[-1][1].append(line[1:])
+        elif line.startswith(" ") or not line:
             n += 1
+    for around, removed, kept in hunks:
+        kept_words = set(WORD_CHARS_RE.findall(" ".join(kept).lower()))
+        for old in removed:
+            words = set(WORD_CHARS_RE.findall(old.lower()))
+            if words and 2 * len(words & kept_words) <= len(words):
+                added.update(around)
+                break
     return added
 
 
@@ -207,7 +225,10 @@ def read_text(path):
 
 
 def from_diff(a, head, found, notes):
-    """Sweep the lines added between the merge base and head (or the working tree)."""
+    """Sweep the lines added between the merge base and head (or the working tree).
+
+    Returns the repository's top directory and the paths it swept.
+    """
     top = os.fsdecode(git(a.repo, "rev-parse", "--show-toplevel")).strip()
     other = "HEAD" if a.worktree else head
     for ref in [a.base] + ([] if a.worktree else [head]):
@@ -219,7 +240,9 @@ def from_diff(a, head, found, notes):
     try:
         mb = git(a.repo, "merge-base", a.base, other).decode().strip()
     except UsageError:
-        raise UsageError("%s and %s have no common ancestor" % (a.base, other))
+        shallow = git(a.repo, "rev-parse", "--is-shallow-repository").strip() == b"true"
+        raise UsageError("%s and %s have no common ancestor%s" % (
+            a.base, other, " in this shallow clone (try git fetch --unshallow)" if shallow else ""))
     rev = [mb] if a.worktree else [mb, head]
     specs = a.paths or DEFAULT_SPECS
     # A renamed file counts as wholly added: noisier, never a miss.
@@ -230,6 +253,7 @@ def from_diff(a, head, found, notes):
         out = git(a.repo, "ls-files", "-z", "--full-name", "--others", "--exclude-standard",
                   "--", *specs)
         files += [(os.fsdecode(p), True) for p in out.split(b"\0") if p]
+    swept = []
     for path, untracked in files:
         try:
             if untracked:
@@ -246,8 +270,9 @@ def from_diff(a, head, found, notes):
         except (OSError, UsageError) as e:
             notes.append("skipped %s (%s)" % (path, e))
             continue
-        found.extend(sweep(path, text, added, notes))
-    return len(files)
+        found.extend(sweep(path, text, added))
+        swept.append(path)
+    return top, swept
 
 
 def main(argv):
@@ -266,7 +291,8 @@ def main(argv):
     p.add_argument("--repo", metavar="DIR", default=".",
                    help="the repository (default: the current directory)")
     p.add_argument("--file", metavar="PATH", action="append", default=[], dest="files",
-                   help="sweep this whole file (repeatable; for a plan or a new document)")
+                   help="sweep this whole file, relative to the current directory (repeatable; "
+                        "for a plan or a new document)")
     p.add_argument("paths", nargs="*", metavar="PATH",
                    help="sweep only these paths, relative to --repo and taken as given "
                         "(default: changed *.md *.markdown *.txt *.rst outside docs/reviews/)")
@@ -284,10 +310,11 @@ def main(argv):
         except OSError as e:
             p.error("cannot read %s: %s" % (f, e.strerror or e))
 
-    found, notes, swept = [], [], 0
+    found, notes, labels, top = [], [], set(), None
     if a.base:
         try:
-            swept = from_diff(a, a.head or "HEAD", found, notes)
+            top, swept = from_diff(a, a.head or "HEAD", found, notes)
+            labels.update(swept)
             if not swept:
                 notes.append("no changed files to sweep between %s and %s" % (
                     a.base, "the working tree" if a.worktree else (a.head or "HEAD")))
@@ -296,9 +323,16 @@ def main(argv):
         except UsageError as e:
             p.error(str(e))
     for f, text in whole:
-        found.extend(sweep(f, text, None, notes))
-        swept += 1
-    found = list(dict.fromkeys(found))  # --base and --file on the same file
+        # Label a file inside the repository the way git does, so --base and --file on the
+        # same file list each sentence once however the path was spelled.
+        label = os.path.normpath(f)
+        if top:
+            rel = os.path.relpath(os.path.realpath(f), os.path.realpath(top))
+            if rel != os.pardir and not rel.startswith(os.pardir + os.sep):
+                label = rel
+        found.extend(sweep(label, text, None))
+        labels.add(label)
+    found = list(dict.fromkeys(found))
 
     try:
         for line in found:
@@ -307,11 +341,10 @@ def main(argv):
     except BrokenPipeError:
         # The reader stopped early (| head). Not an error for an advisory list.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        return 0
     for note in notes:
         print("sweep_claims: %s." % note, file=sys.stderr)
     print("sweep_claims: %d sentence%s to check in %d file%s." % (
-        len(found), "" if len(found) == 1 else "s", swept, "" if swept == 1 else "s"),
+        len(found), "" if len(found) == 1 else "s", len(labels), "" if len(labels) == 1 else "s"),
         file=sys.stderr)
     return 0
 
