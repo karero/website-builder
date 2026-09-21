@@ -13,4 +13,5 @@ if ! command -v python3 >/dev/null 2>&1; then
   echo "sweep_claims: python3 not found, so the claims sweep was skipped (it is advisory; the review can go on)." >&2
   exit 0
 fi
-exec python3 "$(cd "$(dirname "$0")" && pwd)/sweep_claims.py" "$@"
+# CDPATH= keeps an exported CDPATH from sending cd somewhere else, or printing where it went.
+exec python3 "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/sweep_claims.py" "$@"
