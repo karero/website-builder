@@ -1,7 +1,6 @@
 # Independent review — DIFF — a qualified clean verdict counts (rounds 1–2)
 
-Branch `fix/independent-review-clean-verdict`, head `d6dc398`, base `origin/main` `b586b4b`. No PR is
-open yet.
+Branch `fix/independent-review-clean-verdict`, head `d6dc398`, base `origin/main` `b586b4b`.
 
 **The change.** `looks_like_review()` decides whether a reviewer's reply counts as a review. A reply
 with no findings counts only if it states a clean verdict, and the check wanted "no" directly before
@@ -10,13 +9,19 @@ in the supplied diff." was reported `FAILED (output is not a review)`, and the s
 five qualifiers from a literal list may now sit in between; a comma, "or" or "and" may stand only
 between two of them. The refusal check is untouched.
 
-**Verdict: NOT closed — stopped after round 2 for an owner decision.** Two findings cannot be fixed
-inside this change, and Codex rates both BUG (G2, G3 below). Both say the same thing: the fix widens,
-by wording, two holes that were already open and tracked — B-REFUSAL-TEXT and R-VERDICT-TEXT. The
-only remedy any seat proposed is the status contract B-REFUSAL-TEXT already calls for, which the
-owner deferred on 2026-09-11. The gate lets an owner waive a RISK, never a BUG, so the choice is the
+**Verdict: owner decision made 2026-09-22 — ship, accepting the widening.** Two findings could not be
+fixed inside this change, and Codex rated both BUG (G2, G3 below). Both said the same thing: the fix
+widens, by wording, two holes that were already open and tracked — B-REFUSAL-TEXT and R-VERDICT-TEXT.
+The only remedy any seat proposed is the status contract B-REFUSAL-TEXT already calls for, which the
+owner deferred on 2026-09-11. The gate lets an owner waive a RISK, never a BUG, so the choice was the
 owner's: accept the widening as part of those two tracked rows, or hold this fix until the status
-contract exists. A third round before that decision would re-raise both and settle nothing.
+contract exists. **Decided 2026-09-22, in chat: accept it.** The widening reaches an already-open,
+already-accepted-risk gap rather than a new one, and the cost of holding is concrete and ongoing — a
+different, narrower case of this same bug class (no qualifier chaining, a 4-word list) independently
+discarded genuine clean Codex reviews twice on an unrelated repo's MR, one day after the incident this
+change fixes. G2 and G3 are recorded below as accepted-with-the-widening, not fixed;
+`OPEN-FINDINGS-independent-review.md`'s B-REFUSAL-TEXT and R-VERDICT-TEXT rows already describe the
+widened shape and need no further edit for this decision.
 
 **Not externally re-verified:** round 2's one new finding (G1) was fixed in `d6dc398` after the round.
 It is `locally_verified` — six mutations of the regex, each turning a test red — and no reviewer has
@@ -64,8 +69,8 @@ GATED-THIS-DIFF: deferred to the PR, which the owner has not yet approved openin
 | id | Sev | Source | Finding | Disposition |
 |---|---|---|---|---|
 | G1 | RISK | fresh-eyes | F3 was half closed: a qualifier could still be followed by "or", "and" or a comma with nothing after it, so "I received no material and risk guessing if I answer." and "No confirmed or BUG." counted as clean verdicts. New ground: it targets round 1's own fix | Fixed `d6dc398` with the seat's proposed structure, separators only between qualifiers. `locally_verified`: its six strings reject, every accept case still accepts, and six mutations each turn a test red. **Not externally re-verified** |
-| G2 | BUG | Codex; RISK ollama | F1's behaviour half, re-raised: a reviewer that did not review counts toward the gate. Fix proposed: a completion status parsed apart from the prose | **Open — owner decision.** No new evidence beyond F1, and the remedy is B-REFUSAL-TEXT's, deferred by the owner on 2026-09-11. It cannot be closed here: any regex that accepts "No confirmed BUG or RISK" also accepts it in front of a refusal the refusal check does not know, and that check is out of scope by the owner's instruction for this change |
-| G3 | BUG | Codex | F2 re-raised as wrong now rather than risky | **Open — owner decision**, with G2. Same remedy |
+| G2 | BUG | Codex; RISK ollama | F1's behaviour half, re-raised: a reviewer that did not review counts toward the gate. Fix proposed: a completion status parsed apart from the prose | **Accepted, owner decision 2026-09-22: ship with the widening.** No new evidence beyond F1, and the remedy is B-REFUSAL-TEXT's, deferred by the owner on 2026-09-11 and deferred again now for the same reason. Not closed by this change: any regex that accepts "No confirmed BUG or RISK" also accepts it in front of a refusal the refusal check does not know, and that check is out of scope by the owner's instruction for this change |
+| G3 | BUG | Codex | F2 re-raised as wrong now rather than risky | **Accepted, owner decision 2026-09-22**, with G2. Same remedy |
 | G4 | BUG | Codex | The reviewer note called the diff "the FULL change", but the tracker file was left out | **Accepted; a defect in the note, not the change.** The exclusion is the skill's rule for `docs/reviews/`. Codex and the fresh-eyes seat read the tracker from the checkout and confirmed both rows |
 | G5 | BUG | Codex | Labelled pre-existing by Codex itself: "No confirmed **BUG**." and "No critical bugs." are rejected | F4 again; tracked in R-VERDICT-TEXT |
 | G6 | RISK | ollama | The KNOWN WRONG cases will break when the refusal check is fixed | **Refuted:** that is their stated purpose — "a fix has to change them on purpose" |
