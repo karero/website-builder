@@ -274,6 +274,7 @@ scripts/
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
+  test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes (make check)
 docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
