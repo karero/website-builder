@@ -19,7 +19,9 @@ set -e
 # them from there, the deletion check reads $push_lines. Skip the read only for a
 # terminal (a hand-run, nothing to read) or a closed stdin (`cat` would hang under bash
 # and fail under dash); read anything else, so the PR-only block always sees git's refs.
-# `true`, not `:` — dash treats a failed redirect on `:` as fatal.
+# `true`, not `:` — dash treats a failed redirect on `:` as fatal. Run by hand, a pipe
+# that never closes waits here, and a write-only stdin stops the hook (it fails closed).
+# git always gives a readable pipe it closes.
 if [ -t 0 ] || ! true 2>/dev/null 3<&0; then push_lines=""; else push_lines=$(cat); fi
 exec <<PUSH_LINES
 $push_lines
