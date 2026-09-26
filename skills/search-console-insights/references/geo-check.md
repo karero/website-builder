@@ -204,11 +204,27 @@ ones, keeps the week's data and logs a warning. Asking is this session's job.
 
 ## Reading the results
 
-**Show the owner the report page first:** `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report` builds
-one readable page with each engine's latest answer to each question and opens it in the browser.
-It shows who named the business, whether the owner's site was cited, the answer with the name
-highlighted, and the sources. Every weekly run also writes it and prints its path
-(`~/.config/gsc-insights/geo/reports/<domain>/`). Walk the owner through it in plain words.
+**The owner's way in:** they ask *"Show me my AI report for example.com"* (or "how is my
+business doing with AI?"). Run `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`: it builds
+one page from each assistant's latest answers and opens it in the browser. The page is written
+for the owner, so let it speak first, then add two or three sentences of your own:
+
+- **At the top:** how many assistants named the business at least once with web search on, and
+  how many from memory, with one plain sentence each. Only answers that count go into these
+  numbers: to the current question, from an assistant that is on now, that actually came back.
+  "In every answer to every question" means exactly that; a 1-of-3 is "at least once".
+- **"How to read this":** what was asked (and that it checks whether the name appears, not
+  whether the assistant recommends it), what "with web search on" and "from memory" mean, and why
+  each question is asked 3 times: an assistant can write a different answer each time.
+- **One table per question:** ✓ named in every answer, ◐ sometimes, ✗ not named, ! no answer this
+  time (the weekly log says why), — Google showed no AI answer, — not asked (with the reason),
+  plus whether their own website was a source and how many answers failed. `*` marks an answer
+  to an earlier version of the question. The answers are folded away under "Read what they said".
+- **"Do they describe you correctly?":** the branded answers, to read, never counted.
+
+Each weekly run writes a new page in `~/.config/gsc-insights/geo/reports/<domain>/`; an older
+page is not updated. If the owner wants the latest without asking you, it is the newest file
+in that folder.
 
 For the week-over-week movement, `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --trend` (track.sh prints
 it every week):

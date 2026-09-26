@@ -11,9 +11,10 @@ description: >
   for non-technical owners. Trigger phrases: "GSC insights", "Search Console
   data", "connect GSC", "where do I rank", "top queries", "striking distance
   keywords", "quick SEO wins", "why is my CTR low", "which pages to optimize",
-  "who ranks for", "competitor Top 10", "how do I rank on Bing", "Copilot
+  "competitor Top 10", "how do I rank on Bing", "Copilot
   visibility", "ChatGPT search visibility", "track my rankings over time", "weekly
-  SEO report", "does AI name my business", "weekly AI check".
+  SEO report", "does AI name my business", "weekly AI check", "show me my AI
+  report".
 metadata:
   version: 1.7.0
 ---
@@ -429,6 +430,7 @@ from it that apply every time:
   updated questions, and **ask the owner** before changing anything. First check that the new
   homepage text is the real page: a cookie or bot page also shows up as "changed".
 - **Show results as the report page** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`), not raw files.
+  Owners ask for it in their own words: *"show me my AI report"*, *"how is my business doing with AI?"*.
 - **You draft the questions; you never answer them.** The whole point is a buyer's
   un-primed question to an engine that knows nothing about this conversation.
 
