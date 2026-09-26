@@ -31,6 +31,26 @@ STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex-ran"
+# Like the real CLI (0.157.0, seen 2026-09-26): outside a git repo, refuse to start
+# unless --skip-git-repo-check is passed. Records its whole argv, the prompt replaced by
+# <prompt> (found by its content, not its position), so a test can pin it exactly: an
+# added sandbox override fails the match instead of hiding behind "-s read-only is in
+# there somewhere" (round 1, fresh-eyes), and so does one placed after the prompt or
+# after a prompt moved to stdin (round 2, fresh-eyes and ollama). Each argument is
+# bracketed, so "-s read-only" passed as ONE argument does not match (round 3, fresh-eyes).
+skip=0 argv=
+for a; do
+  [ "$a" = --skip-git-repo-check ] && skip=1
+  case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
+  argv="$argv[$a]"
+done
+printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
+  "$(git rev-parse --is-inside-work-tree 2>/dev/null || echo no)" >"$STUB_MARKS/codex-args"
+if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf '%s\n' 'Reading additional input from stdin...' \
+    'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
+  exit 1
+fi
 case "${CODEX_STUB:-ok}" in
   ok)   printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two' ;;
   auth) # codex echoes the reviewed artifact into stderr — here one that mentions
@@ -91,7 +111,7 @@ chmod +x "$T/bin/codex" "$T/bin/ollama"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL \
+  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -267,6 +287,27 @@ for reply in "I'm sorry, but I am unable to review this diff because the reposit
   run "refusal$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
   check "refusal$n: exit 0 (ollama-cloud counted)" rc_is "refusal$n" 0
   check "refusal$n: codex rejected — $reply" has "refusal$n.out" "reviewers: codex FAILED (output is not a review), ollama-cloud OK"
+done
+
+# 21. Called from outside any git repo (a plan in a scratch dir): codex must still run,
+#     in the caller's cwd, with the read-only sandbox still requested and AGENTS.md
+#     loading off — on both command lines, the default and the CODEX_MODEL one. Before
+#     the fix the PLAN round came back with codex FAILED and one reviewer (2026-09-26). GIT_CEILING_DIRECTORIES keeps git
+#     from finding a repo above $T, wherever TMPDIR lives; run() drops GIT_DIR and
+#     GIT_WORK_TREE, which a git hook exports and which would otherwise override it.
+mkdir -p "$T/nogit"
+NOGIT="$(cd "$T/nogit" && pwd -P)"
+CEILING="$(cd "$T" && pwd -P)"
+for m in "" stub-override; do
+  name="nogit${m:+-model}"
+  run "$name" CODEX_MODEL="$m" GIT_CEILING_DIRECTORIES="$CEILING" \
+    sh -c 'cd "$1" && shift && exec bash "$@"' _ "$NOGIT" "$SCRIPT" "$T/plan.md"
+  check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
+  # git=no is what git said from inside the stub itself, so the case cannot pass from
+  # inside a repo (round 4, fresh-eyes).
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
+  check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
+    grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
