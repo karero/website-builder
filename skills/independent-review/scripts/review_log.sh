@@ -18,8 +18,9 @@
 # a review.
 set -u
 HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome'
-log_path() {
-  if [ -n "${REVIEW_LOG:-}" ]; then printf '%s' "$REVIEW_LOG"
+log_path() {   # empty when logging is off
+  if [ "${REVIEW_LOG:-}" = off ]; then return 0
+  elif [ -n "${REVIEW_LOG:-}" ]; then printf '%s' "$REVIEW_LOG"
   else printf '%s' "${XDG_STATE_HOME:-$HOME/.local/state}/independent-review/runs.tsv"; fi
 }
 clean() { printf '%s' "${1:--}" | tr '\t\n\r' '   '; }   # one TSV field, never empty
@@ -35,9 +36,9 @@ add() {
     esac
   done
   [ -n "$seat" ] || { echo "review_log.sh add: --seat is required" >&2; return 2; }
-  [ "${REVIEW_LOG:-}" = off ] && return 0
   local f repo="-" branch="-" head="-" top
   f="$(log_path)"
+  [ -n "$f" ] || return 0
   if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     repo="$(basename -- "$top")"
     branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo -)"
@@ -63,6 +64,7 @@ summary() {
     esac
   done
   local f; f="$(log_path)"
+  [ -n "$f" ] || { echo "the review cost log is off (REVIEW_LOG=off)"; return 0; }
   [ -s "$f" ] || { echo "no review cost log yet ($f)"; return 0; }
   awk -F'\t' -v since="$since" -v want="$repo" '
     NR == 1 { next }

@@ -95,11 +95,19 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      `git rev-parse HEAD`. **A verification chain counts as seeing the pair:** round 1 saw
      `base...h1` in full, each later round saw exactly the delta from the previous round's head to
      its own, and the merge-base never changed. A merged-in or rebased base breaks the chain: run
-     a full round (step 6).
+     a full round (step 6). **The chain holds per seat**, never for the round as a whole: a seat
+     counts toward the stamp only if it produced a counted result in every link since its last full
+     round — check the trail's per-round reviewer column, not just the recorded pair; a seat that
+     FAILED or was skipped in a link has a gap there. At least one cross-model seat must hold an
+     unbroken chain. At Normal depth fresh-eyes' chain ends at round 1 by design: its round-1
+     findings stay in the verdict, but it does not count toward the stamp for a later head and is
+     not re-run for one. **A prose-only link covers prose only:** if its segment turns out to
+     contain code, the chain breaks there and that segment needs a full-scope round.
    - **Before posting,** re-read both values and stamp only if both match. If either moved,
-     re-gate the new pair with **every seat that took part in the verdict**, clean ones and
-     fresh-eyes included — a seat with no findings still has to have SEEN what you certify — by the
-     chain rule where it still holds, else in full; rebuild the verdict from those runs alone, mark
+     re-gate the new pair with **every seat the stamp relies on** (the seats with an unbroken
+     chain, clean ones included — a seat with no findings still has to have SEEN what you certify;
+     at High depth that includes fresh-eyes) — by the chain rule where it still holds for that
+     seat, else in full; rebuild the verdict from those runs alone, mark
      superseded raw sections, and re-check. **At most two attempts,** then surface an actively
      moving branch. These re-gates don't count against step 6(b)'s cap. If a re-gate can't run, do
      NOT stamp: the gate stays blocked, like any missing prerequisite. **No seen pair, no stamp.**
@@ -111,7 +119,9 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
    - **A prose-only re-gate is scoped narrow, never skipped.** When everything since the last seen
      head is prose, tell every seat so, and to flag ONLY a factual contradiction or misleading claim
      against the code or behaviour described — not style or phrasing; the scope is prepended to
-     the unchanged strict prompt and the ranking still applies. A clean narrow pass IS the re-gate.
+     the unchanged strict prompt and the ranking still applies. Send the delta since each seat's
+     last seen head, as any chain link (a seat without an unbroken chain gets the full pair). A
+     clean narrow pass IS the re-gate.
      **Prose-only** is decided from a changed-file/hunk inventory, never by eye: every hunk is
      Markdown body text or comment text. A code hunk, fenced snippet, YAML or config block, shell
      command, generated file or mixed commit is not prose. **Unsure means code** — prose treated as

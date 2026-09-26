@@ -501,6 +501,8 @@ REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" summary >"$T/summary.out"
 check "summary: a row per depth and seat" grep -qE '^normal +fresh-eyes +1 +1 +395 +395 +156477$' "$T/summary.out"
 check "summary: codex row with its mean tokens" grep -qE '^normal +codex +1 +1 +[0-9]+ +[0-9]+ +61108$' "$T/summary.out"
 check "summary: rounds per gate" grep -qE '^normal +1 +2\.0 +2$' "$T/summary.out"
+check "summary with the log off says so, reads no file named off" \
+  sh -c 'REVIEW_LOG=off bash "$1" summary | grep -qF "is off"' _ "$HERE/review_log.sh"
 REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --model x >/dev/null 2>&1
 check "add without --seat is refused" [ $? = 2 ]
 

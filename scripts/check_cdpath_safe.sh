@@ -44,6 +44,7 @@ NOT_RUN=(
   scripts/test_install_pin.sh                                   # builds throwaway repos; needs git
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
+  skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
   skills/independent-review/scripts/test_failed_tier_report.sh  # slow; stubs a whole CLI
   skills/independent-review/scripts/test_looks_like_review.sh   # slow; stubs a whole CLI
   skills/new-website/templates/astro/tests/check_ship_push.sh   # template test; needs a built site
