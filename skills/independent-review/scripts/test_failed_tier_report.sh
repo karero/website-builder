@@ -609,6 +609,7 @@ check "apilocal: and stays a sanity pass" has apilocal.out "ollama-local NOT COU
 
 # 29. --seat runs ONE named reviewer (2026-09-26: the wording pass and the final full read).
 run seatollama bash "$SCRIPT" "$T/change.diff" --seat ollama
+check "seat ollama: a successful single-seat run exits 0" rc_is seatollama 0
 check "seat ollama: only ollama ran" sh -c '[ -e "$1/ollama-ran" ] && [ ! -e "$1/codex-ran" ]' _ "$T/seatollama.marks"
 check "seat ollama: the summary names it alone" has seatollama.out "reviewers: ollama-cloud OK"
 check "seat ollama: the one-reviewer note says it was asked for" has seatollama.out "--seat ollama was requested"
@@ -619,6 +620,8 @@ run seatwithagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --seat ollama
 check "seat: another seat with the Antigravity opt-in exits 2" rc_is seatwithagy 2
 run seatagyboth bash "$SCRIPT" "$T/change.diff" --seat agy --with-antigravity
 check "seat agy with --with-antigravity is allowed (same reviewer)" has seatagyboth.out "reviewers: antigravity OK"
+check "seat agy with --with-antigravity: exactly one Antigravity section, no other seat" \
+  sh -c '[ "$(grep -c "^## Independent review — antigravity" "$1/seatagyboth.out")" = 1 ] && [ ! -e "$1/seatagyboth.marks/codex-ran" ] && [ ! -e "$1/seatagyboth.marks/ollama-ran" ]' _ "$T"
 run seatcodex bash "$SCRIPT" "$T/change.diff" --seat codex
 check "seat codex: only codex ran" sh -c '[ -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/seatcodex.marks"
 run seatagy bash "$SCRIPT" "$T/change.diff" --seat agy
@@ -628,6 +631,49 @@ check "seat: an unknown seat exits 2" rc_is seatbad 2
 run seatlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only --seat codex
 check "seat: --local-only refuses an external seat, exit 2, nothing ran" \
   sh -c '[ "$(cat "$1/seatlocal.rc")" = 2 ] && [ ! -e "$1/seatlocal.marks/codex-ran" ]' _ "$T"
+
+# 30. merge_link.sh (2026-09-26): the merge link's artifact, on real merges. Both reviewers of
+#     the change that introduced it found a way the one-line command lost a file: a path with a
+#     space (round 1) and an own edit the merge threw away (the final full read).
+ML="$HERE/merge_link.sh"
+if command -v git >/dev/null 2>&1; then
+  R="$T/mlrepo"; mkdir -p "$R"
+  (
+    cd "$R" && git init -q -b main && git config user.email t@t && git config user.name t
+    mkdir -p "dir with space" docs/reviews
+    echo base >"dir with space/f.txt"; echo base >own.txt; echo base >'[g]*.txt'; echo base >keep.txt
+    echo base >callee.txt; echo base >g1.txt; echo base >docs/reviews/trail.md
+    git add -A && git commit -qm base && git tag oldbase
+    git checkout -qb feat
+    echo feature >>"dir with space/f.txt"; echo "my change" >own.txt; echo feature >>'[g]*.txt'
+    echo feature >>keep.txt; echo round >>docs/reviews/trail.md
+    git commit -qam feat && git tag reviewed
+    git checkout -q main
+    echo main >"dir with space/f.txt"; echo "main change" >own.txt; echo main >callee.txt; echo main >g1.txt
+    git commit -qam main
+    git checkout -q feat
+    git merge -q main >/dev/null 2>&1 || true
+    printf 'resolved\n' >"dir with space/f.txt"        # a merge effect on a spaced path
+    git checkout --theirs own.txt                      # the merge throws the own edit away
+    git add -A && git commit -qm merge && git tag newhead
+    git tag newbase "$(git merge-base main HEAD)"
+  ) >/dev/null 2>&1
+  ( cd "$R" && bash "$ML" oldbase reviewed newbase ) >"$T/ml.out" 2>"$T/ml.err"; echo $? >"$T/ml.rc"
+  check "merge_link: exit 0" rc_is ml 0
+  check "merge_link: the spaced path's merge effect is in" has ml.out "+resolved"
+  check "merge_link: the own edit the merge threw away is in" has ml.out "-my change"
+  check "merge_link: a glob-character name is taken literally, matching no other file" lacks ml.out "b/g1.txt"
+  check "merge_link: an unmoved own file is not" lacks ml.out "b/keep.txt"
+  check "merge_link: the review trail is left out" lacks ml.out "docs/reviews/trail.md"
+  check "merge_link: a base-only file is not in, unless named" lacks ml.out "b/callee.txt"
+  ( cd "$R" && bash "$ML" oldbase reviewed newbase -- callee.txt ) >"$T/mlx.out" 2>&1
+  check "merge_link: an extra path the change calls is added" has mlx.out "+main"
+  ( cd "$R" && bash "$ML" newhead newhead newhead ) >"$T/mlempty.out" 2>&1; echo $? >"$T/mlempty.rc"
+  check "merge_link: nothing moved prints nothing (not the whole tree)" \
+    sh -c '[ "$(cat "$1/mlempty.rc")" = 0 ] && [ ! -s "$1/mlempty.out" ]' _ "$T"
+  ( cd "$R" && bash "$ML" oldbase no-such-rev newbase ) >/dev/null 2>&1; echo $? >"$T/mlbad.rc"
+  check "merge_link: an unknown revision exits 2" rc_is mlbad 2
+fi
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

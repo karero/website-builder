@@ -56,7 +56,8 @@ skip silently. With a config diff, send the code that reads the config too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
-4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity` or `--seat agy`, each only when the owner asks ("antigravity
+4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity` or `--seat agy` — either flag is
+   how the owner's opt-in reaches the script, so pass one only when the owner asks ("antigravity
    review", "agy review"). The owner's credits are scarce; a default run never touches it.
    `AGY_MODEL` overrides; `run_agy` in the script has the call.
 5. **ollama local** — a sanity pass; never satisfies the gate alone.
@@ -168,11 +169,15 @@ Codex's effort for any run.
    the whole change again.
    - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
      After a merge of the base or a rebase, the **merge link** instead, not a full round: what
-     changed in the change's own files since the last review, merge effects included —
-     `git diff -z --name-only <new-merge-base>...HEAD | xargs -0 git diff <last-reviewed-head>
-     HEAD -- ':(exclude)docs/reviews/'` (NUL-separated: an unquoted `$(git diff --name-only …)`
-     splits a path with a space and silently drops it) — plus any file the merge changed that the
-     change's code calls directly, when known. PLAN: the whole plan, with the changed sections named in the
+     changed in the change's own files since the last review, merge effects included, plus any
+     file the merge changed that the change's code calls directly, when known:
+
+     ```
+     scripts/merge_link.sh <old-merge-base> <last-reviewed-head> <new-merge-base> [-- <path>...]
+     ```
+
+     It takes the change's files from both the old and the new pair (an own edit the merge threw
+     away matches the new base and drops out of the new pair alone) and passes names literally. PLAN: the whole plan, with the changed sections named in the
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
@@ -209,7 +214,9 @@ Codex's effort for any run.
    externally re-verified" — or waive), and the remaining wording goes to the wording pass.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
-   hold the change — an open BUG is never waived. Name each round past 3 and the BUG that earned it
+   hold the change — an open BUG is never waived. The same holds whenever the rounds end with a
+   confirmed BUG still open (unfixed, or blocked on a missing prerequisite): the gate is blocked
+   until it is fixed and verified, deferred under step 5, or the owner holds the change. Name each round past 3 and the BUG that earned it
    in the trail. A redesign is a new artifact with a new count; say in the trail which artifact
    each round belongs to. Re-gates forced by a moved diff (closeout, clerk item 2), the final full
    read and the wording pass don't count as rounds.
@@ -224,11 +231,13 @@ Codex's effort for any run.
 
    **The wording pass.** After the last round with a substantive BUG (and the final full
    read, where one runs), whatever changed since — wording, comments, docs prose, the review
-   record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex` or `--seat ollama`,
-   with closeout clerk item 2's prose-only scope). Its RISK/NIT are follow-ups; a contradiction
+   record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
+   with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
+   scope. Its RISK/NIT are follow-ups; a contradiction
    with the code it describes is fixed and recorded `locally_verified`, without another pass. Only
    a substantive BUG reopens the rounds. There is no second wording pass.
-7. **Convergence check** after every round: is the BUG/RISK count falling; do findings land on new
+7. **Convergence check** after every round — not a count's direction (a real fix chain can run
+   flat or noisy; the round budget already follows substantive BUGs): do findings land on new
    ground (code the last fixes added, or a named new check, input, path or evidence source — "more
    careful" doesn't count); is anything oscillating? **STOP patching** when a verified fix
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings

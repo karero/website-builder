@@ -147,10 +147,10 @@ esac
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
 fi
-# --seat names its one reviewer: `--seat agy` is itself the explicit Antigravity opt-in (SKILL.md,
-# reviewer stack), as explicit as --with-antigravity, and dispatch calls run_agy directly. It
-# combines with neither --first-success nor --with-antigravity, which pick reviewers too; with
-# --local-only it can only be the local ollama seat.
+# --seat names its one reviewer, and dispatch calls that tier directly. `--seat agy`, like
+# --with-antigravity, is how the owner's Antigravity opt-in reaches the script (SKILL.md, reviewer
+# stack): pass either only when the owner asked. --seat never combines with --first-success; with
+# --with-antigravity only as `--seat agy` (the same reviewer); with --local-only only as ollama.
 if [ -n "$SEAT" ] && { [ "$FIRST_SUCCESS" = 1 ] || { [ "$WITH_ANTIGRAVITY" = 1 ] && [ "$SEAT" != agy ]; }; }; then
   echo "--seat $SEAT runs one named reviewer; drop --first-success/--with-antigravity (or WITH_ANTIGRAVITY=1)." >&2; exit 2
 fi

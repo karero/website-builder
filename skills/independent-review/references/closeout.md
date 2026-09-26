@@ -95,8 +95,9 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      re-check matches them anyway), then record `git merge-base <target> HEAD` and
      `git rev-parse HEAD`. **A verification chain counts as seeing the pair:** round 1 saw
      `base...h1` in full, each later round saw exactly the delta from the previous round's head to
-     its own. A merge of the base or a rebase is bridged by a **merge link** (SKILL.md step 6: the
-     change's own files from the last seen head to the new one, merge effects included); from it
+     its own. A merge of the base or a rebase is bridged by a **merge link** (SKILL.md step 6,
+     `scripts/merge_link.sh`: the change's own files from the last seen head to the new one, merge
+     effects included); from it
      on, the new merge-base is the recorded one. **The chain holds per seat**, never for the round as a whole: a seat
      counts toward the stamp only if it produced a counted result in every link since its last full
      round — check the trail's per-round reviewer column, not just the recorded pair; a seat that
