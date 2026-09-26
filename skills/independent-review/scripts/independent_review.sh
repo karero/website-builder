@@ -41,7 +41,8 @@
 #
 # SECURITY. The preferred reviewer runs as `codex exec -s read-only`, which ASKS
 # the CLI for a read-only sandbox (plus --skip-git-repo-check, which only lets it start
-# outside a git repo or trusted project; see the note above codex_bin); whether it
+# outside a git repo or trusted project, and -c project_doc_max_bytes=0, which keeps a
+# project AGENTS.md out of its instructions; see the notes above codex_bin); whether it
 # blocks writes is not tested here (R-SANDBOX in
 # docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
 # only sends text. So: treat any external reviewer as untrusted, keep reviews off
@@ -210,9 +211,8 @@ unset PROMPT 2>/dev/null || true
 # PROMPT is built per TIER. The tiers do not have the same capabilities, and a single prompt
 # written to the weakest one silently caps the strongest.
 #
-#   codex     `exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0` in the
-#             CALLER'S cwd
-#                                                      -> read-only sandbox, sees the working tree
+#   codex     `exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0`
+#             in the CALLER'S cwd                      -> read-only sandbox, sees the working tree
 #   agy       `cd "$sbox"` into an empty mktemp dir    -> UNKNOWN, and deliberately not guessed.
 #                                                         It is sandboxed and its cwd is empty, but
 #                                                         neither fact establishes what it can read
@@ -411,12 +411,13 @@ looks_like_review() {
 # not a test of R-SANDBOX. Nor was the check a read boundary: started inside a repo, the same
 # codex read a file outside it. Codex keeps the caller's cwd rather than the agy tier's
 # throwaway dir, because seeing the working tree is what lets it check a diff's claims.
-# -c project_doc_max_bytes=0: codex follows an AGENTS.md in its cwd, and does so in a
-# non-git dir too once the flag lets it start there (seen live: it obeyed a planted one).
-# That file would outrank the review prompt, so the reviewer reads none — not a stray one
-# in a scratch dir, and not one a PR under review edits to steer its own review. It can
-# still read the file as data. With the setting, the same probe ignored it. (Owner
-# decision, 2026-09-26.)
+# -c project_doc_max_bytes=0: codex loads the AGENTS.md of the project it runs in into its
+# instructions, and does so in a non-git dir too once the flag lets it start there (seen
+# live: it obeyed a planted one). Such a file would outrank the review prompt, so project
+# AGENTS.md loading is off — for a stray one in a scratch dir, and for one a PR under
+# review edits. With the setting, the same probe ignored it. It does not cover the user's
+# own global ~/.codex/AGENTS.md, nor stop the model opening a project AGENTS.md itself and
+# choosing to follow it. (Owner decision, 2026-09-26.)
 codex_bin() {
   command -v codex 2>/dev/null && return 0
   ls -1 "$HOME"/.vscode/extensions/openai.chatgpt-*/bin/*/codex 2>/dev/null | sort -V | tail -1

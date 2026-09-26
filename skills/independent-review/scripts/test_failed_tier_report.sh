@@ -36,14 +36,15 @@ cat >"$T/bin/codex" <<'EOF'
 # <prompt> (found by its content, not its position), so a test can pin it exactly: an
 # added sandbox override fails the match instead of hiding behind "-s read-only is in
 # there somewhere" (round 1, fresh-eyes), and so does one placed after the prompt or
-# after a prompt moved to stdin (round 2, fresh-eyes and ollama).
+# after a prompt moved to stdin (round 2, fresh-eyes and ollama). Each argument is
+# bracketed, so "-s read-only" passed as ONE argument does not match (round 3, fresh-eyes).
 skip=0 argv=
 for a; do
   [ "$a" = --skip-git-repo-check ] && skip=1
   case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
-  argv="$argv $a"
+  argv="$argv[$a]"
 done
-printf 'argv=%s cwd=%s\n' "${argv# }" "$(pwd -P)" >"$STUB_MARKS/codex-args"
+printf 'argv=%s cwd=%s\n' "$argv" "$(pwd -P)" >"$STUB_MARKS/codex-args"
 if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   printf '%s\n' 'Reading additional input from stdin...' \
     'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
@@ -272,7 +273,7 @@ for m in "" stub-override; do
   check "$name: the stub really is outside a git repo" env -u GIT_DIR -u GIT_WORK_TREE \
     sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$CEILING"
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
-  want="argv=exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0${m:+ -c model=\"$m\"} <prompt> cwd=$NOGIT"
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT"
   check "$name: exact argv (read-only, nothing looser) in the caller's cwd" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
