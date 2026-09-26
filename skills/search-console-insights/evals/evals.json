@@ -106,6 +106,33 @@
         "Names the site specifically (not a vague 'your sites') when asking"
       ],
       "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Does ChatGPT or any AI mention my bakery when people ask for sourdough in Schwabing? Can you check that regularly? I only want free stuff for now.",
+      "expected_output": "Should explain the weekly AI check in plain words (benefit first) and ask before setting anything up. Should draft broad and narrow buyer questions in the site's language that name the place but NOT the business, plus a branded question, and ask the owner to confirm the wording. Must be honest about the free path: a free Gemini key gives only 'Knows you' (no web search, because Google's terms forbid analysing search-grounded answers), and 'Finds you' needs one paid key. If the owner is in the EU, mention turning on billing for the Gemini key. Must have the owner put the key into ~/.config/gsc-insights/.env themselves, never paste it into chat. Must save questions via geo_check.py (--init, --set-question with stdin/file, --confirm), not by hand-editing the config, and must never answer the questions itself.",
+      "assertions": [
+        "Explains the benefit before asking to set it up",
+        "Drafts questions that name the place but not the business, and asks the owner to confirm them",
+        "States that free Gemini covers 'Knows you' only and that 'Finds you' needs a paid key",
+        "Tells the owner to add the key to the .env file themselves, not paste it into chat",
+        "Uses geo_check.py --init / --set-question / --confirm rather than editing the config file",
+        "Does not answer the buyer questions itself"
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Show me how my AI results are doing this week for example.com.",
+      "expected_output": "Should first run geo_check.py example.com --check-drift. If it reports the homepage changed since the questions were confirmed, should read the homepage (and POSITIONING.md if present), show each saved question next to a proposed replacement, and ASK before changing anything; on switch use --set-question then --confirm, on keep use --confirm only; if the homepage couldn't be read, say so and not confirm. Then run --trend and explain named/cited counts, 'searched only', ‡ markers (question/model/settings changed = not directly comparable) and failed latest attempts in plain words, quoting from the saved answer files when useful.",
+      "assertions": [
+        "Runs --check-drift before interpreting results",
+        "On a changed homepage, proposes replacement questions and asks before changing them",
+        "Does not --confirm against an unreadable homepage",
+        "Explains named/cited as counts out of answers, and ‡ as not directly comparable",
+        "Mentions a failed latest attempt instead of presenting old numbers as current"
+      ],
+      "files": []
     }
   ]
 }

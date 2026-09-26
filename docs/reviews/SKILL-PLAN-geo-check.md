@@ -6,20 +6,49 @@ Revision 4, the plan to build from. It went through three PLAN review rounds: Co
 
 | Step / scenario | State | Evidence |
 |---|---|---|
-| PLAN gate (3 rounds, then owner redesign decision) | done | this file's first commit |
-| S1 Gemini-only run | not started | — |
-| S2 counts named / cited | not started | — |
-| S3 name detection | not started | — |
-| S4 homepage changed | not started | — |
-| S4b homepage unreadable | not started | — |
-| S5 interactive re-confirm | not started | — |
-| S6 model changed | not started | — |
-| S7 not set up | not started | — |
-| S8 engine failed | not started | — |
-| S9 GSC token dead | not started | — |
-| Live smoke test (Gemini) | not started | — |
+| PLAN gate (3 rounds, then owner redesign decision) | done | `4268689` |
+| S1 Gemini-only run | done (stub) | `test_s1_gemini_only`, `test_s1_green_run_with_gemini_only` |
+| S2 counts named / cited | done (stub) | `test_s2_counts` |
+| S3 name detection | done | `Detection` tests |
+| S4 homepage changed | done (stub) | `test_s4_changed_warns_but_never_fails`, `test_s4_homepage_changed_stays_green` |
+| S4b homepage unreadable | done (stub) | `test_s4b_unreadable_warns_and_confirm_refuses`, `test_s4b_unreadable_homepage_stays_green` |
+| S5 interactive re-confirm | done (stub) | `test_s5_check_drift_then_keep_or_change`, `test_s5_question_change_is_marked_per_slot` |
+| S6 model changed | done (stub) | `test_s6_model_change_is_marked` |
+| S7 not set up | done (stub) | `test_s7_not_set_up`, `test_s7_not_set_up_keeps_the_old_green` |
+| S7b set up without key | done (stub) | `test_s7b_config_without_keys_is_a_problem`, `test_s7b_set_up_without_key_is_red` |
+| S8 engine failed | done (stub) | `test_s8_failed_engine_is_a_problem_and_redacted`, `test_s8_failed_engine_is_red` |
+| S9 GSC token dead | done (stub) | `test_gsc_no_browser.py`, `test_s9_dead_gsc_signin_does_not_cost_the_ai_week` |
+| Live smoke test (real engine) | not started | — (needs the owner's key in `.env`) |
 | DIFF gate | not started | — |
 | PR | not started | — |
+
+"done (stub)" = passing against the local stub server; the commit that carries these tests is
+the one after `4268689` on this branch. The live smoke test is the first contact with real APIs.
+
+## Build decisions (after the plan gate)
+
+- **Gemini answers only without search ("knows you").** Build-time research found Google's
+  grounding terms: "You will not, and will not allow your end user or any third party to,
+  cache, frame, syndicate, resell, analyze, train on, or otherwise learn from Grounded
+  Results". Counting mentions is analysis. Owner decision, verbatim: "Gemini = Knows you only
+  (Recommended)". The free path therefore gives "knows you" only; "finds you" needs a paid key.
+  This supersedes the plan text below wherever it says Gemini "finds".
+- **Perplexity fills both columns.** Its Agent API searches only when the `web_search` tool is
+  sent with a directly named model (no preset), so "knows" mode is possible after all.
+- **Default models:** `gemini-3.5-flash-lite`, `gpt-6-luna`, `claude-sonnet-5` (Haiku 4.5 retires
+  around 2026-10-15), `perplexity/sonar`. All overridable via `GEO_<ENGINE>_MODEL`.
+- **New `searched` column.** Only OpenAI can force a search (`tool_choice: "required"`); the
+  others may answer from memory with search on. The row counts how many answers actually
+  searched, and the trend says "searched only N/M" when not all did.
+- **OpenAI always gets `user_location`** (`{"type": "approximate"}` plus the country): omitted,
+  it silently searches as if from the United States.
+- **track.sh keeps exit 4 for a history-write gap** (as before) instead of folding it into 1:
+  final exit = GSC's code if GSC failed, else 4 if a history write failed, else 1.
+- **check_clean key patterns** start at a word boundary: an unanchored `sk-` with hyphens
+  flagged ordinary prose like "risk-free-and-easy-to-use" (tested).
+- **Process deviation:** geo_check.py was written before its tests, not tests-first. Mitigation:
+  four deliberate breaks (no `--no-browser`, GEO rc 3 treated as a problem, German folding
+  removed, the good-row guard removed) each turned the matching tests red.
 
 ## Context
 

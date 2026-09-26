@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check smoke whats-new refresh
+.PHONY: install install-codex package check test smoke whats-new refresh
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -24,6 +24,10 @@ check:     ## run every suite guard: no personal data or credentials, no concret
 	@bash skills/independent-review/scripts/test_looks_like_review.sh
 	@bash skills/independent-review/scripts/check_prompt_sync.sh
 	@bash scripts/test_install_pin.sh
+
+PYTHON ?= python3
+test:      ## run the search-console-insights tests (tracker + AI check; needs `requests`; stub servers, no real API calls). Not part of check/package, which must run on a stock python3
+	@$(PYTHON) -m unittest discover -s skills/search-console-insights/scripts/tests
 
 smoke: package   ## shippability check: make check + build zip + verify zip contents
 	@echo "smoke OK — suite is clean and the handoff zip is complete"

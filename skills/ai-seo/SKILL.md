@@ -355,6 +355,10 @@ Monthly manual check:
 3. Record: Are you cited? Who is? What page?
 4. Log in a spreadsheet, track month-over-month
 
+Automated alternative: `search-console-insights` has a weekly "does AI name you?" check
+(`references/geo-check.md`) that asks the AI engines your buyer questions, counts mentions and
+citations in code, and trends them next to your Google rankings.
+
 ---
 
 ## AI SEO for Different Content Types

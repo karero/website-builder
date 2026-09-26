@@ -14,7 +14,8 @@ name: clean
 # fails is reported rather than hidden (test_failed_tier_report.sh), which reviewer output counts
 # as a review (test_looks_like_review.sh), and whether SKILL.md's prompt matches the script's
 # (check_prompt_sync.sh). It also runs the check that neither installer clobbers a skill someone
-# pinned to another worktree of this repo (scripts/test_install_pin.sh).
+# pinned to another worktree of this repo (scripts/test_install_pin.sh). And it runs the
+# search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
   pull_request:
@@ -63,3 +64,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check the installers keep a skill pinned to another worktree
         run: bash scripts/test_install_pin.sh
+  search-console-insights-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the one runtime dependency the tests import
+        run: python -m pip install requests
+      - name: Run the tracker + AI-check tests (stub servers, no real API calls)
+        run: make test PYTHON=python
