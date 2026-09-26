@@ -282,6 +282,22 @@ fourth, and close the other three as accepted limits. then open & merge".
 | Markdown `~~~` removed from `FENCE_RE` | survived | fails "Markdown: a "~~~" fenced block is not reported" and the count |
 
 **Review gate for this step:** lighter than the rounds above. These are wording fixes and
-test-only additions with no new logic, so the gate was one fresh-eyes read of the diff since
-`640c99a` by a sub-agent with no shared context. Nothing was sent to Codex, ollama or another review
+test-only additions with no new logic, so the gate was one fresh-eyes read by a sub-agent with
+no shared context, of this step's own diff: `git diff 640c99a HEAD` on the five paths it touches
+(the merge of main in between is not part of it). Nothing was sent to Codex, ollama or another review
 service: the owner's consent for those covered the local session only.
+
+The gate ran the suite, re-ran the three mutants that had survived (each passes the old suite and
+fails the new one, as above) and checked the fixtures' expectations. It found no BUG and no RISK,
+and five NITs, all fixed:
+
+| id | sev | source | finding | status |
+|---|---|---|---|---|
+| C-01 | NIT | fresh-eyes | SKILL.md overclaims both halves: `--base` also lists sentences beside a removal, `--file` skips fenced code | fixed: "adds (or edits beside)", "outside fenced code" |
+| C-02 | NIT | fresh-eyes | The reference does not say named paths replace the default set, or that only what the change touched in them is swept | fixed: it says both |
+| C-03 | NIT | fresh-eyes | The test header credits the close-out with finding the guards (round 3 found them); one line ran long | fixed: reworded and rewrapped |
+| C-04 | NIT | fresh-eyes | "the diff since `640c99a`" also spans main's merged changes, which the gate did not cover; the gate's result was not recorded | fixed: scope stated; this table |
+| C-05 | NIT | fresh-eyes | A fixture comment says a fence closes only on a marker "of its own kind", which the fixture does not exercise | fixed: that half removed from the comment |
+
+The fixes are wording only; the suite and `make check` pass after them. They were not sent back
+to the gate for a second read.

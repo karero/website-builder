@@ -15,10 +15,10 @@
 # line, one file under two spellings) and inline code read as a fence. Its third found a
 # qualifier removed beside an edit that kept its words, two ``` lines indented four spaces
 # pairing up around prose, GIT_DIFF_OPTS widening hunks, a file under a relative and an
-# absolute spelling, and a crash on a closed stderr or a Latin-1 locale. Its NIT close-out
-# found three guards no check could fail: a fence closer's length, a "1." item after a
-# paragraph, and a Markdown "~~~" fence. Each of those is a fixture here, and case H proves the wrapped one really is a miss for grep: a guard that
-# cannot fire is worse than none.
+# absolute spelling, and a crash on a closed stderr or a Latin-1 locale. It also found guards
+# no check could fail; the NIT close-out pinned three: a fence closer's length, a "1." item
+# after a paragraph, and a Markdown "~~~" fence. Each of those is a fixture here, and case H
+# proves the wrapped one really is a miss for grep: a guard that cannot fire is worse than none.
 #
 # Usage: bash skills/independent-review/scripts/test_sweep_claims.sh
 set -u
@@ -297,8 +297,8 @@ printf '10. ```sh\n    it never builds\n    ```\n\nOnly this is prose.\n\n```\nm
 printf 'All services, e.g. Python and Go, use the new runner.\n\nEvery job ran, approx. twice a day.\n\n- The runner never ran before\n  2024. It ran daily later.\n\n1. Alpha is fine\n2. beta was not run\n' >"$T/splits.md"
 # A "1." item may interrupt a paragraph, so the paragraph's last line does not run into it.
 printf 'All of these run\n1. Nothing else does.\n' >"$T/items.md"
-# A fence closes only on a marker of its own kind and at least its length: three backticks do
-# not close four. "~~~" fences a block in Markdown, although it is an underline in rst.
+# A fence closes only on a marker at least its length: three backticks do not close four.
+# "~~~" fences a block in Markdown, although it is an underline in rst.
 printf '````md\n```\nNothing inside the long fence is swept.\n```\n````\n\nNothing after the long fence is lost.\n\n~~~\nNothing inside the tilde fence is swept.\n~~~\n\nNothing after the tilde fence is lost.\n' >"$T/fences.md"
 run files "$R" --file "$T/guide.rst" --file "$T/open.md" --file "$T/splits.md" --file "$T/inline.md" \
   --file "$T/indented.md" --file "$T/closer.md" --file "$T/listfence.md" --file "$T/items.md" \

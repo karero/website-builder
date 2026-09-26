@@ -33,7 +33,8 @@ artifact uses. `<skill>` is this skill's directory; after an install that is
 
 By default it sweeps changed `*.md`, `*.markdown`, `*.txt` and `*.rst` files outside
 `docs/reviews/`, the same trail exclusion the artifact uses. To sweep other files, list them
-after the options; they are git pathspecs (globs work), relative to `--repo`. `--file` paths are
+after the options: they replace the default set, they are git pathspecs (globs work) relative to
+`--repo`, and only what the change touched in them is swept. `--file` paths are
 relative to the current directory. A sentence counts as changed when it touches an added
 line, or a line either side of any hunk that removes a line: removing "except on a timeout."
 widens the claim left behind, and an edit cannot be told apart from that reliably, so an edit
