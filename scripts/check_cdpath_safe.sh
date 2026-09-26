@@ -80,7 +80,10 @@ discover() {
   fi |
   while IFS= read -r f; do
     [ -f "$f" ] || continue
-    case "$(head -n 1 -- "$f" 2>/dev/null)" in
+    # tr: a tracked binary file's first "line" can hold NUL bytes. bash drops them from a command
+    # substitution anyway, and >= 4.4 warns on stderr as it does; dropping them first is silent
+    # and leaves the same string to match.
+    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
       '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
@@ -118,16 +121,18 @@ for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
   # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
   # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
-  # stdout+status is the whole signal. stderr is not deterministic: check_prompt_sync.sh had a
-  # `grep | head -1`, and whether grep lost the SIGPIPE race and printed "write error: Broken
-  # pipe" depended on machine load. That raced zero times in 15 local runs and ten times in one
-  # CI run, failing this guard with the tell "(exit 0 vs 0)" — identical status, noise-only diff.
-  # That pipeline is gone (grep -m1 on the file), but any subject can grow another one.
+  # stdout+status is the whole signal. stderr is not deterministic: GitHub's runner starts jobs
+  # with SIGPIPE ignored, so a pipeline whose consumer exits early makes the upstream grep print
+  # "write error: Broken pipe" at random. The racer was check_prompt_sync.sh's tier check, a
+  # `grep -v | grep -q` (its `| head -1` raced far less). That raced zero times in 15 local runs,
+  # where SIGPIPE is not ignored, and ten times in one CI run, failing this guard with the tell
+  # "(exit 0 vs 0)" — identical status, noise-only diff. Both pipelines are gone (it now greps
+  # the file directly), but any subject can grow another one.
   a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
   b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
     echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
-    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'
+    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | sed -n '1,20s/^/    /p'
     diffs=$((diffs + 1)); rc=1
   fi
 done
