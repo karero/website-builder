@@ -135,7 +135,7 @@ chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -404,7 +404,7 @@ check "skipped tier: not in the timings line" grep -qE '^timings: codex [0-9]+s$
 # 24b. Stopping the script stops its reviewers, even one that ignores SIGTERM: none keeps
 #      running (and billing) after the script is gone (round 1, fresh-eyes).
 mkdir -p "$T/stop.marks"
-env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
+env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
   WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stop.raw" STUB_MARKS="$T/stop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=stubborn OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stop.out" 2>"$T/stop.err" &
 spid=$!
@@ -441,6 +441,28 @@ check "verify with a missing file: exit 2, nothing ran" \
 printf '  \n\n' >"$T/blank.md"
 run verifyblank bash "$SCRIPT" "$T/change.diff" --verify "$T/blank.md"
 check "verify with an empty record: exit 2" has verifyblank.err "the prior-findings file is empty"
+
+# 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
+#     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
+#     round and lands after the model override, before the prompt.
+base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]'
+argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
+run effverify bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+check "effort: a verify round asks for medium" \
+  [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][<prompt>]" ]
+check "effort: the codex header names it" has effverify.out "## Independent review — codex (stub-codex, effort medium, read-only)"
+run effconfig CODEX_EFFORT=config bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+check "effort: CODEX_EFFORT=config keeps config.toml's, even on a verify round" \
+  [ "$(argv_of effconfig)" = "$base[<prompt>]" ]
+run efffull bash "$SCRIPT" "$T/change.diff"
+check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[<prompt>]" ]
+check "effort: ...and its header says nothing about effort" has efffull.out "## Independent review — codex (stub-codex, read-only)"
+run effboth CODEX_EFFORT=xhigh CODEX_MODEL=stub-strong bash "$SCRIPT" "$T/change.diff"
+check "effort: explicit effort after the model override" \
+  [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][<prompt>]" ]
+run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff"
+check "effort: an unknown value exits 2 before any reviewer runs" \
+  sh -c '[ "$(cat "$1/effbad.rc")" = 2 ] && [ ! -e "$1/effbad.marks/codex-ran" ]' _ "$T"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

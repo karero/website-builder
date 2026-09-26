@@ -65,6 +65,11 @@
 #   CODEX_MODEL    (unset)           ad-hoc codex model override for THIS run only,
 #                                    e.g. CODEX_MODEL=<model-tag> for a hard case or a
 #                                    long plan. Does not touch config.toml's daily driver.
+#   CODEX_EFFORT   (unset)           codex reasoning effort for THIS run (minimal|low|medium|
+#                                    high|xhigh), passed as -c model_reasoning_effort=... .
+#                                    Unset: config.toml's, except a --verify round, which
+#                                    defaults to medium (it checks fixes, not the whole change).
+#                                    CODEX_EFFORT=config keeps config.toml's there too.
 #   OLLAMA_MODEL   (auto-detected)   ollama model for the standard second reviewer —
 #                                    defaults to the first ':cloud' tag in `ollama list`
 #                                    (the owner's signed-in cloud model; this script
@@ -110,6 +115,14 @@ if [ -n "$VERIFY_FILE" ]; then
   # An empty record would turn "confirm each fix" into a round with nothing to confirm.
   [ -n "$(printf '%s' "$PRIOR" | tr -d '[:space:]')" ] || { echo "the prior-findings file is empty: $VERIFY_FILE" >&2; exit 2; }
 fi
+# Codex reasoning effort (SKILL.md, review depth). A verification round checks fixes and a small
+# delta, so it drops to medium unless the caller says otherwise; "config" keeps config.toml's.
+case "${CODEX_EFFORT:-}" in
+  config) CODEX_EFFORT_EFFECTIVE="" ;;
+  "")     if [ -n "$VERIFY_FILE" ]; then CODEX_EFFORT_EFFECTIVE="medium"; else CODEX_EFFORT_EFFECTIVE=""; fi ;;
+  minimal|low|medium|high|xhigh) CODEX_EFFORT_EFFECTIVE="$CODEX_EFFORT" ;;
+  *)      echo "CODEX_EFFORT=\"$CODEX_EFFORT\" — expected minimal, low, medium, high, xhigh or config" >&2; exit 2 ;;
+esac
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
 fi
@@ -505,25 +518,25 @@ codex_bin() {
 run_codex() {
   local bin; bin="$(codex_bin)"
   [ -n "$bin" ] && [ -x "$bin" ] && [ -f "$HOME/.codex/auth.json" ] || return 3
-  # No array for the optional -c flag: bash 3.2 (macOS's system /usr/bin/bash, which
-  # this script's `env bash` shebang can resolve to) throws "unbound variable" on
-  # "${arr[@]}" for an EMPTY array under `set -u` — verified on this host, not
-  # theoretical — so branch instead of building an argv array conditionally.
+  # Guards TOML value syntax (a literal '"' breaks out of key="...";
+  # a literal newline could inject a second key=value line into codex's
+  # single-line -c override) — NOT shell injection: a variable's own
+  # content is never re-parsed for $()/backticks by bash on expansion,
+  # verified empirically, so that class of attack doesn't apply here.
   if [ -n "${CODEX_MODEL:-}" ]; then
-    # Guards TOML value syntax (a literal '"' breaks out of model="...";
-    # a literal newline could inject a second key=value line into codex's
-    # single-line -c override) — NOT shell injection: a variable's own
-    # content is never re-parsed for $()/backticks by bash on expansion,
-    # verified empirically, so that class of attack doesn't apply here.
     case "$CODEX_MODEL" in
       *'"'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal double-quote — cannot safely pass it to codex's -c model=... config value. Remove the quote." >&2; WHY="CODEX_MODEL rejected: contains a double-quote"; return 1 ;;
       *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; WHY="CODEX_MODEL rejected: contains a newline"; return 1 ;;
       *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; WHY="CODEX_MODEL rejected: contains a backslash"; return 1 ;;
     esac
-    "$bin" exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
-  else
-    "$bin" exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   fi
+  # The argv is built in the positional parameters, not an array: bash 3.2 (macOS's
+  # /usr/bin/bash, which the `env bash` shebang can resolve to) throws "unbound variable"
+  # on "${arr[@]}" for an EMPTY array under `set -u`. The list here is never empty.
+  set -- exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false
+  [ -n "${CODEX_MODEL:-}" ] && set -- "$@" -c "model=\"$CODEX_MODEL\""
+  [ -n "$CODEX_EFFORT_EFFECTIVE" ] && set -- "$@" -c "model_reasoning_effort=\"$CODEX_EFFORT_EFFECTIVE\""
+  "$bin" "$@" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   local rc=$?
   # An explicit CODEX_MODEL request failing must not fail silently — with
   # --first-success the caller just moves on to the next tier with no sign the
@@ -546,7 +559,8 @@ run_codex() {
   # confirmed live in this session's own captured review headers, which were
   # garbled by exactly this ("codex (~/.codex config: <model>\nmodel_rea…").
   local cfg; cfg="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
-  printf '## Independent review — codex (%s, read-only)\n\n%s\n' "${cfg:-unknown}" "$out"
+  printf '## Independent review — codex (%s%s, read-only)\n\n%s\n' "${cfg:-unknown}" \
+    "${CODEX_EFFORT_EFFECTIVE:+, effort $CODEX_EFFORT_EFFECTIVE}" "$out"
 }
 # OPT-IN ONLY (--with-antigravity / WITH_ANTIGRAVITY=1) — Google Gemini via the
 # Antigravity CLI `agy` (brew: antigravity-cli). The owner's Antigravity free-tier

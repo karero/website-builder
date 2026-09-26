@@ -387,3 +387,15 @@ it in full surfaced a BUG. The re-run also cost a second round AND produced a DI
 the same model on the same input, so three findings acted on from the first sample went unlogged and
 a later round had to reconcile the trail's arithmetic. If output is too long to read at once, page
 through it from the top or write it to disk and read the file — never sample the end.
+
+## Review depth — why three depths, and why Light may be same-family
+
+Codified 2026-09-26 by the owner. Every change used to get the same gate: the Codex + ollama pair
+and a fresh-eyes pass on the host's own model, every round — so a copy fix cost as much as an auth
+change. Depth now follows consequence, which "gate on consequence, not size" already asked for.
+Light accepts one same-family seat (the host's diff review) for changes whose mistakes are cheap to
+find and undo; that is a standing owner decision, recorded here and in SKILL.md, not something a
+session may extend to other changes. Normal runs fresh-eyes once, on a mid-tier model, because the
+cross-model pair carries the gate; High keeps every seat at full strength every round. Verification
+rounds drop Codex to medium effort because they check fixes and a small delta. Whether these
+trades pay off is to be judged from the trails' `timings:` lines and fresh-eyes token counts.

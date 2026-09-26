@@ -30,8 +30,8 @@ working rules. Why they exist, the incidents behind them and the long form of ea
 
 **Gate on consequence, not size.** A docs row whose "suggested fix" someone will implement, a
 runbook headed for production, or a plan an agent will execute weighs more than a small code change
-CI will catch. Where a lighter gate is right, name it and why in the trail; never skip silently.
-With a config diff, send the code that reads the config too.
+CI will catch. Pick the depth by that (Review depth, below), name it and why in the trail; never
+skip silently. With a config diff, send the code that reads the config too.
 
 **PLAN gate preconditions — the host checks these itself before the pair goes out**
 (`references/plan-preconditions.md` for scope and contested cases):
@@ -68,13 +68,32 @@ cross-model. The gate needs at least one successful cross-model reviewer; same-f
 degraded and needs an explicit owner waiver. Cross-model per host — Claude Code: Codex,
 ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
 Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
-same opt-in rule). A human round adds findings but never counts as cross-model.
+same opt-in rule). A human round adds findings but never counts as cross-model. A Light-depth
+gate is the one exception, by the owner's standing choice (Review depth).
 
 ## Onboarding — first use
 
 If no reviewer that is cross-model for this host is installed and working (local ollama or a
 same-family tool never counts), run the wizard in `references/onboarding.md` — don't dump install
 commands.
+
+## Review depth — pick it before round 1
+
+Match the reviewers to what a mistake would cost. The host picks from the changed-file inventory
+(a plan: from what it would change); when unsure, the deeper one. The owner may override. The trail
+names the depth and why.
+
+| Depth | For | Reviewers | Rounds |
+|---|---|---|---|
+| **Light** | copy, docs and content nobody executes; test-only changes; small fixes to tooling that touches no user data and no production path; a website-content plan | ONE seat, no script: the host's own diff review (Claude Code: `/code-review` at `medium`; no diff or no such command: `double-knuth`). `--first-success` instead when a cross-model seat is wanted | 1, plus one if it found a BUG |
+| **Normal** (default) | everything else | the standard pair + fresh-eyes on a mid-tier host-family model (Claude Code: the Agent tool's `sonnet` option) in round 1; verification rounds: the pair only, Codex at medium effort (the `--verify` default) | step 6 |
+| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model EVERY round; Codex at config.toml's effort every round (`CODEX_EFFORT=config`) | step 6 |
+
+**Light is same-family by design** on a Claude Code host and needs no cross-model seat — the
+owner's standing choice (2026-09-26) for low-consequence changes; the trail says "Light gate".
+**Escalate to Normal** as soon as a Light review finds a BUG in code that runs, or the change
+turns out to touch anything in the High row. `CODEX_EFFORT=<minimal|low|medium|high|xhigh>` sets
+Codex's effort for any run.
 
 ## Procedure
 
@@ -85,7 +104,8 @@ commands.
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
-2. **Run the external half:** `scripts/independent_review.sh <artifact|-> [--plan|--diff]
+2. **Run the external half** (Normal and High; Light runs its one seat instead):
+   `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>]` (relative to this skill's directory). Type is auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
@@ -95,8 +115,9 @@ commands.
    and a `timings:` line. Exit 0 means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
-3. **Fresh-eyes pass** with the strict prompt below, started in the background BEFORE the script
-   so every seat runs at once. Note its duration and tokens for the trail.
+3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names, started
+   in the background BEFORE the script so every seat runs at once. Note its duration and tokens
+   for the trail.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
    - *refuted* — shown not to be an issue, to step 5's evidence standard; no sign-off.
@@ -134,8 +155,8 @@ commands.
      plan, with the changed sections named in the prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
-     `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; give the
-     fresh-eyes pass the same text, file and artifact) — confirm each fix landed in full and each
+     `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
+     depth the fresh-eyes pass gets the same text, file and artifact) — confirm each fix landed in full and each
      deferral meets step 5's conditions, check what changed for new problems, list the rest under
      OUTSIDE SCOPE, and don't report clean to oblige.
    - **Triage OUTSIDE SCOPE:** a BUG is a finding; a RISK/NIT is a follow-up. Scope is the host's
