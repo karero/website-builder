@@ -9,11 +9,29 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per branch at a time: a newer push to the same branch cancels the run it
+# supersedes. Saves Actions minutes (a private repo has 2 000 free per month; each run
+# here is ~5 min) and means the green tick always belongs to the latest commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Content placeholders must never merge (AGENTS.md §2/§4): a missing fact is
+      # written as "[MISSING: …]" so it can be found, and this is where it is found.
+      # Runs before the build so it fails in ~1s. Template [BRACKET] slots (privacy
+      # page, manifest) are a scaffold-time convention checked by the launch
+      # checklist, not here.
+      - name: No unfilled "[MISSING:" placeholders
+        run: |
+          if grep -rn '\[MISSING:' src public; then
+            echo '::error::unfilled "[MISSING: …]" placeholder(s) listed above — fill them before merging'
+            exit 1
+          fi
       # Needs no build, no browser and no network, so it runs first and fails in ~1s.
       # The pre-push hook runs it too, but a hook is bypassable with --no-verify and
       # is absent in a clone that has not run `npm install` yet.

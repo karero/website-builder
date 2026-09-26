@@ -21,7 +21,8 @@ Repository: https://github.com/[OWNER]/[REPO] · Who to ask: [OWNER_NAME]
    request* — a proposal, not yet on the site.
 4. On GitHub, open the pull request: wait for the **green tick** (the automatic
    checks take a few minutes), open the **preview link** listed under the checks and
-   look at your change, then press **Merge pull request**.
+   look at your change, then [MERGE_STEP: press **Merge pull request** | tell
+   [OWNER_NAME] it is ready to merge].
 
 ## Option B — Codex or Claude Code on your computer
 
@@ -34,8 +35,8 @@ npm ci && npx playwright install chromium
 Per change: open the assistant in that folder and describe the change. It fetches
 the latest state first, works on its own branch, runs the checks, and uploads a pull
 request. Then, on GitHub, open the pull request: wait for the **green tick**, open
-the **preview link** under the checks and look at your change, then press **Merge
-pull request**.
+the **preview link** under the checks and look at your change, then [MERGE_STEP:
+press **Merge pull request** | tell [OWNER_NAME] it is ready to merge].
 
 ## The four moves, whichever option
 
@@ -48,6 +49,10 @@ pull request**.
 
 What "merge" does on this site: [MERGE_MEANS: updates the preview at [PREVIEW_URL];
 live needs `npm run ship` by [SHIP_RIGHTS] | goes live at [LIVE_URL] within minutes].
+
+One-time, for your own account: turn on **two-factor authentication** on GitHub
+(Settings → Password and authentication) and press **Watch** on the repository so you
+see comments and failed checks on your pull requests.
 
 ## When to ask instead of pressing on
 

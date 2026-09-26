@@ -2,18 +2,17 @@
 name: website-team-setup
 description: >
   Turn a one-person new-website repo into one several people and AI assistants
-  (Codex in the browser or locally, Claude Code) can work on at once without
-  overwriting each other: invite collaborators on GitHub, set the repo settings
-  ("Update branch" + auto-delete merged branches), PROVE the CI workflow really
-  starts on its own (it can sit silent for weeks; the fix is bundled), block direct
-  pushes to `main` (ruleset, or the shipped pre-push hook on a private free-plan
-  repo), connect Cloudflare Pages to GitHub without the known traps (Workers form
-  instead of Pages, a leftover Workers Builds check, global project names), set the
-  collaborators' rights, merge rule and who publishes live in `AGENTS.md`, and hand
-  the team a one-page guide. Run once, when a second person joins. Trigger phrases:
-  "set up the team", "my colleague will work on the site", "invite a collaborator",
-  "block pushes to main", "CI is not running on pull requests", "connect Cloudflare
-  to GitHub", "team setup".
+  (Codex, Claude Code) can work on at once without overwriting each other: invite
+  collaborators on GitHub, set the repo settings ("Update branch", auto-delete
+  merged branches, merge method, Actions), PROVE the CI workflow really starts on
+  its own (it can sit silent for weeks; the fix is bundled), block direct pushes to
+  `main` (ruleset, or the shipped pre-push hook on a private free-plan repo),
+  connect Cloudflare Pages to GitHub without the known traps (Workers form, leftover
+  Workers Builds check, global project names), set rights, merge rule and who
+  publishes live in `AGENTS.md`, and hand the team a one-page guide. Run once, when
+  a second person joins. Trigger phrases: "set up the team", "my colleague will work
+  on the site", "invite a collaborator", "block pushes to main", "CI is not running
+  on pull requests", "connect Cloudflare to GitHub", "team setup".
 ---
 
 # Website team setup — from one owner to a team, once
@@ -44,13 +43,14 @@ to the setup itself. Say in the pull request that it touches `scripts/` (the hoo
 
 ## 1. Decide with the owner first (five questions)
 
-Ask, one at a time, offer the options, record the answers — they feed §§2, 5, 7, 8:
+Ask, one at a time, offer the options, record the answers — they feed §§2, 7, 8:
 
 1. **Who joins?** GitHub usernames of the collaborators (they need accounts first; a
    free account is enough).
 2. **Rights level** for collaborators, written into `AGENTS.md` §5:
    **content** (texts, images, collection entries) · **content + design** (also
-   navigation, components, layouts, styles, existing pages, `src/config.ts`) ·
+   navigation, components, layouts, styles, existing pages, `src/config.ts`,
+   `BRAND.md`) ·
    **everything** the owner may change (also new pages, tests, scripts, CI, settings).
    The reference site started at "content" and widened to "everything" within a day;
    pick what fits now, it is one line to change later.
@@ -101,6 +101,34 @@ gh api "repos/$OWNER/$REPO" --jq '{allow_update_branch, delete_branch_on_merge}'
 
 Dashboard path: **Settings → General → Pull Requests** → tick both.
 
+### 3b. The remaining settings — what a clean team setup looks like on a personal-account repo
+
+None of these blocks a team; each removes a trap we either hit or saw coming. Read
+the current value first, change only what differs, and say what you changed.
+
+| Setting | Set it to | Why | How |
+|---|---|---|---|
+| **Merge method** | one method only; keep **merge commits**, turn off rebase (squash is fine if the owner prefers one commit per pull request) | Rebase-merging rewrites the collaborators' commits, so the SHAs in their clones no longer match GitHub's, and the "Update branch" button then produces conflicts. One method means the button labels never change under a non-technical user. | `gh repo edit --enable-rebase-merge=false` (add `--enable-squash-merge=false` to keep merge commits only) |
+| **Auto-merge** | **off** | "Enable auto-merge" merges the moment CI turns green, skipping the preview look that `AGENTS.md` §2 requires. | `gh repo edit --enable-auto-merge=false` |
+| **Collaborator permission** | **write**, never maintain or admin | Write can push branches, open and merge pull requests; admin could change the settings this skill sets, or delete the repo. | §2 |
+| **Visibility** | **private** (client work) | A public repo exposes drafts, `"[MISSING: …]"` placeholders and client photos before they are meant to be seen. Note: this is also what decides whether §5-A's ruleset is available for free. | `gh repo view --json visibility` |
+| **Actions permissions** | **Allow all**, or narrow to **GitHub-owned and verified** | The kit's `ci.yml` uses only `actions/checkout` and `actions/setup-node`, so the narrow setting costs nothing and stops a collaborator's future workflow pulling an unvetted action. | Settings → Actions → General |
+| **Actions minutes** (private repos) | keep the **spending limit at 0** (default) and know the budget: 2 000 free minutes/month, each kit run ~5 min | A team pushing many small commits burns minutes fast; at the limit CI silently stops and "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, which is the single biggest saver. | Settings → Billing → Spending limits; usage under Billing → Usage |
+| **Fork workflows** | leave the default (require approval for first-time contributors) | Collaborators push branches, not forks, so this never triggers for them; it only guards against a stranger's fork running CI on your minutes. | Settings → Actions → General |
+| **Workflow token** | leave **read-only** (default) | The kit's CI writes nothing to the repo. | Settings → Actions → General |
+| **Dependabot** | **security updates on**; version updates off unless the owner wants weekly dependency pull requests | Security updates arrive as ordinary pull requests that CI checks; version updates are noise for a non-technical team. | Settings → Code security |
+| **Secret scanning + push protection** | **on** where the plan offers it (free on public repos; paid on private) | Catches a token pasted into a commit before it lands; the kit's `.gitignore` is the backstop either way. | Settings → Code security |
+| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. On a personal-account repo GitHub cannot restrict *who* pushes to `production`, so "who may ship" (§1 Q4) stays a written rule in `AGENTS.md`, not an enforced one. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
+| **Cloudflare GitHub App** | access to **this repo only** | The app gets read access to every repo it is granted; least privilege. | GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure (see §6.2) |
+| **2FA** | every collaborator turns it on | A personal-account repo cannot require it (only organizations can); ask, and put it in `TEAM-GUIDE.md`. | each person: GitHub → Settings → Password and authentication |
+| **Watching** | each collaborator watches the repo (at least "Participating and @mentions", the default) | Otherwise nobody sees a review comment or a failed check on their pull request. | the "Watch" button on the repo |
+
+Skipped on purpose: CODEOWNERS with required code-owner review (needs the paid
+ruleset option on private repos and adds a review step the team did not ask for);
+merge queues (paid); organization-level policies (this skill targets a repo on a
+personal account — an organization owner has the equivalent settings under the
+organization).
+
 ## 4. Prove that CI starts on its own (do not skip)
 
 On the reference site the kit's workflow file had been on `main` for three weeks and
@@ -135,10 +163,13 @@ gh run list --workflow ci.yml --limit 5
   git push -u origin ci/trigger-test
   gh pr create --title "CI trigger test (will be closed)" \
      --body "Empty commit; only checks whether pull_request triggers CI."
-  gh pr checks --watch
+  sleep 20   # the first check run takes a moment to be reported; too early = "no checks reported"
+  gh pr checks ci/trigger-test --watch
   ```
-  A run with `event: pull_request` must appear (`gh run list --workflow ci.yml`).
-  Then close the pull request and delete the branch (`gh pr close --delete-branch`).
+  A run with `event: pull_request` must appear:
+  `gh run list --workflow ci.yml --branch ci/trigger-test --event pull_request`.
+  Then close the pull request and delete the branch:
+  `gh pr close ci/trigger-test --delete-branch`.
   The first manual run may be **red** for a real reason (a type error nobody had seen
   because the suite never ran in CI) — that is a finding, not a trigger problem; fix it
   in its own pull request.
@@ -192,15 +223,20 @@ only if the owner wants a second pair of eyes on every change.
 `403` with an "upgrade" message: GitHub offers no server-side branch protection
 there. Say so plainly, then enable the local guard the kit already ships:
 `scripts/hooks/pre-push` contains a commented-out **PR-only main** block (the six
-lines from `while read` to `done`, marked OPTIONAL). Remove the leading `# ` from
-those six lines and replace only the first sentence of the comment above them
-("OPTIONAL: PR-only main flow …") with the date and why it is on — keep the rest of
-that comment, it documents the override and why the block must stay above the build
-steps. Commit that in the setup pull request. Then tell the owner, and write into
-`AGENTS.md` §2, what it is: a **local convention**, active only in a clone that ran
-`npm install` or `npm ci` (the `prepare` script wires the hook), bypassed by
-`ALLOW_MAIN_PUSH=1` (the deliberate override), by `git push --no-verify`, by
-unsetting `core.hooksPath`, and by a clone that never installed. It does not touch
+lines from `while read` to `done`, marked OPTIONAL). First read the current state —
+re-runs must not edit twice:
+```bash
+grep -n '^while read -r _lref' scripts/hooks/pre-push && echo "already enabled"
+```
+If it is not enabled: remove the leading `# ` from those six lines and replace only
+the first sentence of the comment above them ("OPTIONAL: PR-only main flow …") with
+the date and why it is on — keep the rest of that comment: it is the **single source
+of truth for what bypasses the block** (`ALLOW_MAIN_PUSH=1`, the deliberate override;
+`git push --no-verify`; unsetting `core.hooksPath`; a clone that never ran
+`npm install`, since the `prepare` script is what wires the hook) and for why the
+block must stay above the build steps. Commit that in the setup pull request. Then
+tell the owner, and write into `AGENTS.md` §2, what it is: a **local convention**,
+with the bypasses quoted from that hook comment, not from memory. It does not touch
 `npm run ship` (which pushes `main:production`), nor GitHub's own merges, nor Codex
 in the cloud (which only ever creates pull requests). It is the best a free private
 repo gets, and it is enough when everyone follows `AGENTS.md`.
@@ -261,10 +297,12 @@ pull request). Walk the owner through it with these warnings ahead of each click
    alias `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look
    there before merging. Previews are noindexed by the kit's `functions/_middleware.ts`
    but public-by-URL (see `PUBLISHING.md`).
-7. **Single-stage sites: a merge publishes.** Anything that used to run only in
-   `npm run ship` must now run in CI, or it never runs. Concretely: if the site has a
-   ship-time gate (`playwright.ship.config.ts`, a placeholder check), add its command
-   as the last step of `ci.yml` in the setup pull request.
+7. **Single-stage sites: a merge publishes.** Anything that runs only in
+   `npm run ship` on this site must now run in CI, or it never runs. The kit's own
+   `ship.sh` runs no tests (the pre-push hook and CI do), so a stock site has nothing
+   to move; a site that added a ship-only gate of its own moves that command into
+   `ci.yml` in the setup pull request. The kit's CI already greps for `"[MISSING: …]"`
+   placeholders, so those cannot merge on any site.
 
 Verify: after the first merge, `<live-or-preview-url>/build.txt` shows the merge
 commit id (the kit's build marker). Say which address is the **preview** and which is
@@ -275,8 +313,8 @@ commit id (the kit's build marker). Say which address is the **preview** and whi
 Rewrite the four lines at the top of §5 from the §1 answers: collaborators (GitHub
 usernames only, no emails), rights level, merge rule, and who publishes live
 (two-stage) — or delete the publish line on a single-stage site. If §5-B enabled the
-hook, add one sentence to §2 saying the block is local and what bypasses it
-(`ALLOW_MAIN_PUSH=1`, `--no-verify`, a clone without `npm install`). Read the whole
+hook, add one sentence to §2 saying the block is local, with the bypasses quoted
+from the hook's own comment block (§5-B). Read the whole
 file once more: no `[BRACKET]` slot and no scaffold note may remain, and the publish
 model block must match Cloudflare's production branch (§6.5).
 
@@ -285,8 +323,9 @@ model block must match Cloudflare's production branch (§6.5).
 Copy `templates/TEAM-GUIDE.md` from this skill into the repo root as `TEAM-GUIDE.md`,
 keep the part(s) that match §1's answer 5 (browser / local / both), fill every
 `[BRACKET]` slot — site name, owner/repo, the owner's name for "who to ask" (a name,
-never an email), the Merge row (`[MERGE_RULE]`, from §1 answer 3), and the "what merge
-does" line (`[MERGE_MEANS]` with `[PREVIEW_URL]`, `[LIVE_URL]`, `[SHIP_RIGHTS]` from
+never an email), the merge step in the numbered instructions and the Merge row
+(`[MERGE_STEP]`, `[MERGE_RULE]`, both from §1 answer 3), and the "what merge does"
+line (`[MERGE_MEANS]` with `[PREVIEW_URL]`, `[LIVE_URL]`, `[SHIP_RIGHTS]` from
 answer 4; single-stage sites keep the "goes live" half) — and translate if the team's
 language is not English. It is deliberately one page: where to start, the four moves
 per task, when to ask.
@@ -297,7 +336,8 @@ per task, when to ask.
   invited, which settings are on, how CI was proven, which push block is active and
   what it covers, the Cloudflare project and its addresses, the rights level, the
   publish rule. Note the `scripts/` and `AGENTS.md` changes explicitly (`AGENTS.md` §5).
-- Merge per the new rule, then tell the collaborators to accept the invitation and read
+- The owner merges it per the new rule (the assistant never merges), then tells the
+  collaborators to accept the invitation and read
   `TEAM-GUIDE.md`. Their first task: something small, so the whole loop (fetch, branch,
   pull request, green checks, preview, merge) is exercised once with the owner around.
 

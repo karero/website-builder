@@ -36,7 +36,9 @@ echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
 
 # Integrity check: a handoff zip missing any of these is broken (legal notices, install
-# path, the orchestrator, or the architecture doc it points at). Fail loud if so.
+# path, the orchestrator, the architecture doc it points at, and every root file the
+# orchestrator's §3 copies into a site — a zip missing one scaffolds a broken repo — plus
+# the on-demand team skill and its guide, which §3 also copies). Fail loud if so.
 REQUIRED=(
   README.md
   LICENSE
@@ -60,6 +62,9 @@ REQUIRED=(
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
   skills/new-website/templates/PUBLISHING.md
+  skills/new-website/templates/SETUP.md
+  skills/new-website/templates/.gitignore
+  skills/new-website/templates/claude/settings.json
   skills/new-website/templates/AGENTS.md
   skills/new-website/templates/CLAUDE.md
   skills/website-team-setup/SKILL.md

@@ -68,6 +68,10 @@ applies there; instead of steps 2 to 4, only this:
 ## 2. How work happens
 
 - **Never push directly to `main` on GitHub.** Every change arrives as a pull request.
+  This rule binds the assistant from day one. On a single-owner site the owner may
+  still push to `main` themselves as `PUBLISHING.md` describes; once
+  `website-team-setup` has run it binds everyone, and GitHub or the pre-push hook
+  rejects a direct push.
   - Locally (Codex or Claude Code on your own computer): every task on its own branch
     (see 1.4), then `git push -u origin content/<short-name>` and open the pull request
     on GitHub.
@@ -79,15 +83,21 @@ applies there; instead of steps 2 to 4, only this:
   button on GitHub, only when
   - the automatic checks on GitHub are green (green tick on the pull request; while
     they run: wait; red: do not merge, report it instead),
-  - no `"[MISSING: …]"` placeholder is left and the pull request is not a draft,
+  - no `"[MISSING: …]"` placeholder is left (CI greps `src/` and `public/` for it and
+    turns red) and the pull request is not a draft,
   - and the person pressing the button may do so per the merge rule in §5 (default:
     the author merges their own pull request; other people's only after asking).
 
   The assistant never merges; the person does that on GitHub.
-- **Preview before merging:** every pull request gets its own preview address from
-  Cloudflare (listed under the pull request's checks). Look at the change there before
-  merging.
-- **What a merge means** depends on the publish model of this site:
+- **Preview before merging:** once the repo is connected to Cloudflare by git
+  integration (`website-team-setup` §6 does that), every pull request gets its own
+  preview address from Cloudflare, listed under the pull request's checks. Look at the
+  change there before merging. Until then (a site deployed by token and `wrangler
+  pages deploy`, see `PUBLISHING.md`) there is no pull-request preview: check locally
+  with `npm run dev`.
+- **What a merge means** depends on the publish model of this site. Both blocks
+  assume the git integration above; on a token-deployed site a merge publishes
+  nothing until someone runs the deploy command from `PUBLISHING.md`.
 
   <!-- PUBLISH MODEL: keep ONE of the two blocks below, delete the other. -->
 
@@ -115,7 +125,8 @@ applies there; instead of steps 2 to 4, only this:
 
 - Pages: `src/pages/<slug>.astro`, each using the `Base` layout with a `title` and a
   `description`. Site-wide facts (name, URL, legal name, analytics) live in
-  `src/config.ts` and nowhere else.
+  `src/config.ts`; only the URL is also in `astro.config.mjs` (`site:`), keep the two
+  equal.
 - If the site has content collections (blog posts, projects, events, …): one folder per
   entry under `src/content/<collection>/`, images next to the entry. Which fields exist
   and which are mandatory is defined in `src/content.config.ts`. Take an existing entry
@@ -136,9 +147,10 @@ applies there; instead of steps 2 to 4, only this:
   `value: "[MISSING: year built]"`.
   Placeholders must not go live; see the draft rule in §2.
 - Forbidden (the test `tests/tone.spec.ts` rejects it): the long dash (—), buzzwords
-  and typical AI filler phrases, plus language-specific rules (English: no
-  contractions; German: no mixed du/Sie). The full list is in `tests/tone.spec.ts`.
-  Read it before writing copy.
+  and typical AI filler phrases, and in English any contraction. The full,
+  language-specific list is in `tests/tone.spec.ts`; read it before writing copy.
+  House style beyond the test: one form of address per site (German: du or Sie,
+  never mixed).
 - **Alt text (`alt`):** describes the image factually for people who cannot see it.
 - **Meta description:** 140 to 160 characters (the test allows 120 to 160), says what
   the page offers and for whom.

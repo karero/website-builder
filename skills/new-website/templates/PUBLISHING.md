@@ -152,7 +152,9 @@ that change what the public sees.
 means the assistant. Owner: you can skim it; it explains why the assistant is careful with
 links. Assistant: these rules apply to **every** publish, from the site's first deploy on,
 not just while it was being built. If this file ever gets translated or rewritten for the
-owner, this section must survive the rewrite — translating it is fine, dropping it is not.*
+owner, this section must survive the rewrite — translating it is fine, dropping it is not.
+The direct `git push` steps above are the OWNER's path; you work through pull requests,
+per `AGENTS.md` §2.*
 
 ### Always say whether it's PREVIEW or LIVE
 
