@@ -216,17 +216,20 @@ unset PROMPT 2>/dev/null || true
 #   agy       `--sandbox --mode plan`, `cd "$sbox"`   -> HAS tools, sent the text-only prompt anyway.
 #             into an empty mktemp dir                    agy applies the user's own settings
 #                                                         allow-list, which needs no prompt: on the
-#                                                         maintainer's machine it allowed read_file(*)
-#                                                         and ls/find/cat (agy's own log, 2026-09-26).
-#                                                         Its cwd is empty, so there is nothing of the
-#                                                         project to inspect there, but an empty cwd is
-#                                                         not an access boundary. Any other tool call
-#                                                         needs a permission prompt, which headless mode
-#                                                         auto-denies; both runs that hit this ended with
-#                                                         exit 0 and no output. The text-only prompt is
-#                                                         sent to steer it away from tools, NOT because
-#                                                         it has none: its "You have NO tools" is untrue
-#                                                         for agy, and a reply may still cite a file.
+#                                                         maintainer's machine read_file(*), pwd, ls,
+#                                                         find, cat and git diff/status/show/log (agy's
+#                                                         own log, 2026-09-26). Its tools do not run in
+#                                                         the empty cwd (on 1.2.9 its commands ran in
+#                                                         agy's own scratch dir), and it read a file by
+#                                                         absolute path, so the cwd is no boundary. A
+#                                                         command the allow-list does not match needs a
+#                                                         permission prompt, which headless mode
+#                                                         auto-denies; both runs that hit this returned
+#                                                         no output. The text-only prompt is sent to
+#                                                         steer it away from tools, NOT because it has
+#                                                         none: its "You have NO tools" is untrue for
+#                                                         agy, and a reply may rest on a read it does
+#                                                         not admit to.
 #   ollama    a prompt string, no tool plumbing        -> no tool access
 #   fallback  printed for a human to paste anywhere    -> UNKNOWN; could be a browsing web model
 #
@@ -508,8 +511,11 @@ run_codex() {
 # docs/reviews/RAW-diff-2026-09-26-r3-fix-independent-review-clean-verdict-8375234.md). So the
 # same-day CLI upgrade alone did not fix it. Run by hand on 1.2.11 as
 # `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir, agy logged plan mode applied,
-# no denial, and returned a full review. Flag and prompt changed together in that run: which of
-# the two is load-bearing was not isolated.
+# no denial, and returned a full review; a second such run at 14:18 did too. Both still called
+# tools (a file read by absolute path; git status) and got through only because those were
+# allow-listed. So this makes an empty run less likely, not impossible: one that reaches for an
+# unlisted command still comes back empty, and attempt() reports it FAILED. Flag and prompt
+# changed together in those runs: which of the two is load-bearing was not isolated.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"
