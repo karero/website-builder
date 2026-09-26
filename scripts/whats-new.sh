@@ -169,7 +169,7 @@ PROJECT="$(CDPATH= cd -- "$PROJECT" && pwd -P)"
 
 process_dir() {  # $1 = path to a SUITE-VERSION stamp
   local stamp="$1" skills_dir base short_base copied changed stale s missing keep
-  skills_dir="$(dirname "$stamp")"
+  skills_dir="$(dirname -- "$stamp")"
   base="$(sed -n 's/^suite_commit: //p' "$stamp")"
   copied="$(sed -n 's/^copied: //p' "$stamp")"
 

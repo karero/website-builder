@@ -271,9 +271,16 @@ scripts/
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
-docs/
+docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
+  GETTING-STARTED.md   the gentle version — start here if the suite is new to you
+  UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
+  ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
+  CODEX-TEST.md    testing the suite itself with Codex
+  DECISIONS_PENDING.md  open questions awaiting a decision
+  PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
+  PROGRESS-TRACKER.html progress-tracker mockup
 ```
 
 ### Opt-in and on-demand setup skills
