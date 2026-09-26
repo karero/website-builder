@@ -134,8 +134,8 @@ recommendation, never to pick unasked.
   `*.pages.dev` middleware in place (previews noindexed); on a launched site,
   `https://<project>.pages.dev/` answers 301 to the live domain — if it answers 200, see
   the causes listed in `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
-  go-live", step 3 (variable missing or rejected, no redeploy since, or a middleware that
-  predates the redirect).
+  go-live", step 3 (variable not under Production or rejected, no redeploy since, or a
+  middleware that predates the redirect).
 - **Secrets:** no `.env`/token committed; `.gitignore` covers them.
 - **Docs match code:** README test list + "how to add a page / run tests / deploy" current;
   `CONTENT_GUIDE.md` + `BRAND.md` filled; decision-interview answers recorded; the handoff

@@ -214,20 +214,26 @@ current build:
    Secrets** → **Production** → add a plain-text variable `CANONICAL_URL` =
    `https://example.com` (the live origin, same as `SITE.url`; no path, no trailing slash).
    Production only: previews must keep working, and the middleware never redirects a
-   preview host anyway.
+   preview host anyway. Open `https://<that value>/build.txt` before saving and confirm it
+   shows the current build: browsers remember a 301, so a typo'd domain keeps sending
+   visitors to the wrong place even after you correct the variable.
 2. **Redeploy with a new commit.** A variable only reaches deployments made after it was
    set. `npm run ship` or a push with nothing new to publish does **not** redeploy — git
    says "Everything up-to-date", Cloudflare builds nothing, and ship's "✓ LIVE" check still
    passes on the old build. So make an empty commit first:
    `git commit --allow-empty -m "Apply CANONICAL_URL"`, then push `main` and run
    `npm run ship` (two-stage), or just push `main` (single-stage). Direct-upload sites
-   (§A): re-run `npx wrangler pages deploy dist --project-name <project>`.
+   (§A): re-run `npx wrangler pages deploy dist --project-name <project> --branch
+   <production-branch>` — without `--branch`, wrangler may take the local git branch
+   (`main`) and make a preview deployment instead.
 3. Check: `curl -sI https://<project>.pages.dev/about` answers `301` with
    `location: https://example.com/about`, and a preview host still answers `200` with
    `x-robots-tag: noindex, nofollow` — two-stage: `main.<project>.pages.dev`; single-stage:
    any `<hash>.<project>.pages.dev` from `npx wrangler pages deployment list`. Still `200`
-   on the alias? The deployment predates the variable (step 2), the value was rejected
-   (not `https://`, or a `pages.dev` host — the Functions log says so), or the site's
+   on the alias? The variable isn't under **Production** (missing, misnamed, or added to
+   Preview), the deployment predates it (step 2), the value was rejected (not `https://`,
+   or a `pages.dev` host — run `npx wrangler pages deployment tail --project-name
+   <project>` while you curl the alias to see the error), or the site's
    `functions/_middleware.ts` predates the redirect (below).
 
 A value the middleware can't use (not `https://`, or itself a `pages.dev` host) is ignored
@@ -235,8 +241,9 @@ and logged, so the alias stays noindexed rather than breaking.
 
 **Sites scaffolded before this redirect existed** need the new `functions/_middleware.ts`
 first: copy it from `templates/astro/functions/_middleware.ts`
-(`make whats-new PROJECT=<site-dir>` lists it when it changed), commit, then do steps 1–3
-(that commit is the new commit step 2 needs). Nothing changes on a live site until that
+(`make whats-new PROJECT=<site-dir>` lists it when it changed) and commit it, but don't
+push until step 1 is saved: on a single-stage site that push is the production deploy.
+Then do steps 1–3; that commit is the new commit step 2 needs. Nothing changes on a live site until that
 redeploy.
 
 After the switch, the alias no longer shows the latest production build. To check a build

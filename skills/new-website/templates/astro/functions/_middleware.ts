@@ -29,9 +29,9 @@ interface MiddlewareContext {
   next: () => Promise<Response>;
 }
 
-// Hostnames may carry a trailing dot (example.com.) and still be the same host.
+// Hostnames may carry trailing dots (example.com.) and still be the same host.
 function bareHost(url: URL): string {
-  return url.hostname.replace(/\.$/, '');
+  return url.hostname.replace(/\.+$/, '');
 }
 
 function isPagesDev(host: string): boolean {
@@ -52,7 +52,7 @@ function liveOrigin(value: string | undefined): string | null {
     console.error(`CANONICAL_URL is not an https live-domain URL, not redirecting: ${value}`);
     return null;
   }
-  return url.origin;
+  return `https://${bareHost(url)}${url.port ? `:${url.port}` : ''}`;
 }
 
 export const onRequest = async (context: MiddlewareContext): Promise<Response> => {
