@@ -253,6 +253,9 @@ skills/            the suite skills (canonical)
   search-console-setup, business-listings-setup   (bundled deps)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
+  website-story    (optional story layer — the home page as the customer's story:
+                   STORY.md + an opt-in story.spec.ts; offered once after positioning,
+                   copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -318,6 +321,11 @@ site (like `website-motion`) but runs only when a team forms:
 A site with one language, a developer-edited repo and a single owner runs none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
+
+Three more skills are optional in a different way: `website-motion`, `website-story` and
+`website-positioning-check` are **copied into every site** so the recipient can use them
+later, but **never run unless asked** (`website-story` is offered once, after positioning,
+with a plain-language explanation; the other two only on request).
 
 ### Use it locally
 
@@ -392,4 +400,9 @@ MIT — see [LICENSE](LICENSE). Seven bundled skills (`ai-seo`, `seo-audit`,
 derived from [coreyhaines31/marketingskills](https://github.com/coreyhaines31/marketingskills)
 (MIT, © 2025 Corey Haines); their notice is in
 [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md). Everything else is original to this
-project.
+project. Two skills follow published frameworks in this project's own words and bundle no
+third-party text: `website-positioning` uses April Dunford's positioning components
+([*Obviously Awesome*](https://www.aprildunford.com/books)) and `website-story` is inspired
+by Donald Miller's StoryBrand framework
+([*Building a StoryBrand 2.0*](https://storybrand.com/building-a-storybrand-book-new/));
+StoryBrand is a trademark of its owner and neither author endorses this project.

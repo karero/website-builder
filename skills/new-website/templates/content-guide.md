@@ -79,6 +79,7 @@ Trust. Ship these, not just claims:
 
 For each repeated page type (service, post, case study), define:
 - **Section order:** [hero → … → CTA]
+  (Home on a story-led site: the seven sections in `STORY.md`, optional `website-story`.)
 - **Hero:** H1 [reader-benefit], subhead [1 sentence], primary CTA.
 - **Body sections:** [bullets of what each must cover]
 - **Proof block:** [logos / metrics / quotes — verbatim only]

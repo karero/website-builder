@@ -73,6 +73,8 @@ are *decisions*, not commands — things like:
 - What is this website for? Who is it for?
 - What should it be called?
 - Roughly what pages do you want?
+- Whether you want the home page told as a story, with your visitor as the hero
+  (optional; it explains the idea and asks once)
 
 Answer in your own words. There are no wrong answers, and you can change your mind.
 
