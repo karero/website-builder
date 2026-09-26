@@ -99,11 +99,23 @@ trap 'rm -rf "$decoy" "$proj"' EXIT
 # The decoy must contain the first path segment of each subject, or cd never resolves into it.
 mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"
 
+# GitHub's runners start jobs with SIGPIPE ignored, and a shell cannot un-ignore a signal it
+# inherited that way. A `producer | head` in a subject then prints "write error: Broken pipe"
+# at random, and the two runs differ for a reason unrelated to CDPATH (PR #125). Run each
+# subject with SIGPIPE at its default, as on a laptop, when perl is there to reset it.
+default_sigpipe() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -e '$SIG{PIPE} = "DEFAULT"; exec @ARGV or die "exec $ARGV[0]: $!\n"' -- "$@"
+  else
+    "$@"
+  fi
+}
+
 diffs=0
 for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
-  a_out="$(bash "$s" 2>&1)"; a_rc=$?
-  b_out="$(CDPATH="$decoy" bash "$s" 2>&1)"; b_rc=$?
+  a_out="$(default_sigpipe bash "$s" 2>&1)"; a_rc=$?
+  b_out="$(CDPATH="$decoy" default_sigpipe bash "$s" 2>&1)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
     echo "FAIL — $s behaves differently under an exported CDPATH (exit $a_rc vs $b_rc):"
     diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'

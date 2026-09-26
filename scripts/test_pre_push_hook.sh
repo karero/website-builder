@@ -109,19 +109,23 @@ print(r.stdout + r.stderr)' "$sh" "$h" "$T/pushmain.txt" 2>&1)"
   done
 done
 
-# Real git: what it actually hands the hook, end to end, with the block on.
-R="$T/remote.git"; W="$T/work"
-$git init -q --bare "$R"
-$git init -q "$W"
-$git -C "$W" commit -q --allow-empty -m one
-$git -C "$W" push -q "$R" HEAD:refs/heads/main HEAD:refs/heads/feat HEAD:refs/heads/feat2 2>/dev/null
-cp "$T/on" "$W/pre-push"; chmod +x "$W/pre-push"
-gpush() { (cd "$W" && $TO $git -c core.hooksPath="$W" push "$R" "$@") 2>&1; }
-$git -C "$W" commit -q --allow-empty -m two
-check "git, block on: --delete of a branch skips the gate" SKIP "$(outcome "$(gpush --delete feat)")"
-check "git, block on: a mixed push runs the gate"          GATE "$(outcome "$(gpush HEAD:refs/heads/feat2 :refs/heads/feat3)")"
-check "git, block on: pushing main is refused"             BLOCK "$(outcome "$(gpush HEAD:refs/heads/main)")"
-check "git, block on: deleting main is refused"            BLOCK "$(outcome "$(gpush --delete main)")"
+# Real git: what it actually hands the hook, end to end, as shipped and with the block on.
+# Each pass gets a fresh remote, so every push below has a ref to change.
+for v in off on; do
+  R="$T/remote-$v.git"; W="$T/work-$v"
+  $git init -q --bare "$R"
+  $git init -q "$W"
+  $git -C "$W" commit -q --allow-empty -m one
+  $git -C "$W" push -q "$R" HEAD:refs/heads/main HEAD:refs/heads/feat HEAD:refs/heads/feat2 2>/dev/null
+  mkdir -p "$W/.hooks"; cp "$T/$v" "$W/.hooks/pre-push"; chmod +x "$W/.hooks/pre-push"
+  gpush() { (cd "$W" && $TO $git -c core.hooksPath="$W/.hooks" push "$R" "$@") 2>&1; }
+  $git -C "$W" commit -q --allow-empty -m two
+  if [ "$v" = on ]; then main_push=BLOCK main_del=BLOCK; else main_push=GATE main_del=SKIP; fi
+  check "git, block $v: --delete of a branch skips the gate" SKIP "$(outcome "$(gpush --delete feat)")"
+  check "git, block $v: a mixed push runs the gate"          GATE "$(outcome "$(gpush HEAD:refs/heads/feat2 :refs/heads/feat3)")"
+  check "git, block $v: pushing main"                        "$main_push" "$(outcome "$(gpush HEAD:refs/heads/main)")"
+  check "git, block $v: deleting main"                       "$main_del" "$(outcome "$(gpush --delete main)")"
+done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
