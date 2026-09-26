@@ -123,3 +123,9 @@ the report went to the owner.
   The Astro overlay itself is unchanged.
 - r2 (2026-09-26): Skill Creator audit fixes, eval iteration 1, the real-site run; `planStep`
   selector and the existing-site note in §0 came out of the real-site run.
+- r3 (2026-09-26): eval round 2 after the four apreet lessons: with skill 100%, without 28%.
+  The first test case copied the worked example (same genai-wednesday case as the fixture),
+  so its 11/11 was not evidence. Fix: the fixture is now a fictional bike repair service,
+  an assertion checks nothing is copied from the example, and two single-reply assertions
+  describe only what one reply can show. Note for reruns: the aggregation script reads
+  token counts from `timing.json` only when `grading.json` has no `timing` block.
