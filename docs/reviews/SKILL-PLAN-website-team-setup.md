@@ -232,6 +232,20 @@ Also added in round 2, at the owner's question "is anything about the GitHub set
 included?": §3b, the remaining settings table (B13), and the `concurrency` block in the
 kit's `ci.yml`.
 
+**Skill-creator audit** (2026-09-26, at the owner's question). Checked against the
+skill-creator guidelines: frontmatter has `name` + `description`, the description
+carries every "when to use" cue and was made deliberately pushy (mentions of a
+colleague, an invitation, "Update branch", CI not running, Cloudflare — even without
+the word "team") within the suite's 900-character warn line; the body is 345 lines
+(under the 500 guideline), imperative, explains the why behind each step rather than
+shouting; no ALL-CAPS musts; bundled resources follow the suite's `templates/`
+convention (as `new-website` does). Three realistic test prompts with expected output
+and assertions are in `evals/evals.json`, in the format the seven sibling skills with
+evals use. **Not executed:** the skill acts on a real GitHub repo and a Cloudflare
+account, so the eval loop (with/without-skill runs, viewer, benchmark) needs a
+throwaway private repo and an owner at the dashboard; the description-optimization
+loop needs the `claude` CLI, absent here.
+
 **Not run:** a cross-model Codex seat (`independent-review` DIFF gate) — no Codex CLI
 in the environment that built this. Run it before merging; the pull request says so.
 The round-2 fixes are self-verified only (`make check` green, the new CI step

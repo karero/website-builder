@@ -1,18 +1,18 @@
 ---
 name: website-team-setup
 description: >
-  Turn a one-person new-website repo into one several people and AI assistants
+  Turn a one-owner new-website repo into one several people and AI assistants
   (Codex, Claude Code) can work on at once without overwriting each other: invite
-  collaborators on GitHub, set the repo settings ("Update branch", auto-delete
-  merged branches, merge method, Actions), PROVE the CI workflow really starts on
-  its own (it can sit silent for weeks; the fix is bundled), block direct pushes to
-  `main` (ruleset, or the shipped pre-push hook on a private free-plan repo),
-  connect Cloudflare Pages to GitHub without the known traps (Workers form, leftover
-  Workers Builds check, global project names), set rights, merge rule and who
-  publishes live in `AGENTS.md`, and hand the team a one-page guide. Run once, when
-  a second person joins. Trigger phrases: "set up the team", "my colleague will work
-  on the site", "invite a collaborator", "block pushes to main", "CI is not running
-  on pull requests", "connect Cloudflare to GitHub", "team setup".
+  collaborators, set the repo settings, prove the CI workflow starts on its own
+  (the fix for a silent one is bundled), block direct pushes to `main`, connect
+  Cloudflare Pages to GitHub without the known traps, write rights, merge rule and
+  who publishes live into `AGENTS.md`, hand the team a one-page guide. Run once,
+  when a second person joins. Use it whenever the user mentions a colleague, client
+  or second assistant joining a site repo, inviting someone to GitHub, "Update
+  branch", pull requests not running CI, or connecting Cloudflare to the repo, even
+  without the word "team". Trigger phrases: "set up the team", "my colleague will
+  work on the site", "invite a collaborator", "block pushes to main", "CI is not
+  running on pull requests", "connect Cloudflare to GitHub".
 ---
 
 # Website team setup — from one owner to a team, once
