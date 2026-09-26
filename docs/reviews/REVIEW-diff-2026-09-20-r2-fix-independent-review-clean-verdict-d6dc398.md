@@ -1,6 +1,6 @@
-# Independent review — DIFF — a qualified clean verdict counts (rounds 1–2)
+# Independent review — DIFF — a qualified clean verdict counts (rounds 1–3)
 
-Branch `fix/independent-review-clean-verdict`, head `d6dc398`, base `origin/main` `b586b4b`.
+Branch `fix/independent-review-clean-verdict`, head `d6dc398` (round 3: `8375234`), base `origin/main` `b586b4b`.
 
 **The change.** `looks_like_review()` decides whether a reviewer's reply counts as a review. A reply
 with no findings counts only if it states a clean verdict, and the check wanted "no" directly before
@@ -34,10 +34,9 @@ all: "No significant risk can be assessed without the file contents." Same class
 the unqualified twin of each already passed on `origin/main`. **Confirmed 2026-09-26, in chat: the
 decision covers these too.**
 
-**Not externally re-verified:** round 2's one new finding (G1) was fixed in `d6dc398` after the round.
-It is `locally_verified` — six mutations of the regex, each turning a test red. The only reviewer to
-have read it since is the host-family pass below, which does not count as the gate's independent
-re-verification.
+**Re-verified by one seat only:** round 2's one new finding (G1) was fixed in `d6dc398` after the
+round. Round 3 (Codex alone) checked that version and found nothing new in it, so G1 is
+`externally_reverified` by Codex; no second seat has seen it.
 
 ## Rounds
 
@@ -45,6 +44,7 @@ re-verification.
 |---|---|---|---|---|
 | 1 | `73c1005` | Codex CLI 0.155.1, `gpt-6-astra`, `exec -s read-only`; ollama 0.34.2, `kimi-k2.7-code:cloud`, text only; fresh-eyes seat (host family, sub-agent with no shared context, read-only shell) | 11 | 1 / 4 / 6 |
 | 2 | `6b0a5ce` | same three | 12 | 4 / 4 / 4 — as the seats labelled them; see Convergence |
+| 3 | `8375234` | Codex CLI 0.157.0, `gpt-6-astra`, `exec -s read-only`, alone: ollama left out at the owner's request; Antigravity (`agy` 1.2.9) attempted and FAILED, see Round 3 | 2 | 2 / 0 / 0, both re-raised and deferred |
 
 Counts are after merging duplicates across seats. Both rounds ran through the pinned gate script
 (`c2c0333`, PR #104's merge), not the branch's own copy, and each closed with `reviewers: codex OK,
@@ -59,8 +59,10 @@ Consent and permissions (audit duty). Codex and ollama-cloud: the owner's instru
 "run the repo's review gate on the diff per its own conventions"; the artifact is a public repo's
 diff and was checked for secrets, home paths and client names first. WORKTREE-WRITE and
 BRANCH-COMMIT: atom A — the review session created the worktree and the branch. PR #110 was later
-opened by a different session, and no review comment has been posted to it: POST AUTHORITY was never
-established for it, and GATED-THIS-DIFF was not stamped.
+opened by a different session. Round 3, Codex and Antigravity: the owner's instruction on
+2026-09-26, "Run another round … CODEX and agy ONLY. If not just CODEX"; the same checks on the
+artifact first. POST AUTHORITY on PR #110: the owner's approval on 2026-09-26 to replace its
+description and post the findings comment.
 
 ## Round 1 (on `73c1005`)
 
@@ -118,7 +120,7 @@ was re-checked against the repo before it was acted on, the grep cases with BSD 
 | H1 | RISK | Refusals in the passive voice now pass: "No significant risk can be assessed without the file contents.", "The diff was empty, so no confirmed bugs could be evaluated.", "no further risk analysis possible". None is pinned, and the tracker named only the four refusal phrases | **Pinned and tracked, not fixed.** Confirmed: each rejects on `origin/main` and accepts here, and each unqualified twin ("No risk can be assessed…") already accepted on `origin/main`. A genuine verdict takes the same shape — "No confirmed bugs could be found in this diff." — so rejecting the passive voice would need a list of verbs that mean "not done", which is a refusal list and belongs in check 1, out of scope by the owner's instruction. Three KNOWN WRONG cases and the genuine one added; R-VERDICT-TEXT widened. **The owner confirmed on 2026-09-26 that the 2026-09-22 decision covers this.** Also raised: "There are no real risks here" passes. It reads as a clean verdict, and nothing in its text says otherwise |
 | H2 | RISK | Accepting G2/G3 breaks SKILL.md point 5 ("no exceptions") and the escalation rule ("cannot waive a BUG"); B-TAGCLASS and B-REFUSAL-TEXT did too | **Confirmed. The owner decided 2026-09-26 to change the rule**, in a separate change to SKILL.md. Recorded above and in the tracker's gate status |
 | H3 | RISK | The tracker does not record the 2026-09-22 decision, still says "Last updated 2026-09-20", and puts a BUG-rated item in the RISK table; the trail said the rows need no further edit | **Fixed.** Both rows carry the decision; R-VERDICT-TEXT says Codex rated it BUG; "Last updated" and the gate status are current |
-| H4 | RISK | The PR description says the rounds "converged", though G2/G3 did not and the final regex was only checked locally, and omits that closeout was never done | **Confirmed.** A corrected description and a findings comment are drafted. Both are posts to a PR another session opened, so they wait for the owner |
+| H4 | RISK | The PR description says the rounds "converged", though G2/G3 did not and the final regex was only checked locally, and omits that closeout was never done | **Confirmed.** A corrected description and a findings comment are drafted. Both are posts to a PR another session opened; the owner approved both on 2026-09-26 |
 | H5 | NIT | "45 cases (24 new)" is 23 new: 22 cases and the drift guard | **Fixed** below, with this pass's additions |
 | H6 | NIT | The raw output file was named `REVIEW-…-raw-…`; the 21 others are `RAW-…`, and `REVIEW-*` is what closeout globs for trails | **Fixed:** renamed `RAW-diff-2026-09-20-r2-…-d6dc398.md` |
 | H7 | NIT | The drift guard found the lists by their first word, so reordering the list or adding a hyphenated word failed with a message pointing the wrong way | **Fixed:** it finds any group of eleven or more words and says how many lists it found. Checked: identical reorder and hyphen pass; one-sided drift and the pre-fix script fail with the count |
@@ -127,7 +129,38 @@ was re-checked against the repo before it was acted on, the grep cases with BSD 
 | H10 | NIT | The trail does not say the gate script predates PR #106's prompt change | **Fixed** under Rounds |
 | H11 | NIT | Tracker's reviewer list stale, one line over-long, PR footer carries a co-author line instead of the "Generated with Claude Code" line | Tracker **fixed**; the footer is part of H4 |
 
-11 findings, 4 RISK and 7 NIT. With rounds 1 and 2: 34 findings in total.
+11 findings, 4 RISK and 7 NIT.
+
+## Round 3 (on `8375234`) — verification, Codex alone
+
+The owner asked for Codex and Antigravity only. The pinned script has no switch to leave out
+ollama, so the run put a stub `ollama` that always fails first on `PATH`; the script then skipped
+that seat through its own "not available" path, unedited. Antigravity FAILED: its headless mode
+tried a tool that needs the "command" permission, could not ask for it, and returned nothing. Its
+two remedies are an allow-rule in its settings or `--dangerously-skip-permissions`; neither was
+used, since both change what an external agent may run on this machine. So by the owner's
+fallback this round has **one counted seat and is degraded** — the script says so too. Verbatim:
+`RAW-diff-2026-09-26-r3-fix-independent-review-clean-verdict-8375234.md`.
+
+The artifact was the code diff with a short context note, which listed what changed since round 2
+and named the two accepted widenings. Codex called the note's "not new findings unless you have new
+evidence" and "out of scope" lines prompt injection and treated them as claims to check, as round
+2's G12 did. It found nothing new: it checked the separator rule on 292 extra generated cases, the
+zero-to-five bound, and the new drift guard against three mutations, and ran the unit suite.
+
+| id | Sev | Finding | Disposition |
+|---|---|---|---|
+| J1 | BUG | "No confirmed BUG or RISK, because I couldn't access the diff you supplied." counts as a review | G2 again, no new evidence. Deferred by the owner, 2026-09-22 (B-REFUSAL-TEXT) |
+| J2 | BUG | "No significant risk can be assessed without the file contents." counts as a review | H1 again, no new evidence. Deferred by the owner, 2026-09-26 (R-VERDICT-TEXT) |
+
+Codex could not run the end-to-end suite (its sandbox forbids writes); the host ran it, 89 of 89.
+
+## Totals
+
+Rounds 1–3 and the Double-Knuth pass: 36 findings (11 + 12 + 11 + 2). BUG/RISK per gate round: 5,
+8, 2 — and round 3's two are re-raises of deferred BUGs, with nothing new. That is convergence on
+everything this change can fix. The two deferred BUGs stay open in the tracker until the status
+contract exists.
 
 ## Tests
 
