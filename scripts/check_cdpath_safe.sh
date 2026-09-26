@@ -33,6 +33,7 @@ SUBJECTS=(
   scripts/check_skill_budgets.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
+  skills/independent-review/scripts/sweep_claims.sh
 )
 # Not run here, each for a reason — not because nobody got to them. The completeness check
 # below forces a new script into one list or the other, the same way check_template_coverage.sh
@@ -42,11 +43,14 @@ NOT_RUN=(
   scripts/install-codex.sh                                      # writes symlinks into ~/.agents/skills
   scripts/package.sh                                            # builds dist/, and runs check itself
   scripts/test_install_pin.sh                                   # builds throwaway repos; needs git
+  scripts/test_package_leak.sh                                  # runs package.sh in a throwaway dir with stub zip/unzip
+  scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
   skills/independent-review/scripts/test_failed_tier_report.sh  # slow; stubs a whole CLI
   skills/independent-review/scripts/test_looks_like_review.sh   # slow; stubs a whole CLI
+  skills/independent-review/scripts/test_sweep_claims.sh        # builds throwaway repos; needs git and python3
   skills/new-website/templates/astro/tests/check_ship_push.sh   # template test; needs a built site
   skills/new-website/templates/astro/scripts/hooks/pre-push     # git hook; expects a push context
   skills/new-website/templates/astro/scripts/ship.sh            # template: pushes a site live
@@ -79,7 +83,10 @@ discover() {
   fi |
   while IFS= read -r f; do
     [ -f "$f" ] || continue
-    case "$(head -n 1 -- "$f" 2>/dev/null)" in
+    # tr: a tracked binary file's first "line" can hold NUL bytes. bash drops them from a command
+    # substitution anyway, and >= 4.4 warns on stderr as it does; dropping them first is silent
+    # and leaves the same string to match.
+    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
       '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
@@ -117,15 +124,18 @@ for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
   # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
   # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
-  # stdout+status is the whole signal. stderr is not deterministic: check_prompt_sync.sh:30 is a
-  # `grep | head -1`, and whether grep loses the SIGPIPE race and prints "write error: Broken
-  # pipe" depends on machine load. That raced zero times in 15 local runs and ten times in one
-  # CI run, failing this guard with the tell "(exit 0 vs 0)" — identical status, noise-only diff.
+  # stdout+status is the whole signal. stderr is not deterministic: GitHub's runner starts jobs
+  # with SIGPIPE ignored, so a pipeline whose consumer exits early makes the upstream grep print
+  # "write error: Broken pipe" at random. The racer was check_prompt_sync.sh's tier check, a
+  # `grep -v | grep -q` (its `| head -1` raced far less). That raced zero times in 15 local runs,
+  # where SIGPIPE is not ignored, and ten times in one CI run, failing this guard with the tell
+  # "(exit 0 vs 0)" — identical status, noise-only diff. Both pipelines are gone (it now greps
+  # the file directly), but any subject can grow another one.
   a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
   b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
     echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
-    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'
+    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | sed -n '1,20s/^/    /p'
     diffs=$((diffs + 1)); rc=1
   fi
 done

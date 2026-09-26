@@ -120,6 +120,11 @@ Codex's effort for any run.
    and a `timings:` line. Exit 0 means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
+
+   **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` lists
+   the sentences the change adds (or edits beside) that claim an absence or a universal; `--file
+   <plan>` lists every such sentence in the file outside fenced code. Check each as
+   `references/claims-sweep.md` says.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
    round 1 only at Normal, every round at High, never at Light — started in the background
    BEFORE the script so every seat runs at once.

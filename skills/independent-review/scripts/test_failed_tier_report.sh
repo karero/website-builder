@@ -106,6 +106,14 @@ case "${OLLAMA_STUB:-ok}" in
           printf '%s\n' '- BUG: one' '- NIT: two'; printf '\033' ;;
   utf8cut) # stderr starting mid-glyph, as `tail -c` produces: two continuation bytes
           printf '\240\231 spinner\nError: 429 Too Many Requests: weekly usage limit reached\n' >&2; exit 1 ;;
+  bigquota) # the quota error first, then ~120 KB of other error-shaped lines across stderr
+          # and stdout, each line distinct (the quote collapses repeats): past the pipe
+          # buffer, so a grep -q that stops at the 429 exits early
+          x=$(printf '%8100s' '' | tr ' ' x)
+          printf '%s\n' 'Error: 429 Too Many Requests: weekly usage limit reached' >&2
+          i=0; while [ $i -lt 7 ]; do printf 'Error: stream %s failed %s\n' "$i" "$x" >&2; i=$((i+1)); done
+          i=0; while [ $i -lt 8 ]; do printf 'Error: stream 1%s failed %s\n' "$i" "$x"; i=$((i+1)); done
+          exit 1 ;;
   notreview) # a reply the refusal check rejects, carrying a decoy error-shaped 429 line
           printf '%s\n' 'No findings.' 'I could not read the retry code.' \
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
@@ -281,6 +289,26 @@ check "oddesc: no BEL reaches stdout" lacks oddesc.out $'\007'
 run utf8cut CODEX_STUB=ok OLLAMA_STUB=utf8cut bash "$SCRIPT" "$T/change.diff"
 check "utf8cut: the error is still quoted" has utf8cut.out "    Error: 429 Too Many Requests: weekly usage limit reached"
 check "utf8cut: and classified as quota" has utf8cut.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
+
+# 12b. A quota error followed by more error-shaped output than a pipe buffer holds. The
+#      classifier piped those lines into grep -q, which exits at the 429; under pipefail the
+#      filter it killed mid-write flipped the result to a generic failure. That is a race, lost
+#      on roughly a third of runs at this size (the quote caps each file at 64 KiB, so it cannot
+#      be made bigger), so each mode runs six times: as started, and with SIGPIPE ignored
+#      (EPIPE instead of a signal), as on GitHub Actions runners.
+bq_modes="default"
+if command -v perl >/dev/null 2>&1; then bq_modes="default ignore"
+else echo "SKIP bigquota with SIGPIPE ignored: it needs perl to start bash with SIGPIPE ignored"; fi
+for m in $bq_modes; do
+  bq_ok=1
+  for k in 1 2 3 4 5 6; do
+    if [ "$m" = ignore ]; then
+      run bigquota CODEX_STUB=ok OLLAMA_STUB=bigquota perl -e '$SIG{PIPE}="IGNORE"; exec @ARGV' bash "$SCRIPT" "$T/change.diff"
+    else run bigquota CODEX_STUB=ok OLLAMA_STUB=bigquota bash "$SCRIPT" "$T/change.diff"; fi
+    has bigquota.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)" || bq_ok=0
+  done
+  check "bigquota: classified as quota on all 6 runs$([ "$m" = ignore ] && echo " (SIGPIPE ignored)")" [ "$bq_ok" = 1 ]
+done
 
 # 13. A reply rejected as not a review: its own outcome, never quota or setup advice,
 #     even with an error-shaped 429 line in it (round 2, Fable; the other branch's reviewers).
