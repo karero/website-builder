@@ -1,0 +1,225 @@
+{
+ "background": false,
+ "completed_at": 1790428815,
+ "created_at": 1790428815,
+ "error": null,
+ "frequency_penalty": 0,
+ "id": "resp_59cf162d-feeb-4bdd-aae2-b70a88ff9a4f",
+ "incomplete_details": null,
+ "instructions": null,
+ "max_output_tokens": null,
+ "max_tool_calls": null,
+ "metadata": {},
+ "model": "perplexity/sonar",
+ "object": "response",
+ "output": [
+  {
+   "queries": [
+    "Munich bakery sourdough bread Sauerteig official",
+    "München Bäckerei Sauerteigbrot",
+    "Munich sourdough bakery"
+   ],
+   "results": [
+    {
+     "id": 1,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://bageri.de/"
+    },
+    {
+     "date": "",
+     "id": 2,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://suuapinga.com/"
+    },
+    {
+     "id": 3,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.bahnhof.de/en/muenchen-hbf/shopping-and-eating/hofpfisterei"
+    },
+    {
+     "date": "",
+     "id": 4,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.reddit.com/r/Munich/comments/1rptmpy/best_sourdough_bakeries_in_munich/"
+    },
+    {
+     "id": 5,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.in-muenchen.de/gastro/bageri-die-neue-sauerteig-baeckerei-im-schlachthof-viertel-muenchen-92521663.html"
+    },
+    {
+     "date": "",
+     "id": 6,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://julius-brantner.de/en/teigmacherei"
+    },
+    {
+     "id": 7,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.brotinstitut.de/baeckerfinder/baecker/17507-baeckerei-familienbaeckerei-kistenpfennig"
+    },
+    {
+     "date": "",
+     "id": 8,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.munichtourism.org/munich-food-shopping/"
+    },
+    {
+     "id": 9,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.hofpfisterei.de/hpf_unser_brot.php"
+    },
+    {
+     "date": "",
+     "id": 10,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://branchenbuch.portal.muenchen.de/mhp/1663/"
+    },
+    {
+     "id": 11,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://suuapinga.com/pages/about-suuapinga"
+    },
+    {
+     "id": 12,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://plasma.cafe/"
+    },
+    {
+     "id": 13,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://cityseeker.com/munich/1039730-hofpfisterei"
+    },
+    {
+     "date": "",
+     "id": 14,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.brotinstitut.de/baeckerfinder/baecker/896aed66-1f9d-4627-b2c4-e1e102ddebbb"
+    },
+    {
+     "date": "",
+     "id": 15,
+     "last_updated": "",
+     "snippet": "",
+     "source": "",
+     "title": "",
+     "url": "https://www.rosewoodhotels.com/en/munich/experiences/munichs-most-respected-baker-julius-brantner-brothandwerk"
+    }
+   ],
+   "type": "search_results"
+  },
+  {
+   "content": [
+    {
+     "annotations": [],
+     "text": "Several Munich bakeries sell sourdough bread (*Sauerteigbrot*), including:\n\n- **Hofpfisterei** — A Munich institution specializing in organic sourdough breads made with a traditional three-stage sourdough process. Multiple locations across the city.\n- **Julius Brantner Brothandwerk** — Artisan bakery with locations in Schwabing, Altstadt, and Haidhausen; known for its signature **Brothandwerk 25** sourdough.\n- **Bageri** — Scandinavian-inspired bakery at **Tumblingerstraße 45, 80337 München**, offering wheat- and rye-sourdough breads.\n- **Suuapinga Bakery** — Bakery in Glockenbach making sourdough loaves, rolls, and pastries.\n- **Rischart** — Large Munich bakery chain with numerous branches; sells naturally leavened sourdough bread.\n- **Familienbäckerei Kistenpfennig** — Several Munich locations; tested products include sourdough bread and rye-crust loaves.\n- **Bäckerei REIS** — Organic bakery in southern Munich, including Solln and Forstenried, offering fresh sourdough breads.\n- **Brotatelier, Brotraum, Zeit für Brot, Neulinger, and Cumpanum** — Also frequently recommended locally for sourdough, though availability can vary by day.\n\nFor the most specialist sourdough selection, start with **Julius Brantner, Bageri, Suuapinga, or Hofpfisterei**. Bread availability and opening hours can change, so it’s worth checking the bakery’s website or social media before visiting.",
+     "type": "output_text"
+    }
+   ],
+   "id": "msg_bf78e692-5ecc-49ea-afd7-473c7c23f42c",
+   "role": "assistant",
+   "status": "completed",
+   "type": "message"
+  }
+ ],
+ "parallel_tool_calls": true,
+ "presence_penalty": 0,
+ "previous_response_id": null,
+ "prompt_cache_key": null,
+ "reasoning": null,
+ "safety_identifier": null,
+ "service_tier": "default",
+ "status": "completed",
+ "store": false,
+ "temperature": 1,
+ "text": {
+  "format": {
+   "type": "text"
+  }
+ },
+ "tool_choice": "auto",
+ "tools": [
+  {
+   "type": "web_search",
+   "user_location": {
+    "country": "DE"
+   }
+  }
+ ],
+ "top_logprobs": 0,
+ "top_p": 1,
+ "truncation": "",
+ "usage": {
+  "cost": {
+   "cache_creation_cost": 0.00101,
+   "currency": "USD",
+   "input_cost": 0.00014,
+   "output_cost": 0.00105,
+   "tool_calls_cost": 0.0025,
+   "tool_calls_cost_details": {
+    "search_web": 0.0025
+   },
+   "total_cost": 0.0047
+  },
+  "input_tokens": 4594,
+  "input_tokens_details": {
+   "cache_creation_input_tokens": 4044,
+   "cache_read_input_tokens": 0,
+   "cached_tokens": 0
+  },
+  "output_tokens": 421,
+  "output_tokens_details": {
+   "reasoning_tokens": 0
+  },
+  "tool_calls_details": {
+   "search_web": {
+    "cost_usd": 0.0025,
+    "invocation": 1
+   }
+  },
+  "total_tokens": 5015
+ },
+ "user": null
+}

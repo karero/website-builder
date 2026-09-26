@@ -69,3 +69,13 @@ site later means asking again for that one, not assuming the first answer carrie
 The same check applies outside onboarding too: any ranking check on an already-connected
 site that comes back "not scheduled" is a prompt to ask, not just a first-connection
 step (see SKILL.md's "Once connected — how to use it").
+
+### Step 8 — Offer the AI check (optional, once)
+After the weekly-tracking question, and only if the site has no AI check yet
+(`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <site> --check-drift` says "not set up"), offer it in one or two
+plain sentences: *"One more, optional: I can also check every week whether ChatGPT and other AI
+assistants mention your business when someone asks for what you offer. Gemini is free to start
+with; the others cost a few cents a week."* On a yes, follow `references/geo-check.md` → "Setting
+it up". Unlike Google and Bing above, this one can cost money and sends your questions to the AI
+companies you choose, so say that plainly. A no is a complete answer; don't re-ask in the same
+session.
