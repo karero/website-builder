@@ -77,5 +77,6 @@ plain sentences: *"One more, optional: I can also check every week whether ChatG
 assistants mention your business when someone asks for what you offer. Gemini is free to start
 with; the others cost a few cents a week."* On a yes, follow `references/geo-check.md` → "Setting
 it up". Unlike Google and Bing above, this one can cost money and sends your questions to the AI
-companies you choose, so say that plainly. A no is a complete answer; don't re-ask in the same
+companies you choose, so say that plainly. After the first run, show the report page and tell them how to see it
+again: *"Just ask me: show me my AI report."* A no is a complete answer; don't re-ask in the same
 session.

@@ -690,7 +690,10 @@ def append_history(path: Path, rows):
 # ─── weekly run ───────────────────────────────────────────────────────────────
 
 def new_run_id() -> str:
-    return (datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    """Sorts in run order, which "latest answer" relies on. Microseconds after the second: two
+    runs within one second used to sort by their random suffix, so the older could win."""
+    now = datetime.now(timezone.utc)
+    return (now.strftime("%Y%m%dT%H%M%SZ") + f"-{now.microsecond:06d}"
             + f"-{os.getpid()}-{random.getrandbits(16):04x}")
 
 
@@ -926,12 +929,15 @@ def trend(domain: str) -> int:
 
 # ─── report (a readable page per run) ─────────────────────────────────────────
 
-ENGINE_LABEL = {"gemini": "Gemini", "openai": "ChatGPT (OpenAI)", "anthropic": "Claude (Anthropic)",
+ENGINE_LABEL = {"gemini": "Gemini", "openai": "ChatGPT", "anthropic": "Claude",
                 "perplexity": "Perplexity", "google-ai-mode": "Google AI Mode",
                 "google-overview": "Google AI Overview"}
-MODE_LABEL = {"knows": "Knows you · no web search", "finds": "Finds you · web search on"}
-SLOT_LABEL = {"broad": "Broad question", "narrow": "Narrow question",
-              "branded": "Branded question (not scored: the answer repeats the name either way)"}
+ENGINE_MAKER = {"gemini": "Google", "openai": "OpenAI", "anthropic": "Anthropic",
+                "perplexity": "Perplexity", "google-ai-mode": "Google search",
+                "google-overview": "the box above Google's results"}
+MODE_LABEL = {"finds": "Searching the web", "knows": "From memory"}
+QUESTION_LABEL = {"broad": ("Question 1", "The everyday question"),
+                  "narrow": ("Question 2", "The more specific question")}
 
 
 def read_answer(path: Path):
@@ -982,28 +988,75 @@ def _link(s: str) -> str:
 
 _CSS = """
 :root{--bg:#f6f3ec;--card:#fffdf8;--ink:#1d1b16;--muted:#6b665c;--line:#e4ddcf;--yes:#2f6b3f;--yesbg:#e3f0e4;
---no:#9a3b2f;--nobg:#f6e3df;--mark:#fbe7a1}
+--some:#8a5a00;--somebg:#fbefd4;--no:#9a3b2f;--nobg:#f6e3df;--na:#6b665c;--nabg:#efebe2;--mark:#fbe7a1}
 @media (prefers-color-scheme:dark){:root{--bg:#171613;--card:#211f1b;--ink:#eee9df;--muted:#a59e90;--line:#37332c;
---yes:#8fd19e;--yesbg:#1f3325;--no:#f0a092;--nobg:#3a2320;--mark:#5c4a12}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,system-ui,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:28px;margin:0 0 4px}h2{font-size:20px;margin:40px 0 4px}
-.muted{color:var(--muted)}.q{font-size:18px;font-style:italic;margin:4px 0 16px}
-table{border-collapse:collapse;width:100%;margin:16px 0;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}th{color:var(--muted);font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-.card h3{margin:0;font-size:16px}.mode{font-size:13px;color:var(--muted);margin-bottom:8px}
-.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600;margin:0 6px 6px 0}
-.yes{background:var(--yesbg);color:var(--yes)}.no{background:var(--nobg);color:var(--no)}.info{background:var(--line);color:var(--ink)}
-details{margin-top:8px}summary{cursor:pointer;color:var(--muted);font-size:14px}
-.answer{white-space:pre-wrap;font-size:14px;max-height:320px;overflow:auto;border-left:3px solid var(--line);padding-left:10px;margin-top:6px}
+--yes:#8fd19e;--yesbg:#1f3325;--some:#f2c46b;--somebg:#3a2f16;--no:#f0a092;--nobg:#3a2320;--na:#a59e90;--nabg:#2a2723;
+--mark:#5c4a12}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,system-ui,sans-serif}
+main{max-width:920px;margin:0 auto;padding:28px 16px 64px}h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+h2{font-size:21px;margin:44px 0 2px}.muted{color:var(--muted)}.small{font-size:14px}
+.lead{font-size:19px;margin:18px 0 6px}.q{font-size:18px;font-style:italic;margin:4px 0 14px}
+.scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:18px 0}
+.score{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+.score b{display:block;font-size:34px;line-height:1.1}.score span{color:var(--muted)}
+.how{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 18px;margin:18px 0}
+.how li{margin:8px 0}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:14px}td small{display:block;color:var(--muted);font-size:13px}
+.cell{display:inline-block;padding:2px 8px;border-radius:7px;font-weight:600;font-size:14px}
+.yes{background:var(--yesbg);color:var(--yes)}.some{background:var(--somebg);color:var(--some)}
+.no{background:var(--nobg);color:var(--no)}.na{background:var(--nabg);color:var(--na)}
+details{margin-top:10px}summary{cursor:pointer;color:var(--muted)}
+.answers{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 16px 14px;margin-top:8px}
+.answer{white-space:pre-wrap;font-size:14px;max-height:340px;overflow:auto;border-left:3px solid var(--line);padding-left:10px;margin-top:6px}
 mark{background:var(--mark);color:inherit;padding:0 2px;border-radius:3px}.sources{font-size:13px;margin-top:6px}
 .sources a{color:inherit;margin-right:8px}
+@media (max-width:560px){th,td{padding:8px}.score b{font-size:28px}}
 """
 
 
+def _stale(r, q) -> bool:
+    return q is not None and (str(r.get("rev")) != str(q["rev"]) or r.get("query") != q["text"])
+
+
+def _cell(r, engine, mode):
+    """(css class, main words, small print) for one engine x mode on one question."""
+    if r is None:
+        if mode == "finds" and engine == "gemini":
+            return "na", "— not asked", "Google's rules don't allow checking Gemini's web answers"
+        if mode == "knows" and engine in SERP_ENGINES:
+            return "na", "—", "always searches"
+        return "na", "—", "not checked yet"
+    ok = _ok(r)
+    if not ok:
+        return "no", "! No answer this time", "a technical problem; it retries next week"
+    if r.get("status") in NO_ANSWER_SAYS:
+        return "na", "— Google showed no AI answer", ""
+    n = int(r["named"] or 0)
+    if n == ok:
+        main = f"✓ Named every time ({n} of {ok})" if ok > 1 else "✓ Named"
+        cls = "yes"
+    elif n == 0:
+        main = f"✗ Not named ({n} of {ok})" if ok > 1 else "✗ Not named"
+        cls = "no"
+    else:
+        main, cls = f"◐ Sometimes ({n} of {ok})", "some"
+    notes = []
+    if r.get("cited_own") not in ("", None) and int(r["cited_own"]):
+        c = int(r["cited_own"])
+        notes.append("your website was a source" + (f" ({c} of {ok})" if ok > 1 else ""))
+    if r.get("searched") not in ("", None) and int(r["searched"]) < ok:
+        notes.append(f"it only searched {r['searched']} of {ok} times")
+    return cls, main, "; ".join(notes)
+
+
 def build_report(domain: str, run_id=None):
-    """Write the HTML page for one run (default: the latest) and return its path, or None."""
+    """Write the owner's report page (each engine's latest answers) and return its path, or None.
+
+    Written for the business owner, not for us: one plain answer at the top, a short
+    "how to read this" (including why each question is asked 3 times), one simple table per
+    question, and the verbatim answers folded away underneath."""
     site = normalize_site(domain)
     cfg = load_config(domain) or {"names": [site], "queries": []}
     path = history_path()
@@ -1018,77 +1071,125 @@ def build_report(domain: str, run_id=None):
     latest = {}
     for r in sorted(rows, key=lambda r: r["run_id"]):
         latest[(r["engine"], r["mode"], r["slot"])] = r
-    rows = list(latest.values())
-    run_id = run_id or max(r["run_id"] for r in rows)
+    run_id = run_id or max(r["run_id"] for r in latest.values())
     names = cfg.get("names", [])
+    name = names[0] if names else site
     h = html.escape
+    queries = {q["slot"]: q for q in cfg.get("queries", [])}
+    engines = [e for e in ENGINES if any(k[0] == e for k in latest)]
+    any_stale = False
 
-    def count(r):
-        if r["slot"] == "branded":
-            return "—"
-        cur = next((q for q in cfg.get("queries", []) if q["slot"] == r["slot"]), None)
-        stale = cur is not None and (str(r.get("rev")) != str(cur["rev"]) or r.get("query") != cur["text"])
-        label = ("failed" if not _ok(r) else "no answer" if r.get("status") in NO_ANSWER_SAYS
-                 else f"{r['named']}/{_ok(r)}")
-        return label + (" *" if stale else "")
+    def answers_html(r):
+        adir = geo_dir() / "answers" / site / r["run_id"]
+        files = sorted(adir.glob(f"{r['engine']}-{r['mode']}-{r['slot']}-*.txt"))
+        parts = []
+        for i, fp in enumerate(files, 1):
+            _, text, sources = read_answer(fp)
+            src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in sources[:12]) + "</div>") if sources else ""
+            label = f"Answer {i} of {len(files)}" if len(files) > 1 else "The answer"
+            parts.append(f"<details><summary>{label}</summary>"
+                         f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
+        return "".join(parts) or "<p class='muted small'>No answer saved.</p>"
 
-    # Summary grid: one line per engine x mode, a column per scored question.
-    lines = []
-    for e in ENGINES:
-        for m in MODES:
-            rs = {r["slot"]: r for r in rows if r["engine"] == e and r["mode"] == m}
-            if rs:
-                cells = "".join(f"<td>{h(count(rs[s])) if s in rs else ''}</td>" for s in ("broad", "narrow"))
-                lines.append(f"<tr><td>{h(ENGINE_LABEL.get(e, e))}</td><td>{h(MODE_LABEL[m])}</td>{cells}</tr>")
+    # ── the plain answer at the top ──
+    def tally(mode):
+        """(named on at least one question, named on every question answered, engines answering)."""
+        answered = {}
+        for (e, m, s), r in latest.items():
+            if m == mode and s in QUESTION_LABEL and _ok(r) and r.get("status") not in NO_ANSWER_SAYS:
+                answered.setdefault(e, []).append(int(r.get("named") or 0) > 0)
+        return (sum(any(v) for v in answered.values()), sum(all(v) for v in answered.values()), len(answered))
+    f_n, f_all, f_m = tally("finds")
+    k_n, _, k_m = tally("knows")
+    scores, lines = [], []
+    if f_m:
+        scores.append(f"<div class='score'><b>{f_n} of {f_m}</b><span>AI assistants name you when they "
+                      f"<strong>search the web</strong>" + ("" if f_all == f_n else
+                      f" (for at least one question; {f_all} for every question)") + "</span></div>")
+        lines.append("When they look things up, all of them name you, for every question: your website is doing its job."
+                     if f_all == f_m else
+                     "When they look things up, none of them name you yet. The tables below show who they "
+                     "name instead." if f_n == 0 else
+                     "When they look things up, each of them names you at least once, but not for every "
+                     "question. The tables below show where you're missing." if f_n == f_m else
+                     "When they look things up, some name you and some don't. The tables below show which, "
+                     "and for which question.")
+    if k_m:
+        scores.append(f"<div class='score'><b>{k_n} of {k_m}</b><span>name you <strong>from memory</strong>, "
+                      f"without looking anything up</span></div>")
+        lines.append("None of them know you from memory yet. That's normal for a young business; it changes "
+                     "slowly, mostly when new AI versions come out." if k_n == 0 else
+                     "Some already know you from memory: that's the long-term goal.")
 
+    # ── one table per scored question ──
     sections = []
-    for q in cfg.get("queries", []):
-        cards = []
-        for r in [r for r in rows if r["slot"] == q["slot"]]:
-            adir = geo_dir() / "answers" / site / r["run_id"]
-            files = sorted(adir.glob(f"{r['engine']}-{r['mode']}-{r['slot']}-*.txt"))
-            badges = []
-            if q["slot"] != "branded":
-                if not _ok(r):
-                    badges.append(f'<span class="badge no">failed: {h(r["status"])}</span>')
-                elif r.get("status") in NO_ANSWER_SAYS:
-                    badges.append(f'<span class="badge info">{h(NO_ANSWER_SAYS[r["status"]])}</span>')
-                else:
-                    n = int(r["named"] or 0)
-                    badges.append(f'<span class="badge {"yes" if n else "no"}">named in {n} of {_ok(r)}</span>')
-                    if r.get("cited_own") not in ("", None):
-                        c = int(r["cited_own"])
-                        badges.append(f'<span class="badge {"yes" if c else "no"}">your site cited in {c} of {_ok(r)}</span>')
-                    if r.get("searched") not in ("", None) and int(r["searched"]) < _ok(r):
-                        badges.append(f'<span class="badge info">searched in only {r["searched"]} of {_ok(r)}</span>')
-            answers = []
-            for i, fp in enumerate(files, 1):
-                _, text, sources = read_answer(fp)
-                src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in sources[:12]) + "</div>") if sources else ""
-                answers.append(f"<details{' open' if i == 1 else ''}><summary>Answer {i} of {len(files)}</summary>"
-                               f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
-            stale = ""
-            if str(r.get("rev")) != str(q["rev"]) or r.get("query") != q["text"]:
-                stale = (f"<p class='muted'>This answer is from {h(r['date'])}, to an earlier version of the "
-                         f"question: “{h(r.get('query', ''))}”. The next run asks the new one.</p>")
-            cards.append(f"<div class='card'><h3>{h(ENGINE_LABEL.get(r['engine'], r['engine']))}</h3>"
-                         f"<div class='mode'>{h(MODE_LABEL.get(r['mode'], r['mode']))}</div>{stale}"
-                         f"{''.join(badges)}{''.join(answers) or '<p class=muted>No answer saved.</p>'}</div>")
-        sections.append(f"<h2>{h(SLOT_LABEL.get(q['slot'], q['slot']))}</h2><p class='q'>“{h(q['text'])}”</p>"
-                        f"<div class='grid'>{''.join(cards)}</div>")
+    for slot, (title, kind) in QUESTION_LABEL.items():
+        q = queries.get(slot)
+        if not q:
+            continue
+        rows_html, reads = [], []
+        for e in engines:
+            cells = []
+            for mode in ("finds", "knows"):
+                r = latest.get((e, mode, slot))
+                cls, main, note = _cell(r, e, mode)
+                star = ""
+                if r is not None and _stale(r, q):
+                    star, any_stale = " *", True
+                cells.append(f"<td><span class='cell {cls}'>{h(main)}{star}</span>"
+                             + (f"<small>{h(note)}</small>" if note else "") + "</td>")
+                if r is not None and _ok(r):
+                    earlier = (f"<p class='muted small'>* Answer from {h(r['date'])} to an earlier version of "
+                               f"the question: “{h(r.get('query', ''))}”</p>") if _stale(r, q) else ""
+                    reads.append(f"<details><summary>{h(ENGINE_LABEL[e])} · {h(MODE_LABEL[mode].lower())}</summary>"
+                                 f"{earlier}{answers_html(r)}</details>")
+            maker = ENGINE_MAKER[e] if ENGINE_MAKER[e] != ENGINE_LABEL[e] else ""
+            rows_html.append(f"<tr><td><strong>{h(ENGINE_LABEL[e])}</strong>"
+                             + (f"<small>{h(maker)}</small>" if maker else "") + f"</td>{''.join(cells)}</tr>")
+        sections.append(
+            f"<h2>{h(title)}</h2><p class='muted small'>{h(kind)}</p><p class='q'>“{h(q['text'])}”</p>"
+            f"<table><tr><th>AI assistant</th><th>{h(MODE_LABEL['finds'])}</th><th>{h(MODE_LABEL['knows'])}</th></tr>"
+            f"{''.join(rows_html)}</table>"
+            + (f"<details><summary><strong>Read what they said</strong></summary><div class='answers'>"
+               f"{''.join(reads)}</div></details>" if reads else ""))
 
-    dates = sorted({r["date"] for r in rows})
+    # ── the branded question: read, not scored ──
+    branded = queries.get("branded")
+    if branded:
+        reads = [f"<details><summary>{h(ENGINE_LABEL[e])} · {h(MODE_LABEL[m].lower())}</summary>{answers_html(r)}</details>"
+                 for e in engines for m in ("finds", "knows")
+                 for r in [latest.get((e, m, "branded"))] if r is not None and _ok(r)]
+        if reads:
+            sections.append(
+                f"<h2>Do they describe you correctly?</h2><p class='q'>“{h(branded['text'])}”</p>"
+                f"<p class='small'>Here your name is in the question, so these answers don't count toward the "
+                f"score above. Read them to see whether each assistant gets your business right.</p>"
+                f"<div class='answers'>{''.join(reads)}</div>")
+
+    dates = sorted({r["date"] for r in latest.values()})
     when = dates[-1] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
+    not_set_up = [ENGINE_LABEL[e] for e in ENGINES if e not in engines]
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Does AI name {h(site)}?</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Does AI recommend {h(name)}?</title>
 <style>{_CSS}</style></head><body><main>
-<h1>Does AI name {h(', '.join(names[:1]) or site)}?</h1>
-<p class="muted">{h(site)} · latest answers, {h(when)} · the engines were asked each question without the business name,
-the way a new customer would ask. “Knows you” = the AI answered from memory; “Finds you” = it searched the web first.</p>
-<table><tr><th>Engine</th><th>Mode</th><th>Broad question</th><th>Narrow question</th></tr>{''.join(lines)}</table>
-<p class="muted">* = that engine's latest answer was to an earlier version of the question.</p>
+<h1>Does AI recommend {h(name)}?</h1>
+<p class="muted">{h(site)} · answers from {h(when)}</p>
+<div class="scores">{''.join(scores)}</div>
+{''.join(f'<p class="lead">{h(l)}</p>' for l in lines)}
+<div class="how"><p><strong>How to read this</strong></p><ul>
+<li>We asked each AI assistant the kind of question a new customer would ask, <strong>without your name in it</strong>.</li>
+<li><strong>Searching the web</strong>: the assistant looks things up first, as most do today.
+<strong>From memory</strong>: it answers only from what it learned in training.</li>
+<li>AI assistants write a <strong>new answer every time</strong>, even to the same question. So we ask each one
+<strong>3 times</strong>: “3 of 3” means you're named reliably, “1 of 3” only sometimes. (Google's AI is asked
+once per question: each lookup costs a paid search.)</li>
+</ul></div>
 {''.join(sections)}
-<p class="muted">Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
+<h2>What next?</h2>
+<p>Want AI assistants to recommend you more often? Ask Claude: <em>“How can I get AI assistants to recommend my
+business?”</em></p>
+<p class="muted small">{'* = this answer was to an earlier version of the question; the next weekly check asks the new one. ' if any_stale else ''}{('Not set up: ' + ', '.join(not_set_up) + '. ') if not_set_up else ''}This page is refreshed by your weekly check. To see it again, ask Claude:
+“Show me my AI report for {h(site)}.” Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
 </main></body></html>"""
     out = geo_dir() / "reports" / site / f"{run_id}.html"
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -518,7 +518,7 @@ class ReviewFindings(GeoTestCase):
         rc, out = self.cli("--report")
         page = Path(out.split("Report: ")[1].strip()).read_text()
         self.assertIn("an earlier version of the question", page)
-        self.assertIn("3/3 *</td>", page)
+        self.assertIn("✓ Named every time (3 of 3) *</span>", page)
         self.assertIn(html.escape(BROAD), page)
 
     def test_follow_up_overview_error_is_a_failure(self):
@@ -641,8 +641,8 @@ class ReviewRound2(GeoTestCase):
         self.cli("--set-question", "--slot", "broad", "--text-file", "-", stdin="Best cake in Schwabing?")
         rc, out = self.cli("--report")
         page = Path(out.split("Report: ")[1].strip()).read_text()
-        self.assertIn("<td>failed *</td>", page)
-        self.assertIn("<td>no answer *</td>", page)
+        self.assertIn("! No answer this time *</span>", page)
+        self.assertIn("— Google showed no AI answer *</span>", page)
 
     def test_cut_emoji_in_an_answer_does_not_crash_the_run(self):
         self.setup_site()
@@ -925,9 +925,9 @@ class Report(GeoTestCase):
         page = Path(out.split("Report: ")[1].strip()).read_text()
         self.assertIn("Gemini", page)                      # the earlier run is not hidden
         self.assertIn("Google AI Mode", page)
-        self.assertIn("named in 1 of 1", page)
-        self.assertIn("named in 0 of 3", page)
-        self.assertIn("Google showed no AI Overview", page)
+        self.assertIn("✓ Named</span>", page)                # Google: one answer per question
+        self.assertIn("✗ Not named (0 of 3)", page)           # a chat engine: three answers
+        self.assertIn("Google showed no AI answer", page)
         self.assertIn(html.escape(BROAD), page)
 
     def test_weekly_run_writes_the_report(self):
@@ -936,6 +936,65 @@ class Report(GeoTestCase):
         stub.engine_reply("gemini", "Bäckerei Example.")
         rc, out = self.cli()
         self.assertIn("report:", out)
+
+
+class RunOrder(unittest.TestCase):
+    def test_run_ids_sort_in_the_order_they_were_made(self):
+        # Many IDs within the same second must still sort chronologically ("latest" depends on it).
+        ids = [geo_check.new_run_id() for _ in range(200)]
+        self.assertEqual(ids, sorted(ids))
+
+
+class OwnerReport(GeoTestCase):
+    """The report is for the business owner: its headline must be honest, it must explain why
+    each question is asked 3 times, and the branded question must never count toward the score."""
+
+    def page(self):
+        rc, out = self.cli("--report")
+        self.assertEqual(rc, 0, out)
+        return Path(out.split("Report: ")[1].strip()).read_text()
+
+    def test_headline_is_honest_when_named_for_only_one_question(self):
+        # ChatGPT names the business for the narrow question but not the broad one.
+        self.setup_site(questions=(("broad", BROAD), ("narrow", "Sourdough bakery open on Sunday in Schwabing?")))
+        cfg = geo_check.load_config(DOMAIN)
+        base = {"date": "2026-09-26", "run_id": geo_check.new_run_id(), "site": DOMAIN, "engine": "openai",
+                "mode": "finds", "rev": 1, "model_requested": "m", "models_reported": "m",
+                "config_rev": geo_check.config_rev(cfg), "ok": 3, "cited_own": 0, "cited_domains": "",
+                "searched": 3, "status": "ok"}
+        geo_check.append_history(geo_check.history_path(), [
+            {**base, "slot": "broad", "query": BROAD, "named": 0},
+            {**base, "slot": "narrow", "query": cfg["queries"][1]["text"], "named": 3}])
+        page = self.page()
+        self.assertIn("<b>1 of 1</b>", page)
+        self.assertIn("for at least one question; 0 for every question", page)
+        self.assertIn("not for every question", page)
+        self.assertNotIn("all of them name you, for every question", page)
+
+    def test_explains_three_answers_and_what_is_not_asked(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Nothing about bakeries.")
+        self.cli()
+        page = self.page()
+        self.assertIn("new answer every time", page)
+        self.assertIn("<strong>3 times</strong>", page)
+        self.assertIn("— not asked", page)
+        self.assertIn(html.escape("Google's rules don't allow checking Gemini's web answers"), page)
+        self.assertIn("From memory", page)
+        self.assertIn("Show me my AI report for example-bakery.de", page)
+
+    def test_branded_answers_are_shown_but_never_scored(self):
+        self.setup_site(questions=(("broad", BROAD), ("branded", "What is Bäckerei Example?")))
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "I don't know Bäckerei Example.")   # names it in every answer
+        self.cli()
+        page = self.page()
+        self.assertIn("Do they describe you correctly?", page)
+        self.assertIn("don't count toward the score", page)
+        # The broad question's answer also contains the name, so the score is 1 of 1 from memory;
+        # the branded row must not add a second engine or change it.
+        self.assertIn("<b>1 of 1</b><span>name you <strong>from memory</strong>", page)
 
 
 class Safety(GeoTestCase):
