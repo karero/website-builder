@@ -9,7 +9,7 @@
 # Reads keys from ~/.config/gsc-insights/.env (SERPER not needed here; Bing optional).
 set -euo pipefail
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
+DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ENV="$HOME/.config/gsc-insights/.env"
 PY="$HOME/.config/gsc-insights/venv/bin/python"
 DOMAIN="${1:?domain required (e.g. example.com)}"

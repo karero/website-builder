@@ -36,7 +36,7 @@
 # Needs the git clone of the suite (a zip has no history to compare against).
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 
 # The suite must be a git clone, and REPO_DIR must be that repo's own toplevel —
 # not a zip extraction sitting inside some unrelated enclosing repository, whose
@@ -162,11 +162,14 @@ PROJECT="${TARGET%/}"
 [ -d "$PROJECT" ] || { echo "error: no such directory: $PROJECT" >&2; exit 1; }
 # Absolute physical path: `git -C` re-anchors relative pathspecs to the repo dir,
 # which would silently defeat the dirty guards below for a relative <project_dir>.
-PROJECT="$(cd "$PROJECT" && pwd -P)"
+# CDPATH= because a relative <project_dir> would otherwise resolve through CDPATH to a
+# same-named directory elsewhere — the -d test above passes on the real one, and the
+# refresh path then writes into the other.
+PROJECT="$(CDPATH= cd -- "$PROJECT" && pwd -P)"
 
 process_dir() {  # $1 = path to a SUITE-VERSION stamp
   local stamp="$1" skills_dir base short_base copied changed stale s missing keep
-  skills_dir="$(dirname "$stamp")"
+  skills_dir="$(dirname -- "$stamp")"
   base="$(sed -n 's/^suite_commit: //p' "$stamp")"
   copied="$(sed -n 's/^copied: //p' "$stamp")"
 

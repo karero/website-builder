@@ -18,7 +18,7 @@ if ! command -v git >/dev/null 2>&1; then
   echo "SKIP: test_install_pin.sh needs git (it builds a throwaway repo and worktree)"
   exit 0
 fi
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 T="$(mktemp -d "${TMPDIR:-/tmp}/install-pin-test.XXXXXX")"
 trap 'rm -rf "$T"' EXIT
 # Hermetic: a developer's global commit.gpgsign, hooksPath or templateDir must not decide

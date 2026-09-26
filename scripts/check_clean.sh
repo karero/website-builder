@@ -13,7 +13,7 @@
 # loosening it to "match nothing".
 set -uo pipefail
 export LC_ALL=C   # unlocalized grep output — filter_ignored parses "Binary file … matches"
-cd "$(dirname "$0")/.."
+CDPATH= cd -- "$(dirname -- "$0")/.."
 SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
 # handoff, including LICENSE. NOT the scripts (they DEFINE the secret regexes — would
