@@ -23,7 +23,7 @@ if [ $# -gt 0 ]; then [ "$1" = -- ] || usage; shift; fi
 for rev in "$old_base" "$reviewed" "$new_base" HEAD; do
   git rev-parse --verify --quiet "$rev^{commit}" >/dev/null || { echo "merge_link.sh: not a commit: $rev" >&2; exit 2; }
 done
-list="$(mktemp)"; trap 'rm -f "$list"' EXIT
+list="$(mktemp "${TMPDIR:-/tmp}/merge_link.XXXXXX")"; trap 'rm -f "$list"' EXIT
 { git diff -z --name-only "$old_base...$reviewed"
   git diff -z --name-only "$new_base...HEAD"
   for p in "$@"; do printf '%s\0' "$p"; done
