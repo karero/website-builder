@@ -4,7 +4,7 @@ Living tracker. Every row is a review finding that is **not** closed. Close a ro
 refuting it (BUG), or by fixing, refuting, or recording an owner waiver (RISK/NIT) — then delete
 the row, with the disposition recorded in that round's trail.
 
-Last updated 2026-09-26, four times: B-TAGCLASS signed off and pinned; SKILL.md point 5 now allows a signed-off deferral, so
+Last updated 2026-09-26, five times: R-AGY-PROMPT was added, from the agy plan-mode fix; B-TAGCLASS signed off and pinned; SKILL.md point 5 now allows a signed-off deferral, so
 R-VERDICT-TEXT's BUG half moved to the BUG table as B-VERDICT-TEXT and B-TAGCLASS is marked
 non-compliant; R-PROJCTX was added, from the codex non-git-dir fix, then updated once skills were
 kept out too; and the owner's 2026-09-22 decision on the clean-verdict qualifier fix was recorded
@@ -55,6 +55,7 @@ it off and its KNOWN WRONG test was added.
 | R1-9 | Procedure step 1 | `grep` for secrets is too weak for customer data, encoded credentials, or creds in URLs; first-time owner approval goes stale as repo sensitivity changes. Needs real preflight tooling. | Codex r1 |
 | R1-10 | reviewer stack §3 / step 3 | The "fresh session" fallback has no enforceable way to create or verify isolation; on hosts without sub-agents it can silently degrade into the authoring context while still counting as fresh-eyes. | Codex r1 |
 | R1-11 | onboarding step 5 | Model-family confirmation depends on parsing human-oriented CLI output, with `agy`'s format admitted unconfirmed. Needs a maintained per-CLI compatibility table or a machine-readable probe. | Codex r1 |
+| R-AGY-PROMPT | `independent_review.sh` `run_agy`, which sends `PROMPT_TEXTONLY` | The text-only prompt tells the reviewer it has no tools and never to state or imply that it read a file. That is true for ollama and untrue for agy, which applies the user's settings allow-list with no prompt (on the maintainer's machine `read_file(*)`, `ls`, `find`, `cat`, some git) and, in both successful plan-mode runs of 2026-09-26, still called tools: one read a file by absolute path, one ran `git status`. So an agy verdict can rest on a read the reply does not admit to, and the MODE-line warning that used to flag this is gone: it asked the reviewer to declare its mode, which `PROMPT_TEXTONLY` does not, though it never caught a read made under a declared TEXT-ONLY either. One data point since: the round-4 live run of the fixed script (2026-09-26 15:14, agy 1.2.11, Gemini) made no tool calls at all, per its transcript. Kept for now because the text-only prompt may be what keeps agy from reaching for unlisted commands (which headless mode auto-denies, leaving an empty run), and changing it would void the only live evidence the fix works. The fix, if wanted: an agy-only paragraph after `PROMPT_CORE` ("the files are not here; do not use tools; if you do, name each one"), added to `check_prompt_sync.sh`'s tier list. Settling observation: compare an agy run's transcript (every tool call is logged) with its reply. | Fresh-eyes 2026-09-26 (round 3 of the fix/agy-headless DIFF gate); tracked by owner decision 2026-09-26 |
 
 ## NIT — open
 

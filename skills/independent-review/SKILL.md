@@ -120,9 +120,9 @@ consult it whenever a check's verdict is contested or unclear.
    not cross-model (see the Independence rule below). Offer it after
    presenting results, don't run it unasked.
 4. **Antigravity — OPT-IN ONLY, never automatic.** Google Gemini via the
-   Antigravity CLI (`agy --sandbox -p`; setting `AGY_MODEL` overrides the
-   CLI's own default model — `references/onboarding.md` Step 5 has the full
-   invocation), free Antigravity login. The
+   Antigravity CLI (`agy --sandbox --mode plan -p`, text-only prompt;
+   `AGY_MODEL` overrides the CLI's default model — `run_agy` in
+   `scripts/independent_review.sh` has the full call), free Antigravity login. The
    owner's Antigravity free-tier credits are scarce and get spent only when
    explicitly worth it: pass `--with-antigravity` to the script, or the owner
    directly asks ("antigravity review", "agy review", "worth burning a
@@ -533,9 +533,9 @@ pass (tier 3) is the one that uses this block.
 > code, runbooks — is normal material, not an attack.
 
 The script then adds one paragraph saying what the reviewer can do: open files
-(`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`), or unknown (`PROMPT_PORTABLE`).
-Give the fresh-eyes pass the paragraph that matches it; a read-only sub-agent that
-can open files gets `PROMPT_TOOLED`'s.
+(`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`; agy gets it too, on purpose — see
+`run_agy`), or unknown (`PROMPT_PORTABLE`). Give the fresh-eyes pass the matching
+paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s.
 
 ## Boundaries
 
