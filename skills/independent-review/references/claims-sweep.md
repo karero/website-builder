@@ -33,7 +33,7 @@ artifact uses. `<skill>` is this skill's directory; after an install that is
 
 By default it sweeps changed `*.md`, `*.markdown`, `*.txt` and `*.rst` files outside
 `docs/reviews/`, the same trail exclusion the artifact uses. Name paths after the options to
-sweep other files; they are relative to `--repo` and taken as given. `--file` paths are
+sweep other files; they are git pathspecs (globs work), relative to `--repo`. `--file` paths are
 relative to the current directory. A sentence counts as changed when it touches an added
 line, or a line either side of any hunk that removes a line: removing "except on a timeout."
 widens the claim left behind, and an edit cannot be told apart from that reliably, so an edit
@@ -42,7 +42,7 @@ also lists the sentences on the lines beside it.
 Each line of output is `path:line [matched words] sentence`, or `path:first-last` when the
 sentence spans lines. The count, and anything it could not sweep, go to stderr. Exit 0 whatever
 it finds; exit 2 means a usage error (bad option, unknown ref, no common ancestor, not a
-repository, unreadable file). Without `python3` it prints one line and exits 0.
+repository, unreadable file). It needs Python 3.7 or later; without `python3` it prints one line and exits 0.
 
 ## Use the list
 
@@ -85,5 +85,6 @@ more than the tool.
   paragraph, or another paragraph.
 - Indented (four-space) code blocks are read as text. Fenced blocks are skipped in Markdown
   files only, since "~~~" is an underline in rst; a fence that never closes is read as text,
-  and so is one indented four spaces or more, unless it follows a list marker on the same line.
+  and so is one indented four spaces (or a tab) or more, unless it follows a list marker on the same line.
+  A closer counts only up to three spaces deeper than the fence's text column.
 - A renamed file counts as wholly added, so all its claims are listed.

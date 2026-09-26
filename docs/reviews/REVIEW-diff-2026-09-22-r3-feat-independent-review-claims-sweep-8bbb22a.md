@@ -219,3 +219,36 @@ script: `sweep_claims.sh` joins its SUBJECTS, `test_sweep_claims.sh` its NOT_RUN
 Mutation run: each of the nine fixes reverted on its own (plus the old word test restored)
 fails at least one check. Still open, all NIT: R3-04, R3-05, R3-07, R3-09, and the quadratic
 unclosed-fence lookahead. `make check` passes on the merged tree.
+
+## Round 1 after the redesign (2026-09-26, on `b17fd9b`)
+
+The redesigned deletion rule is a new artifact, so the round count restarts (Procedure step 6).
+Seats: Codex, ollama-cloud, fresh-eyes. Raw output:
+`RAW-diff-2026-09-26-r1-feat-independent-review-claims-sweep-b17fd9b.md`.
+
+**Consent to send this repository's content to Codex and ollama-cloud** (atom B): the owner's
+"Do it", in reply to a plan that ended with "take it to a fresh gate round" (this skill's
+standard pair, as in rounds 1–3). The repo has no standing consent; this is session-scoped.
+The artifact was scanned for secrets first.
+
+| id | sev | source | finding | status |
+|---|---|---|---|---|
+| N1-01 | BUG | Codex, ollama (as NIT) | A closer indented four spaces still closed a fence, so a stray one hid the claim above it | fixed: a closer counts only up to three spaces past the fence's text column (the list item's, after a marker). Two fixtures; each half of the rule reverted fails one |
+| N1-02 | RISK | ollama | A pure deletion does not mark the line before it | refuted: git's `+n,0` names the line before the deletion (`@@ -4 +3,0 @@`, run); fixtures N and T |
+| N1-03 | RISK | ollama | `diff.algorithm` and the heuristics are not pinned | refuted: they can move a hunk only past an identical neighbouring line, which in practice means across a blank line, into another paragraph (a documented limit); no fixture could make a pin fail |
+| N1-04 | RISK | ollama | Nested ordered items merge into their parent | refuted, as R3-10: run, `   2.` under `   1.` splits |
+| N1-05 | NIT | ollama | An escaped `\|` splits a table cell | refuted: both halves are on the same added line and both are swept; display only |
+| F1 | RISK | fresh-eyes | Nothing tests the line below an edit | fixed: fixture V; the mutant marking only the line above fails it |
+| F5 | RISK | fresh-eyes | A file name that is not UTF-8 crashes with exit 1 (made worse by the UTF-8 reconfigure) | fixed: `errors="surrogateescape"`; test with a `mktree`-built name. The reference now says Python 3.7 or later |
+| F2 | NIT | fresh-eyes | The absolute-label check cannot fail | fixed: anchored; a relative-label mutant fails it |
+| F3 | NIT | fresh-eyes | The tab case of the indent rule is untested and undocumented | fixed: fixture and doc |
+| F6 | NIT | fresh-eyes | The `added_lines` docstring overstates what it does not trust | fixed: says the header is exact because of `-U0` and no `GIT_DIFF_OPTS` |
+| F8 | NIT | fresh-eyes | Named paths are pathspecs, not "taken as given" | fixed: help and reference say git pathspecs, globs work |
+| F4 | NIT | fresh-eyes | `--file` dedup misses a case-only spelling on macOS | open: noise, never a miss |
+| F7 | NIT | fresh-eyes | A stray ``` opener pairs with a later block's closer | open, for information: CommonMark renders it the same way |
+
+Fresh-eyes also ran 800 random base/change pairs against the deletion rule: every line beside a
+removing hunk was marked, and the same harness caught two deliberately broken rules.
+
+**Verdict for this round:** no open BUG or RISK after the fixes. The fixes are verified locally
+(suite, mutants, `make check`), not by a second external round; the owner can call one.

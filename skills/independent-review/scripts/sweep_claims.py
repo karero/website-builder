@@ -82,8 +82,16 @@ def is_markdown(path):
     return path.lower().endswith((".md", ".markdown"))
 
 
-def closes(line, fence):
-    return line and set(line) == {fence[0]} and len(line) >= len(fence)
+def indent(raw):
+    return len(raw.expandtabs(4)) - len(raw.expandtabs(4).lstrip())
+
+
+def closes(raw, fence):
+    """fence is (marker, deepest indent a closer may have): at most three spaces past where
+    the fence's content column starts, as CommonMark allows."""
+    line = raw.strip()
+    return (line and set(line) == {fence[0][0]} and len(line) >= len(fence[0])
+            and indent(raw) <= fence[1])
 
 
 def blocks(lines, markdown):
@@ -93,7 +101,7 @@ def blocks(lines, markdown):
     for i, raw in enumerate(lines):
         n, line = i + 1, raw.strip()
         if fence:
-            if closes(line, fence):
+            if closes(raw, fence):
                 fence = None
             continue
         lm = LIST_RE.match(raw)
@@ -104,9 +112,10 @@ def blocks(lines, markdown):
             lm = None
         fm = markdown and (FENCE_RE.match(raw[lm.end():]) if lm
                            else not INDENTED_RE.match(raw) and FENCE_RE.match(raw))
-        if fm and not any(closes(later.strip(), fm.group(1) or fm.group(2))
-                          for later in lines[i + 1:]):
-            fm = None  # a fence that never closes is read as text, so nothing is lost
+        if fm:
+            fm = (fm.group(1) or fm.group(2), (lm.end() if lm else indent(raw)) + 3)
+            if not any(closes(later, fm) for later in lines[i + 1:]):
+                fm = None  # a fence that never closes is read as text, so nothing is lost
         if not (fm or lm or not line or RULE_RE.match(raw) or HEADING_RE.match(raw)
                 or TABLE_RE.match(raw)):
             cur.append((n, line))
@@ -115,7 +124,7 @@ def blocks(lines, markdown):
             out.append(cur)
         cur, item_col = [], None
         if fm:
-            fence = fm.group(1) or fm.group(2)
+            fence = fm
         elif not line or RULE_RE.match(raw):
             pass
         elif HEADING_RE.match(raw):
@@ -181,8 +190,9 @@ def sweep(label, text, added):
 def added_lines(diff):
     """Line numbers the diff adds, plus the lines either side of any hunk that removes a line.
 
-    Counts "+" lines rather than trusting hunk ranges, which a user's diff settings can
-    widen. Removing a line can widen the claim left beside it (deleting "except on a
+    Counts "+" lines rather than trusting hunk ranges. The lines beside a removal do come
+    from the hunk header, which is exact only because git runs with -U0 and without
+    GIT_DIFF_OPTS. Removing a line can widen the claim left beside it (deleting "except on a
     timeout."), and an edit cannot be told from that reliably, so every removal marks its
     neighbours: noisier, never a miss next to the removal.
     """
@@ -297,10 +307,12 @@ def main(argv):
                    help="sweep this whole file, relative to the current directory (repeatable; "
                         "for a plan or a new document)")
     p.add_argument("paths", nargs="*", metavar="PATH",
-                   help="sweep only these paths, relative to --repo and taken as given "
+                   help="sweep only these git pathspecs (globs work), relative to --repo "
                         "(default: changed *.md *.markdown *.txt *.rst outside docs/reviews/)")
     a = p.parse_args(argv)
-    sys.stdout.reconfigure(encoding="utf-8")  # a Latin-1 locale cannot print a curly quote
+    # A Latin-1 locale cannot print a curly quote; a file name that is not UTF-8 comes back
+    # from git as it was.
+    sys.stdout.reconfigure(encoding="utf-8", errors="surrogateescape")
     if not a.base and not a.files:
         p.error("give --base REF to sweep a change, or --file PATH to sweep a whole file")
     if not a.base and (a.head or a.worktree or a.paths):
