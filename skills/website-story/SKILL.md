@@ -113,7 +113,11 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
   checklist, a short guide, a sample), in exchange for an email. If the site has
   none, leave the slot blank. Do not invent one.
 - **Stakes.** One to three things that stay wrong or get worse if nothing changes.
-  Loss language is what makes people act, but keep it proportionate.
+  Loss language is what makes people act, but keep it proportionate, and mind the
+  register: state what the visitor keeps missing ("meet before the conference, and she
+  may introduce you to the people you need"), not what will go wrong for them. In
+  formal-register markets and most B2B copy, one such line is enough; agitation reads
+  as pressure there and costs trust.
 - **Success.** One to three lines of life after, about the customer, concrete.
 - **One-liner.** Character + problem + plan + success in one sentence, at most 30
   words. It must pass a stranger test: does someone who has never heard of you
@@ -126,21 +130,26 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
 sentences; do not fill an English frame with translated words (same rule as
 `POSITIONING.md`).
 
-**Worked example** (a small-business website studio; the same case as eval 1):
+**Worked example** (this suite's own story, from a real site it built; the same case
+as eval 1):
 
-- Input, from `POSITIONING.md`: target = owners of small independent bakeries who want
-  more pre-orders; alternatives = a generic web agency or doing it themselves; unique
-  attribute = a fixed-price site delivered in ten days with a test suite; proof = 14
-  bakery sites shipped; value = a site that brings in pre-orders.
-- Feature-list one-liner (fails the stranger test, the studio is the subject):
-  "We build fast, tested Astro websites with SEO for small businesses."
-- Story one-liner (22 words, the customer is the subject): "Most bakery owners lose
-  pre-orders to a website nobody finished. We deliver yours in ten days, at a fixed
-  price, so orders come in."
-- Controlling idea: "Your bakery site, live in ten days."
-- Plan, titled "Live in ten days": 1. Book a call → get a fixed quote. 2. Approve
-  the design → see your menu on it. 3. Go live → take your first pre-order.
-- Direct CTA: "Get a fixed quote", used in the header, after the plan, and at the end.
+- Input, from `POSITIONING.md`: target = organizers, founders and small businesses who
+  need a site that ranks within a week and will not pay a monthly fee; alternatives = a
+  subscription site builder, WordPress, an agency; unique attributes = open-source
+  skills an AI assistant runs end to end, static output on free hosting, a shipped test
+  suite; proof = genai-wednesday.de live in one week, PageSpeed 98/100/100/100, no
+  monthly fee; value = a site that ranks and reads well.
+- Feature-list one-liner (fails the stranger test, the product is the subject): "An
+  open-source suite of Claude Code skills that scaffolds Astro sites with SEO, tests
+  and Cloudflare deployment."
+- Story one-liner (28 words, the customer is the subject): "Most organizers wait months
+  and pay monthly for a site nobody finds. With the builder, your AI assistant ships a
+  site that ranks in a week, no subscription."
+- Controlling idea: "A site that ranks, live in a week."
+- Plan, titled "Live in a week": 1. Say what you offer and for whom → the positioning.
+  2. Let the assistant build and test → every page checked. 3. Publish on free hosting
+  → your domain, your code.
+- Direct CTA: "Build your first site", used in the header, after the plan, and at the end.
 
 Every line above traces to one positioning section; nothing was added to it.
 
@@ -202,6 +211,10 @@ the site's `npm test`.
 ## 7. Gotchas
 
 - The villain is a situation, never a named competitor.
+- If the problem reads like a missed nicety rather than a pain, do not inflate it.
+  Narrow the character instead: find the visitor for whom it is a loss (the founder
+  whose next investor is someone they already know), and tell their story. A vitamin
+  for everyone is a painkiller for someone.
 - Stakes that are overdone read as a threat and lose the reader; one true cost
   beats three invented ones.
 - The one-liner is not the `<title>` and not the tagline. Those stay with

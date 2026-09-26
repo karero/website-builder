@@ -1,64 +1,77 @@
 <!--
-  POSITIONING.md — eval fixture for the website-story skill. A filled example of the
-  new-website positioning template for a fictional small-business website studio,
-  "Crumb Sites". Facts are invented for the eval; do not reuse them on a real site.
+  POSITIONING.md — eval fixture for the website-story skill, and the suite's own story.
+  A filled example of the new-website positioning template for this website builder,
+  written from a real site it built: genai-wednesday.de, the site of a free AI event
+  series in Munich. Facts as published on that site on 2026-09-26. No personal names.
 -->
-# Crumb Sites — positioning
+# The AI website builder — positioning
 
 ## 1. Competitive alternatives
 
 What would the customer use if this offer did not exist? Include the status quo,
 not just direct rivals.
 
-- A generic web agency (long quotes, months of back and forth) · Doing it themselves
-  with a site builder on a Sunday afternoon · Leaving the old site as it is
+- A hosted site builder with a monthly subscription (Wix, Squarespace, Webflow) · A
+  WordPress site with a theme, plugins and hosting to maintain · A web agency, with a
+  quote and a lead time · The old site, or a Luma page and a LinkedIn profile instead
+  of a site
 
 ## 2. Unique attributes
 
-What do you have that those alternatives do not? Facts, not adjectives.
+What do you have that those alternatives do not? Capabilities, assets, model —
+facts, not adjectives.
 
-- A fixed price, agreed before work starts · Delivery in ten calendar days · A bakery
-  pre-order page that works on a phone · An automated test suite run on every change
+- Open-source skills that an AI coding assistant runs end to end: positioning first,
+  then content, SEO and answer-engine readiness, design, a test suite, launch · Static
+  Astro output on free hosting (Cloudflare Pages), so there is no monthly fee · A test
+  suite that ships with the site: accessibility in light and dark, SEO limits, tone of
+  voice, positioning, links, images · The owner keeps the code, the repository and the
+  domain
 
 ## 3. Value + proof
 
 | Unique attribute | Value it enables | Proof |
 |---|---|---|
-| Fixed price, ten days | The owner knows the cost and the date before saying yes | 14 bakery sites shipped since 2025, all on the agreed date |
-| Pre-order page built for phones | Orders come in before the shop opens | Average of 31 pre-orders a week across the 14 sites in their first quarter |
-| Automated test suite | Nothing breaks quietly after launch | Every site runs its checks on each change; zero broken order pages reported |
+| Skills run end to end by the assistant | A complete site in days, not months, by someone who is not a web developer | genai-wednesday.de: from empty folder to live in one week |
+| Static output on free hosting | No subscription; the only recurring cost is the domain | genai-wednesday.de runs with no monthly fee (owner's statement) |
+| Shipped test suite | The site stays fast, accessible and findable after every edit | PageSpeed Insights 98 Performance, 100 Accessibility, 100 Best Practices, 100 SEO, re-runnable by anyone |
+| Positioning first, then SEO and answer engines | The site is found for the thing it wants to own | genai-wednesday.de carries its term ("AI events in Munich") in its title, heading and description, and defines itself in one sentence for answer engines |
 
 ## 4. Target customer
 
-- **Best-fit customer:** owners of small independent bakeries, one to three shops, who
-  take orders by phone and message today
-- **Why they care most:** they lose pre-orders and evenings to a website nobody
-  finished, and they have no time to become web people
-- **Where they are:** German-speaking cities; found through other bakers and local
-  business groups
+- **Best-fit customer:** organizers, founders and small businesses who need a site
+  that ranks and reads well, who can run an AI coding assistant themselves or have
+  someone who can, and who will not pay a monthly fee for a templated site
+- **Why they care most:** reputation, visibility and reach depend on the site (new
+  guests, sponsors, materials that spread), and it has to be live in a week, not a
+  quarter
+- **Where they are:** communities, meetups, small companies and consultancies in
+  German-speaking cities and beyond; found through the sites the builder built
 
 ## 5. Market category
 
-- **Market category:** small-business website studio
+- **Market category:** open-source AI website builder
 
 ## Positioning statement (one paragraph)
 
-> For owners of small independent bakeries who lose pre-orders to a website nobody
-> finished, Crumb Sites is a small-business website studio that delivers a phone-first
-> pre-order site in ten days at a fixed price, unlike a generic agency or a
-> do-it-yourself builder, because fourteen bakery sites have shipped on the agreed
-> date with a test suite behind each one.
+> For organizers, founders and small businesses who need a site that ranks and reads
+> well within a week, the AI website builder is an open-source AI website builder that
+> takes an AI coding assistant from positioning to a launched, tested site on free
+> hosting, unlike a subscription site builder, a WordPress install or an agency, because
+> the skills run the whole method end to end and the owner keeps the code, the domain
+> and the results: genai-wednesday.de went live in one week at PageSpeed 98/100/100/100
+> with no monthly fee.
 
-- **Core positioning term:** bakery website in ten days
-- **One-line boilerplate (≤ 12 words):** Bakery websites that take pre-orders, live in ten days.
-- **~50-word boilerplate:** Crumb Sites is a small-business website studio for independent
-  bakeries. We deliver a phone-first website with a working pre-order page in ten days,
-  at a price agreed before we start. Fourteen bakery sites have shipped on their agreed
-  date, each with an automated test suite that keeps the order page working.
+- **Core positioning term:** AI website builder
+- **One-line boilerplate (≤ 12 words):** A site that ranks, live in a week, no monthly fee.
+- **~50-word boilerplate:** The AI website builder is an open-source set of skills for AI
+  coding assistants. It takes a short brief from positioning to a launched site: content,
+  SEO and answer-engine readiness, design, a full test suite, free hosting. You keep the
+  code and the domain. genai-wednesday.de went live in a week at PageSpeed 98/100/100/100.
 
 ## The positioning spine (per-page terms → tests/positioning.spec.ts)
 
 | Page | URL | Positioning term | Market category (home only) |
 |---|---|---|---|
-| Home | `/` | bakery website in ten days | small-business website studio |
-| Pre-order page | `/pre-orders` | bakery pre-order page | — |
+| Home | `/` | AI website builder | open-source AI website builder |
+| Getting started | `/getting-started` | build your first site | — |

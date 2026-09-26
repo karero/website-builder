@@ -24,12 +24,12 @@
     },
     {
       "id": 2,
-      "prompt": "While drafting the story I think the real villain is the big agencies that ignore small clients like bakeries, but POSITIONING.md says the alternatives are a generic agency's slow process, doing it yourself, or leaving the old site. Which do we go with?",
-      "expected_output": "Applies the governing rule: POSITIONING.md is the source of truth for what is claimed; STORY.md only narrates it. Derives the villain from the situation the positioning names (the unfinished, do-it-yourself or agency-delayed website; the status quo), not from a class of named competitors. If the owner believes the positioning itself is wrong, stops and routes them to website-positioning to change POSITIONING.md first, then corrects STORY.md. Does not quietly write a villain that contradicts the positioning.",
+      "prompt": "While drafting the story I think the real villain is the subscription site builders that lock small organizers into monthly fees, but POSITIONING.md lists the alternatives as a subscription builder, WordPress, an agency, or leaving the old site. Which do we go with?",
+      "expected_output": "Applies the governing rule: POSITIONING.md is the source of truth for what is claimed; STORY.md only narrates it. Derives the villain from the situation the positioning names (months of waiting and a monthly fee for a site nobody finds; the status quo), not from a class of named competitors. If the owner believes the positioning itself is wrong, stops and routes them to website-positioning to change POSITIONING.md first, then corrects STORY.md. Answers the question with a decision and its reason rather than producing a whole STORY.md.",
       "assertions": [
         "States that POSITIONING.md wins on conflict and names website-positioning as the place to change it",
         "States the rule that the villain is a situation, never a competitor or a class of competitors, independent of this conflict",
-        "Keeps the agency frustration as a situation inside the external problem or stakes, with no agency named",
+        "Keeps the subscription frustration as a situation inside the external problem or stakes, with no product named",
         "Answers the question with a decision and its reason; does not produce a full STORY.md unless asked to build",
         "Does not edit POSITIONING.md"
       ],
