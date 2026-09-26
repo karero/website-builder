@@ -81,19 +81,26 @@ Economic Area, Switzerland, or the United Kingdom." Whether an owner running thi
 for themselves counts is unclear. So tell owners there: **turn on billing for the Gemini
 key**. At this volume that should cost next to nothing, but check the pricing page.
 
-### Costs (rough, from the providers' price pages in September 2026 — recheck before quoting)
+### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
-Per site per week: 3 broad + 3 narrow + 1 branded = 7 calls per mode per engine.
+A full weekly check for **one site** asks ChatGPT, Claude, Gemini and Perplexity 42 times in total.
+Through OpenRouter it cost **$0.72**, plus the 5.5% top-up fee: **about $0.76 a week per site**.
 
-| Engine | Model (default) | Roughly per week |
+| Prepaid once | Lasts for one site | For three sites |
 |---|---|---|
-| Gemini | `gemini-3.5-flash-lite` | free (outside the EU/UK/CH); fractions of a cent with billing |
-| OpenAI | `gpt-6-luna` | ~$0.10: web search is $10 per 1,000 calls, tokens are tiny |
-| Anthropic | `claude-sonnet-5` | ~$0.20–0.50: $10 per 1,000 searches, more per token |
-| Perplexity | `perplexity/sonar` | ~$0.05: $2.50 per 1,000 searches |
-| Google AI Mode + AI Overview | — | 6–9 SerpApi searches per site (an overview sometimes needs a second call); check the plan's monthly allowance on the SerpApi dashboard |
+| 5 USD/EUR | about 6 weeks | about 2 weeks |
+| 10 USD/EUR | about 13 weeks | about 4 weeks |
 
-Override any model with `GEO_<ENGINE>_MODEL=...` in `.env`. **Providers retire models**
+Where the money goes: nearly all of it is ChatGPT's and Claude's **web search** answers (about
+$0.05 each: the pages they read count as input). Answers from memory cost fractions of a cent;
+Perplexity's searches about half a cent. OpenRouter's **Activity** page shows every call and its
+cost, and each weekly run prints its own total ("cost of this run via OpenRouter").
+
+Google AI Mode and AI Overview (if switched on) come on top: 6–9 SerpApi searches per site per
+week, from the SerpApi plan's monthly allowance.
+
+Override any model with `GEO_<ENGINE>_OPENROUTER_MODEL=...` (OpenRouter route) or
+`GEO_<ENGINE>_MODEL=...` (direct keys) in `.env`. **Providers retire models**
 (Claude Haiku 4.5 retires around 15 Oct 2026), and a retired model shows up as a weekly
 "FAILED" line. The fix is to set a current model there. Changing a model marks the next
 trend line "model changed".
@@ -276,6 +283,14 @@ For a manual spot check in the apps, use a private mode: ChatGPT "Temporary chat
 ## Engines — request shapes (for maintenance)
 
 Checked against the providers' docs on 2026-09-26:
+- **OpenRouter (the default route):** `POST https://openrouter.ai/api/v1/chat/completions`, `Authorization:
+  Bearer`, models `google/gemini-3.5-flash-lite`, `openai/gpt-6-luna`, `anthropic/claude-sonnet-5`,
+  `perplexity/sonar`. "Finds" adds `plugins: [{"id": "web", "engine": "native"}]` (the provider's own
+  search; Perplexity's Sonar gets no plugin, it always searches and has no native option there).
+  `max_tokens: 2000` (without it OpenRouter reserves credit for 65k tokens and refuses small
+  balances) and `usage: {"include": true}` (the reply carries its real cost). Citations are
+  `choices[0].message.annotations[type=url_citation]`, plus Perplexity's top-level `citations`.
+  "No credit" arrives as HTTP 402 and stops the whole route for that run.
 
 - **Gemini:** `POST …/v1beta/models/{model}:generateContent`, key in the `x-goog-api-key` header; the answer is in `candidates[0].content.parts[].text` and the model in `modelVersion`. No tools (see the terms above).
 - **OpenAI:** Responses API `POST /v1/responses`, `store: false`. For "finds": the `web_search` tool with `user_location: {type: "approximate", country}` (omitting it silently means United States) and `tool_choice: "required"`. Citations are `url_citation` annotations; a `web_search_call` output item means a search ran.
