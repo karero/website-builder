@@ -33,6 +33,7 @@ SUBJECTS=(
   scripts/check_skill_budgets.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
+  skills/independent-review/scripts/sweep_claims.sh
 )
 # Not run here, each for a reason — not because nobody got to them. The completeness check
 # below forces a new script into one list or the other, the same way check_template_coverage.sh
@@ -46,6 +47,7 @@ NOT_RUN=(
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/test_failed_tier_report.sh  # slow; stubs a whole CLI
   skills/independent-review/scripts/test_looks_like_review.sh   # slow; stubs a whole CLI
+  skills/independent-review/scripts/test_sweep_claims.sh        # builds throwaway repos; needs git and python3
   skills/new-website/templates/astro/tests/check_ship_push.sh   # template test; needs a built site
   skills/new-website/templates/astro/scripts/hooks/pre-push     # git hook; expects a push context
   skills/new-website/templates/astro/scripts/ship.sh            # template: pushes a site live
