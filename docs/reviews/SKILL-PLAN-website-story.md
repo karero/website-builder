@@ -103,10 +103,10 @@ section 5 now restricts objection answers to positioning facts; eval 2's baselin
 text prevents. The workspace (outputs, grading, benchmark, review page) is kept outside
 the repo.
 
-## Real-site run: apreet.com (2026-09-26)
+## Real-site run (2026-09-26)
 
-Run against `karero/apreet-site` at `344d20a`, built locally (the live host is blocked
-from the sandbox). The site had no `POSITIONING.md` and a StoryBrand pass from two days
+Run against a real client site's repo, built locally (the live host is blocked from the
+sandbox). The site had no `POSITIONING.md` and a StoryBrand pass from two days
 earlier. Positioning draft from the site's own docs (every line cited), story draft with
 three one-liner and three controlling-idea candidates, positioning check verdict Clear
 (primary blur: repetition below the fold), `story.spec.ts` 3/3 after the `planStep`
@@ -121,5 +121,5 @@ the report went to the owner.
   → 3 skipped with reasons; CTA once / plan selector missing → the two expected failures with
   their messages; a story-shaped page (CTA twice, `#plan ol` with 3 steps, key line) → 3 passed.
   The Astro overlay itself is unchanged.
-- r2 (2026-09-26): Skill Creator audit fixes, eval iteration 1, apreet.com run; `planStep`
+- r2 (2026-09-26): Skill Creator audit fixes, eval iteration 1, the real-site run; `planStep`
   selector and the existing-site note in §0 came out of the real-site run.
