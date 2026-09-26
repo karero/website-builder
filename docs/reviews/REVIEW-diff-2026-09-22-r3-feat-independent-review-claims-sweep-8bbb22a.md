@@ -262,7 +262,7 @@ fourth, and close the other three as accepted limits. then open & merge".
 | id | sev | source | finding | status |
 |---|---|---|---|---|
 | R3-07 | NIT | fresh-eyes | SKILL.md says `--file` lists "added" sentences; the docstring's exit-2 list omits "no common ancestor" | fixed: SKILL.md says `--base` lists what the change adds and `--file` every such sentence in the file; the docstring lists "no common ancestor" |
-| R3-09 | NIT | ollama | "Name paths after the options" is unclear | fixed: "To sweep other files, list them after the options". The 4-space fence half was fixed with R2-02 |
+| R3-09 | NIT | ollama | "Name paths after the options" is unclear | fixed: "To sweep other files, list them after the options". The 4-space fence case is already documented under "What it cannot see" |
 | R3-04 | NIT | fresh-eyes | The count line counts files swept, not files with sentences | fixed: the message says "in M files swept"; the counting is unchanged, and the four checks that quote it now quote the new wording |
 | R3-05 | NIT | fresh-eyes | Guards that survive mutation | fixed: fixtures for a ``` line inside a ```` fence, a "1." item after a paragraph line, and a Markdown `~~~` fence, plus a check that a fence after "10." is not reported. The line after a mixed hunk was already pinned by V (F1) |
 | F4 | NIT | fresh-eyes | `--file` dedup misses a case-only spelling on a case-insensitive file system | accepted limit: the file is listed twice. Noise, never a miss |
@@ -283,5 +283,5 @@ fourth, and close the other three as accepted limits. then open & merge".
 
 **Review gate for this step:** lighter than the rounds above. These are wording fixes and
 test-only additions with no new logic, so the gate was one fresh-eyes read of the diff since
-`640c99a` by a sub-agent with no shared context. Nothing was sent to Codex, ollama or any other
-external service: the owner's consent for those covered the local session only.
+`640c99a` by a sub-agent with no shared context. Nothing was sent to Codex, ollama or another review
+service: the owner's consent for those covered the local session only.
