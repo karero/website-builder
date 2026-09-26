@@ -3,7 +3,8 @@
 # test_failed_tier_report.sh — drives independent_review.sh end to end, the way a
 # caller does (default flags, auto-detected ollama model), with stub `codex` and
 # `ollama` CLIs first on PATH and $HOME relocated. No reviewer is contacted and
-# nothing leaves the machine; Antigravity is forced off.
+# nothing leaves the machine; Antigravity is forced off except in case 22, which
+# turns it on against a stub `agy`.
 #
 # Why it exists: on 2026-09-11 the ollama-cloud tier hit its weekly quota (HTTP
 # 429). The error sat only in a temp .err file, stdout carried the codex section
@@ -105,7 +106,19 @@ case "${OLLAMA_STUB:-ok}" in
   reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
 esac
 EOF
-chmod +x "$T/bin/codex" "$T/bin/ollama"
+cat >"$T/bin/agy" <<'EOF'
+#!/bin/sh
+# Records its argv as the codex stub does, prompt replaced by <prompt>, and keeps the
+# prompt itself so a test can check WHICH prompt was sent, not just that one was.
+argv=
+for a; do
+  case "$a" in *'--- BEGIN '*) printf '%s\n' "$a" >"$STUB_MARKS/agy-prompt"; a='<prompt>' ;; esac
+  argv="$argv[$a]"
+done
+printf 'argv=%s\n' "$argv" >"$STUB_MARKS/agy-args"
+printf '%s\n' '- BUG: stub agy finding' '- NIT: another'
+EOF
+chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
 
 # run <name> [VAR=value ...] <command ...> — leaves $T/<name>.out, .err and .rc
 run() {
@@ -123,6 +136,7 @@ check() {   # check <description> <command ...>
 }
 has()   { grep -qF -- "$2" "$T/$1"; }
 lacks() { ! grep -qF -- "$2" "$T/$1"; }
+not_in() { [ -e "$1" ] && ! grep -qF -- "$2" "$1"; }   # not_in <path> <text>: file exists, text absent
 rc_is() { [ "$(cat "$T/$1.rc")" = "$2" ]; }
 
 # 1. The incident itself: codex answers, ollama-cloud is refused with a 429.
@@ -308,6 +322,25 @@ for m in "" stub-override; do
   want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
   check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
+done
+
+# 22. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy 1.2.9 reached for a
+#     tool needing the "command" permission, headless mode auto-denied it, and the tier exited 0
+#     with no output — twice (2026-09-26). The fix asks for plan mode and sends the text-only
+#     prompt, and loosens nothing: no --dangerously-skip-permissions. The exact argv pins that
+#     on both command lines, the default and the AGY_MODEL one. The stub cannot show the real
+#     CLI now answers; it shows the script asks for what the manual run that did answer used.
+for m in "" stub-agy-model; do
+  name="agy${m:+-model}"
+  run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff"
+  check "$name: agy counted alongside the pair" has "$name.out" "reviewers: codex OK, ollama-cloud OK, antigravity OK"
+  check "$name: header names the model" has "$name.out" "## Independent review — antigravity/agy (${m:-CLI default}"
+  check "$name: header says plan mode, text-only" has "$name.out" ", sandbox, plan mode, text-only)"
+  want="argv=[--sandbox][--mode][plan]${m:+[--model][$m]}[-p][<prompt>]"
+  check "$name: exact argv (sandbox + plan mode, nothing looser)" grep -qxF -- "$want" "$T/$name.marks/agy-args"
+  check "$name: sent the text-only prompt" grep -qF -- "You have NO tools" "$T/$name.marks/agy-prompt"
+  check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
+  check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
 done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi

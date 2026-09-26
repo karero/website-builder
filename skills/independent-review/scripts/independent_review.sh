@@ -213,13 +213,17 @@ unset PROMPT 2>/dev/null || true
 #
 #   codex     `exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0`
 #             in the CALLER'S cwd                      -> read-only sandbox, sees the working tree
-#   agy       `cd "$sbox"` into an empty mktemp dir    -> UNKNOWN, and deliberately not guessed.
-#                                                         It is sandboxed and its cwd is empty, but
-#                                                         neither fact establishes what it can read
-#                                                         or run: an empty cwd is not an access
-#                                                         boundary, and absolute paths are not ruled
-#                                                         out. Gets the capability-agnostic prompt,
-#                                                         which asks it to declare its own mode.
+#   agy       `--sandbox --mode plan`, `cd "$sbox"`   -> treated as NO tool access. Its cwd is an
+#             into an empty mktemp dir                    empty dir, so it has nothing of the
+#                                                         project to inspect, and headless print mode
+#                                                         auto-denies any tool call that needs a
+#                                                         permission prompt -- the run then ends with
+#                                                         exit 0 and no output (seen twice on
+#                                                         2026-09-26, agy 1.2.9). So it gets the
+#                                                         text-only prompt, which tells it not to try.
+#                                                         What it COULD read or run is still not
+#                                                         established: an empty cwd is not an access
+#                                                         boundary.
 #   ollama    a prompt string, no tool plumbing        -> no tool access
 #   fallback  printed for a human to paste anywhere    -> UNKNOWN; could be a browsing web model
 #
@@ -489,10 +493,16 @@ run_codex() {
 # headless 2026-07-02.
 # (The old @google/gemini-cli path is DEPRECATED: Google discontinued its free
 # "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
-# --sandbox asks for terminal restrictions and -p print mode is meant not to auto-approve tool
-# calls (we do NOT pass --dangerously-skip-permissions). Both describe what is REQUESTED;
-# neither is tested here, the same gap as codex's (R-SANDBOX in OPEN-FINDINGS). The throwaway
-# cwd limits what a write would reach only if the CLI stays in it. Treat output as untrusted.
+# --sandbox asks for terminal restrictions, --mode plan for the CLI's planning mode, and -p print
+# mode is meant not to auto-approve tool calls (we do NOT pass --dangerously-skip-permissions, and
+# add no allow-rules). All three describe what is REQUESTED; none is tested here, the same gap as
+# codex's (R-SANDBOX in OPEN-FINDINGS). The throwaway cwd limits what a write would reach only if
+# the CLI stays in it. Treat output as untrusted.
+# Why --mode plan and the text-only prompt: with `--sandbox -p` and the capability-agnostic
+# prompt, agy 1.2.9 twice reached for a tool needing the "command" permission, which headless
+# mode auto-denied, and exited 0 with no stdout (2026-09-26). The same CLI run by hand as
+# `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir returned a full review. That
+# is one run, with both changes at once: which of the two is load-bearing was not isolated.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"
@@ -502,24 +512,15 @@ run_agy() {
   # --model passed only when AGY_MODEL is set — otherwise the CLI's own default
   # model runs; this script prescribes none.
   if [ -n "$model" ]; then
-    ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+    ( cd "$sbox" && agy --sandbox --mode plan --model "$model" -p "$PROMPT_TEXTONLY" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
   else
-    ( cd "$sbox" && agy --sandbox -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+    ( cd "$sbox" && agy --sandbox --mode plan -p "$PROMPT_TEXTONLY" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
   fi
   rm -rf "$sbox"
   { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || { why_cli $rc; return 1; }
   out="$(cat "$RAW_DIR/agy.out")"
   looks_like_review "$out" || { WHY="$NOT_A_REVIEW"; return 1; }
-  # PROMPT_PORTABLE asks this tier to open with a MODE line declaring whether it could actually
-  # inspect files. That is a PROMPT-level contract with no enforcement, so check it here: a missing
-  # MODE line means the tier ignored the contract and its verification claims are unattributable.
-  # Warned rather than rejected — the review may still be useful, but silence about it would let a
-  # self-declaration the prompt paid for quietly stop meaning anything.
-  case "$out" in
-    MODE:*|*"MODE: INSPECTED"*|*"MODE: TEXT-ONLY"*) : ;;
-    *) echo "agy tier: no MODE line — cannot tell whether it inspected files or reviewed text only; treat its verified/wrong verdicts as unattributed." >&2 ;;
-  esac
-  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
+  printf '## Independent review — antigravity/agy (%s, sandbox, plan mode, text-only)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly

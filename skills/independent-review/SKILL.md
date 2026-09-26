@@ -117,9 +117,9 @@ consult it whenever a check's verdict is contested or unclear.
    not cross-model (see the Independence rule below). Offer it after
    presenting results, don't run it unasked.
 4. **Antigravity — OPT-IN ONLY, never automatic.** Google Gemini via the
-   Antigravity CLI (`agy --sandbox -p`; setting `AGY_MODEL` overrides the
-   CLI's own default model — `references/onboarding.md` Step 5 has the full
-   invocation), free Antigravity login. The
+   Antigravity CLI (`agy --sandbox --mode plan -p`, text-only prompt;
+   `AGY_MODEL` overrides the CLI's default model — `references/onboarding.md`
+   Step 5 has the full invocation), free Antigravity login. The
    owner's Antigravity free-tier credits are scarce and get spent only when
    explicitly worth it: pass `--with-antigravity` to the script, or the owner
    directly asks ("antigravity review", "agy review", "worth burning a
