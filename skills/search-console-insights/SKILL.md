@@ -426,7 +426,8 @@ from it that apply every time:
 - **At the start of any session that looks at this site's AI results, run
   `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --check-drift` first.** If the homepage changed since
   the questions were confirmed, read the homepage (and POSITIONING.md if present), propose
-  updated questions, and **ask the owner** before changing anything.
+  updated questions, and **ask the owner** before changing anything. First check that the new
+  homepage text is the real page: a cookie or bot page also shows up as "changed".
 - **Show results as the report page** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`), not raw files.
 - **You draft the questions; you never answer them.** The whole point is a buyer's
   un-primed question to an engine that knows nothing about this conversation.

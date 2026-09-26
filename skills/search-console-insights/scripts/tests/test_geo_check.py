@@ -558,7 +558,7 @@ class ReviewRound2(GeoTestCase):
                                   "<body><h1>We value your privacy</h1><p>Accept all</p></body></html>")
         rc, out = self.cli("--confirm", "--expect", code)
         self.assertEqual(rc, 1, out)
-        self.assertIn("the page changed since the preview", out)
+        self.assertIn("does not match the current page", out)
         self.assertEqual(geo_check.load_config(DOMAIN)["fingerprint"], before)
         rc, out = self.cli("--confirm")
         self.assertEqual(rc, 1, out)
@@ -690,6 +690,24 @@ class ReviewRound2(GeoTestCase):
         rc, out = self.cli("--check-drift")
         self.assertIn("State: same", out)
 
+    def test_template_contents_do_not_change_the_fingerprint(self):
+        p = geo_check._Extract()
+        # The template comes FIRST, so without the guard its <meta>/<h1> would win.
+        p.feed("<html><head><template><meta name='description' content='TEMPLATE'><h1>T</h1></template>"
+               "<meta name='description' content='REAL'></head><body><h1>Real <template><h1>x</h1>"
+               "</template>heading</h1><p>Bäckerei Example</p></body></html>")
+        self.assertEqual((p.desc, geo_check._norm_text(p.h1)), ("REAL", "Real heading"))
+
+    def test_expect_without_confirm_is_an_error(self):
+        self.setup_site()
+        with self.assertRaises(SystemExit):
+            self.cli("--check-drift", "--expect", "abc")
+
+    def test_gemini_answer_in_several_parts_is_read_whole(self):
+        text, *_ = geo_check.parse_response("gemini", {"candidates": [{"finishReason": "STOP", "content": {
+            "parts": [{"text": "First part. "}, {"text": "Bäckerei Example is in the second part."}]}}]})
+        self.assertTrue(geo_check.is_named(text, ["Bäckerei Example"]))
+
     def test_commented_empty_key_is_empty(self):
         env = self.home / ".config/gsc-insights/.env"
         env.parent.mkdir(parents=True, exist_ok=True)
@@ -711,7 +729,8 @@ class RealReplay(GeoTestCase):
         self.cli("--set-question", "--slot", "broad", "--text-file", "-",
                  stdin="Which bakeries in Munich sell sourdough bread?")
         stub.STATE["homepage"] = "<html><body><h1>Hofpfisterei</h1></body></html>"
-        self.confirm()
+        rc, out = self.confirm()
+        self.assertEqual(rc, 0, out)
         os.environ["GEO_ANTHROPIC_API_KEY"] = "test-anthropic-placeholder"
         stub.engine_reply("anthropic", "", raw=fixture)
         rc, out = self.cli()
@@ -719,6 +738,9 @@ class RealReplay(GeoTestCase):
         finds = next(r for r in self.history() if r["mode"] == "finds")
         self.assertEqual((finds["ok"], finds["named"], finds["searched"]), ("3", "3", "3"))
         self.assertTrue(finds["cited_domains"])
+        # A name from a LATE text block reaches the saved answer (not just the first block).
+        saved = next((self.home / ".config/gsc-insights/geo/answers/example-bakery.de").rglob("anthropic-finds-broad-1.txt"))
+        self.assertIn("Riedmair", saved.read_text())
 
 
 class Homepage(GeoTestCase):

@@ -22,7 +22,7 @@ Revision 4, the plan to build from. It went through three PLAN review rounds: Co
 | Google AI Mode + AI Overview (SerpApi), owner request | done (stub + live) | `335c146`; live on three real sites 2026-09-26 |
 | Readable report page (`--report`), owner request | done (stub + browser check) | `94d34a4` |
 | OpenAI live answer | done | owner added credit 2026-09-26; real knows + finds responses captured as fixtures (`tests/fixtures/openai-*.json`), parsed by `test_real_responses.py` |
-| DIFF gate | round 3 done, owner-directed simplification + fixes in; final round 4 pending | BUGs per round 12 → 4 → 4; trails `REVIEW-diff-2026-09-26-r1…r3-…` |
+| DIFF gate | **closed** (owner decision after convergence; round-4 fixes locally verified, not externally re-verified) | 4 rounds; BUGs 12 → 4 → 4 → 0 (fresh-eyes) / 4 small (Codex); trails `REVIEW-diff-2026-09-26-r1…r4-…` |
 | PR | not started | — |
 
 "done (stub)" = passing against the local stub server; the commit that carries these tests is

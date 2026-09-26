@@ -16,7 +16,7 @@ docs/reviews/SKILL-PLAN-geo-check.md in the website-builder repo.
   geo_check.py <domain> --set-names [--name N] [--legal-name L] [--alias A]... [--domain D]... [--lang L] [--country C]
   geo_check.py <domain> --set-question --slot broad|narrow|branded --text-file PATH|-
   geo_check.py <domain> --check-drift            homepage vs. the confirmed questions, no engine calls
-  geo_check.py <domain> --confirm                save the homepage fingerprint for the question set
+  geo_check.py <domain> --confirm --expect CODE  save the previewed homepage (CODE from --check-drift)
   geo_check.py <domain> --google on|off          Google AI Mode + AI Overview for this site (paid searches)
   geo_check.py <domain> --trend | --report
   geo_check.py <domain> --engines gemini,openai  a run limited to some engines
@@ -41,6 +41,7 @@ import json
 import os
 import random
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -231,6 +232,8 @@ class _Extract(html.parser.HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag in self._SKIP:
             self._skip += 1
+        if self._skip:          # a <meta> or <h1> inside <template>/<noscript> isn't the page's
+            return
         a = dict(attrs)
         if tag == "title" and not self.title:
             self._in = "title"
@@ -242,6 +245,9 @@ class _Extract(html.parser.HTMLParser):
     def handle_endtag(self, tag):
         if tag in self._SKIP and self._skip:
             self._skip -= 1
+            return
+        if self._skip:
+            return
         if tag == self._in:
             self._in = None
 
@@ -264,8 +270,8 @@ def read_homepage(domain: str, cfg: dict):
     page can't be read, or its text names neither the business nor its domain.
     Deliberately no guessing at bot walls from their wording (tried over five review rounds:
     it rejected real pages and missed localized walls). A strange page instead shows up as
-    "changed"; the documented flow previews with --check-drift so a person reads the text
-    before running --confirm (which saves what it fetches)."""
+    "changed"; a person reads the --check-drift preview, and --confirm --expect <page code>
+    saves only if the page's title, description and main heading still match that preview."""
     url = override("GEO_HOMEPAGE_URL", f"https://{normalize_site(domain)}/")
     try:
         r = requests.get(url, timeout=30, headers={"User-Agent": UA,
@@ -620,7 +626,8 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
         # An answer we couldn't read is a failed call, not "the business wasn't named".
         raise EngineError("empty answer (nothing to read in the response)")
     sources = [x for x in (sources if isinstance(sources, list) else []) if isinstance(x, str) and x]
-    return text, (model if isinstance(model, str) else str(model or "")), sources, bool(searched)
+    model = (model if isinstance(model, str) else str(model or "")).encode("utf-8", "replace").decode("utf-8")
+    return text, model, sources, bool(searched)
 
 
 def _serp_checked(engine, data, all_keys):
@@ -706,7 +713,7 @@ def run(domain: str, only=None) -> int:
         print(f"⚠ Couldn't read your homepage ({detail}) — the questions still ran.")
     elif state == "unconfirmed":
         print("⚠ The questions changed (or were never confirmed) since they were last checked against "
-              "the homepage — ask Claude to review and run --confirm.")
+              "the homepage — ask Claude to review them (--check-drift, then --confirm --expect <page code>).")
 
     keys = load_keys()
     all_keys = [k for k in keys.values() if k]
@@ -733,7 +740,7 @@ def run(domain: str, only=None) -> int:
             continue
         if engine in SERP_ENGINES and not cfg.get("google"):
             print(f"  {engine}: off for this site — it spends SerpApi searches; "
-                  f"turn on with: {sys.executable} {os.path.abspath(__file__)} {site} --google on")
+                  f"turn on with: {shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} {site} --google on")
             not_set_up.append(engine)
             continue
         key = keys[engine]
@@ -1155,6 +1162,8 @@ def main(argv=None) -> int:
     ap.add_argument("--engines", help="comma-separated: ask only these engines this run "
                     f"(of {', '.join(ENGINES)})")
     args = ap.parse_args(argv)
+    if args.expect and not args.confirm:
+        ap.error("--expect only goes with --confirm")
     if args.keys:
         return show_keys()
     if args.prepare_env:
@@ -1188,7 +1197,7 @@ def main(argv=None) -> int:
                "google": False}   # Google's paid checks start off; --google on after asking
         save_config(domain, cfg)
         print(f"✓ AI check set up for {normalize_site(domain)}: {config_path(domain)}")
-        print("  Next: add the questions with --set-question, then --confirm.")
+        print("  Next: add the questions with --set-question, then --check-drift and --confirm --expect <page code>.")
         return 0
 
     cfg = load_config(domain)
@@ -1235,7 +1244,7 @@ def main(argv=None) -> int:
         cfg["queries"] = sorted(qs, key=lambda q: SLOTS.index(q["slot"]))
         save_config(domain, cfg)
         print(f"✓ {args.slot} question saved (rev {rev}): {text}")
-        print("  When all questions are reviewed, run --confirm.")
+        print("  When all questions are reviewed: --check-drift, then --confirm --expect <page code>.")
         return 0
 
     if args.check_drift or args.confirm:
@@ -1254,12 +1263,13 @@ def main(argv=None) -> int:
             print(f"State: {state}")
             for q in cfg.get("queries", []):
                 print(f"  {q['slot']:<7} rev {q['rev']}: {q['text']}")
-            print(f"Page code: {fingerprint(detail)}  (to save exactly this page: --confirm --expect {fingerprint(detail)})")
+            print(f"Page code: {fingerprint(detail)}  (to save this title/description/heading: "
+                  f"--confirm --expect {fingerprint(detail)})")
             return 0
         # Save only the page a person previewed with --check-drift: its code must still match,
         # so an intermittent bot wall can't slip in between the preview and the save.
         if args.expect != fingerprint(detail):
-            print(f"✗ Not saved — {'no --expect code given' if not args.expect else 'the page changed since the preview'}. "
+            print(f"✗ Not saved — {'no --expect code given' if not args.expect else 'the code does not match the current page (it changed since the preview, or the code was mistyped)'}. "
                   f"Run --check-drift, read the text with the owner, then --confirm --expect <its page code>.")
             return 1
         cfg["fingerprint"] = fingerprint(detail)

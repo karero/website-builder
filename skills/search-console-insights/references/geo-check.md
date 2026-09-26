@@ -168,7 +168,7 @@ free to start with; the others cost a few cents a week if you want them."*
      replaces the whole list (name, then any `--legal-name` / `--alias` given with it). Either
      marks the next trend line "settings changed".
    - `--domain` defaults to the site's domain.
-   - `--check-drift` prints the homepage text and a **page code**. Read the text with the owner;
+   - `--check-drift` prints the homepage's title, description and main heading, and a **page code**. Read them with the owner;
      only if it is the real homepage (not a cookie banner or a "checking your browser" page) run
      `--confirm --expect <page code>`. It saves only if the page still matches that preview.
 5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
@@ -193,11 +193,11 @@ description and main heading, and says whether they changed since the questions 
   - A changed question gets a new revision. Its next trend line is marked "question changed", because the old and new numbers aren't comparable.
 - **Couldn't read the homepage.** Tell the owner, and don't `--confirm`.
 - **State: unconfirmed.** A question was changed (or never checked) since the last `--confirm`.
-  Review the questions against the homepage with the owner, then `--confirm`.
+  Review the questions against the homepage with the owner, then `--confirm --expect <page code>`.
 - **`--confirm` always needs `--expect <page code>` from a `--check-drift` you and the owner
   just read.** If that text isn't the business's real homepage (a cookie banner, "checking your
   browser", a login wall), don't confirm: tell the owner and try again later. The code rejects only pages that fail to load or name neither the business nor its
-  domain in their visible text; everything else is your judgment.
+  domain anywhere in their text (including the title and hidden elements); everything else is your judgment.
 
 The unattended weekly job never changes questions. On a changed homepage it runs the old
 ones, keeps the week's data and logs a warning. Asking is this session's job.

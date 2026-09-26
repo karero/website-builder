@@ -5,9 +5,10 @@ expects them — so it can't catch a parser that misreads what a provider actual
 The fixtures in fixtures/ are real responses, captured live on 2026-09-26 with a neutral
 question that names no client ("Which bakeries in Munich sell sourdough bread?"; the AI
 Overview one with "how to make sourdough bread at home", because Google showed no overview
-for the first). Trimmed for size and privacy: encrypted_* blobs, SerpApi metadata, and the titles,
-snippets and thumbnails of cited references (third-party page text) were dropped; the answer
-text itself is untouched. Checked for API keys before saving. The OpenAI pair was captured
+for the first). Trimmed in code by fixtures/capture.py's trim(): encrypted_* blobs, SerpApi metadata, and
+the titles, snippets and thumbnails of cited pages (third-party page text) inside reference /
+citation / result lists; answer text untouched. (A hand trim on 2026-09-26 briefly blanked the
+AI Mode answer blocks too; they were restored from the capture and re-trimmed by trim().) Checked for API keys before saving. The OpenAI pair was captured
 later the same day, once the account had credit. google-overview-finds-absent.json is `{}`:
 synthetic, what a response without an ai_overview block trims down to.
 
