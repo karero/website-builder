@@ -39,7 +39,8 @@
 # FAILED" quoting its error — and the run ends with one "reviewers:" line
 # (e.g. "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: …)").
 #
-# SECURITY. The preferred reviewer runs as `codex exec -s read-only`, which ASKS
+# SECURITY. The preferred reviewer runs as `codex exec -s read-only --skip-git-repo-check`
+# (the flag only lets it start outside a git repo; see run_codex), which ASKS
 # the CLI for a read-only sandbox; whether it blocks writes is not tested here
 # (R-SANDBOX in docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
 # only sends text. So: treat any external reviewer as untrusted, keep reviews off
@@ -401,11 +402,12 @@ looks_like_review() {
 # applies on top of it, since that's a separate key the override doesn't touch.
 # --skip-git-repo-check: without it, codex refuses to start in a directory that is not a
 # git repo or a trusted project ("Not inside a trusted directory ...", exit 1), so a PLAN
-# gate run from a scratch dir silently lost its codex reviewer (2026-09-26). The flag only
-# lifts that start-up check; codex 0.157.0 still reported "sandbox: read-only" with it, and
-# refused `touch` and a shell redirect there ("Operation not permitted") — one probe, not a
-# test of R-SANDBOX. Codex keeps the caller's cwd rather than agy's throwaway dir, because
-# seeing the working tree is what lets it check a diff's claims.
+# gate run from a scratch dir came back with codex FAILED and one reviewer (2026-09-26). The
+# flag only lifts that start-up check; codex 0.157.0 still reported "sandbox: read-only" with
+# it, and refused `touch` and a shell redirect there ("Operation not permitted") — one probe,
+# not a test of R-SANDBOX. Nor was the check a read boundary: started inside a repo, the same
+# codex read a file outside it. Codex keeps the caller's cwd rather than the agy tier's
+# throwaway dir, because seeing the working tree is what lets it check a diff's claims.
 codex_bin() {
   command -v codex 2>/dev/null && return 0
   ls -1 "$HOME"/.vscode/extensions/openai.chatgpt-*/bin/*/codex 2>/dev/null | sort -V | tail -1

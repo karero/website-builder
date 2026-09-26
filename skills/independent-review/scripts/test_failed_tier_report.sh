@@ -32,15 +32,16 @@ cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex-ran"
 # Like the real CLI (0.157.0, seen 2026-09-26): outside a git repo, refuse to start
-# unless --skip-git-repo-check is passed. Records whether the read-only sandbox was
-# still requested, and where it ran.
-skip=0 ro=0 prev=
+# unless --skip-git-repo-check is passed. Records its whole argv except the prompt (the
+# last argument), so a test can pin it exactly: an added sandbox override fails the match
+# instead of hiding behind "-s read-only is in there somewhere" (round 1, fresh-eyes).
+skip=0 n=$# i=0 argv=
 for a; do
+  i=$((i+1))
   [ "$a" = --skip-git-repo-check ] && skip=1
-  [ "$prev" = -s ] && [ "$a" = read-only ] && ro=1
-  prev="$a"
+  [ $i -lt $n ] && argv="$argv $a"
 done
-printf 'skip=%s ro=%s cwd=%s\n' "$skip" "$ro" "$(pwd -P)" >"$STUB_MARKS/codex-args"
+printf 'argv=%s cwd=%s\n' "${argv# }" "$(pwd -P)" >"$STUB_MARKS/codex-args"
 if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   printf '%s\n' 'Reading additional input from stdin...' \
     'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
@@ -104,7 +105,7 @@ chmod +x "$T/bin/codex" "$T/bin/ollama"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL \
+  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -255,20 +256,23 @@ check "diskquota: not read as a provider quota" has diskquota.out "reviewers: co
 
 # 19. Called from outside any git repo (a plan in a scratch dir): codex must still run,
 #     in the caller's cwd, with the read-only sandbox still requested — on both command
-#     lines, the default and the CODEX_MODEL one. Before the fix the PLAN round silently
-#     landed with one reviewer (2026-09-26). GIT_CEILING_DIRECTORIES keeps git from
-#     finding a repo above $T, wherever TMPDIR lives.
+#     lines, the default and the CODEX_MODEL one. Before the fix the PLAN round came back
+#     with codex FAILED and one reviewer (2026-09-26). GIT_CEILING_DIRECTORIES keeps git
+#     from finding a repo above $T, wherever TMPDIR lives; run() drops GIT_DIR and
+#     GIT_WORK_TREE, which a git hook exports and which would otherwise override it.
 mkdir -p "$T/nogit"
 NOGIT="$(cd "$T/nogit" && pwd -P)"
+CEILING="$(cd "$T" && pwd -P)"
 for m in "" stub-override; do
   name="nogit${m:+-model}"
-  run "$name" CODEX_MODEL="$m" GIT_CEILING_DIRECTORIES="$(cd "$T" && pwd -P)" \
+  run "$name" CODEX_MODEL="$m" GIT_CEILING_DIRECTORIES="$CEILING" \
     sh -c 'cd "$1" && shift && exec bash "$@"' _ "$NOGIT" "$SCRIPT" "$T/plan.md"
-  check "$name: the stub really is outside a git repo" \
-    sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$(cd "$T" && pwd -P)"
+  check "$name: the stub really is outside a git repo" env -u GIT_DIR -u GIT_WORK_TREE \
+    sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$CEILING"
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
-  check "$name: sandbox still read-only, git check skipped, caller's cwd" \
-    has "$name.marks/codex-args" "skip=1 ro=1 cwd=$NOGIT"
+  want="argv=exec -s read-only --skip-git-repo-check${m:+ -c model=\"$m\"} cwd=$NOGIT"
+  check "$name: exact argv (read-only, nothing looser) in the caller's cwd" \
+    grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
