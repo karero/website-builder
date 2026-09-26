@@ -301,3 +301,28 @@ and five NITs, all fixed:
 
 The fixes are wording only; the suite and `make check` pass after them. They were not sent back
 to the gate for a second read.
+
+## R1-13 sign-off (2026-09-26, after the merge)
+
+R1-13 (the broad words "since", "until", "must", "by design", "on purpose") was waiting for the
+owner. The measurement put to the owner: swept over every Markdown file on `main` at `2f2a4f7`
+outside `docs/reviews/` (with `--file`), 2,391 sentences are listed, and 60 of them (2.5%) only
+because of one of these five words. "must" accounts for 37 of the 60, and they are instructions
+("Each locale page must canonical to itself."). "since" and "until" mark claims bounded in time,
+and "by design" and "on purpose" claim intent; each of those is rare.
+
+**Owner decision:** remove "must" and "mustn't"; keep the other four. The owner's words, in
+reply to that recommendation: "Yes to: The stakes are low either way ... It would remove "must"
+(and "mustn't" if you want), update the tests and the reference doc's word note, and record your
+sign-off on R1-13 in the review log." "mustn't" goes with "must" for consistency, as the
+recommendation put it.
+
+| id | sev | source | finding | status |
+|---|---|---|---|---|
+| R1-13 | RISK | ollama | Broad words (since, until, must, by design, on purpose) add noise | fixed as signed off: "must" and "mustn't" removed, the other four kept. "should not" was already left out, but its reason had been removed as contradictory (R2-08); the code comment and the reference now state it again, for both, not claims about the record. Tests: "The page must load fast." is not listed; "mustn't" is no longer among the matched words. Each check fails with its word put back |
+
+**Gate:** one fresh-eyes read of this diff by a local sub-agent with no shared context. Nothing
+was sent to Codex, ollama or another review service. It re-ran the suite, `make check` and both
+mutants, rebuilt the 2,391 / 60 / 37 figures from `2f2a4f7`, and found no BUG and no RISK. Its
+three NITs are fixed: this row's severity and source now match R1-13's original row, the
+"should not" history is stated correctly, and the comment and reference name "mustn't" too.

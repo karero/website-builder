@@ -295,6 +295,8 @@ printf '10. ```sh\n    it never builds\n    ```\n\nOnly this is prose.\n\n```\nm
 # Each rule that keeps a sentence whole, on its own: "e.g." before a capital, a stop before a
 # lowercase word, and a wrapped "2024." inside a list item; a sibling item still splits.
 printf 'All services, e.g. Python and Go, use the new runner.\n\nEvery job ran, approx. twice a day.\n\n- The runner never ran before\n  2024. It ran daily later.\n\n1. Alpha is fine\n2. beta was not run\n' >"$T/splits.md"
+# "must" gives an instruction; it is not a claim about the record.
+printf 'The page must load fast.\n' >"$T/must.md"
 # A "1." item may interrupt a paragraph, so the paragraph's last line does not run into it.
 printf 'All of these run\n1. Nothing else does.\n' >"$T/items.md"
 # A fence closes only on a marker at least its length: three backticks do not close four.
@@ -302,7 +304,7 @@ printf 'All of these run\n1. Nothing else does.\n' >"$T/items.md"
 printf '````md\n```\nNothing inside the long fence is swept.\n```\n````\n\nNothing after the long fence is lost.\n\n~~~\nNothing inside the tilde fence is swept.\n~~~\n\nNothing after the tilde fence is lost.\n' >"$T/fences.md"
 run files "$R" --file "$T/guide.rst" --file "$T/open.md" --file "$T/splits.md" --file "$T/inline.md" \
   --file "$T/indented.md" --file "$T/closer.md" --file "$T/listfence.md" --file "$T/items.md" \
-  --file "$T/fences.md"
+  --file "$T/fences.md" --file "$T/must.md"
 check "'e.g.' before a capital does not end the sentence" \
   line files.out "$T/splits.md:1 [all] All services, e.g. Python and Go, use the new runner."
 check "a stop before a lowercase word does not end the sentence" \
@@ -313,8 +315,9 @@ check "a sibling list item still starts a new sentence" line files.out "$T/split
 check "rst: the second section under a '~~~' underline is swept" has files.out "The installer never touches your data."
 check "a fence that never closes does not swallow what follows" has files.out "Nothing here is."
 check "inline code starting with backticks is not a fence" line files.out "$T/inline.md:3 [nothing] Nothing is lost."
-check "compound universals and contractions are listed" \
-  line files.out "$T/inline.md:5 [everything, mustn't] Everything was migrated, and it mustn't move."
+check "compound universals are listed, not an instruction's 'mustn't'" \
+  line files.out "$T/inline.md:5 [everything] Everything was migrated, and it mustn't move."
+check "an instruction with 'must' alone is not listed" lacks files.out "must load"
 check 'two ``` lines indented four spaces do not swallow the prose between' \
   line files.out "$T/indented.md:5 [nothing] Nothing is cached."
 check 'nor do two tab-indented ones' line files.out "$T/indented.md:11 [nothing] Nothing is kept."
