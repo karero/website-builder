@@ -256,12 +256,18 @@ re-runs must not edit twice, and a site scaffolded before the block existed has 
 block to uncomment at all:
 ```bash
 grep -n '^while read -r _lref' scripts/hooks/pre-push && echo "already enabled"
-grep -q 'ALLOW_MAIN_PUSH' scripts/hooks/pre-push || echo "no block in this hook — older kit; copy the kit's scripts/hooks/pre-push first"
+grep -Eq '^(# )?while read -r _lref' scripts/hooks/pre-push || echo "no block in this hook — older kit; merge the kit's templates/astro/scripts/hooks/pre-push in first"
 ```
-No block (the second line fires): replace the site's hook with the kit's
-`templates/astro/scripts/hooks/pre-push` in the setup pull request — the two differ
-only by the block and the publish-classifier step, both additive — then continue.
-Found this on the first real site the skill ran on: its hook predated the block.
+The second grep looks for the block's own first line, commented out or not — not for
+the `ALLOW_MAIN_PUSH` word, which the prose comment above the block also contains.
+No block (the second line fires): bring the site's hook up to the kit's
+`templates/astro/scripts/hooks/pre-push` **by hand** in the setup pull request, the
+way `whats-new.sh` treats every drift-tracked file (it reports the hook, never
+rewrites it — same as `ci.yml` in §6.8). Diff the two first: on a stock hook they
+differ only by the block and the publish-classifier step, both additive; a site that
+added a step of its own keeps it. Re-stamp afterwards, as for any hand-merged tracked
+file. Then continue. Found this on the first real site the skill ran on: its hook
+predated the block.
 If it is not enabled: remove the leading `# ` from those six lines and replace only
 the first sentence of the comment above them ("OPTIONAL: PR-only main flow …") with
 the date and why it is on — keep the rest of that comment: it is the **single source
