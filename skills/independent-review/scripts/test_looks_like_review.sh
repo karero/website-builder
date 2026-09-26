@@ -84,8 +84,9 @@ check accept "KNOWN WRONG: 'couldn't access' is not a refusal phrase" "1. BUG �
 check accept "KNOWN WRONG: 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
 check accept "KNOWN WRONG: 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
 check accept "KNOWN WRONG: 'unable to view' is not a refusal phrase" "- RISK: I was unable to view the diff."
-# The same four phrases in prose after a clean verdict. After a plain "No BUG or RISK" each was
-# accepted before 2026-09-20 as well; the qualified verdict is what that fix newly lets through.
+# The same four phrases in prose after a clean verdict (B-REFUSAL-TEXT, widened). After a plain
+# "No BUG or RISK" each was accepted before 2026-09-20 as well; the qualified verdict is what that
+# fix newly lets through.
 check accept "KNOWN WRONG: qualified verdict + 'couldn't access'" "No confirmed BUG or RISK, because I couldn't access the diff you supplied."
 check accept "KNOWN WRONG: qualified verdict + 'don't have access'" "No confirmed BUG or RISK, because I don't have access to the diff you supplied."
 check accept "KNOWN WRONG: qualified verdict + 'unable to view'" "No confirmed BUG or RISK: I was unable to view the diff."

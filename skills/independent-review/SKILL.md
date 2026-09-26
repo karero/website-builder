@@ -6,10 +6,9 @@ description: >
   scripts/independent_review.sh — the standard pair (Codex + your signed-in
   ollama-cloud model) runs automatically; Antigravity/Gemini only on explicit
   opt-in, its credits are scarce. Consolidates a ranked BUG/RISK/NIT list and
-  BLOCKS until every BUG is fixed, refuted, or owner-deferred (only one the
-  change did not introduce, or widened), and every RISK/NIT is fixed, refuted,
-  or owner-waived; first
-  use runs a guided onboarding wizard. Use
+  BLOCKS until every BUG is fixed, refuted, or owner-deferred (only one that
+  predates the change, or a widening of one), and every RISK/NIT is fixed,
+  refuted, or owner-waived; first use runs a guided onboarding wizard. Use
   BEFORE building from any non-trivial plan, BEFORE merging any non-trivial
   PR, and whenever asked for a "codex review", "gemini review", "antigravity
   review", "agy review", "adversarial review", "cross-model review",
@@ -272,7 +271,8 @@ teach the plain-language trigger phrases.
    triaged like any other finding, never dismissed because *something* was already written nearby.
 5. **Enforce the verdict** (this is the skill's job — never the script's exit
    code): every BUG confirmed real by verification must be fixed. The one exception is a BUG
-   the change did not introduce; the paragraph after this one says when the owner may defer it.
+   the change did not introduce, or a widening of one; the paragraphs after this one say when the
+   owner may defer it.
    A BUG conclusively shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
    may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
    if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
@@ -284,7 +284,7 @@ teach the plain-language trigger phrases.
    structure, logic, or wording, where there is no runtime to check against. Don't demand an
    empirical test a claim was never about in the first place.
 
-   **The one exception: a BUG the change did not introduce.** DIFF gate only; a plan has no base
+   **The one exception: a BUG the change did not introduce, or a widening of one.** DIFF gate only; a plan has no base
    to compare against, so a BUG in a plan is fixed before anyone builds from it. The owner may
    defer the BUG out of the change when all three hold:
    - it reproduces at the merge-base with the target branch, so the change did not create it;
@@ -294,12 +294,15 @@ teach the plain-language trigger phrases.
      names the row, so whoever fixes the BUG changes that test on purpose. A BUG no test can pin,
      such as wrong wording, does not qualify: fix it.
 
-   **A widening counts too, under the same three conditions.** A change widens a BUG when it lets
-   more inputs reach the same wrong result, in the same function, for the same root cause — the
-   test is that the row's remedy would fix the old inputs and the new ones alike. Each widening
-   needs its own dated sign-off, its own KNOWN WRONG cases for the new inputs, and a line in both
-   the row and the trail. Anything else the change breaks is a BUG it introduced — including a new
-   code path that reaches an old defect — and gets no deferral.
+   **A widening.** A change widens a BUG when, as a side effect of what the change is for, it lets
+   more inputs reach the wrong result the BUG already produces, inside the function the row names.
+   Condition 1 applies to the BUG itself: some input reproduces it at the merge-base, while the
+   new inputs, by definition, do not. The widening then needs its own dated sign-off, its own
+   KNOWN WRONG cases for the new inputs, and a line in both the row and the trail. It is not a
+   widening, and gets no deferral, when the new wrong result is the only effect of the code that
+   causes it, or when it happens outside that function (a new caller or entry point). A row whose
+   remedy would replace the whole mechanism does not make every new wrong result in that
+   mechanism a widening.
 
    **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
    not keep a round from being clean (6(a2)), does not count toward the three-round cap (6(b)),
@@ -333,12 +336,14 @@ teach the plain-language trigger phrases.
    call; only fixed/refuted are blocked pending the missing prerequisite.)
 6. **Iterate — fix, then re-review.** Send the updated artifact back through
    the reviewers as a *verification round*: give them the prior round's BUG
-   list, ask them to confirm each fix landed AND that the fixes introduced
+   list — and, for each BUG DEFERRED under point 5, its tracker row, its merge-base reproduction
+   and its test's name, since the tracker is not in what they see — ask them to confirm each fix landed AND that the fixes introduced
    nothing new — and tell them the author expects clean **and that they must
    not oblige out of politeness** (expectation of cleanliness is exactly the
    bias that turns round 2 into a rubber stamp). Repeat until essentially
    clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO RISK (a
-   BUG DEFERRED under point 5 and raised again without new evidence does not count) — that
+   BUG DEFERRED under point 5 does not count, whether that round first raised it or raised it
+   again without new evidence) — that
    IS "clean", and it is the signal to stop, not an invitation to spend one more round chasing the
    NITs it did return.** NIT-only rounds are where a gate quietly doubles in cost: each one returns
    two or three more, because prose can always be tightened and a reviewer asked for findings will
@@ -357,8 +362,8 @@ teach the plain-language trigger phrases.
    fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
-   Deferring verification is legitimate; deferring a waiver never is, and deferring a fix is
-   legitimate only under point 5's one exception.
+   Postponing verification is legitimate. Deferring a fix is legitimate only under point 5's one
+   exception, and a waiver is granted or refused, never put off.
    **This governs whether to run another round, and nothing else** — in particular it has no
    bearing on the consolidated marker, whose own rule lives in clerk item 2.
 
@@ -423,8 +428,10 @@ teach the plain-language trigger phrases.
      regressing; the strict bucket is for a DEMONSTRATED regression specifically, and holding a
      routine no-shared-context re-raise to that same bar would effectively punish running a
      genuinely independent reviewer every round — the whole point of that seat.
-   - a re-raise of something WAIVED, or of a BUG DEFERRED under point 5, with no new reasoning
-     also pools into the MOST threshold, for
+   - a re-raise of a BUG DEFERRED under point 5, with no new reasoning, pools into the MOST
+     threshold too: the owner accepted it as real and it stays open in the tracker, so re-noticing
+     it is neither a regression nor new signal.
+   - a re-raise of something WAIVED with no new reasoning also pools into the MOST threshold, for
      a related but distinct reason: waiving concedes the issue may be real, so it was never "ruled
      clean" (that's (b)'s own test above) and re-noticing it isn't a regression of something
      dispositioned-as-resolved (that's this signal's own test above) — it's an independent
@@ -435,7 +442,7 @@ teach the plain-language trigger phrases.
      already-tracked open item is not new signal, but it isn't instability either.
 
    **STOP patching when:** the regression case above fires for even one finding; OR (b)-failures
-   and any of the three no-new-evidence re-raise cases above, TOGETHER, characterize MOST (more
+   and any of the four no-new-evidence re-raise cases above, TOGETHER, characterize MOST (more
    than half) or all of the round's findings — not just one stray finding amid otherwise-new ones;
    OR the count plateaus for two consecutive rounds AND those plateauing findings are not
    predominantly (b)-passing (a plateau of genuinely distinct, newly-surfaced findings each round
@@ -446,7 +453,7 @@ teach the plain-language trigger phrases.
    those regardless of how these signals read; a round left with ONLY NIT churn has no equivalent
    hard cap and relies on these signals alone.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
-   as a decision — escalation can defer, re-scope, or reject the release, but it cannot waive a
+   as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
    BUG that's still open. It can defer a BUG out of the change only under point 5's one
    exception. A BUG blocked on a missing prerequisite (point 5's untestable-claim rule) is held
    open, not deferred: holding it keeps the release blocked, and the BUG can close only after the
