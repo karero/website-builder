@@ -48,11 +48,12 @@ function liveOrigin(value: string | undefined): string | null {
   } catch {
     // not a URL at all — reported below with the other unusable values
   }
-  if (!url || url.protocol !== 'https:' || isPagesDev(bareHost(url))) {
+  const host = url ? bareHost(url) : '';
+  if (!url || url.protocol !== 'https:' || !host || isPagesDev(host)) {
     console.error(`CANONICAL_URL is not an https live-domain URL, not redirecting: ${value}`);
     return null;
   }
-  return `https://${bareHost(url)}${url.port ? `:${url.port}` : ''}`;
+  return `https://${host}${url.port ? `:${url.port}` : ''}`;
 }
 
 export const onRequest = async (context: MiddlewareContext): Promise<Response> => {

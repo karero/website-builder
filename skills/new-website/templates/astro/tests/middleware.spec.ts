@@ -7,7 +7,7 @@ import { onRequest } from '../functions/_middleware';
 // the static page behind it. Why each case matters is in its title.
 
 const PROJECT = 'my-site'; // any project name — the rule is about the host's shape
-// A fixed live origin, NOT LIVE: the middleware never reads LIVE, and a site
+// A fixed live origin, NOT SITE.url: the middleware never reads SITE.url, and a site
 // still on its pages.dev address (no custom domain yet) must not fail these tests.
 const LIVE = 'https://example.com';
 const BODY = '<!doctype html><title>page</title>';
@@ -97,6 +97,8 @@ for (const bad of [
   `https://${PROJECT}.pages.dev.`,
   `https://${PROJECT}.pages.dev..`,
   'https://pages.dev',
+  'https://.',
+  'https://...',
   'http://example.com',
   'example.com',
 ]) {

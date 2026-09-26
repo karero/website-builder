@@ -85,9 +85,10 @@ live fast with zero dashboard time.
 # 1. Create the Pages project (direct-upload).
 npx wrangler pages project create <project> --production-branch <main|production>
 
-# 2. Build, then deploy the static output.
+# 2. Build, then deploy the static output. --branch = the production branch from step 1;
+#    without it wrangler uses the local git branch and may make a preview deployment.
 npm run build
-npx wrangler pages deploy dist --project-name <project>
+npx wrangler pages deploy dist --project-name <project> --branch <main|production>
 
 # 3. Custom domain: NO Wrangler command exists for Pages custom domains.
 #    Attach it in the dashboard (Workers & Pages -> your project -> Custom domains ->
@@ -104,7 +105,8 @@ npx wrangler pages deploy dist --project-name <project>
 > the accidental Worker (not a pre-existing one with a similar name), then delete it and
 > re-run `wrangler pages deploy`.
 
-Ongoing deploys under (A): re-run `wrangler pages deploy dist --project-name <project>`
+Ongoing deploys under (A): re-run
+`wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
 Then continue with `search-console-setup` for GSC/Bing + Crawler Hints.
@@ -207,14 +209,14 @@ weeks.
 
 The redirect is **off until you switch it on**, because before launch the alias may be the
 only address that works. Switch it on only when the live domain really serves this site —
-custom domain **Active**, DNS flipped, and `https://<live-domain>/build.txt` showing the
+custom domain **Active**, DNS flipped, and `https://<live-domain>/build.txt?cb=1` showing the
 current build:
 
 1. Cloudflare dashboard → **Workers & Pages** → the project → **Settings → Variables and
    Secrets** → **Production** → add a plain-text variable `CANONICAL_URL` =
    `https://example.com` (the live origin, same as `SITE.url`; no path, no trailing slash).
    Production only: previews must keep working, and the middleware never redirects a
-   preview host anyway. Open `https://<that value>/build.txt` before saving and confirm it
+   preview host anyway. Open `<that value>/build.txt?cb=1` (e.g. `https://example.com/build.txt?cb=1`) before saving and confirm it
    shows the current build: browsers remember a 301, so a typo'd domain keeps sending
    visitors to the wrong place even after you correct the variable.
 2. **Redeploy with a new commit.** A variable only reaches deployments made after it was
