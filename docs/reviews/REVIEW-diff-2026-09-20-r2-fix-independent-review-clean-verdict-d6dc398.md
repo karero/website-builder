@@ -25,13 +25,14 @@ rows did not record the decision until 2026-09-26 (H3).
 **This decision breaks the skill's own rule, and not for the first time.** SKILL.md says every BUG
 confirmed real must be fixed, "no exceptions", and that escalation "cannot waive a BUG that's still
 open". G2 and G3 were accepted anyway, as B-TAGCLASS and B-REFUSAL-TEXT were deferred before them.
-Either the rule or the practice has to change; that is the owner's call and is not made here (H2).
+Either the rule or the practice has to change (H2). **Decided 2026-09-26, in chat: change the
+rule**, in a separate change to SKILL.md.
 
-**The decision was made on a narrower picture than the real one.** It rested on F1's and F2's
+**The decision was first made on a narrower picture than the real one.** It rested on F1's and F2's
 examples. A later pass (H1) found refusals in the passive voice that pass with no refusal phrase at
 all: "No significant risk can be assessed without the file contents." Same class, same remedy, and
-the unqualified twin of each already passed on `origin/main` — but the owner has not yet confirmed
-the decision covers it.
+the unqualified twin of each already passed on `origin/main`. **Confirmed 2026-09-26, in chat: the
+decision covers these too.**
 
 **Not externally re-verified:** round 2's one new finding (G1) was fixed in `d6dc398` after the round.
 It is `locally_verified` — six mutations of the regex, each turning a test red. The only reviewer to
@@ -114,8 +115,8 @@ was re-checked against the repo before it was acted on, the grep cases with BSD 
 
 | id | Sev | Finding | Disposition |
 |---|---|---|---|
-| H1 | RISK | Refusals in the passive voice now pass: "No significant risk can be assessed without the file contents.", "The diff was empty, so no confirmed bugs could be evaluated.", "no further risk analysis possible". None is pinned, and the tracker named only the four refusal phrases | **Pinned and tracked, not fixed.** Confirmed: each rejects on `origin/main` and accepts here, and each unqualified twin ("No risk can be assessed…") already accepted on `origin/main`. A genuine verdict takes the same shape — "No confirmed bugs could be found in this diff." — so rejecting the passive voice would need a list of verbs that mean "not done", which is a refusal list and belongs in check 1, out of scope by the owner's instruction. Three KNOWN WRONG cases and the genuine one added; R-VERDICT-TEXT widened. **Owner confirmation that the 2026-09-22 decision covers this: pending.** Also raised: "There are no real risks here" passes. It reads as a clean verdict, and nothing in its text says otherwise |
-| H2 | RISK | Accepting G2/G3 breaks SKILL.md point 5 ("no exceptions") and the escalation rule ("cannot waive a BUG"); B-TAGCLASS and B-REFUSAL-TEXT did too | **Confirmed; the owner's call.** Recorded above and in the tracker's gate status. Not changed here |
+| H1 | RISK | Refusals in the passive voice now pass: "No significant risk can be assessed without the file contents.", "The diff was empty, so no confirmed bugs could be evaluated.", "no further risk analysis possible". None is pinned, and the tracker named only the four refusal phrases | **Pinned and tracked, not fixed.** Confirmed: each rejects on `origin/main` and accepts here, and each unqualified twin ("No risk can be assessed…") already accepted on `origin/main`. A genuine verdict takes the same shape — "No confirmed bugs could be found in this diff." — so rejecting the passive voice would need a list of verbs that mean "not done", which is a refusal list and belongs in check 1, out of scope by the owner's instruction. Three KNOWN WRONG cases and the genuine one added; R-VERDICT-TEXT widened. **The owner confirmed on 2026-09-26 that the 2026-09-22 decision covers this.** Also raised: "There are no real risks here" passes. It reads as a clean verdict, and nothing in its text says otherwise |
+| H2 | RISK | Accepting G2/G3 breaks SKILL.md point 5 ("no exceptions") and the escalation rule ("cannot waive a BUG"); B-TAGCLASS and B-REFUSAL-TEXT did too | **Confirmed. The owner decided 2026-09-26 to change the rule**, in a separate change to SKILL.md. Recorded above and in the tracker's gate status |
 | H3 | RISK | The tracker does not record the 2026-09-22 decision, still says "Last updated 2026-09-20", and puts a BUG-rated item in the RISK table; the trail said the rows need no further edit | **Fixed.** Both rows carry the decision; R-VERDICT-TEXT says Codex rated it BUG; "Last updated" and the gate status are current |
 | H4 | RISK | The PR description says the rounds "converged", though G2/G3 did not and the final regex was only checked locally, and omits that closeout was never done | **Confirmed.** A corrected description and a findings comment are drafted. Both are posts to a PR another session opened, so they wait for the owner |
 | H5 | NIT | "45 cases (24 new)" is 23 new: 22 cases and the drift guard | **Fixed** below, with this pass's additions |
