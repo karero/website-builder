@@ -518,7 +518,7 @@ class ReviewFindings(GeoTestCase):
         rc, out = self.cli("--report")
         page = Path(out.split("Report: ")[1].strip()).read_text()
         self.assertIn("an earlier version of the question", page)
-        self.assertIn("✓ Named every time (3 of 3) *</span>", page)
+        self.assertIn("✓ Named in every answer (3 of 3) *</span>", page)
         self.assertIn(html.escape(BROAD), page)
 
     def test_follow_up_overview_error_is_a_failure(self):
@@ -946,55 +946,137 @@ class RunOrder(unittest.TestCase):
 
 
 class OwnerReport(GeoTestCase):
-    """The report is for the business owner: its headline must be honest, it must explain why
-    each question is asked 3 times, and the branded question must never count toward the score."""
+    """The report is for the business owner. Its numbers must never overstate, every cell state
+    must read plainly, and the branded question must never count. Rows go into the real history
+    file and the page comes from --report, the call Claude makes (Rule 9)."""
+
+    BROAD2, NARROW = BROAD, "Sourdough bakery open on Sunday in Schwabing?"
+
+    def site(self, engines=("GEO_OPENAI_API_KEY",), google=False):
+        self.setup_site(questions=(("broad", self.BROAD2), ("narrow", self.NARROW),
+                                   ("branded", "What is Bäckerei Example?")))
+        for k in engines:
+            os.environ[k] = "test-placeholder-" + k.lower()
+        if google:
+            self.cli("--google", "on")
+
+    def rows(self, *specs):
+        cfg = geo_check.load_config(DOMAIN)
+        text = {q["slot"]: q["text"] for q in cfg["queries"]}
+        rows = []
+        for spec in specs:
+            r = {"date": "2026-09-26", "run_id": geo_check.new_run_id(), "site": DOMAIN, "rev": 1,
+                 "model_requested": "m", "models_reported": "m", "config_rev": geo_check.config_rev(cfg),
+                 "cited_own": "", "cited_domains": "", "searched": "", "status": "ok"}
+            r.update(spec)
+            r.setdefault("query", text[r["slot"]])
+            rows.append(r)
+        geo_check.append_history(geo_check.history_path(), rows)
 
     def page(self):
         rc, out = self.cli("--report")
         self.assertEqual(rc, 0, out)
-        return Path(out.split("Report: ")[1].strip()).read_text()
+        return html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
 
-    def test_headline_is_honest_when_named_for_only_one_question(self):
-        # ChatGPT names the business for the narrow question but not the broad one.
-        self.setup_site(questions=(("broad", BROAD), ("narrow", "Sourdough bakery open on Sunday in Schwabing?")))
-        cfg = geo_check.load_config(DOMAIN)
-        base = {"date": "2026-09-26", "run_id": geo_check.new_run_id(), "site": DOMAIN, "engine": "openai",
-                "mode": "finds", "rev": 1, "model_requested": "m", "models_reported": "m",
-                "config_rev": geo_check.config_rev(cfg), "ok": 3, "cited_own": 0, "cited_domains": "",
-                "searched": 3, "status": "ok"}
-        geo_check.append_history(geo_check.history_path(), [
-            {**base, "slot": "broad", "query": BROAD, "named": 0},
-            {**base, "slot": "narrow", "query": cfg["queries"][1]["text"], "named": 3}])
+    def test_every_cell_state_reads_plainly(self):
+        self.site(engines=("GEO_OPENAI_API_KEY", "GEO_PERPLEXITY_API_KEY", "GEO_GEMINI_API_KEY"), google=True)
+        os.environ["SERPAPI_KEY"] = "test-placeholder-serp"
+        self.rows(
+            {"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 3, "cited_own": 2, "searched": 3},
+            {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 3, "named": 1, "searched": 1},
+            {"engine": "openai", "mode": "knows", "slot": "broad", "ok": 0, "named": 0, "status": "3 of 3 failed"},
+            {"engine": "perplexity", "mode": "finds", "slot": "broad", "ok": 1, "named": 1, "status": "2 of 3 failed"},
+            {"engine": "gemini", "mode": "knows", "slot": "broad", "ok": 3, "named": 0},
+            {"engine": "google-ai-mode", "mode": "finds", "slot": "broad", "ok": 1, "named": 1},
+            {"engine": "google-overview", "mode": "finds", "slot": "broad", "ok": 1, "named": 0,
+             "status": "no AI Overview shown"})
+        page = self.page()
+        for expected in ["✓ Named in every answer (3 of 3)", "your website was a source (2 of 3)",
+                         "◐ Sometimes (1 of 3)", "it only searched 1 of 3 times",
+                         "! No answer this time", "2 of 3 answers failed", "✗ Not named (0 of 3)",
+                         "— not asked", "Google's rules don't allow checking Gemini's web answers",
+                         "always searches the web", "not checked yet", "— Google showed no AI answer",
+                         "✓ Named</span>", "Not set up: Claude.", "asked once per question"]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, page)
+
+    def test_headline_counts_only_what_really_answered(self):
+        # Named in every answer to broad, but narrow FAILED: that is not "every question".
+        self.site()
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 0, "named": 0, "status": "3 of 3 failed"})
         page = self.page()
         self.assertIn("<b>1 of 1</b>", page)
-        self.assertIn("for at least one question; 0 for every question", page)
-        self.assertIn("not for every question", page)
-        self.assertNotIn("all of them name you, for every question", page)
+        self.assertIn("0 in every answer to every question", page)
+        self.assertNotIn("all of them named you in every answer", page)
 
-    def test_explains_three_answers_and_what_is_not_asked(self):
-        self.setup_site()
-        os.environ["GEO_GEMINI_API_KEY"] = GKEY
-        stub.engine_reply("gemini", "Nothing about bakeries.")
-        self.cli()
+    def test_headline_sometimes_is_not_every_time(self):
+        self.site()
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 1},
+                  {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 3, "named": 1})
         page = self.page()
-        self.assertIn("new answer every time", page)
-        self.assertIn("<strong>3 times</strong>", page)
-        self.assertIn("— not asked", page)
-        self.assertIn(html.escape("Google's rules don't allow checking Gemini's web answers"), page)
-        self.assertIn("From memory", page)
-        self.assertIn("Show me my AI report for example-bakery.de", page)
+        self.assertIn("not always and not for every question", page)
+        self.assertNotIn("all of them named you in every answer", page)
 
-    def test_branded_answers_are_shown_but_never_scored(self):
-        self.setup_site(questions=(("broad", BROAD), ("branded", "What is Bäckerei Example?")))
-        os.environ["GEO_GEMINI_API_KEY"] = GKEY
-        stub.engine_reply("gemini", "I don't know Bäckerei Example.")   # names it in every answer
-        self.cli()
+    def test_headline_all_and_none(self):
+        self.site()
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "knows", "slot": "broad", "ok": 3, "named": 0},
+                  {"engine": "openai", "mode": "knows", "slot": "narrow", "ok": 3, "named": 0})
         page = self.page()
+        self.assertIn("all of them named you in every answer to every question", page)
+        self.assertIn("From memory, none of them named you yet", page)
+
+    def test_no_google_answer_is_not_a_miss(self):
+        # Google showing no AI Overview says nothing about the business: it must not count as
+        # "not named" and pull the headline down.
+        self.site(google=True)
+        os.environ["SERPAPI_KEY"] = "test-placeholder-serp"
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 3, "named": 3},
+                  {"engine": "google-overview", "mode": "finds", "slot": "broad", "ok": 1, "named": 0,
+                   "status": "no AI Overview shown"},
+                  {"engine": "google-overview", "mode": "finds", "slot": "narrow", "ok": 1, "named": 0,
+                   "status": "no AI Overview shown"})
+        page = self.page()
+        self.assertIn("<b>1 of 1</b>", page)
+        self.assertIn("all of them named you in every answer to every question", page)
+
+    def test_branded_answers_never_count(self):
+        # Named in every scored answer; the branded row (named "") must not spoil "every question".
+        self.site()
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "finds", "slot": "branded", "ok": 1, "named": ""})
+        page = self.page()
+        self.assertIn("all of them named you in every answer to every question", page)
         self.assertIn("Do they describe you correctly?", page)
-        self.assertIn("don't count toward the score", page)
-        # The broad question's answer also contains the name, so the score is 1 of 1 from memory;
-        # the branded row must not add a second engine or change it.
-        self.assertIn("<b>1 of 1</b><span>name you <strong>from memory</strong>", page)
+        self.assertIn("don't count toward the numbers above", page)
+
+    def test_answers_to_an_old_question_or_from_a_removed_engine_do_not_count(self):
+        self.site()
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 3},
+                  {"engine": "openai", "mode": "finds", "slot": "narrow", "ok": 3, "named": 3},
+                  {"engine": "anthropic", "mode": "finds", "slot": "broad", "ok": 3, "named": 0})  # no key now
+        self.cli("--set-question", "--slot", "narrow", "--text-file", "-", stdin="Rye bread in Schwabing?")
+        page = self.page()
+        self.assertIn("<b>1 of 1</b>", page)                      # Claude has no key now: not counted
+        self.assertIn("0 in every answer to every question", page)  # narrow's answer is to the old question
+        self.assertIn("✓ Named in every answer (3 of 3) *", page)
+        self.assertIn("to an earlier version of the question", page)
+
+    def test_explains_the_repeat_count_from_the_code(self):
+        self.site()
+        self.rows({"engine": "openai", "mode": "finds", "slot": "broad", "ok": 3, "named": 0})
+        page = self.page()
+        n = geo_check.SAMPLES["broad"]
+        self.assertIn(f"<strong>{n} times</strong>", page)
+        self.assertIn(f"“{n} of {n}” means you were named in every answer", page)
+        self.assertIn("different answer each time", page)
+        self.assertNotIn("asked once per question", page)       # Google is off for this site
+        self.assertIn("Show me my AI report for example-bakery.de", page)
+        self.assertIn("Each weekly check writes a new page", page)
 
 
 class Safety(GeoTestCase):

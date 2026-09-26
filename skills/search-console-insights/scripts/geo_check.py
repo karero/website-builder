@@ -689,12 +689,20 @@ def append_history(path: Path, rows):
 
 # ─── weekly run ───────────────────────────────────────────────────────────────
 
+_last_run_stamp = ""
+
+
 def new_run_id() -> str:
-    """Sorts in run order, which "latest answer" relies on. Microseconds after the second: two
-    runs within one second used to sort by their random suffix, so the older could win."""
+    """Sorts in run order, which "latest answer" relies on. Two runs in the same second used to
+    sort by process id and a random suffix, so the older could win; microseconds fix that across
+    processes, and within one process each new ID is forced to sort after the previous one."""
+    global _last_run_stamp
     now = datetime.now(timezone.utc)
-    return (now.strftime("%Y%m%dT%H%M%SZ") + f"-{now.microsecond:06d}"
-            + f"-{os.getpid()}-{random.getrandbits(16):04x}")
+    stamp = now.strftime("%Y%m%dT%H%M%SZ") + f"-{now.microsecond:06d}"
+    if stamp <= _last_run_stamp:                      # the same microsecond (or a clock step back)
+        stamp = _last_run_stamp[:-6] + f"{int(_last_run_stamp[-6:]) + 1:06d}"
+    _last_run_stamp = stamp
+    return f"{stamp}-{os.getpid()}-{random.getrandbits(16):04x}"
 
 
 def run(domain: str, only=None) -> int:
@@ -935,7 +943,7 @@ ENGINE_LABEL = {"gemini": "Gemini", "openai": "ChatGPT", "anthropic": "Claude",
 ENGINE_MAKER = {"gemini": "Google", "openai": "OpenAI", "anthropic": "Anthropic",
                 "perplexity": "Perplexity", "google-ai-mode": "Google search",
                 "google-overview": "the box above Google's results"}
-MODE_LABEL = {"finds": "Searching the web", "knows": "From memory"}
+MODE_LABEL = {"finds": "With web search on", "knows": "From memory"}
 QUESTION_LABEL = {"broad": ("Question 1", "The everyday question"),
                   "narrow": ("Question 2", "The more specific question")}
 
@@ -1020,43 +1028,53 @@ def _stale(r, q) -> bool:
     return q is not None and (str(r.get("rev")) != str(q["rev"]) or r.get("query") != q["text"])
 
 
+def _counts(r):
+    """(answered, named) for a row that counts: answered, and not Google's "no AI answer"."""
+    if r is None or not _ok(r) or r.get("status") in NO_ANSWER_SAYS:
+        return None
+    return _ok(r), int(r.get("named") or 0)
+
+
 def _cell(r, engine, mode):
-    """(css class, main words, small print) for one engine x mode on one question."""
+    """(css class, main words, small print) for one assistant x mode on one question."""
     if r is None:
         if mode == "finds" and engine == "gemini":
             return "na", "— not asked", "Google's rules don't allow checking Gemini's web answers"
         if mode == "knows" and engine in SERP_ENGINES:
-            return "na", "—", "always searches"
+            return "na", "—", "always searches the web"
         return "na", "—", "not checked yet"
-    ok = _ok(r)
+    ok, planned = _ok(r), samples_for(engine, r["slot"])
+    failed_note = f"{planned - ok} of {planned} answers failed" if "failed" in r.get("status", "") else ""
     if not ok:
-        return "no", "! No answer this time", "a technical problem; it retries next week"
+        return "no", "! No answer this time", "the check couldn't get an answer; the weekly log says why"
     if r.get("status") in NO_ANSWER_SAYS:
         return "na", "— Google showed no AI answer", ""
     n = int(r["named"] or 0)
+    of = f" ({n} of {ok})" if planned > 1 else ""
     if n == ok:
-        main = f"✓ Named every time ({n} of {ok})" if ok > 1 else "✓ Named"
-        cls = "yes"
+        cls, main = "yes", (f"✓ Named in every answer{of}" if planned > 1 else "✓ Named")
     elif n == 0:
-        main = f"✗ Not named ({n} of {ok})" if ok > 1 else "✗ Not named"
-        cls = "no"
+        cls, main = "no", f"✗ Not named{of}"
     else:
-        main, cls = f"◐ Sometimes ({n} of {ok})", "some"
-    notes = []
+        cls, main = "some", f"◐ Sometimes{of}"
+    notes = [x for x in [failed_note] if x]
     if r.get("cited_own") not in ("", None) and int(r["cited_own"]):
         c = int(r["cited_own"])
-        notes.append("your website was a source" + (f" ({c} of {ok})" if ok > 1 else ""))
+        notes.append("your website was a source" + (f" ({c} of {ok})" if planned > 1 else ""))
     if r.get("searched") not in ("", None) and int(r["searched"]) < ok:
         notes.append(f"it only searched {r['searched']} of {ok} times")
     return cls, main, "; ".join(notes)
 
 
 def build_report(domain: str, run_id=None):
-    """Write the owner's report page (each engine's latest answers) and return its path, or None.
+    """Write the owner's report page (each assistant's latest answers) and return its path.
 
-    Written for the business owner, not for us: one plain answer at the top, a short
-    "how to read this" (including why each question is asked 3 times), one simple table per
-    question, and the verbatim answers folded away underneath."""
+    Written for the business owner: one plain answer at the top, a short "how to read this"
+    (including why each question is asked several times), one table per question, and the
+    verbatim answers folded away. What counts at the top, stated once so the headline can't
+    overstate: an answer to the CURRENT question, from an assistant that is ON now, that
+    actually came back. "At least once" = named in at least one such answer; "every time" =
+    every current question answered, and named in every answer."""
     site = normalize_site(domain)
     cfg = load_config(domain) or {"names": [site], "queries": []}
     path = history_path()
@@ -1066,8 +1084,8 @@ def build_report(domain: str, run_id=None):
         rows = [r for r in csv.DictReader(f) if r.get("site") == site]
     if not rows:
         return None
-    # Each engine's latest answer to each question, whichever run it came from: a run
-    # limited with --engines must not hide the other engines' most recent results.
+    # Each assistant's latest answer to each question, whichever run it came from: a run
+    # limited with --engines must not hide the other assistants' most recent results.
     latest = {}
     for r in sorted(rows, key=lambda r: r["run_id"]):
         latest[(r["engine"], r["mode"], r["slot"])] = r
@@ -1076,7 +1094,10 @@ def build_report(domain: str, run_id=None):
     name = names[0] if names else site
     h = html.escape
     queries = {q["slot"]: q for q in cfg.get("queries", [])}
-    engines = [e for e in ENGINES if any(k[0] == e for k in latest)]
+    scored = [s for s in QUESTION_LABEL if s in queries]
+    keys = load_keys()
+    on = [e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))]
+    engines = [e for e in on if any(k[0] == e for k in latest)]
     any_stale = False
 
     def answers_html(r):
@@ -1091,42 +1112,49 @@ def build_report(domain: str, run_id=None):
                          f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
         return "".join(parts) or "<p class='muted small'>No answer saved.</p>"
 
+    def earlier_note(r, q):
+        return (f"<p class='muted small'>* Answer from {h(r['date'])} to an earlier version of the question: "
+                f"“{h(r.get('query', ''))}”</p>") if _stale(r, q) else ""
+
     # ── the plain answer at the top ──
     def tally(mode):
-        """(named on at least one question, named on every question answered, engines answering)."""
-        answered = {}
-        for (e, m, s), r in latest.items():
-            if m == mode and s in QUESTION_LABEL and _ok(r) and r.get("status") not in NO_ANSWER_SAYS:
-                answered.setdefault(e, []).append(int(r.get("named") or 0) > 0)
-        return (sum(any(v) for v in answered.values()), sum(all(v) for v in answered.values()), len(answered))
-    f_n, f_all, f_m = tally("finds")
-    k_n, _, k_m = tally("knows")
+        """(named at least once, named every time for every question, assistants with an answer)."""
+        at_least, every, answering = 0, 0, 0
+        for e in engines:
+            counts = [None if r is None or _stale(r, queries[s]) else _counts(r)
+                      for s in scored for r in [latest.get((e, mode, s))]]
+            known = [c for c in counts if c]
+            if not known:
+                continue
+            answering += 1
+            at_least += any(n > 0 for _, n in known)
+            every += len(known) == len(scored) and all(n == ok for ok, n in known)
+        return at_least, every, answering
+    f_any, f_all, f_m = tally("finds")
+    k_any, _, k_m = tally("knows")
     scores, lines = [], []
     if f_m:
-        scores.append(f"<div class='score'><b>{f_n} of {f_m}</b><span>AI assistants name you when they "
-                      f"<strong>search the web</strong>" + ("" if f_all == f_n else
-                      f" (for at least one question; {f_all} for every question)") + "</span></div>")
-        lines.append("When they look things up, all of them name you, for every question: your website is doing its job."
+        scores.append(f"<div class='score'><b>{f_any} of {f_m}</b><span>AI assistants named you at least once "
+                      f"<strong>with web search on</strong>" + ("" if f_all == f_any else
+                      f"; {f_all} in every answer to every question") + "</span></div>")
+        lines.append("With web search on, none of them named you yet. The tables below show who they named instead."
+                     if f_any == 0 else
+                     "With web search on, all of them named you in every answer to every question."
                      if f_all == f_m else
-                     "When they look things up, none of them name you yet. The tables below show who they "
-                     "name instead." if f_n == 0 else
-                     "When they look things up, each of them names you at least once, but not for every "
-                     "question. The tables below show where you're missing." if f_n == f_m else
-                     "When they look things up, some name you and some don't. The tables below show which, "
-                     "and for which question.")
+                     "With web search on, they named you, but not always and not for every question. "
+                     "The tables below show where you're missing.")
     if k_m:
-        scores.append(f"<div class='score'><b>{k_n} of {k_m}</b><span>name you <strong>from memory</strong>, "
-                      f"without looking anything up</span></div>")
-        lines.append("None of them know you from memory yet. That's normal for a young business; it changes "
-                     "slowly, mostly when new AI versions come out." if k_n == 0 else
-                     "Some already know you from memory: that's the long-term goal.")
+        scores.append(f"<div class='score'><b>{k_any} of {k_m}</b><span>named you at least once "
+                      f"<strong>from memory</strong>, without looking anything up</span></div>")
+        lines.append("From memory, none of them named you yet. That's normal for most small businesses, and it "
+                     "changes slowly." if k_any == 0 else
+                     f"From memory, {k_any} of {k_m} named you at least once: that's the long-term goal.")
 
     # ── one table per scored question ──
     sections = []
-    for slot, (title, kind) in QUESTION_LABEL.items():
-        q = queries.get(slot)
-        if not q:
-            continue
+    for slot in scored:
+        title, kind = QUESTION_LABEL[slot]
+        q = queries[slot]
         rows_html, reads = [], []
         for e in engines:
             cells = []
@@ -1139,10 +1167,8 @@ def build_report(domain: str, run_id=None):
                 cells.append(f"<td><span class='cell {cls}'>{h(main)}{star}</span>"
                              + (f"<small>{h(note)}</small>" if note else "") + "</td>")
                 if r is not None and _ok(r):
-                    earlier = (f"<p class='muted small'>* Answer from {h(r['date'])} to an earlier version of "
-                               f"the question: “{h(r.get('query', ''))}”</p>") if _stale(r, q) else ""
                     reads.append(f"<details><summary>{h(ENGINE_LABEL[e])} · {h(MODE_LABEL[mode].lower())}</summary>"
-                                 f"{earlier}{answers_html(r)}</details>")
+                                 f"{earlier_note(r, q)}{answers_html(r)}</details>")
             maker = ENGINE_MAKER[e] if ENGINE_MAKER[e] != ENGINE_LABEL[e] else ""
             rows_html.append(f"<tr><td><strong>{h(ENGINE_LABEL[e])}</strong>"
                              + (f"<small>{h(maker)}</small>" if maker else "") + f"</td>{''.join(cells)}</tr>")
@@ -1156,40 +1182,45 @@ def build_report(domain: str, run_id=None):
     # ── the branded question: read, not scored ──
     branded = queries.get("branded")
     if branded:
-        reads = [f"<details><summary>{h(ENGINE_LABEL[e])} · {h(MODE_LABEL[m].lower())}</summary>{answers_html(r)}</details>"
+        reads = [f"<details><summary>{h(ENGINE_LABEL[e])} · {h(MODE_LABEL[m].lower())}</summary>"
+                 f"{earlier_note(r, branded)}{answers_html(r)}</details>"
                  for e in engines for m in ("finds", "knows")
                  for r in [latest.get((e, m, "branded"))] if r is not None and _ok(r)]
         if reads:
             sections.append(
                 f"<h2>Do they describe you correctly?</h2><p class='q'>“{h(branded['text'])}”</p>"
                 f"<p class='small'>Here your name is in the question, so these answers don't count toward the "
-                f"score above. Read them to see whether each assistant gets your business right.</p>"
+                f"numbers above. Read them to see whether each assistant gets your business right.</p>"
                 f"<div class='answers'>{''.join(reads)}</div>")
 
     dates = sorted({r["date"] for r in latest.values()})
     when = dates[-1] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
     not_set_up = [ENGINE_LABEL[e] for e in ENGINES if e not in engines]
+    n_ask = SAMPLES["broad"]
+    google_line = (" Google's AI is asked once per question, because each lookup costs a paid search."
+                   if any(e in SERP_ENGINES for e in engines) else "")
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Does AI recommend {h(name)}?</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Do AI assistants name {h(name)}?</title>
 <style>{_CSS}</style></head><body><main>
-<h1>Does AI recommend {h(name)}?</h1>
+<h1>Do AI assistants name {h(name)}?</h1>
 <p class="muted">{h(site)} · answers from {h(when)}</p>
 <div class="scores">{''.join(scores)}</div>
 {''.join(f'<p class="lead">{h(l)}</p>' for l in lines)}
 <div class="how"><p><strong>How to read this</strong></p><ul>
-<li>We asked each AI assistant the kind of question a new customer would ask, <strong>without your name in it</strong>.</li>
-<li><strong>Searching the web</strong>: the assistant looks things up first, as most do today.
+<li>We asked each AI assistant the kind of question a new customer would ask, <strong>without your name in it</strong>,
+and checked whether your name appears in the answer.</li>
+<li><strong>With web search on</strong>: the assistant may look things up first, as most do today.
 <strong>From memory</strong>: it answers only from what it learned in training.</li>
-<li>AI assistants write a <strong>new answer every time</strong>, even to the same question. So we ask each one
-<strong>3 times</strong>: “3 of 3” means you're named reliably, “1 of 3” only sometimes. (Google's AI is asked
-once per question: each lookup costs a paid search.)</li>
+<li>AI assistants can write a <strong>different answer each time</strong>, even to the same question. So we ask each one
+<strong>{n_ask} times</strong>: “{n_ask} of {n_ask}” means you were named in every answer, “1 of {n_ask}” only
+sometimes.{google_line}</li>
 </ul></div>
 {''.join(sections)}
 <h2>What next?</h2>
-<p>Want AI assistants to recommend you more often? Ask Claude: <em>“How can I get AI assistants to recommend my
+<p>Want AI assistants to name you more often? Ask Claude: <em>“How can I get AI assistants to recommend my
 business?”</em></p>
-<p class="muted small">{'* = this answer was to an earlier version of the question; the next weekly check asks the new one. ' if any_stale else ''}{('Not set up: ' + ', '.join(not_set_up) + '. ') if not_set_up else ''}This page is refreshed by your weekly check. To see it again, ask Claude:
-“Show me my AI report for {h(site)}.” Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
+<p class="muted small">{'* = this answer was to an earlier version of the question; the next weekly check asks the new one. ' if any_stale else ''}{('Not set up: ' + ', '.join(not_set_up) + '. ') if not_set_up else ''}Each weekly check writes a new page like this one. To see the latest,
+ask Claude: “Show me my AI report for {h(site)}.” Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
 </main></body></html>"""
     out = geo_dir() / "reports" / site / f"{run_id}.html"
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -11,7 +11,7 @@ description: >
   for non-technical owners. Trigger phrases: "GSC insights", "Search Console
   data", "connect GSC", "where do I rank", "top queries", "striking distance
   keywords", "quick SEO wins", "why is my CTR low", "which pages to optimize",
-  "who ranks for", "competitor Top 10", "how do I rank on Bing", "Copilot
+  "competitor Top 10", "how do I rank on Bing", "Copilot
   visibility", "ChatGPT search visibility", "track my rankings over time", "weekly
   SEO report", "does AI name my business", "weekly AI check", "show me my AI
   report".
