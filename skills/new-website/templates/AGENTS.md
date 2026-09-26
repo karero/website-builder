@@ -10,8 +10,10 @@ Live: [LIVE_URL] · Preview: [PREVIEW_URL]
      in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
      (collaborators, rights level, merge rule, who publishes). Owner writes in another
      language? Translate this file in-session, keep every rule, keep the commands
-     verbatim. CLAUDE.md imports this file, so Codex and Claude Code follow the same
-     rules. -->
+     verbatim — and if you translate the placeholder token "[MISSING: …]" (§2, §4),
+     change the grep pattern in .github/workflows/ci.yml to the same word, or the CI
+     gate never fires. CLAUDE.md imports this file, so Codex and Claude Code follow
+     the same rules. -->
 
 Several people and several AI assistants may work on this site, sometimes at the same
 time. The rules below stop anyone from working on a stale state or overwriting someone
@@ -58,10 +60,14 @@ applies there; instead of steps 2 to 4, only this:
 
 - Run `git log -1 --format='%h %an, %ar: %s'` and say: "Current working state of this
   task." A cloud task normally starts from a clone GitHub made moments ago, but
-  nothing here proves that. So, if the task may use the network, also run
-  `git ls-remote origin refs/heads/main` (reads only, changes nothing) and compare the
-  two ids: if they differ, say so, and that a new task gets the newest state. If the
-  network is off, say that the comparison was not possible.
+  nothing here proves that. So, if the task may use the network, compare the full
+  commit ids of the branch you are on (not `main` — a task may start on any branch):
+  ```bash
+  git rev-parse HEAD
+  git ls-remote origin "refs/heads/$(git rev-parse --abbrev-ref HEAD)"   # reads only
+  ```
+  Same id: say the state is current. Different: say GitHub has moved on and that a
+  new task gets the newest state. Network off: say the comparison was not possible.
 - If an **older** cloud task is being resumed, say: "Whether GitHub has moved on since
   is not checked. For the newest state, start a new task."
 - Fetch nothing, create or switch no branch. Codex works on this state; Codex creates

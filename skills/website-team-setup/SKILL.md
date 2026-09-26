@@ -202,6 +202,7 @@ gh api -X POST "repos/$OWNER/$REPO/rulesets" --input - <<'JSON'
   "name": "protect main",
   "target": "branch",
   "enforcement": "active",
+  "bypass_actors": [],
   "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
   "rules": [
     { "type": "deletion" },
@@ -221,18 +222,25 @@ gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | "\(.name) \(.enforcement)"'
 **A ruleset that already exists is not proof.** A "protect main" left behind by an
 earlier attempt, or edited in the dashboard since, may be looser than the one above
 (a different check name, no up-to-date requirement, a bypass actor). So when the count
-is not 0, read the whole thing back and compare it with the JSON above, rule by rule:
+is not 0, read every one of them back (leftovers come in twos) and compare each with
+the JSON above, rule by rule:
 ```bash
-id=$(gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | select(.name=="protect main") | .id')
-gh api "repos/$OWNER/$REPO/rulesets/$id" \
-   --jq '{enforcement, bypass_actors, conditions, rules: [.rules[] | {type, parameters}]}'
+for id in $(gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | select(.name=="protect main") | .id'); do
+  echo "== ruleset $id"
+  gh api "repos/$OWNER/$REPO/rulesets/$id" \
+     --jq '{enforcement, bypass_actors, conditions, rules: [.rules[] | {type, parameters}]}'
+done
 ```
 Anything that differs — `enforcement` not `active`, a non-empty `bypass_actors`, a
 missing rule, `strict_required_status_checks_policy` false, a `context` that is not the
 CI job's name — is fixed with `gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
-and the same JSON body. Confirm the `context` against the job in `ci.yml` (`test`
-unless the site renamed it); a wrong name blocks every merge, because a check that
-never reports never passes.
+and the same JSON body (it carries `"bypass_actors": []` explicitly, so a bypass list
+is cleared rather than left as GitHub found it). Read it back once more after the PUT.
+Two rulesets of that name: bring one in line, then delete the other with the owner's
+go-ahead (`gh api -X DELETE "repos/$OWNER/$REPO/rulesets/<other id>"`) — two rulesets
+on the same branch both apply, and the looser one still blocks nothing. Confirm the
+`context` against the job in `ci.yml` (`test` unless the site renamed it); a wrong
+name blocks every merge, because a check that never reports never passes.
 
 No bypass list: the rule applies to the owner too, which is the point. Dashboard
 path: **Settings → Rules → Rulesets → New branch ruleset**. An approving review count of
@@ -265,9 +273,14 @@ repo gets, and it is enough when everyone follows `AGENTS.md`.
 hands the hook nothing and sends GitHub nothing ("Everything up-to-date"), so it
 "passes" both mechanisms without testing either. Instead:
 ```bash
-# Ruleset: read it back — must list pull_request and required_status_checks.
+# Ruleset (§5-A): read the effective rules back — must list pull_request and
+# required_status_checks. A dry-run push never reaches GitHub's rules, so this
+# read-back is the whole verification on a ruleset site.
 gh api "repos/$OWNER/$REPO/rules/branches/main" --jq '.[].type'
-# Hook: a dry run of a real ref update — the hook runs, nothing is transferred.
+
+# Hook (§5-B ONLY — on a ruleset site the hook is off by design and this would
+# print "NOT blocked"): a dry run of a real ref update — the hook runs, nothing is
+# transferred.
 git switch --no-track -c setup/push-check origin/main
 git commit --allow-empty -m "push-block check (never pushed)"
 # The push is EXPECTED to fail, so test it as a condition — in a script run under
@@ -332,14 +345,20 @@ pull request). Walk the owner through it with these warnings ahead of each click
    `src/` and `public/` for `"[MISSING: …]"` before the build, but only sites
    scaffolded after that step existed carry it: `whats-new.sh` reports drift in
    `ci.yml`, it never rewrites it. So `AGENTS.md`'s merge rule ("no placeholder is
-   left") is enforced only if the step is there. Check, add if missing, and prove it
-   fires before calling the setup done:
+   left") is enforced only if the step is there. First find out which **token** this
+   site uses: `AGENTS.md` §4 names it, and a translated site may well use its own word
+   (a German site might write `"[FEHLT: …]"`); the kit's step greps for `[MISSING:`
+   and matches nothing else. Then check for the step itself — its `grep -rnI` line,
+   not any mention of the word in a comment — add it if missing with the site's
+   token in the pattern, and prove it fires before calling the setup done:
    ```bash
-   grep -n 'MISSING' .github/workflows/ci.yml || echo "placeholder step MISSING — copy it from the kit's templates/astro/.github/workflows/ci.yml"
+   grep -nF "grep -rnI" .github/workflows/ci.yml \
+     || echo "placeholder step missing — copy it from the kit's templates/astro/.github/workflows/ci.yml and put this site's token in the pattern"
    ```
-   Then plant one: a scratch branch with `"[MISSING: probe]"` in any page, push,
-   watch the check turn red, delete the branch. A gate that has never fired is a
-   hypothesis.
+   Then plant one: a scratch branch with the site's own token (`"[MISSING: probe]"`,
+   or `"[FEHLT: probe]"` on that German site) in any page, push, watch the check turn
+   red, delete the branch. A gate that has never fired is a hypothesis, and a gate
+   probed with the wrong token proves the wrong thing.
 9. **Direct-upload project already exists (deploy path A).** A git-connected Pages
    project is a *different project type*; Cloudflare cannot convert one into the
    other. Create the git-connected project under a new name, let it build once,

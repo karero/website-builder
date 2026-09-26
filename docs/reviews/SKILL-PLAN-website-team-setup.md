@@ -283,5 +283,22 @@ copied" (all 23 exist), "hook block absent" (present with the override), "nothin
 the title suffix" (`Base.astro:58`), "does a dry-run push run the hook" (tested: it
 does, git 2.33), `%ar` vs `%ad` (taste), `CLAUDE.md` in the frozen list (did not hold).
 
-The round-4 fixes are self-verified only (`make check` green, the `ci.yml` step
-re-tested in all three states), not re-reviewed by an outside model.
+**Round 5 — `/code-review` at effort medium on the round-4 commit only** (2026-09-26,
+`e422695..ea7a51c`). 8 findings, all fixed in the seventh commit:
+
+| Finding | Fix |
+|---|---|
+| §6.8 detected and probed the placeholder gate by the English token; a translated site (`[FEHLT: …]`) would get a gate that never matches and a probe that proves the wrong thing | §6.8 reads the site's token from `AGENTS.md` §4, checks for the grep line itself, probes with that token; the scaffold note says a translated token must be mirrored in `ci.yml` |
+| Ruleset repair `PUT` body had no `bypass_actors`, so a bypass list could survive | `"bypass_actors": []` in the JSON; read back after the PUT |
+| `id=$(…)` assumed one "protect main"; two leftovers break the URL and skip the looser one | Loop over every id; bring one in line, delete the other with the owner's go-ahead |
+| `AGENTS.md` cloud check compared against `main` regardless of the task's branch | Compares the checked-out branch |
+| …and compared a 7-char `%h` with a 40-char `ls-remote` id — a false "stale" every time | `git rev-parse HEAD` on both sides |
+| Verify block ran the dry-run push on ruleset sites too, printing "NOT blocked" as if setup failed | Labelled: read-back is the ruleset's verification; dry run is §5-B only |
+| `grep -rn` without `-I` scans binaries in `public/` | `-I` |
+| Folder loop and `rc≥2` arm both claimed the missing-folder case; comment misleading | Comment now gives each guard its own job; re-tested in four states plus a binary probe |
+
+The round-5 fixes are self-verified only (`make check` green, the `ci.yml` step
+re-tested), not re-reviewed. Stop rule: rounds 4 and 5 each found only defects
+introduced by the previous round's fixes, none in the original design; the remaining
+uncertainty is in behaviour no review can settle (GitHub and Cloudflare) — one run on
+a throwaway repo and Pages project is the next useful step, not another reading.
