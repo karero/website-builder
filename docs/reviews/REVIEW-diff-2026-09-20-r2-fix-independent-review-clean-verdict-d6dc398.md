@@ -44,8 +44,9 @@ checkout anyway, and the host audited it. No Antigravity credit was spent. Verba
 Consent and permissions (audit duty). Codex and ollama-cloud: the owner's instruction this session,
 "run the repo's review gate on the diff per its own conventions"; the artifact is a public repo's
 diff and was checked for secrets, home paths and client names first. WORKTREE-WRITE and
-BRANCH-COMMIT: atom A — this session created the worktree and the branch. POST AUTHORITY and
-GATED-THIS-DIFF: deferred to the PR, which the owner has not yet approved opening.
+BRANCH-COMMIT: atom A — the review session created the worktree and the branch. PR #110 was later
+opened by a different session, and no review comment has been posted to it: POST AUTHORITY was never
+established for it, and GATED-THIS-DIFF was not stamped.
 
 ## Round 1 (on `73c1005`)
 
@@ -97,9 +98,10 @@ review from a refusal by its text, already written down as B-REFUSAL-TEXT.
 new, driving the real script with stub CLIs — the 2026-09-20 sentence and three variants through the
 Codex seat, the sentence through the ollama seat, and three replies that must still be rejected.
 Against the script as it was, 13 of the new unit cases and 10 of the new end-to-end checks fail. The
-rest are pins that pass on both sides and are labelled so. `make check` passes. GNU grep has not run
-this: macOS BSD grep here, BusyBox grep in the fresh-eyes seat's container; the repo's CI job on
-Ubuntu is the first GNU run and has not happened, because nothing is pushed.
+rest are pins that pass on both sides and are labelled so. `make check` passes. The review ran on
+macOS BSD grep and, in the fresh-eyes seat's container, BusyBox grep. Both suites then ran on an
+Ubuntu runner (GNU grep) in CI, for the push and again for the pull request, on head `7aea916`, and
+passed.
 
 ## One difference from the sibling scripts, on purpose
 
