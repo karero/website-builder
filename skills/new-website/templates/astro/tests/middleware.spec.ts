@@ -99,6 +99,7 @@ for (const bad of [
   'https://pages.dev',
   'https://.',
   'https://...',
+  'https://example..com',
   'http://example.com',
   'example.com',
 ]) {

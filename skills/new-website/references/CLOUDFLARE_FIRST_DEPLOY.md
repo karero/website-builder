@@ -209,14 +209,15 @@ weeks.
 
 The redirect is **off until you switch it on**, because before launch the alias may be the
 only address that works. Switch it on only when the live domain really serves this site —
-custom domain **Active**, DNS flipped, and `https://<live-domain>/build.txt?cb=1` showing the
-current build:
+custom domain **Active**, DNS flipped, and `https://<live-domain>/build.txt?cb=<something new>`
+showing the current build:
 
 1. Cloudflare dashboard → **Workers & Pages** → the project → **Settings → Variables and
    Secrets** → **Production** → add a plain-text variable `CANONICAL_URL` =
    `https://example.com` (the live origin, same as `SITE.url`; no path, no trailing slash).
    Production only: previews must keep working, and the middleware never redirects a
-   preview host anyway. Open `<that value>/build.txt?cb=1` (e.g. `https://example.com/build.txt?cb=1`) before saving and confirm it
+   preview host anyway. Open `<that value>/build.txt?cb=<something new>` (e.g.
+   `https://example.com/build.txt?cb=2609261430`) before saving and confirm it
    shows the current build: browsers remember a 301, so a typo'd domain keeps sending
    visitors to the wrong place even after you correct the variable.
 2. **Redeploy with a new commit.** A variable only reaches deployments made after it was
@@ -233,10 +234,9 @@ current build:
    `x-robots-tag: noindex, nofollow` — two-stage: `main.<project>.pages.dev`; single-stage:
    any `<hash>.<project>.pages.dev` from `npx wrangler pages deployment list`. Still `200`
    on the alias? The variable isn't under **Production** (missing, misnamed, or added to
-   Preview), the deployment predates it (step 2), the value was rejected (not `https://`,
-   or a `pages.dev` host — run `npx wrangler pages deployment tail --project-name
-   <project>` while you curl the alias to see the error), or the site's
-   `functions/_middleware.ts` predates the redirect (below).
+   Preview), the deployment predates it (step 2), the value was rejected (it must start
+   with `https://` and name the live domain, not a `pages.dev` host — check it by eye),
+   or the site's `functions/_middleware.ts` predates the redirect (below).
 
 A value the middleware can't use (not `https://`, or itself a `pages.dev` host) is ignored
 and logged, so the alias stays noindexed rather than breaking.

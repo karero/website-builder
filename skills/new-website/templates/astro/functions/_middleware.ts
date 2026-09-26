@@ -49,7 +49,8 @@ function liveOrigin(value: string | undefined): string | null {
     // not a URL at all — reported below with the other unusable values
   }
   const host = url ? bareHost(url) : '';
-  if (!url || url.protocol !== 'https:' || !host || isPagesDev(host)) {
+  const emptyLabel = host.split('.').some((label) => !label); // '', '.x', 'x..y'
+  if (!url || url.protocol !== 'https:' || emptyLabel || isPagesDev(host)) {
     console.error(`CANONICAL_URL is not an https live-domain URL, not redirecting: ${value}`);
     return null;
   }
