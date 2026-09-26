@@ -169,7 +169,9 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 - **`src/content/`** (if blog/events/team): Content Collections + Zod schema.
 - **`public/_headers`**: CSP, HSTS, `X-Content-Type-Options`, cache (`/_astro/* immutable`, `/images/* 30d`).
 - **`public/_redirects`**: legacy → clean-URL 301s.
-- **`functions/_middleware.ts`**: `noindex` the `*.pages.dev` preview deploys.
+- **`functions/_middleware.ts`**: `noindex` the `*.pages.dev` preview deploys; after go-live,
+  301 the project alias `<project>.pages.dev` to the live domain (Production variable
+  `CANONICAL_URL`, see `CLOUDFLARE_FIRST_DEPLOY.md`).
 - **2-branch deploy:** `main` → Preview (noindex), `production` → live.
 - **Analytics (optional):** Plausible — cookieless, GDPR-clean — needs a paid license (from
   €9/mo, https://plausible.io/#pricing). For many small sites, **Google Search Console** alone

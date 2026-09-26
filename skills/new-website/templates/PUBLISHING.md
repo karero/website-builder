@@ -84,7 +84,9 @@ straight online. Simple, but there's no safety net, so check locally first (`npm
 > **You need a custom domain for Google to see the site.** A bare Cloudflare
 > `*.pages.dev` URL is **noindexed by design** (so stray preview URLs never get indexed).
 > Until you attach your real domain in Cloudflare, the live site works but search engines
-> ignore it.
+> ignore it. Once your real domain shows the new site, your assistant switches the
+> `pages.dev` address to forward visitors there, so a link to it in an AI answer still
+> brings people to your real domain.
 
 **Every time you change the site:**
 
@@ -174,7 +176,8 @@ going live now**. Deliver these announcements in the owner's language, like ever
 you say to them.
 
 **Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
-`main.<project>.pages.dev` (or the project alias `<project>.pages.dev`) — over the random
+`main.<project>.pages.dev` (or, before go-live, the project alias `<project>.pages.dev` —
+after go-live it redirects to the live domain) — over the random
 per-deploy hash URL `<hash>.<project>.pages.dev`. The hash URL is ugly but **immutable**, so
 keep it as a **backup**: when an alias looks **stale** (cache/propagation lag, or it's still
 serving an older build), the hash URL pins the exact fresh deployment and confirms the new
@@ -198,8 +201,9 @@ URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatic
   deployment URL (`<hash>.<project>.pages.dev`) — pre-Active the live domain still serves
   the *previous* deployment, so a brand-new path 404s there no matter how you request it.
   Check Active status without touching the live domain: `wrangler pages deployment list`,
-  the `<project>.pages.dev` alias (Cloudflare's own domain, outside the zone cache), or
-  ask the owner — NEVER poll the live custom domain to see whether the build is done.
+  the `<project>.pages.dev` alias (Cloudflare's own domain, outside the zone cache — but
+  only before go-live; once `CANONICAL_URL` is set it redirects to the live domain, so
+  don't follow it), or ask the owner — NEVER poll the live custom domain to see whether the build is done.
   (`npm run ship`'s built-in check is the one exception: it polls `/build.txt` — a path
   that exists in every build — with a cache-bust.) Once Active, check the live domain with a
   `?cb=<anything>` cache-bust first (under default cache settings that is a distinct cache
