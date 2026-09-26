@@ -7,8 +7,8 @@ description: >
   ollama-cloud model) runs automatically; Antigravity/Gemini only on explicit
   opt-in, its credits are scarce. Consolidates a ranked BUG/RISK/NIT list and
   BLOCKS until every BUG is fixed, refuted, or owner-deferred (only one that
-  predates the change, or a widening of one), and every RISK/NIT is fixed,
-  refuted, or owner-waived; first use runs a guided onboarding wizard. Use
+  predates the change), and every RISK/NIT is fixed, refuted, or owner-waived;
+  first use runs a guided onboarding wizard. Use
   BEFORE building from any non-trivial plan, BEFORE merging any non-trivial
   PR, and whenever asked for a "codex review", "gemini review", "antigravity
   review", "agy review", "adversarial review", "cross-model review",
@@ -274,8 +274,7 @@ teach the plain-language trigger phrases.
    triaged like any other finding, never dismissed because *something* was already written nearby.
 5. **Enforce the verdict** (this is the skill's job — never the script's exit
    code): every BUG confirmed real by verification must be fixed. The one exception is a BUG
-   the change did not introduce, or a widening of one; the paragraphs after this one say when the
-   owner may defer it.
+   the change did not introduce; the paragraphs after this one say when the owner may defer it.
    A BUG conclusively shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
    may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
    if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
@@ -287,34 +286,33 @@ teach the plain-language trigger phrases.
    structure, logic, or wording, where there is no runtime to check against. Don't demand an
    empirical test a claim was never about in the first place.
 
-   **The one exception: a BUG the change did not introduce, or a widening of one.** DIFF gate only; a plan has no base
+   **The one exception: a BUG the change did not introduce.** DIFF gate only; a plan has no base
    to compare against, so a BUG in a plan is fixed before anyone builds from it. The owner may
    defer the BUG out of the change when all three hold:
-   - it reproduces at the merge-base with the target branch, so the change did not create it;
+   - every input the row covers goes wrong at the merge-base with the target branch, through an
+     entry point production already uses there — so the change did not create it;
    - a row describes it in the repo's open-findings tracker — a file in the repo with a BUG
      section, whose row gives the id, the location, the finding and the owner's dated sign-off;
-   - a test that the repo's CI runs asserts today's wrong result, is labelled KNOWN WRONG and
-     names the row, so whoever fixes the BUG changes that test on purpose. A BUG no test can pin,
-     such as wrong wording, does not qualify: fix it.
+   - tests that the repo's CI runs assert today's wrong result for each of those inputs, are
+     labelled KNOWN WRONG and name the row, so whoever fixes the BUG changes them on purpose. A
+     BUG no test can pin, such as wrong wording, does not qualify: fix it.
 
-   **A widening.** A change widens a BUG when, as a side effect of what the change is for, it lets
-   more inputs reach the wrong result *through the very defect the row names* — not merely the
-   same kind of wrong result. Condition 1 applies to the BUG itself: some input reproduces it at
-   the merge-base, while the new inputs, by definition, do not. The widening needs its own dated
-   sign-off, written as its own dated line in the row and in the trail, and its own KNOWN WRONG
-   cases for the new inputs. A wrong result the change reaches by any other route — new logic
-   whose only effect it is, a new caller, or a defect the row does not name — is a BUG the change
-   introduced and gets no deferral.
+   **A widening is a BUG the change introduced.** If the change lets more inputs reach an old
+   defect, or adds a caller that reaches it, the new wrong results did not exist at the
+   merge-base, so condition 1 fails for them: fix them, or hold the change. The row may be new,
+   written by the change itself; what counts is that its inputs go wrong at the merge-base.
 
    **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
    not keep a round from being clean (6(a2)), does not count toward the three-round cap (6(b)),
    and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
-   tracker it stays open, in the BUG table, until someone fixes it. The trail records it as
-   DEFERRED, never as fixed or refuted, with the merge-base reproduction — the command and its
-   output — so condition 1 is at least `locally_verified`. A deferral made after the last round
-   is marked "deferral not externally re-verified", as (c) does for fixes. (Codified 2026-09-26: the owner had deferred BUGs, and
-   widenings of them, under a rule that said "no exceptions", so the rule and the practice had
-   drifted apart.)
+   tracker it stays open, in the BUG table, until someone fixes it. The owner's sign-off carries
+   over to later gates, but each gate's trail records DEFERRED, never fixed or refuted, together
+   with its own merge-base reproduction — the command and its output — so condition 1 is at least
+   `locally_verified`. A deferral made after the last round is marked "deferral not externally
+   re-verified", as (c) does for fixes. (Codified 2026-09-26: the owner had deferred BUGs, and
+   once a widening of one, under a rule that said "no exceptions", so the rule and the practice
+   had drifted apart. Widenings were left out after four review rounds failed to define one that
+   two readers would apply the same way.)
 
    **Verify checkable claims — empirically where the claim is about runtime/checkable behavior, by
    direct textual/logical demonstration where it's about structure, logic, or wording — before
@@ -341,7 +339,9 @@ teach the plain-language trigger phrases.
 6. **Iterate — fix, then re-review.** Send the updated artifact back through
    the reviewers as a *verification round*: give them the prior round's BUG
    list — and, for each BUG DEFERRED under point 5, its tracker row, its merge-base reproduction
-   and its test's name, since point 2's exclusion usually keeps the tracker out of what they see — ask them to confirm each fix landed AND that the fixes introduced
+   and the names of the KNOWN WRONG tests that pin it, since point 2's exclusion usually keeps the
+   tracker out of what they see — ask them to confirm each fix landed, that each deferral meets
+   point 5's three conditions, AND that the fixes introduced
    nothing new — and tell them the author expects clean **and that they must
    not oblige out of politeness** (expectation of cleanliness is exactly the
    bias that turns round 2 into a rubber stamp). Repeat until essentially
@@ -386,7 +386,7 @@ teach the plain-language trigger phrases.
    `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
    to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
    a later round. A checkable claim with neither status stays OPEN and blocking, unless it is a
-   BUG DEFERRED under point 5's one exception. Record both per
+   BUG DEFERRED under point 5, whose merge-base reproduction is itself `locally_verified`. Record both per
    finding; a trail that says only "fixed" does not say which.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
    while quality demonstrably rises each round. After every round, check three signals:

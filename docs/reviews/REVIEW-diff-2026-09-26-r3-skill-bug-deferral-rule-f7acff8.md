@@ -3,16 +3,17 @@
 Branch `docs/skill-bug-deferral-rule`, head `f7acff8`, base `origin/main` `5e310f6`.
 
 **The change.** SKILL.md said every confirmed BUG must be fixed, "no exceptions", yet the owner had
-deferred BUGs, and widenings of them, three times. On 2026-09-26 the owner decided to change the
-rule rather than keep ignoring it. Point 5 now lets the owner defer a BUG the change did not
-introduce, or a widening of one, when it reproduces at the merge-base, has a tracker row with a
-dated sign-off, and has a KNOWN WRONG test in CI. DEFERRED becomes its own status: closed for the
-gate, open in the tracker. The tracker is brought into line: R-VERDICT-TEXT's BUG-rated half moves
-to the BUG table as B-VERDICT-TEXT, and B-TAGCLASS is marked as not yet meeting the rule.
+deferred BUGs, and once a widening of one, three times. On 2026-09-26 the owner decided to change
+the rule rather than keep ignoring it. Point 5 now lets the owner defer a BUG the change did not
+introduce, when every input its row covers goes wrong at the merge-base, the row carries a dated
+sign-off, and KNOWN WRONG tests in CI pin those inputs. A widening is a BUG the change introduced.
+DEFERRED becomes its own status: closed for the gate, open in the tracker. The tracker is brought
+into line: R-VERDICT-TEXT's BUG-rated half moves to the BUG table as B-VERDICT-TEXT, and B-TAGCLASS
+is marked as not yet meeting the rule.
 
-**Verdict: not clean yet.** Round 3's four RISKs are fixed in `f7acff8` (one refuted), and those
-fixes are `locally_verified` only. Under point 6's per-id cap they may get one more verification
-round, because round 3 first raised them. Whether to run it is the owner's call.
+**Owner decision, 2026-09-26: widenings left out (option A).** Rounds 1–4 each found a new hole in
+the definition of a widening. After round 4 the choice went to the owner: drop widenings, or try a
+fifth definition. The owner chose to drop them.
 
 ## Rounds
 
@@ -84,12 +85,49 @@ lines against a 500-line soft budget (497 before), and the description is 1,011 
 characters. Moving point 5's exception into `references/` would clear it, but would put the rule
 out of sight of the step that enforces it. The owner's call.
 
+## Round 4 (on `2e67451`, code diff identical to `f7acff8`) — verification
+
+Four seats: Codex, ollama-cloud, fresh-eyes, and Antigravity. Antigravity failed through the gate
+again (headless mode denied a shell-command tool), then ran once by hand with the gate's own
+text-only prompt and the gate's flags plus read-only `--mode plan`, in an empty temporary
+directory; its model is the CLI's default. Consent: the owner's "ok round 4, include agy".
+
+| id | Sev | Source | Finding | Disposition |
+|---|---|---|---|---|
+| D1 | BUG | Codex, fresh-eyes, Antigravity | The rule now requires each deferral's merge-base reproduction (command and output) in the trail, and none was recorded; closeout item 3 did not list it | Fixed: recorded below; closeout item 3 lists it |
+| D2 | RISK | fresh-eyes | "A new caller" is excluded, yet it reaches the wrong result through the very defect the row names; two readers would split | Fixed by the owner's decision: widenings are gone. Condition 1 now asks that every input go wrong at the merge-base through an entry point production already uses there, so a new caller's results fail it |
+| D3 | RISK | fresh-eyes | The change can write the row, so "the defect the row names" is as broad as its author makes it | Fixed by the same decision: what counts now is the row's inputs going wrong at the merge-base, not how the row describes the defect |
+| D4 | RISK | fresh-eyes | #113 merged after the base, so the tracker conflicted in two places | Fixed: `origin/main` merged in (`cb00025`), R-PROJCTX kept, both "Last updated" notes combined |
+| D5 | RISK | Antigravity, fresh-eyes | The two-status paragraph read as if a deferred BUG needs no verification at all | Fixed: its merge-base reproduction must be `locally_verified` |
+| D6 | RISK | Antigravity, ollama | A verification round was told to "confirm each fix landed", not to check the deferrals | Fixed: it also confirms each deferral meets point 5's three conditions |
+| D7 | RISK | ollama | "Its test's name" and "a test" were singular, where a BUG has many KNOWN WRONG cases | Fixed: plural throughout |
+| D8 | RISK | Antigravity | Closeout's trail list omitted the reproduction record | Fixed with D1 |
+| D9–D13 | NIT | fresh-eyes 5 | "Its own dated line in the row"; the round-3 trail cited `1bb12b7`, not #110's merge-base `b586b4b`; whether a sign-off carries over to later gates; the gate-status body read as contradicting its heading | Fixed, or gone with widenings. `b586b4b` and `1bb12b7` hold the same function byte for byte, so the round-3 result stands. A sign-off now carries over; each gate records its own reproduction |
+| D14 | NIT | ollama | "Point 2's exclusion" names the wrong point | **Refuted:** Procedure point 2 is where `docs/reviews/` is left out of the artifact |
+| D15 | NIT | Antigravity | A deferred BUG's re-raise duplicates the "still OPEN" bullet, so point 7 double-counts | **Refuted:** that bullet covers a claim held open on a missing prerequisite; a deferral is a different disposition, and the owner accepted it |
+
+## Merge-base reproduction for the two deferred BUGs (D1)
+
+Merge-base `4cc0f10` (`origin/main` after #113). Run from the repo root on this branch; it runs this
+branch's pins against `main`'s copy of the function that the Codex, ollama and Antigravity tiers
+call (`independent_review.sh` lines 472, 512, 535):
+
+```
+d=$(mktemp -d); git show "$(git merge-base origin/main HEAD):skills/independent-review/scripts/independent_review.sh" > "$d/independent_review.sh"
+cp skills/independent-review/scripts/test_looks_like_review.sh "$d/"; bash "$d/test_looks_like_review.sh" | grep 'KNOWN WRONG'
+```
+
+Output: 19 lines, all `ok` — every B-REFUSAL-TEXT case (13) and every B-VERDICT-TEXT case (6) goes
+wrong at the merge-base exactly as pinned. The 2026-09-20 widening's inputs are among them: that
+change has merged, so they are pre-existing for this one.
+
 ## Convergence
 
-BUG/RISK per round: 10, 8, 4, with BUGs 5, 4, 0. Round 3's four RISKs: two land on round 2's own
-fixes (C1 on the widening test, C3 on the labels), one is new ground (C2), one is refuted (C4).
-The widening definition changed every round and drew a finding every round. It is the one part
-that has not yet been re-read by a reviewer after its last change.
+BUG/RISK per round: 10, 8, 4, 8, with BUGs 5, 4, 0, 1. Round 3's four RISKs: two landed on round
+2's own fixes, one was new ground, one was refuted. Round 4 rose again, and two of its RISKs were
+the widening definition once more: every round found a new gap in it. That is point 7's signal to
+stop patching, so the owner took the decision, and the definition is gone rather than rewritten a
+fifth time.
 
 ## Tests
 

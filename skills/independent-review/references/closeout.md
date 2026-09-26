@@ -221,8 +221,9 @@ the seats were never given.
 permission table's WORKTREE-WRITE and BRANCH-COMMIT rows both permit it; see the table for the
 fallback when either doesn't. Names, per gated action taken, the property and
 the atom relied on —
-dispositions, refuted (rejected-with-reason) findings, pending waivers, deferred BUGs and
-widenings with the owner's dated sign-off for each, reviewer versions. This is the record that survives PR-comment archaeology. Trails
+dispositions, refuted (rejected-with-reason) findings, pending waivers, deferred BUGs with the
+owner's dated sign-off and this gate's merge-base reproduction (command and output) for each,
+reviewer versions. This is the record that survives PR-comment archaeology. Trails
 (and other internal working notes, e.g. plans) go under `docs/reviews/`,
 never at the repo root — they must not clutter the project's GitHub
 frontpage.

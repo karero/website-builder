@@ -19,16 +19,20 @@ ollama-cloud `glm-5.2` and `kimi-k2.7-code:cloud`, Kimi `kimi-k3:cloud`, host fr
 
 ## Gate status: three open BUGs — B-REFUSAL-TEXT and B-VERDICT-TEXT deferred under SKILL.md point 5; B-TAGCLASS not deferrable yet, so it blocks any gate that raises it
 
-All BUGs raised through the Kimi round are closed. **No reviewer has seen the applied result.**
+Every BUG raised up to the Kimi round was closed; the three above came later. **For those Kimi-round
+fixes, no reviewer has seen the applied result.**
 Kimi reviewed the *draft* and returned "ship with the listed fixes"; those fixes were then applied,
 so the committed text is one edit-generation ahead of anything any reviewer has read. Per the
 skill's own vocabulary: `locally_verified`, not `externally_reverified`. One more round would
 close that, and is the single highest-value thing left here.
 
 **Deferred BUGs and the rule.** Since 2026-09-26, SKILL.md point 5 lets the owner defer a BUG
-the change did not introduce, or a widening of one, when it reproduces at the merge-base, has a
-row here with a dated sign-off, and has a KNOWN WRONG test in CI. B-REFUSAL-TEXT and
-B-VERDICT-TEXT meet all three. B-TAGCLASS does not yet: it lacks both the sign-off and the test.
+the change did not introduce: every input its row covers goes wrong at the merge-base, the row
+here carries a dated sign-off, and KNOWN WRONG tests in CI pin those inputs. A widening does not
+qualify. B-REFUSAL-TEXT and B-VERDICT-TEXT meet all three. Their 2026-09-20 widening was accepted
+before this rule existed; since that change merged, its inputs go wrong on `main` too, so for any
+later change they are pre-existing. B-TAGCLASS does not qualify yet: it has neither the sign-off
+nor the test.
 
 ## BUG — open (pre-existing, each left out of the PR that found it; whether each is DEFERRED under SKILL.md point 5 is in its row)
 
