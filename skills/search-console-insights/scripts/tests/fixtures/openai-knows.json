@@ -1,0 +1,107 @@
+{
+ "id": "resp_0731c9fe07373542016ab7cd2c6c6087d1bb0b4d9afa2c177f",
+ "object": "response",
+ "created_at": 1790430508,
+ "status": "completed",
+ "access_programs": null,
+ "background": false,
+ "billing": {
+  "payer": "developer"
+ },
+ "completed_at": 1790430518,
+ "error": null,
+ "frequency_penalty": 0.0,
+ "incomplete_details": null,
+ "instructions": null,
+ "max_output_tokens": null,
+ "max_tool_calls": null,
+ "model": "gpt-6-luna",
+ "moderation": null,
+ "output": [
+  {
+   "id": "rs_0731c9fe07373542016ab7cd2d3f2087d19cb9671fed3137d5",
+   "type": "reasoning",
+   "content": [],
+   "summary": []
+  },
+  {
+   "id": "rs_0731c9fe07373542016ab7cd3255e487d18d81adab76dbca37",
+   "type": "reasoning",
+   "content": [],
+   "summary": []
+  },
+  {
+   "id": "msg_0731c9fe07373542016ab7cd35bae087d18b8c84b9144aa031",
+   "type": "message",
+   "status": "completed",
+   "content": [
+    {
+     "type": "output_text",
+     "annotations": [],
+     "logprobs": [],
+     "text": "Good places to look for sourdough bread in Munich include:\n\n- **Hofpfisterei** — A Munich institution with many branches. Its rye and mixed-rye breads are made with natural sourdough.\n- **Julius Brantner Brothandwerk** — An artisan bakery known for long-fermented sourdough loaves; check its current shop locations before visiting.\n- **Soluna Brot und Öl** — A small artisan bakery offering naturally leavened breads.\n- **Bäckerei Neulinger** — An organic bakery with several Munich locations and sourdough options.\n\nThe selection can vary by day, so it’s worth checking with the shop if you’re after a particular loaf."
+    }
+   ],
+   "phase": "final_answer",
+   "role": "assistant"
+  }
+ ],
+ "parallel_tool_calls": true,
+ "presence_penalty": 0.0,
+ "previous_response_id": null,
+ "prompt_cache_key": null,
+ "prompt_cache_retention": "24h",
+ "reasoning": {
+  "context": "all_turns",
+  "effort": "medium",
+  "mode": "standard",
+  "summary": null
+ },
+ "safety_identifier": null,
+ "service_tier": "default",
+ "store": false,
+ "temperature": 1.0,
+ "text": {
+  "format": {
+   "type": "text"
+  },
+  "verbosity": "medium"
+ },
+ "tool_choice": "auto",
+ "tool_usage": {
+  "image_gen": {
+   "input_tokens": 0,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 0
+   },
+   "output_tokens": 0,
+   "output_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 0
+   },
+   "total_tokens": 0
+  },
+  "web_search": {
+   "num_requests": 0
+  }
+ },
+ "tools": [],
+ "top_logprobs": 0,
+ "top_p": 0.98,
+ "truncation": "disabled",
+ "usage": {
+  "input_tokens": 17,
+  "input_tokens_details": {
+   "cache_write_tokens": 0,
+   "cached_tokens": 0
+  },
+  "output_tokens": 1083,
+  "output_tokens_details": {
+   "reasoning_tokens": 930
+  },
+  "total_tokens": 1100
+ },
+ "user": null,
+ "metadata": {}
+}

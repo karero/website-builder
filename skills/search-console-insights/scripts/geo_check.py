@@ -116,15 +116,16 @@ def setting(name: str) -> str:
     if not env.exists():
         return ""
     for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
-        m = re.match(r"\s*(?:export\s+)?([A-Z_]+)\s*=\s*(.*)$", line)
+        m = re.match(r"\s*(?:export\s+)?([A-Z_]+)\s*=(.*)$", line)
         if not m or m.group(1) != name:
+            continue
+        if re.match(r"\s+#", m.group(2)):
+            val = ""                                    # "KEY= # later" is empty, as in bash
             continue
         raw = m.group(2).strip()
         if raw and raw[0] in "\"'":
             q = raw[0]                                  # quoted: up to the closing quote (if any)
             val = raw[1:raw.index(q, 1)] if q in raw[1:] else raw[1:].strip()
-        elif raw.startswith("#"):
-            val = ""                                    # "KEY= # add later" is empty, as in bash
         else:
             val = re.split(r"\s+#", raw, maxsplit=1)[0].strip()  # unquoted: an inline "# note" ends it, as in bash
     return val
@@ -212,60 +213,42 @@ def host_matches(host: str, domains) -> bool:
 
 # ─── homepage fingerprint (a warning, never a failure) ────────────────────────
 
-_VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
-         "track", "wbr"}
-
-
-def _is_hidden(tag, a) -> bool:
-    style = (a.get("style") or "").replace(" ", "").lower()
-    return (tag in ("script", "style", "noscript", "template") or "hidden" in a
-            or (a.get("aria-hidden") or "").lower() == "true"
-            or "display:none" in style or "visibility:hidden" in style)
-
-
 class _Extract(html.parser.HTMLParser):
-    """Title, meta description, first H1 — and the body text a visitor actually sees: not
-    <head>, scripts or styles, nor anything hidden (hidden, aria-hidden, display:none)."""
+    """Title, meta description, first H1, and the page's text (script/style contents excluded).
+    Kept deliberately simple: a stricter "only what a visitor sees" parser (hidden elements,
+    <head>) misread real homepages in review round 3 — omitted </head>, aria-hidden split
+    headings. A person previews the page with --check-drift before --confirm instead."""
+
+    _SKIP = ("script", "style", "noscript", "template")
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.title, self.desc, self.h1 = "", "", ""
-        self.visible = []
+        self.text = []
         self._in = None
-        self._in_head = False
-        self._hidden = []      # [tag, nesting] of the hidden subtree we're inside, outermost first
+        self._skip = 0
 
     def handle_starttag(self, tag, attrs):
+        if tag in self._SKIP:
+            self._skip += 1
         a = dict(attrs)
-        if tag == "head":
-            self._in_head = True
-        elif tag == "body":
-            self._in_head = False
-        if tag not in _VOID:
-            if self._hidden and self._hidden[-1][0] == tag:
-                self._hidden[-1][1] += 1
-            elif _is_hidden(tag, a):
-                self._hidden.append([tag, 1])
         if tag == "title" and not self.title:
             self._in = "title"
-        elif tag == "h1" and not self.h1 and not self._hidden:
+        elif tag == "h1" and not self.h1:
             self._in = "h1"
         elif tag == "meta" and (a.get("name") or "").lower() == "description" and not self.desc:
             self.desc = a.get("content") or ""
 
     def handle_endtag(self, tag):
-        if tag == "head":
-            self._in_head = False
-        if self._hidden and self._hidden[-1][0] == tag:
-            self._hidden[-1][1] -= 1
-            if not self._hidden[-1][1]:
-                self._hidden.pop()
+        if tag in self._SKIP and self._skip:
+            self._skip -= 1
         if tag == self._in:
             self._in = None
 
     def handle_data(self, data):
-        if not self._hidden and not self._in_head and self._in != "title":
-            self.visible.append(data)
+        if self._skip:
+            return
+        self.text.append(data)
         if self._in == "title":
             self.title += data
         elif self._in == "h1":
@@ -278,10 +261,11 @@ def _norm_text(s: str) -> str:
 
 def read_homepage(domain: str, cfg: dict):
     """(text, None) with the normalized title/description/H1, or (None, reason) when the
-    page can't be read, or its visible text names neither the business nor its domain.
+    page can't be read, or its text names neither the business nor its domain.
     Deliberately no guessing at bot walls from their wording (tried over five review rounds:
     it rejected real pages and missed localized walls). A strange page instead shows up as
-    "changed", and --confirm prints what it read so a person decides before it is saved."""
+    "changed"; the documented flow previews with --check-drift so a person reads the text
+    before running --confirm (which saves what it fetches)."""
     url = override("GEO_HOMEPAGE_URL", f"https://{normalize_site(domain)}/")
     try:
         r = requests.get(url, timeout=30, headers={"User-Agent": UA,
@@ -293,9 +277,9 @@ def read_homepage(domain: str, cfg: dict):
     p = _Extract()
     p.feed(r.text)
     text = "\n".join(_norm_text(x) for x in (p.title, p.desc, p.h1))
-    visible = _norm_text(" ".join(p.visible))
-    if not (is_named(visible, cfg["names"]) or any(norm_host(d) in visible.lower() for d in cfg["domains"])):
-        return None, "the page names neither the business nor its domain (bot wall or consent page?)"
+    page_text = _norm_text(" ".join(p.text))
+    if not (is_named(page_text, cfg["names"]) or any(norm_host(d) in page_text.lower() for d in cfg["domains"])):
+        return None, "the page's text names neither the business nor its domain (bot wall or consent page?)"
     return text, None
 
 
@@ -389,7 +373,8 @@ def modes_for(engine: str):
 
 def samples_for(engine: str, slot: str) -> int:
     """Chat engines vary answer to answer, so unbranded questions get 3 samples. Google's
-    answers are far steadier, and every SerpApi call spends a paid search: 1 each."""
+    engines get 1: every SerpApi call spends a paid search. A cost choice — one Google
+    answer per question per week is a thinner signal, and the docs say so."""
     return 1 if engine in SERP_ENGINES else SAMPLES[slot]
 
 
@@ -511,7 +496,9 @@ def parse_response(engine, data):
     if engine == "google-ai-mode":
         text = data.get("reconstructed_markdown") or "\n".join(_flatten_blocks(data.get("text_blocks")))
         refs = [r.get("link", "") for r in data.get("references", []) or [] if r.get("link")]
-        return text or NO_AI_MODE, "google-ai-mode", refs, True
+        if data.get("_no_results"):
+            return NO_AI_MODE, "google-ai-mode", [], True
+        return text, "google-ai-mode", refs, True   # an empty 200 is a failed call (format change?)
     if engine == "google-overview":
         ov = data.get("ai_overview") or data   # the follow-up call returns the block at the top
         text = "\n".join(_flatten_blocks(ov.get("text_blocks")))
@@ -625,6 +612,10 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
     # citation (an object where a URL should be) can't crash the run after the call.
     if not isinstance(text, str):
         raise EngineError("unexpected response shape: answer is not text")
+    # A snippet cut mid-emoji arrives as a lone surrogate, which can't be written as UTF-8.
+    text = text.encode("utf-8", "replace").decode("utf-8")
+    sources = [x.encode("utf-8", "replace").decode("utf-8") for x in sources if isinstance(x, str)] \
+        if isinstance(sources, list) else []
     if not text.strip():
         # An answer we couldn't read is a failed call, not "the business wasn't named".
         raise EngineError("empty answer (nothing to read in the response)")
@@ -639,7 +630,7 @@ def _serp_checked(engine, data, all_keys):
         msg = redact(str(data["error"]), all_keys)
         if not _SERP_NO_RESULT.search(msg):
             raise EngineError(f"SerpApi: {msg[:240]}", fatal=bool(_SERP_FATAL.search(msg)))
-        return {}
+        return {"_no_results": True}   # Google itself had nothing; only this maps to "no answer"
     return data
 
 
@@ -706,7 +697,8 @@ def run(domain: str, only=None) -> int:
 
     state, detail = drift(domain, cfg)
     if state == "changed":
-        print("⚠ Your homepage changed since your AI-check questions were confirmed.")
+        print("⚠ Your homepage looks different from when your AI-check questions were confirmed "
+              "(a real change, or a cookie/bot page this time).")
         print(f"  was: {cfg.get('fingerprint_text', '').replace(chr(10), ' | ')}")
         print(f"  now: {detail.replace(chr(10), ' | ')}")
         print("  Ask Claude to review the questions next time (it will ask you first).")
@@ -741,7 +733,7 @@ def run(domain: str, only=None) -> int:
             continue
         if engine in SERP_ENGINES and not cfg.get("google"):
             print(f"  {engine}: off for this site — it spends SerpApi searches; "
-                  f"turn on with: geo_check.py {site} --google on")
+                  f"turn on with: {sys.executable} {os.path.abspath(__file__)} {site} --google on")
             not_set_up.append(engine)
             continue
         key = keys[engine]
@@ -796,8 +788,9 @@ def run(domain: str, only=None) -> int:
                             f"model={model} searched={'yes' if did_search else 'no'}\n"
                             f"# question: {q['text']}\n\n{text}\n\n# sources:\n"
                             + "".join(f"{s}\n" for s in sources), encoding="utf-8")
-                    except OSError as e:
-                        write_errors.add(f"couldn't save answer files in {answers} ({e.strerror or e})")
+                    except (OSError, UnicodeError) as e:
+                        write_errors.add(f"couldn't save answer files in {answers} "
+                                         f"({getattr(e, 'strerror', None) or type(e).__name__})")
                 engine_ok += ok
                 if errors:
                     engine_err = errors[-1]
@@ -1026,13 +1019,11 @@ def build_report(domain: str, run_id=None):
     def count(r):
         if r["slot"] == "branded":
             return "—"
-        if not _ok(r):
-            return "failed"
-        if r.get("status") in NO_ANSWER_SAYS:
-            return "no answer"
         cur = next((q for q in cfg.get("queries", []) if q["slot"] == r["slot"]), None)
         stale = cur is not None and (str(r.get("rev")) != str(cur["rev"]) or r.get("query") != cur["text"])
-        return f"{r['named']}/{_ok(r)}" + (" *" if stale else "")
+        label = ("failed" if not _ok(r) else "no answer" if r.get("status") in NO_ANSWER_SAYS
+                 else f"{r['named']}/{_ok(r)}")
+        return label + (" *" if stale else "")
 
     # Summary grid: one line per engine x mode, a column per scored question.
     lines = []
@@ -1157,6 +1148,7 @@ def main(argv=None) -> int:
     ap.add_argument("--lang")
     ap.add_argument("--country")
     ap.add_argument("--slot", choices=SLOTS)
+    ap.add_argument("--expect", help="with --confirm: the page code --check-drift printed")
     ap.add_argument("--text-file")
     cmd.add_argument("--google", choices=["on", "off"],
                     help="ask Google's AI Mode + AI Overview for this site (spends SerpApi searches)")
@@ -1262,7 +1254,14 @@ def main(argv=None) -> int:
             print(f"State: {state}")
             for q in cfg.get("queries", []):
                 print(f"  {q['slot']:<7} rev {q['rev']}: {q['text']}")
+            print(f"Page code: {fingerprint(detail)}  (to save exactly this page: --confirm --expect {fingerprint(detail)})")
             return 0
+        # Save only the page a person previewed with --check-drift: its code must still match,
+        # so an intermittent bot wall can't slip in between the preview and the save.
+        if args.expect != fingerprint(detail):
+            print(f"✗ Not saved — {'no --expect code given' if not args.expect else 'the page changed since the preview'}. "
+                  f"Run --check-drift, read the text with the owner, then --confirm --expect <its page code>.")
+            return 1
         cfg["fingerprint"] = fingerprint(detail)
         cfg["fingerprint_text"] = detail
         cfg["confirmed_questions"] = _question_set(cfg)   # the set this homepage was checked against

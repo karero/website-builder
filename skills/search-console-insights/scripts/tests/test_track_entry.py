@@ -13,6 +13,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -73,7 +74,10 @@ class TrackEntry(unittest.TestCase):
         self.geo("--init", "--name", "Bäckerei Example", "--lang", "de", "--country", "DE")
         self.geo("--set-question", "--slot", "broad", "--text-file", "-",
                  stdin="Where can I buy sourdough bread in Munich-Schwabing?")
-        self.geo("--confirm")
+        r = subprocess.run([sys.executable, str(SCRIPTS / "geo_check.py"), DOMAIN, "--check-drift"],
+                           env=self.env, capture_output=True, text=True)
+        code = re.search(r"Page code: (\w+)", r.stdout).group(1)
+        self.geo("--confirm", "--expect", code)
         if key:
             self.env["GEO_GEMINI_API_KEY"] = GKEY
 
@@ -108,7 +112,7 @@ class TrackEntry(unittest.TestCase):
         stub.STATE["homepage"] = stub.STATE["homepage"].replace("Sourdough", "Cakes")
         rc, out, _ = self.track()
         self.assertEqual(rc, 0, out)
-        self.assertIn("homepage changed", out)
+        self.assertIn("homepage looks different", out)
 
     def test_s4b_unreadable_homepage_stays_green(self):
         self.set_up_ai_check()

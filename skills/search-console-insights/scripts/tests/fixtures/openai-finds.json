@@ -1,0 +1,228 @@
+{
+ "id": "resp_0fd76497d99b0967016ab7cd38957087d1b851e0f7d61d18d6",
+ "object": "response",
+ "created_at": 1790430520,
+ "status": "completed",
+ "access_programs": null,
+ "background": false,
+ "billing": {
+  "payer": "developer"
+ },
+ "completed_at": 1790430539,
+ "error": null,
+ "frequency_penalty": 0.0,
+ "incomplete_details": null,
+ "instructions": null,
+ "max_output_tokens": null,
+ "max_tool_calls": null,
+ "model": "gpt-6-luna",
+ "moderation": null,
+ "output": [
+  {
+   "id": "rs_0fd76497d99b0967016ab7cd397fdc87d1a7d02abd29b6fe22",
+   "type": "reasoning",
+   "content": [],
+   "summary": []
+  },
+  {
+   "id": "ws_0fd76497d99b0967016ab7cd39bfb087d1a19d9b07379e8763",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "Munich bakery sourdough bread Sauerteig Bäckerei München",
+     "München Bäckerei Sauerteigbrot artisan bakery sourdough",
+     "site:*.de München Sauerteigbrot Bäckerei"
+    ],
+    "query": "Munich bakery sourdough bread Sauerteig Bäckerei München"
+   }
+  },
+  {
+   "id": "rs_0fd76497d99b0967016ab7cd3de5f887d180bb5776f926236a",
+   "type": "reasoning",
+   "content": [],
+   "summary": []
+  },
+  {
+   "id": "ws_0fd76497d99b0967016ab7cd3dfacc87d18d915aeae58b0be2",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "Julius Brantner Brothandwerk address sourdough official Munich",
+     "Brotraum München Sauerteig Adresse official",
+     "Bageri Munich bakery address sourdough",
+     "München bakery sourdough official Hofpfisterei Sauerteigbrot"
+    ],
+    "query": "Julius Brantner Brothandwerk address sourdough official Munich"
+   }
+  },
+  {
+   "id": "rs_0fd76497d99b0967016ab7cd44eb4487d18e03fbb780c68834",
+   "type": "reasoning",
+   "content": [],
+   "summary": []
+  },
+  {
+   "id": "ws_0fd76497d99b0967016ab7cd45bef887d1abae48b86be91aac",
+   "type": "web_search_call",
+   "status": "completed",
+   "action": {
+    "type": "search",
+    "queries": [
+     "Brotatelier München Adresse Sauerteig Backstube location",
+     "Bäckerei Stadler München Filialen Adresse Sauerteig",
+     "Bäckerei Eichinger München Adresse Sauerteig"
+    ],
+    "query": "Brotatelier München Adresse Sauerteig Backstube location"
+   }
+  },
+  {
+   "id": "rs_0fd76497d99b0967016ab7cd4a958487d186763db0c314f259",
+   "type": "reasoning",
+   "content": [],
+   "summary": []
+  },
+  {
+   "id": "msg_0fd76497d99b0967016ab7cd4b863c87d19cd6dc6130b47c56",
+   "type": "message",
+   "status": "completed",
+   "content": [
+    {
+     "type": "output_text",
+     "annotations": [
+      {
+       "type": "url_citation",
+       "end_index": 398,
+       "start_index": 244,
+       "title": "",
+       "url": "https://www.muenchen.tv/amp/mediathek/video/wo-brot-noch-zeit-bekommt-zu-besuch-in-der-sauerteig-backstube-brotatelier/?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 571,
+       "start_index": 506,
+       "title": "",
+       "url": "https://brotraum.bio/brotzeit?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 759,
+       "start_index": 708,
+       "title": "",
+       "url": "https://bageri.de/?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 959,
+       "start_index": 881,
+       "title": "",
+       "url": "https://julius-brantner.de/de/presse?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1144,
+       "start_index": 1077,
+       "title": "",
+       "url": "https://www.hofpfisterei.de/?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1343,
+       "start_index": 1268,
+       "title": "",
+       "url": "https://www.baeckereistadler.de/?utm_source=openai"
+      },
+      {
+       "type": "url_citation",
+       "end_index": 1481,
+       "start_index": 1430,
+       "title": "",
+       "url": "https://zoettl.de/?utm_source=openai"
+      }
+     ],
+     "logprobs": [],
+     "text": "Yes—these Munich bakeries confirm that they sell sourdough bread:\n\n**Sourdough-focused**\n- **Brotatelier** — Tumblingerstraße 45, 80337. It says all its baked goods are leavened exclusively with sourdough; it sells rye, spelt and wheat loaves. ([muenchen.tv](https://www.muenchen.tv/amp/mediathek/video/wo-brot-noch-zeit-bekommt-zu-besuch-in-der-sauerteig-backstube-brotatelier/?utm_source=openai))\n- **Brotraum** — Herzogstraße 6, 80803. Its range includes sourdough rolls and focaccia, alongside breads. ([brotraum.bio](https://brotraum.bio/brotzeit?utm_source=openai))\n- **Bageri** — Adlzreiterstraße 21, 80337. A Scandinavian-style bakery that uses sourdough and Bavarian organic flour; its menu varies. ([bageri.de](https://bageri.de/?utm_source=openai))\n- **Julius Brantner Brothandwerk** — Nordendstraße 23, 80801; also has locations at Kreuzstraße 1 and Pariser Straße 38. ([julius-brantner.de](https://julius-brantner.de/de/presse?utm_source=openai))\n\n**More options**\n- **Hofpfisterei** — Many locations around Munich, with a broad range of natural-sourdough breads. ([hofpfisterei.de](https://www.hofpfisterei.de/?utm_source=openai))\n- **Bäckerei Stadler** — Einstein­straße 86, 81675, and Marktstraße 18, 80802; the bakery says it uses natural sourdoughs. ([baeckereistadler.de](https://www.baeckereistadler.de/?utm_source=openai))\n- **Bäckerei Zöttl** — A Munich bakery with a Bauernlaib made from its own sourdough. ([zoettl.de](https://zoettl.de/?utm_source=openai))\n\nFor an especially sourdough-centric selection, I’d start with **Brotatelier, Brotraum or Brantner**. Check opening hours and availability before heading over—some smaller shops have limited hours or sell out."
+    }
+   ],
+   "phase": "final_answer",
+   "role": "assistant"
+  }
+ ],
+ "parallel_tool_calls": true,
+ "presence_penalty": 0.0,
+ "previous_response_id": null,
+ "prompt_cache_key": null,
+ "prompt_cache_retention": "24h",
+ "reasoning": {
+  "context": "all_turns",
+  "effort": "medium",
+  "mode": "standard",
+  "summary": null
+ },
+ "safety_identifier": null,
+ "service_tier": "default",
+ "store": false,
+ "temperature": 1.0,
+ "text": {
+  "format": {
+   "type": "text"
+  },
+  "verbosity": "medium"
+ },
+ "tool_choice": "required",
+ "tool_usage": {
+  "image_gen": {
+   "input_tokens": 0,
+   "input_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 0
+   },
+   "output_tokens": 0,
+   "output_tokens_details": {
+    "image_tokens": 0,
+    "text_tokens": 0
+   },
+   "total_tokens": 0
+  },
+  "web_search": {
+   "num_requests": 3
+  }
+ },
+ "tools": [
+  {
+   "type": "web_search",
+   "return_token_budget": "default",
+   "search_content_types": [
+    "text"
+   ],
+   "search_context_size": "medium",
+   "user_location": {
+    "type": "approximate",
+    "city": null,
+    "country": "DE",
+    "region": null,
+    "timezone": null
+   }
+  }
+ ],
+ "top_logprobs": 0,
+ "top_p": 0.98,
+ "truncation": "disabled",
+ "usage": {
+  "input_tokens": 27366,
+  "input_tokens_details": {
+   "cache_write_tokens": 4263,
+   "cached_tokens": 0
+  },
+  "output_tokens": 1005,
+  "output_tokens_details": {
+   "reasoning_tokens": 545
+  },
+  "total_tokens": 28371
+ },
+ "user": null,
+ "metadata": {}
+}

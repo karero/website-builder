@@ -46,8 +46,8 @@ asks only the listed engines for one run.
 **Google's own AI answers** come through SerpApi: **AI Mode** (Google's chat-style answer) and
 the **AI Overview** (the box above the normal results). Both are live Google search by nature,
 so they only have "finds you", and each question is asked **once** per run rather than three
-times: Google's answers are much steadier than a chatbot's, and every call spends a paid
-SerpApi search. Google doesn't show an AI Overview for every question; when it shows none, the
+times. That is a cost choice (every call spends a paid SerpApi search), and it makes Google's
+line a thinner signal: judge it over several weeks. Google doesn't show an AI Overview for every question; when it shows none, the
 line says "Google showed no AI Overview". That is useful to know in itself, and it isn't the
 same as "not named". SerpApi collects Google's results automatically, and the risk under
 Google's terms is SerpApi's business model (this skill already relies on it for the Top-10
@@ -158,7 +158,9 @@ free to start with; the others cost a few cents a week if you want them."*
    ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --set-question --slot broad   --text-file broad.txt
    ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --set-question --slot narrow  --text-file narrow.txt
    ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --set-question --slot branded --text-file branded.txt
-   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --confirm
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --check-drift
+   # read the homepage text it prints with the owner, then save exactly that page:
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --confirm --expect <page code>
    ```
    - `--name` comes from the site's `src/config.ts` (`SITE.name`); `--legal-name` from `SITE.legalName`.
    - Add an alias for each other spelling the owner uses ("ExampleCo" for "Example-Co").
@@ -166,7 +168,9 @@ free to start with; the others cost a few cents a week if you want them."*
      replaces the whole list (name, then any `--legal-name` / `--alias` given with it). Either
      marks the next trend line "settings changed".
    - `--domain` defaults to the site's domain.
-   - `--confirm` prints what it read from the homepage. If that isn't the real page (a "checking your browser" wall), it refuses to save.
+   - `--check-drift` prints the homepage text and a **page code**. Read the text with the owner;
+     only if it is the real homepage (not a cookie banner or a "checking your browser" page) run
+     `--confirm --expect <page code>`. It saves only if the page still matches that preview.
 5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
    (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
    reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
@@ -181,15 +185,18 @@ description and main heading, and says whether they changed since the questions 
 
 - **State: same.** Go on.
 - **State: changed.** Read the homepage and POSITIONING.md, then show the owner each saved question next to a proposed replacement. Ask: *"Your homepage changed. Should I keep asking the AI engines these questions, or switch to these?"*
-  - **Switch:** `--set-question` for each changed slot, then `--confirm`.
-  - **Keep:** `--confirm` only.
+  - **Switch:** `--set-question` for each changed slot, then `--confirm --expect <page code>`.
+  - **Keep:** `--confirm --expect <page code>` only.
+  - First check that the "now" text really is the homepage: under this design a cookie or bot
+    page also lands in "changed". If it isn't, don't ask about questions; say the page couldn't
+    be read properly this time.
   - A changed question gets a new revision. Its next trend line is marked "question changed", because the old and new numbers aren't comparable.
 - **Couldn't read the homepage.** Tell the owner, and don't `--confirm`.
 - **State: unconfirmed.** A question was changed (or never checked) since the last `--confirm`.
   Review the questions against the homepage with the owner, then `--confirm`.
-- **Before any `--confirm`, read the text it prints.** If it isn't the business's real homepage
-  (a cookie banner, "checking your browser", a login wall), don't save it: tell the owner and try
-  again later. The code rejects only pages that fail to load or name neither the business nor its
+- **`--confirm` always needs `--expect <page code>` from a `--check-drift` you and the owner
+  just read.** If that text isn't the business's real homepage (a cookie banner, "checking your
+  browser", a login wall), don't confirm: tell the owner and try again later. The code rejects only pages that fail to load or name neither the business nor its
   domain in their visible text; everything else is your judgment.
 
 The unattended weekly job never changes questions. On a changed homepage it runs the old

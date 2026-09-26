@@ -14,8 +14,10 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 import contextlib
 import csv
 import html
+import json
 import io
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -78,8 +80,14 @@ class GeoTestCase(unittest.TestCase):
             rc, out = self.cli("--set-question", "--slot", slot, "--text-file", "-", stdin=text)
             self.assertEqual(rc, 0, out)
         if confirm:
-            rc, out = self.cli("--confirm")
+            rc, out = self.confirm()
             self.assertEqual(rc, 0, out)
+
+    def confirm(self):
+        """The documented flow: preview with --check-drift, then save exactly that page."""
+        rc, out = self.cli("--check-drift")
+        m = re.search(r"Page code: (\w+)", out)
+        return self.cli("--confirm", "--expect", m.group(1) if m else "none")
 
     def history(self):
         p = self.home / ".config/gsc-insights/geo/geo_history.csv"
@@ -475,7 +483,7 @@ class ReviewFindings(GeoTestCase):
         self.setup_site()
         stub.STATE["homepage"] = ("<html><head><title>IT-Security Check für KMU</title></head><body>"
                                   "<h1>Free security check</h1><p>Bäckerei Example IT</p></body></html>")
-        rc, out = self.cli("--confirm")
+        rc, out = self.confirm()
         self.assertEqual(rc, 0, out)
 
     def test_domain_only_in_markup_is_not_enough(self):
@@ -539,20 +547,30 @@ class ReviewRound2(GeoTestCase):
         self.assertEqual({r["engine"] for r in self.history()}, {"openai", "anthropic"})
         self.assertTrue(all(r["ok"] == "3" for r in self.history() if r["engine"] == "openai"))
 
-    def test_consent_page_with_the_name_in_title_or_hidden_is_unreadable(self):
+    def test_confirm_saves_only_the_previewed_page(self):
+        # A person judges the page (no keyword guessing); the save must be the page they saw.
         self.setup_site()
         before = geo_check.load_config(DOMAIN)["fingerprint"]
-        for page in ("<html><head><title>Bäckerei Example</title></head>"
-                     "<body><h1>Your privacy matters</h1><p>Accept all</p></body></html>",
-                     "<html><head><title>Welcome</title></head><body><h1>We value your privacy</h1>"
-                     "<div hidden>Bäckerei Example</div></body></html>",
-                     "<html><head><title>Welcome</title></head><body><h1>Please wait</h1>"
-                     "<div style='display: none'><p>Bäckerei Example</p></div></body></html>"):
-            with self.subTest(page=page[:60]):
-                stub.STATE["homepage"] = page
-                rc, out = self.cli("--confirm")
-                self.assertEqual(rc, 1, out)
-                self.assertEqual(geo_check.load_config(DOMAIN)["fingerprint"], before)
+        stub.STATE["homepage"] = stub.STATE["homepage"].replace("Sourdough", "Cakes")
+        rc, out = self.cli("--check-drift")
+        code = re.search(r"Page code: (\w+)", out).group(1)
+        stub.STATE["homepage"] = ("<html><head><title>Bäckerei Example</title></head>"
+                                  "<body><h1>We value your privacy</h1><p>Accept all</p></body></html>")
+        rc, out = self.cli("--confirm", "--expect", code)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("the page changed since the preview", out)
+        self.assertEqual(geo_check.load_config(DOMAIN)["fingerprint"], before)
+        rc, out = self.cli("--confirm")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("no --expect code given", out)
+
+    def test_page_without_closing_head_is_read(self):
+        # Round 3: a "visible text only" parser read this valid page as empty.
+        self.setup_site()
+        stub.STATE["homepage"] = ("<html><head><title>Sourdough</title><h1>Fresh bread</h1>"
+                                  "<p>Bäckerei Example bakes daily.</p></html>")
+        rc, out = self.confirm()
+        self.assertEqual(rc, 0, out)
 
     def test_real_homepage_still_reads(self):
         # The stricter check must not reject an ordinary page that names the business in its body.
@@ -560,7 +578,7 @@ class ReviewRound2(GeoTestCase):
         stub.STATE["homepage"] = ("<html><head><title>Sourdough | Bäckerei Example</title><script>var x='hidden'</script>"
                                   "</head><body><nav hidden>menu</nav><h1>Fresh bread daily</h1>"
                                   "<p>Bäckerei Example bakes in Schwabing. <img src=a.jpg> Cookies welcome.</p></body></html>")
-        rc, out = self.cli("--confirm")
+        rc, out = self.confirm()
         self.assertEqual(rc, 0, out)
 
     def test_ai_mode_no_results_is_not_a_failure(self):
@@ -611,12 +629,96 @@ class ReviewRound2(GeoTestCase):
         self.assertIn("gemini FAILED", out)
         self.assertTrue(all(r["ok"] == "3" for r in self.history() if r["engine"] == "openai"))
 
+    def test_stale_marker_on_failed_and_no_answer_cells(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        self.cli("--google", "on")
+        stub.engine_reply("gemini", "", status=500)
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"error": "Google hasn't returned any results."})
+        stub.STATE["serp"]["google"] = (200, {})
+        self.cli()
+        self.cli("--set-question", "--slot", "broad", "--text-file", "-", stdin="Best cake in Schwabing?")
+        rc, out = self.cli("--report")
+        page = Path(out.split("Report: ")[1].strip()).read_text()
+        self.assertIn("<td>failed *</td>", page)
+        self.assertIn("<td>no answer *</td>", page)
+
+    def test_cut_emoji_in_an_answer_does_not_crash_the_run(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        stub.engine_reply("gemini", "Bäckerei Example \ud83d")   # a lone surrogate, as in a cut snippet
+        stub.engine_reply("openai", "Bäckerei Example.")
+        rc, out = self.cli()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual({r["engine"] for r in self.history()}, {"gemini", "openai"})
+
+    def test_ai_mode_empty_200_is_a_failure_not_no_answer(self):
+        # Only SerpApi's own "no results" means Google had nothing; an unreadable 200 may be a
+        # format change and must show as FAILED.
+        self.setup_site()
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        self.cli("--google", "on")
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"renamed_blocks": [{"snippet": "x"}]})
+        stub.STATE["serp"]["google"] = (200, {})
+        rc, out = self.cli()
+        self.assertIn("google-ai-mode FAILED: empty answer", out)
+
+    def test_perplexity_incomplete_and_null_error_and_unclosed_quote(self):
+        self.assertRaises(geo_check.EngineError, geo_check.parse_response, "perplexity",
+                          {"status": "incomplete", "output": []})
+        r = mock.Mock(status_code=500, text='{"error": null}', reason="Server Error")
+        r.json.return_value = {"error": None}
+        self.assertEqual(geo_check._error_line(r, []), "HTTP 500: {\"error\": null}")
+        env = self.home / ".config/gsc-insights/.env"
+        env.parent.mkdir(parents=True, exist_ok=True)
+        env.write_text('GEO_OPENAI_API_KEY="placeholder1\nGEO_GEMINI_API_KEY=#abc\n')   # unclosed quote
+        self.assertEqual(geo_check.load_keys()["openai"], "placeholder1")
+        self.assertEqual(geo_check.load_keys()["gemini"], "#abc")      # bash keeps a leading #
+
+    def test_google_switch_cannot_be_combined_with_other_commands(self):
+        self.setup_site()
+        with self.assertRaises(SystemExit):
+            self.cli("--google", "on", "--set-names", "--alias", "X")
+
+    def test_legacy_config_with_unchanged_homepage_reads_same(self):
+        self.setup_site()
+        cfg = geo_check.load_config(DOMAIN)
+        del cfg["confirmed_questions"]
+        geo_check.save_config(DOMAIN, cfg)
+        rc, out = self.cli("--check-drift")
+        self.assertIn("State: same", out)
+
     def test_commented_empty_key_is_empty(self):
         env = self.home / ".config/gsc-insights/.env"
         env.parent.mkdir(parents=True, exist_ok=True)
         env.write_text("GEO_OPENAI_API_KEY= # add key later\nGEO_GEMINI_MODEL=   # none yet\n")
         self.assertEqual(geo_check.load_keys()["openai"], "")
         self.assertEqual(geo_check.model_for("gemini"), geo_check.DEFAULT_MODELS["gemini"])
+
+
+class RealReplay(GeoTestCase):
+    """Rule 9: one REAL captured response through the production entry point (main()), not
+    just through the parser."""
+
+    def test_real_anthropic_answer_through_the_weekly_run(self):
+        fixture = json.loads((Path(__file__).parent / "fixtures" / "anthropic-finds.json").read_text())
+        for args in (["--init", "--name", "Hofpfisterei", "--domain", "hofpfisterei.de",
+                      "--lang", "en", "--country", "DE"],):
+            rc, out = self.cli(*args)
+            self.assertEqual(rc, 0, out)
+        self.cli("--set-question", "--slot", "broad", "--text-file", "-",
+                 stdin="Which bakeries in Munich sell sourdough bread?")
+        stub.STATE["homepage"] = "<html><body><h1>Hofpfisterei</h1></body></html>"
+        self.confirm()
+        os.environ["GEO_ANTHROPIC_API_KEY"] = "test-anthropic-placeholder"
+        stub.engine_reply("anthropic", "", raw=fixture)
+        rc, out = self.cli()
+        self.assertEqual(rc, 0, out)
+        finds = next(r for r in self.history() if r["mode"] == "finds")
+        self.assertEqual((finds["ok"], finds["named"], finds["searched"]), ("3", "3", "3"))
+        self.assertTrue(finds["cited_domains"])
 
 
 class Homepage(GeoTestCase):
@@ -627,7 +729,7 @@ class Homepage(GeoTestCase):
         stub.STATE["homepage"] = stub.STATE["homepage"].replace("Sourdough", "Cakes and coffee")
         rc, out = self.cli()
         self.assertEqual(rc, 0, out)
-        self.assertIn("homepage changed", out)
+        self.assertIn("homepage looks different", out)
         self.assertIn("Cakes and coffee", out)
 
     def test_s4b_unreadable_warns_and_confirm_refuses(self):
@@ -653,7 +755,7 @@ class Homepage(GeoTestCase):
         self.assertIn("State: changed", out)
         self.assertIn(BROAD, out)
         # "keep my question": re-fingerprint only, the rev stays
-        self.cli("--confirm")
+        self.confirm()
         cfg = geo_check.load_config(DOMAIN)
         self.assertEqual(cfg["queries"][0]["rev"], 1)
         rc, out = self.cli("--check-drift")

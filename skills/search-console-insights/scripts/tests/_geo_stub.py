@@ -28,9 +28,9 @@ def reset():
     })
 
 
-def engine_reply(engine, text, model="m-1", sources=(), status=200, body=None, searched=True):
+def engine_reply(engine, text, model="m-1", sources=(), status=200, body=None, searched=True, raw=None):
     STATE["engines"][engine] = {"text": text, "model": model, "sources": list(sources),
-                                "status": status, "body": body, "searched": searched}
+                                "status": status, "body": body, "searched": searched, "raw": raw}
 
 
 def _payload(engine, spec, finds):
@@ -95,6 +95,8 @@ class _H(BaseHTTPRequestHandler):
             return self._send(500, '{"error": "no stub for this engine"}')
         if spec["status"] != 200:
             return self._send(spec["status"], spec["body"] or '{"error": "stubbed failure"}')
+        if spec.get("raw") is not None:           # replay a real captured response verbatim
+            return self._send(200, json.dumps(spec["raw"]))
         finds = bool(body.get("tools"))
         self._send(200, json.dumps(_payload(engine, spec, finds)))
 

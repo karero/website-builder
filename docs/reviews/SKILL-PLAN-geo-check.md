@@ -21,8 +21,8 @@ Revision 4, the plan to build from. It went through three PLAN review rounds: Co
 | Live smoke test (real engines) | done, OpenAI pending | 2026-09-26, three real sites: Gemini, Anthropic, Perplexity answered and parsed (detector spot-checked against saved answers); OpenAI blocked by no account credit, which exposed the retry waste fixed in `47568d3` |
 | Google AI Mode + AI Overview (SerpApi), owner request | done (stub + live) | `335c146`; live on three real sites 2026-09-26 |
 | Readable report page (`--report`), owner request | done (stub + browser check) | `94d34a4` |
-| OpenAI live answer | blocked | the owner's OpenAI account has no credit yet (key and restricted permissions confirmed fine); the only engine without a real-response fixture |
-| DIFF gate | round 2 done, fixes in; round 3 pending | rounds 1–2: Codex + Claude fresh-eyes (ollama-cloud out: weekly limit). BUGs 12 → 4. Trails: `REVIEW-diff-2026-09-26-r1-…`, `-r2-…` |
+| OpenAI live answer | done | owner added credit 2026-09-26; real knows + finds responses captured as fixtures (`tests/fixtures/openai-*.json`), parsed by `test_real_responses.py` |
+| DIFF gate | round 3 done, owner-directed simplification + fixes in; final round 4 pending | BUGs per round 12 → 4 → 4; trails `REVIEW-diff-2026-09-26-r1…r3-…` |
 | PR | not started | — |
 
 "done (stub)" = passing against the local stub server; the commit that carries these tests is
