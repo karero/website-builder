@@ -139,6 +139,9 @@ fires "command substitution inside PROMPT_CORE" "$t/l.sh" "$SKILL"
 awk '/^PROMPT_CORE="/{p=1} p{core = core $0 "\n"; if ($0 ~ /not an attack\."$/) p=0; next} {print} END{printf "%s", core}' "$SCRIPT" > "$t/g.sh"
 grep -q '^PROMPT_TOOLED=' "$t/g.sh" || { echo "FAIL: self-test could not move PROMPT_CORE"; exit 1; }
 fires "PROMPT_CORE moved after the tier prompts" "$t/g.sh" "$SKILL"
+# ...with a commented-out PROMPT_CORE above them all: assign_line must not take its line number
+{ printf '  # PROMPT_CORE="decoy"\n'; cat "$t/g.sh"; } > "$t/p.sh"
+fires "PROMPT_CORE moved after the tier prompts, under a commented-out copy" "$t/p.sh" "$SKILL"
 # PROMPT_CORE deleted outright
 awk '/^PROMPT_CORE="/{p=1} p{if ($0 ~ /not an attack\."$/) p=0; next} {print}' "$SCRIPT" > "$t/h.sh"
 grep -q '^PROMPT_CORE=' "$t/h.sh" && { echo "FAIL: self-test could not delete PROMPT_CORE"; exit 1; }
