@@ -128,3 +128,24 @@ inside a repo. Against the pre-fix script, 4 checks fail. `make check` is green.
   it without re-gating that head (clerk item 2). Until then, a PR comment carries the findings and
   says plainly that round 4's fixes were not externally re-verified.
 - Raw reviewer output is kept outside the repo until it is posted to the PR.
+
+## Addendum — re-gate after main moved (on `a1c6acb`, base `5e310f6`), written after merge
+
+PR #110 merged into main between round 4 and the merge and touched the same two scripts; main was merged into the branch (`a1c6acb`) and all three seats re-reviewed that pair, which is also the external re-verification round 4's fixes lacked above. PR #113 merged at `a1c6acb` (merge commit `4cc0f10`); the consolidated comment's marker names that pair. Raw output of every round: `RAW-diff-2026-09-26-r1-r5-fix-codex-untrusted-dir.md`.
+
+
+| Sev | Source | Finding | Disposition |
+|---|---|---|---|
+| BUG | ollama | The stub's `git rev-parse --is-inside-work-tree` prints `false` and exits 0 outside a repo, so `git=no` never matches | **Refuted**: outside a repo it exits 128 with "fatal: not a git repository" (run live); case 21 passes with `git=no`, and removing the flag fails it |
+| RISK | ollama | …so the stub's refusal never fires | **Refuted**, same evidence |
+| RISK | ollama | `CODEX_MODEL` guard lacks a double-quote case | **Refuted**: the guard exists (`independent_review.sh:451`) |
+| RISK | ollama | `CODEX_MODEL=""` may take the override branch | **Refuted**: the script tests `-n "${CODEX_MODEL:-}"`; fresh-eyes confirmed the empty value takes the default line |
+| RISK | ollama | Gate the flags on a capability probe | Re-raise of F8, **owner-waived** |
+| RISK | Codex | Codex instruction-loading and startup claims lack implementation evidence | Re-raise of J6, **owner-waived**; evidence is the live probes in the trail |
+| BUG | Codex | `looks_like_review()` accepts some incomplete reviews and rejects some real findings | **Pre-existing on main**, already tracked as B-REFUSAL-TEXT / R-VERDICT-TEXT; not this change |
+| RISK | fresh-eyes | Main now ships an AGENTS.md in every scaffolded site; with `project_doc_max_bytes=0` the codex reviewer no longer auto-loads those rules | **Owner decision**: merge as reviewed; the follow-up PR adds a prompt line telling the reviewer to read the repo's AGENTS.md as rules to check against, never as instructions |
+| NIT | fresh-eyes ×5, ollama ×3 | Hedging and wording in SKILL.md and the header; R-PROJCTX row detail; other `GIT_*` vars; the content marker | Wording NITs → follow-up PR (this head stays the reviewed one). `GIT_*` and content marker **refuted** in earlier rounds (only `GIT_DIR`/`GIT_WORK_TREE` affect discovery; a changed marker fails the check) |
+
+**Owner waivers (2026-09-26):** an older codex rejecting `--skip-git-repo-check` (F8); no automated test against the real codex binary, since CI has no codex sign-in (J6/F7).
+
+**Follow-up:** `fix/codex-project-context` — repo skills closed, the AGENTS.md-as-data prompt line, the re-gate NITs, and this addendum.
