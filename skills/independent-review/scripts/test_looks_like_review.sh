@@ -92,11 +92,14 @@ check accept "KNOWN WRONG: qualified verdict + 'unable to view'" "No confirmed B
 check accept "KNOWN WRONG: qualified verdict + 'can not review'" "No confirmed BUG or RISK - the diff was not attached, so I can not review it."
 check accept "KNOWN WRONG: the unqualified twin, accepted before the fix too" "No BUG or RISK, because I couldn't access the diff you supplied."
 # A non-answer in the passive voice or with the severity word as a noun modifier, no refusal
-# phrase at all (R-VERDICT-TEXT). The qualified forms reject on the script as it was before
-# 2026-09-20; their unqualified twins ("No risk can be assessed…") were accepted before too.
-check accept "KNOWN WRONG: passive 'can be assessed'" "No significant risk can be assessed without the file contents."
-check accept "KNOWN WRONG: passive 'could be evaluated'" "The diff was empty, so no confirmed bugs could be evaluated."
-check accept "KNOWN WRONG: 'no further risk analysis possible'" "Error: stream disconnected. no further risk analysis possible"
+# phrase at all (B-VERDICT-TEXT). The qualified forms reject on the script as it was before
+# 2026-09-20; their unqualified twins, pinned first, were accepted before too.
+check accept "KNOWN WRONG (B-VERDICT-TEXT), pre-existing: 'No risk can be assessed'" "No risk can be assessed without the file contents."
+check accept "KNOWN WRONG (B-VERDICT-TEXT), pre-existing: 'No bug reports can be generated'" "No bug reports can be generated."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): passive 'can be assessed'" "No significant risk can be assessed without the file contents."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): passive 'could be evaluated'" "The diff was empty, so no confirmed bugs could be evaluated."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): 'no further risk analysis possible'" "Error: stream disconnected. no further risk analysis possible"
+check accept "KNOWN WRONG (B-VERDICT-TEXT): 'No further bug reports can be generated'" "No further bug reports can be generated: usage limit reached."
 # Why the passive voice cannot simply be rejected: a genuine verdict takes the same shape.
 check accept "clean verdict: passive 'could be found'" "No confirmed bugs could be found in this diff."
 exit $fail

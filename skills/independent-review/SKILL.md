@@ -6,8 +6,9 @@ description: >
   scripts/independent_review.sh — the standard pair (Codex + your signed-in
   ollama-cloud model) runs automatically; Antigravity/Gemini only on explicit
   opt-in, its credits are scarce. Consolidates a ranked BUG/RISK/NIT list and
-  BLOCKS until every BUG is fixed, refuted, or (only if it predates the change)
-  owner-deferred, and every RISK/NIT is fixed, refuted, or owner-waived; first
+  BLOCKS until every BUG is fixed, refuted, or owner-deferred (only one the
+  change did not introduce, or widened), and every RISK/NIT is fixed, refuted,
+  or owner-waived; first
   use runs a guided onboarding wizard. Use
   BEFORE building from any non-trivial plan, BEFORE merging any non-trivial
   PR, and whenever asked for a "codex review", "gemini review", "antigravity
@@ -248,8 +249,9 @@ teach the plain-language trigger phrases.
    and clerk item 3 (`references/closeout.md`) commits it — this is only about what reaches the reviewers.
 3. Run tier 3 (fresh-eyes) with the same strict prompt.
 4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
-   id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted, or
-   waived. A waiver needs a reason and the human owner's sign-off. Refuted applies the same way to
+   id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted,
+   waived, or deferred. A waiver needs a reason and the human owner's sign-off; deferred is for a
+   BUG only, under point 5's one exception. Refuted applies the same way to
    a BUG, RISK, or NIT alike — it needs the disproving reasoning instead of an owner sign-off,
    since a refuted finding was never a real issue.
 
@@ -269,9 +271,9 @@ teach the plain-language trigger phrases.
    new signal — not repetition — regardless of whether the reviewer saw the annotation; it gets
    triaged like any other finding, never dismissed because *something* was already written nearby.
 5. **Enforce the verdict** (this is the skill's job — never the script's exit
-   code): every BUG confirmed real by verification must be fixed — the one exception, a BUG the
-   change did not introduce, follows this paragraph — and one conclusively
-   shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
+   code): every BUG confirmed real by verification must be fixed. The one exception is a BUG
+   the change did not introduce; the paragraph after this one says when the owner may defer it.
+   A BUG conclusively shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
    may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
    if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
    means evidence appropriate to what's actually being claimed: empirical verification (run it,
@@ -282,19 +284,30 @@ teach the plain-language trigger phrases.
    structure, logic, or wording, where there is no runtime to check against. Don't demand an
    empirical test a claim was never about in the first place.
 
-   **The one exception: a BUG the change did not introduce.** The owner may defer it out of the
-   change when all three hold:
-   - it reproduces on the base branch, so the change did not create it;
-   - a row in the repo's open-findings tracker describes it, with the owner's dated sign-off;
-   - a test pins today's wrong behaviour as KNOWN WRONG, so whoever fixes it changes that test on
-     purpose.
+   **The one exception: a BUG the change did not introduce.** DIFF gate only; a plan has no base
+   to compare against, so a BUG in a plan is fixed before anyone builds from it. The owner may
+   defer the BUG out of the change when all three hold:
+   - it reproduces at the merge-base with the target branch, so the change did not create it;
+   - a row describes it in the repo's open-findings tracker — a file in the repo with a BUG
+     section, whose row gives the id, the location, the finding and the owner's dated sign-off;
+   - a test that the repo's CI runs asserts today's wrong result, is labelled KNOWN WRONG and
+     names the row, so whoever fixes the BUG changes that test on purpose. A BUG no test can pin,
+     such as wrong wording, does not qualify: fix it.
 
-   If the change widens the BUG — lets more inputs through the same hole — the widening needs its
-   own sign-off, and the trail and the row both name it. A BUG the change introduces gets no
-   deferral. A deferred BUG stays open: it keeps its row in the tracker's BUG table, and the trail
-   records it as deferred, never as fixed or refuted. (Codified 2026-09-26: the owner had deferred
-   three pre-existing BUGs under a rule that said "no exceptions", so the rule and the practice
-   had drifted apart.)
+   **A widening counts too, under the same three conditions.** A change widens a BUG when it lets
+   more inputs reach the same wrong result, in the same function, for the same root cause — the
+   test is that the row's remedy would fix the old inputs and the new ones alike. Each widening
+   needs its own dated sign-off, its own KNOWN WRONG cases for the new inputs, and a line in both
+   the row and the trail. Anything else the change breaks is a BUG it introduced — including a new
+   code path that reaches an old defect — and gets no deferral.
+
+   **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
+   not keep a round from being clean (6(a2)), does not count toward the three-round cap (6(b)),
+   and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
+   tracker it stays open, in the BUG table, until someone fixes it. The trail records it as
+   DEFERRED, never as fixed or refuted. (Codified 2026-09-26: the owner had deferred BUGs, and
+   widenings of them, under a rule that said "no exceptions", so the rule and the practice had
+   drifted apart.)
 
    **Verify checkable claims — empirically where the claim is about runtime/checkable behavior, by
    direct textual/logical demonstration where it's about structure, logic, or wording — before
@@ -324,7 +337,8 @@ teach the plain-language trigger phrases.
    nothing new — and tell them the author expects clean **and that they must
    not oblige out of politeness** (expectation of cleanliness is exactly the
    bias that turns round 2 into a rubber stamp). Repeat until essentially
-   clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO RISK — that
+   clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO RISK (a
+   BUG DEFERRED under point 5 and raised again without new evidence does not count) — that
    IS "clean", and it is the signal to stop, not an invitation to spend one more round chasing the
    NITs it did return.** NIT-only rounds are where a gate quietly doubles in cost: each one returns
    two or three more, because prose can always be tightened and a reviewer asked for findings will
@@ -337,13 +351,14 @@ teach the plain-language trigger phrases.
    needs neither. Re-read the
    BUG/RISK-per-round series, not the raw finding count — a series like 5 → 2 → 2 → 1 → 0 has
    already converged at the 0, whatever the NIT column says; (b) 3 rounds with BUG/RISK still
-   open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
+   open (a DEFERRED BUG is not open here) — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
    — you may stop ITERATING once all known BUGs are *fixed, refuted, or deferred under point 5's
    one exception* AND every RISK/NIT is
    fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
-   Deferring verification is legitimate; deferring a fix or a waiver never is.
+   Deferring verification is legitimate; deferring a waiver never is, and deferring a fix is
+   legitimate only under point 5's one exception.
    **This governs whether to run another round, and nothing else** — in particular it has no
    bearing on the consolidated marker, whose own rule lives in clerk item 2.
 
@@ -361,7 +376,8 @@ teach the plain-language trigger phrases.
    **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
    `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
    to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
-   a later round. A checkable claim with neither status stays OPEN and blocking. Record both per
+   a later round. A checkable claim with neither status stays OPEN and blocking, unless it is a
+   BUG DEFERRED under point 5's one exception. Record both per
    finding; a trail that says only "fixed" does not say which.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
    while quality demonstrably rises each round. After every round, check three signals:
@@ -407,7 +423,8 @@ teach the plain-language trigger phrases.
      regressing; the strict bucket is for a DEMONSTRATED regression specifically, and holding a
      routine no-shared-context re-raise to that same bar would effectively punish running a
      genuinely independent reviewer every round — the whole point of that seat.
-   - a re-raise of something WAIVED with no new reasoning also pools into the MOST threshold, for
+   - a re-raise of something WAIVED, or of a BUG DEFERRED under point 5, with no new reasoning
+     also pools into the MOST threshold, for
      a related but distinct reason: waiving concedes the issue may be real, so it was never "ruled
      clean" (that's (b)'s own test above) and re-noticing it isn't a regression of something
      dispositioned-as-resolved (that's this signal's own test above) — it's an independent
@@ -430,12 +447,11 @@ teach the plain-language trigger phrases.
    hard cap and relies on these signals alone.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can defer, re-scope, or reject the release, but it cannot waive a
-   BUG that's still open, and it can defer one out of the change only under point 5's one
-   exception (for an open BUG blocked on a missing prerequisite — see point 5's
-   untestable-claim rule — deferral keeps the release blocked; the BUG can close only after the
-   prerequisite becomes available and verification supports either a refutation or a verified fix
-   — deferring is what you do while waiting, not the closure itself); point 5's rule holds
-   regardless of who's deciding. Say so plainly in the trail — "stopped: not
+   BUG that's still open. It can defer a BUG out of the change only under point 5's one
+   exception. A BUG blocked on a missing prerequisite (point 5's untestable-claim rule) is held
+   open, not deferred: holding it keeps the release blocked, and the BUG can close only after the
+   prerequisite becomes available and verification supports either a refutation or a verified
+   fix. Point 5's rule holds regardless of who's deciding. Say so plainly in the trail — "stopped: not
    converging" is a legitimate, documented outcome; silent round 7 is not.
 8. **Keep the human in the loop — narration is part of the gate.** Between
    rounds, tell the owner: what was found, what was fixed, what is pending,
