@@ -17,7 +17,8 @@ reported, but a false split can leave the claim word in a half the change did no
 Past blind spots, each now pinned by test_sweep_claims.sh: a phrase wrapped across a line
 break; a sentence ending ".)" or ".*" dropped; a period inside a word ("SKILL.md") cutting
 off the start of a sentence; "e.g." or a wrapped "2024." (in a paragraph or a list item)
-splitting a sentence; a removed qualifier, alone or beside a new line.
+splitting a sentence; a removed qualifier, alone, beside a new line or in the same hunk as
+an edit that keeps its words.
 """
 import argparse
 import os
@@ -58,12 +59,14 @@ QUOTE_RE = re.compile(r"^\s*(?:>\s?)+")
 # Markdown only ("~~~" is an rst underline). A backtick fence's info string has no backtick,
 # so "```x``` is inline code" is not a fence.
 FENCE_RE = re.compile(r"^\s*(?:(`{3,})[^`]*|(~{3,}).*)$")
+# Four spaces (or a tab) of indent make a CommonMark indented code line, never a fence, so
+# two such lines cannot pair up and swallow the prose between them.
+INDENTED_RE = re.compile(r"^(?: {4}| {0,3}\t)")
 RULE_RE = re.compile(r"^\s*([-=*_~^])(?:\s*\1){2,}\s*$")  # thematic break, setext or rst underline
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}(?:\s|$)")
 TABLE_RE = re.compile(r"^\s*\|")
 LIST_RE = re.compile(r"^\s*(?:[-*+]|(\d{1,9})[.)])\s+")
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
-WORD_CHARS_RE = re.compile(r"\w+")
 
 # The default file set: prose, minus review trails (the skill keeps those out of the
 # artifact it sends to reviewers, so their claims are not under review).
@@ -99,7 +102,8 @@ def blocks(lines, markdown):
         if (lm and lm.group(1) and int(lm.group(1)) != 1 and cur
                 and (item_col is None or len(raw) - len(raw.lstrip()) >= item_col)):
             lm = None
-        fm = markdown and FENCE_RE.match(raw[lm.end():] if lm else raw)
+        fm = markdown and (FENCE_RE.match(raw[lm.end():]) if lm
+                           else not INDENTED_RE.match(raw) and FENCE_RE.match(raw))
         if fm and not any(closes(later.strip(), fm.group(1) or fm.group(2))
                           for later in lines[i + 1:]):
             fm = None  # a fence that never closes is read as text, so nothing is lost
@@ -175,44 +179,43 @@ def sweep(label, text, added):
 
 
 def added_lines(diff):
-    """Line numbers the diff adds, plus the lines either side of a hunk that removes text.
+    """Line numbers the diff adds, plus the lines either side of any hunk that removes a line.
 
     Counts "+" lines rather than trusting hunk ranges, which a user's diff settings can
-    widen. A deleted line counts as removed text when fewer than half its words survive in
-    the hunk's added lines: deleting a qualifier ("except on a timeout") widens the claim
-    left beside it, while an edited line keeps most of its words.
+    widen. Removing a line can widen the claim left beside it (deleting "except on a
+    timeout."), and an edit cannot be told from that reliably, so every removal marks its
+    neighbours: noisier, never a miss next to the removal.
     """
-    added, hunks, n = set(), [], None
+    added, n, around, removes = set(), None, None, False
     for line in diff.split("\n"):
         m = HUNK_RE.match(line)
         if m:
+            if removes:
+                added.update(around)
             n, count = int(m.group(1)), int(m.group(2) or 1)
-            around = (n - 1, n + count) if count else (n, n + 1)
-            hunks.append((around, [], []))
+            around, removes = ((n - 1, n + count) if count else (n, n + 1)), False
         elif n is None:
             continue
         elif line.startswith("+"):
             added.add(n)
             n += 1
-            hunks[-1][2].append(line[1:])
         elif line.startswith("-"):
-            hunks[-1][1].append(line[1:])
+            removes = True
         elif line.startswith(" ") or not line:
             n += 1
-    for around, removed, kept in hunks:
-        kept_words = set(WORD_CHARS_RE.findall(" ".join(kept).lower()))
-        for old in removed:
-            words = set(WORD_CHARS_RE.findall(old.lower()))
-            if words and 2 * len(words & kept_words) <= len(words):
-                added.update(around)
-                break
+    if removes:
+        added.update(around)
     return added
+
+
+# GIT_DIFF_OPTS=-u3 would override -U0, and "either side" is read from the hunk header.
+GIT_ENV = {k: v for k, v in os.environ.items() if k != "GIT_DIFF_OPTS"}
 
 
 def git(repo, *args):
     # diff.relative would limit a diff run from a subdirectory to that subdirectory.
     r = subprocess.run(["git", "-C", repo, "-c", "diff.relative=false"] + list(args),
-                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=GIT_ENV)
     if r.returncode != 0:
         err = r.stderr.decode("utf-8", "replace").strip().splitlines()
         raise UsageError("git %s: %s" % (args[0], err[-1] if err else "exit %d" % r.returncode))
@@ -297,14 +300,18 @@ def main(argv):
                    help="sweep only these paths, relative to --repo and taken as given "
                         "(default: changed *.md *.markdown *.txt *.rst outside docs/reviews/)")
     a = p.parse_args(argv)
+    sys.stdout.reconfigure(encoding="utf-8")  # a Latin-1 locale cannot print a curly quote
     if not a.base and not a.files:
         p.error("give --base REF to sweep a change, or --file PATH to sweep a whole file")
     if not a.base and (a.head or a.worktree or a.paths):
         p.error("--head, --worktree and PATH need --base")
     if a.worktree and a.head:
         p.error("--worktree reads the working tree; leave out --head")
-    whole = []
+    whole, real = [], set()
     for f in a.files:
+        if os.path.realpath(f) in real:
+            continue  # one file under two spellings is swept once
+        real.add(os.path.realpath(f))
         try:
             whole.append((f, read_text(f)))
         except OSError as e:
@@ -324,12 +331,13 @@ def main(argv):
             p.error(str(e))
     for f, text in whole:
         # Label a file inside the repository the way git does, so --base and --file on the
-        # same file list each sentence once however the path was spelled.
+        # same file list each sentence once however the path was spelled; a file outside it
+        # by its absolute path, so it cannot share a label with one inside.
         label = os.path.normpath(f)
         if top:
             rel = os.path.relpath(os.path.realpath(f), os.path.realpath(top))
-            if rel != os.pardir and not rel.startswith(os.pardir + os.sep):
-                label = rel
+            inside = rel != os.pardir and not rel.startswith(os.pardir + os.sep)
+            label = rel if inside else os.path.abspath(f)
         found.extend(sweep(label, text, None))
         labels.add(label)
     found = list(dict.fromkeys(found))
@@ -341,11 +349,16 @@ def main(argv):
     except BrokenPipeError:
         # The reader stopped early (| head). Not an error for an advisory list.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-    for note in notes:
-        print("sweep_claims: %s." % note, file=sys.stderr)
-    print("sweep_claims: %d sentence%s to check in %d file%s." % (
-        len(found), "" if len(found) == 1 else "s", len(labels), "" if len(labels) == 1 else "s"),
-        file=sys.stderr)
+    try:
+        for note in notes:
+            print("sweep_claims: %s." % note, file=sys.stderr)
+        print("sweep_claims: %d sentence%s to check in %d file%s." % (
+            len(found), "" if len(found) == 1 else "s", len(labels),
+            "" if len(labels) == 1 else "s"), file=sys.stderr)
+        sys.stderr.flush()
+    except BrokenPipeError:
+        # 2>&1 | head: stderr is the same closed pipe.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stderr.fileno())
     return 0
 
 

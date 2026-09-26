@@ -35,9 +35,9 @@ By default it sweeps changed `*.md`, `*.markdown`, `*.txt` and `*.rst` files out
 `docs/reviews/`, the same trail exclusion the artifact uses. Name paths after the options to
 sweep other files; they are relative to `--repo` and taken as given. `--file` paths are
 relative to the current directory. A sentence counts as changed when it touches an added
-line, or a line either side of removed text: removing "except on a timeout." widens the claim
-left behind. A deleted line counts as removed when fewer than half its words survive in the
-lines added in its place; an edited line keeps most of them.
+line, or a line either side of any hunk that removes a line: removing "except on a timeout."
+widens the claim left behind, and an edit cannot be told apart from that reliably, so an edit
+also lists the sentences on the lines beside it.
 
 Each line of output is `path:line [matched words] sentence`, or `path:first-last` when the
 sentence spans lines. The count, and anything it could not sweep, go to stderr. Exit 0 whatever
@@ -81,8 +81,9 @@ more than the tool.
   "i.e.", but another abbreviation before a capital or a digit ("Mr. Smith", "Fig. 2") still
   ends a sentence there. If the claim word lands in the half the change did not touch, it is
   missed.
-- A deletion in a different paragraph from the claim it widens, or an edit that narrows a
-  qualifier while keeping most of its words.
+- A deletion more than one line away from the claim it widens: in another sentence of the
+  paragraph, or another paragraph.
 - Indented (four-space) code blocks are read as text. Fenced blocks are skipped in Markdown
-  files only, since "~~~" is an underline in rst; a fence that never closes is read as text.
+  files only, since "~~~" is an underline in rst; a fence that never closes is read as text,
+  and so is one indented four spaces or more, unless it follows a list marker on the same line.
 - A renamed file counts as wholly added, so all its claims are listed.

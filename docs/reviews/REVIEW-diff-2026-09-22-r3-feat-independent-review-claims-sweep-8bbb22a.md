@@ -195,3 +195,27 @@ line marks its neighbours). It is the simplest mechanism, removes the surface th
 finding holes in, and costs +9% noise on an advisory list. Then the deterministic fixes (R2-02,
 R1-27, R3-02, R3-03, R2-04, R3-06, R3-01 moot), merge main, one fresh gate round on the new
 artifact, PR. R1-13 (word list) needs a one-word owner sign-off either way.
+
+## Fix session after round 4 (2026-09-26, same session)
+
+**Owner decision on R1-08:** option 1. The owner's words: "Do it", in reply to the round-4
+recommendation. R1-13 (the broad words) is still waiting for a sign-off; the list is unchanged.
+
+`origin/main` merged first (`d1560e3`). Beyond the two expected conflicts (`clean.yml` comment,
+`Makefile` help line, both spliced), main's new `check_cdpath_safe.sh` must list every shell
+script: `sweep_claims.sh` joins its SUBJECTS, `test_sweep_claims.sh` its NOT_RUN.
+
+| id | fix | test |
+|---|---|---|
+| R1-08 | option 1: the word test is gone; any hunk that removes a line marks the lines either side. Fixture D now lists the untouched sentence beside the edit too (+1 of 19) | U: "Except in staging." removed beside "Logging in staging is enabled." |
+| R3-01 | moot: the word test is gone, and the reference no longer mentions it | — |
+| R2-02 | a ``` line indented four spaces (or a tab) is not a fence, unless it follows a list marker | two indented ``` lines around prose |
+| R1-27 | `--file` paths are identified by real path; a file outside `--repo` is labelled by its absolute path | relative + absolute spelling; a same-named copy outside the repo |
+| R3-02 | a real fence at the end of `history.md`, so a list-line fence misread would swallow Q | the list-line mutant now fails Q |
+| R3-03 | `GIT_DIFF_OPTS` is dropped from git's environment | hostile run sets `GIT_DIFF_OPTS=-u3` |
+| R2-04 | the stderr prints are guarded like stdout's | `2>&1 \| head` exits 0 |
+| R3-06 | stdout is reconfigured to UTF-8 in the script (not the launcher), so a direct run is covered too | `PYTHONIOENCODING=latin-1` with a curly apostrophe |
+
+Mutation run: each of the nine fixes reverted on its own (plus the old word test restored)
+fails at least one check. Still open, all NIT: R3-04, R3-05, R3-07, R3-09, and the quadratic
+unclosed-fence lookahead. `make check` passes on the merged tree.

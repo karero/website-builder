@@ -12,7 +12,10 @@
 # or at a wrapped "2024.", a fence opened on a list line, an rst "~~~" underline read as a
 # fence, a deleted qualifier, and a user's diff settings. Its second found three of those
 # fixes incomplete (a wrapped "2024." inside a list item, a qualifier removed beside a new
-# line, one file under two spellings) and inline code read as a fence. Each of those is a
+# line, one file under two spellings) and inline code read as a fence. Its third found a
+# qualifier removed beside an edit that kept its words, two ``` lines indented four spaces
+# pairing up around prose, GIT_DIFF_OPTS widening hunks, a file under a relative and an
+# absolute spelling, and a crash on a closed stderr or a Latin-1 locale. Each of those is a
 # fixture here, and case H proves the wrapped one really is a miss for grep: a guard that
 # cannot fire is worse than none.
 #
@@ -40,7 +43,7 @@ mkdir -p "$R/docs/reviews" "$T/notrepo" "$T/nopython"
 
 # The base, on main.
 printf '# Notes\n\nThe first release never shipped to users.\n\nEvery job ran on the old runner.\nThe new runner is ready.\n' >"$R/notes.md"
-printf '# History\n\nThe job never retries\nexcept on a timeout.\n\nThe old runner never ran before\n\nAll services, e.g.\nworkers.\n\nThe cache is never cleared.\nExcept on a restart.\nLogging is off.\n\nIn staging:\nthe queue is never drained.\n' >"$R/history.md"
+printf '# History\n\nThe job never retries\nexcept on a timeout.\n\nThe old runner never ran before\n\nAll services, e.g.\nworkers.\n\nThe cache is never cleared.\nExcept on a restart.\nLogging is off.\n\nIn staging:\nthe queue is never drained.\n\nThe API never retries.\nExcept in staging.\nLogging is off.\n' >"$R/history.md"
 printf '# Wrapped\n' >"$R/docs/wrapped.md"
 printf 'Nothing here is kept.\n' >"$R/old.md"
 printf 'echo hello\n' >"$R/tool.sh"
@@ -53,7 +56,7 @@ $git -C "$R" checkout -qb change
 # notes.md:
 #   1  a changed heading, so C sits between two hunks
 #   3  C: "never" in a paragraph the change does not touch
-#   5  D: first sentence of an old paragraph, untouched ("Every")
+#   5  D: first sentence of an old paragraph, untouched ("Every"), beside the edit
 #   6  D: its second sentence, edited ("only")
 #   8-9  B: wraps AND ends ".)*", then another sentence in the same paragraph
 #   13 E: a table row
@@ -96,11 +99,14 @@ EOF
 #   3  N: deleting "except on a timeout." widens the claim left on line 3
 #   5-6 O: a wrapped line starting "2024." is not a list item; only line 6 is added
 #   8-9 P: "e.g." does not end the sentence; only line 9 is edited
-#   11-13 Q: a fence opened on a list line must close, or it swallows the rest
+#   11-13 Q: a fence opened on a list line must close there, or its closer opens a fence
+#         that pairs with the real one at 28-30 and swallows everything between
 #   17 R: "will not" and "won't"
 #   19 KNOWN WRONG: an indented code block is read as text (the reference doc says so)
 #   21-22 S: "Except on a restart." removed in the same hunk that edits the next line
 #   24 T: "In staging:" removed from the line above the claim
+#   26 U: "Except in staging." removed in a hunk whose new line keeps its words
+#   28-30 a real fence (see Q)
 cat >"$R/history.md" <<'EOF'
 # History
 
@@ -126,6 +132,13 @@ The cache is never cleared.
 Logging is on.
 
 the queue is never drained.
+
+The API never retries.
+Logging in staging is enabled.
+
+```
+make
+```
 EOF
 # A: the phrase wraps across a line break.
 printf '# Wrapped\n\nThe verification step has not\nbeen attempted on any device.\n' >"$R/docs/wrapped.md"
@@ -173,7 +186,8 @@ check "B: a wrapped sentence ending '.)*' is reported and ends there" \
 check "C: an untouched paragraph is not reported, although main has since changed it" lacks diff.out "never shipped"
 check "D: the edited second sentence is reported alone" \
   line diff.out "notes.md:6 [only] The new runner is only ready for tests."
-check "D: the untouched first sentence of the same paragraph is not" lacks diff.out "Every job"
+check "D: so is the untouched sentence beside it: any removal marks its neighbours" \
+  line diff.out "notes.md:5 [every] Every job ran on the old runner."
 check "E: a table cell is reported" line diff.out "notes.md:13 [was not] was not attempted"
 check "F: a fenced code block is not reported" lacks diff.out "run this twice"
 check "G: a review trail is not swept by default" lacks diff.out "docs/reviews/"
@@ -198,12 +212,14 @@ check "S: a qualifier removed beside an edited line reports the claim it widened
   line diff.out "history.md:21 [never] The cache is never cleared."
 check "T: a qualifier removed from the line above reports the claim below" \
   line diff.out "history.md:24 [never] the queue is never drained."
+check "U: a qualifier removed beside an edit that keeps its words reports the claim" \
+  line diff.out "history.md:26 [never] The API never retries."
 check "an upper-case .MD file is swept" line diff.out "CAPS.MD:1 [nothing] Nothing is loud."
 check "a path with glob characters is matched literally" lacks diff.out "Never once."
 check "a file that is not prose is not swept by default" lacks diff.out "tool.sh"
 check "a deleted file is left out, not reported as skipped" lacks diff.err "skipped"
-check "nothing else is reported" count_is diff.out 17
-check "the count goes to stderr" has diff.err "17 sentences to check in 6 files"
+check "nothing else is reported" count_is diff.out 19
+check "the count goes to stderr" has diff.err "19 sentences to check in 6 files"
 check "advisory: exit 0 although it listed sentences" rc_is diff 0
 
 # H: the per-line grep this replaces cannot see fixture A, so A really discriminates.
@@ -213,7 +229,8 @@ check "H: grep for 'has not been' finds nothing in fixture A" grep_misses 'has n
 # A user's diff settings must not change the list: run from a subdirectory, with settings that
 # widen hunks (C would then sit inside one), colour the diff, make it relative to the
 # subdirectory, hand it to an external diff tool that prints nothing, drop blank lines through
-# a textconv filter (shifting history.md's line numbers), and mark every other file binary.
+# a textconv filter (shifting history.md's line numbers), mark every other file binary, and
+# widen hunks through GIT_DIFF_OPTS, which overrides -U0.
 printf '#!/bin/sh\nexit 0\n' >"$T/extdiff"; chmod +x "$T/extdiff"
 $git -C "$R" config color.diff always
 $git -C "$R" config diff.interHunkContext 100
@@ -221,13 +238,13 @@ $git -C "$R" config diff.relative true
 $git -C "$R" config diff.external "$T/extdiff"
 $git -C "$R" config diff.squeeze.textconv "grep -v '^\$'"
 mkdir -p "$R/.git/info"; printf '* -diff\nhistory.md diff=squeeze\n' >"$R/.git/info/attributes"
-run hostile "$R/docs" --base main
+GIT_DIFF_OPTS=-u3 run hostile "$R/docs" --base main
 for k in color.diff diff.interHunkContext diff.relative diff.external diff.squeeze.textconv; do
   $git -C "$R" config --unset "$k"
 done
 rm "$R/.git/info/attributes"
 check "user diff settings, from a subdirectory: the same list" cmp -s "$T/diff.out" "$T/hostile.out"
-check "user diff settings, from a subdirectory: the same count" has hostile.err "17 sentences to check in 6 files"
+check "user diff settings, from a subdirectory: the same count" has hostile.err "19 sentences to check in 6 files"
 
 # PATH arguments replace the default set and are taken as given.
 run named "$R" --base main tool.sh
@@ -242,12 +259,20 @@ check "I: --file reports the untouched first sentence" line whole.out "notes.md:
 check "I: --file still skips fenced code" lacks whole.out "run this twice"
 check "I: --file reports every matching sentence" count_is whole.out 9
 run both "$R" --base main --file ./notes.md
-check "--base and --file on one file, spelled differently: each sentence once" count_is both.out 19
-check "--base and --file on one file: counted as one file" has both.err "19 sentences to check in 6 files"
+check "--base and --file on one file, spelled differently: each sentence once" count_is both.out 20
+check "--base and --file on one file: counted as one file" has both.err "20 sentences to check in 6 files"
 run bothsub "$R/docs" --base main --file ../notes.md
-check "the same, from a subdirectory" count_is bothsub.out 19
+check "the same, from a subdirectory" count_is bothsub.out 20
 run twice "$R" --file ./notes.md --file notes.md
 check "--file twice under two spellings: each sentence once" count_is twice.out 9
+run twiceabs "$R" --file notes.md --file "$R/notes.md"
+check "--file twice, relative and absolute: each sentence once" count_is twiceabs.out 9
+# A file outside the repository with the same name and text as one inside is its own file.
+mkdir -p "$T/outside"; cp "$R/notes.md" "$T/outside/notes.md"
+run outside "$T/outside" --repo "$R" --base main --file notes.md
+check "--file outside --repo: labelled by its absolute path" \
+  has outside.out "/outside/notes.md:3 [first, never] The first release never shipped to users."
+check "--file outside --repo: not merged with the file inside" has outside.err "28 sentences to check in 7 files"
 
 # "~~~" is an rst underline, not a fence; a Markdown fence that never closes, or inline code
 # that starts with backticks, does not swallow what follows.
@@ -255,10 +280,13 @@ printf 'Guide\n=====\n\nUpgrades\n~~~~~~~~\n\nUpgrades are always safe.\n\nData\
 printf 'Only this is swept.\n\n```\nNothing here is.\n' >"$T/open.md"
 # (the real fence at its end would pair with a false opener and swallow the lines between)
 printf '```example``` is inline code.\n\nNothing is lost.\n\nEverything was migrated, and it mustn'"'"'t move.\n\n```sh\nmake\n```\n' >"$T/inline.md"
+# Two ``` lines indented four spaces are indented code, not a fence pair around the prose.
+printf 'Setup:\n\n    ```\n\nNothing is cached.\n\n    ```\n' >"$T/indented.md"
 # Each rule that keeps a sentence whole, on its own: "e.g." before a capital, a stop before a
 # lowercase word, and a wrapped "2024." inside a list item; a sibling item still splits.
 printf 'All services, e.g. Python and Go, use the new runner.\n\nEvery job ran, approx. twice a day.\n\n- The runner never ran before\n  2024. It ran daily later.\n\n1. Alpha is fine\n2. beta was not run\n' >"$T/splits.md"
-run files "$R" --file "$T/guide.rst" --file "$T/open.md" --file "$T/splits.md" --file "$T/inline.md"
+run files "$R" --file "$T/guide.rst" --file "$T/open.md" --file "$T/splits.md" --file "$T/inline.md" \
+  --file "$T/indented.md"
 check "'e.g.' before a capital does not end the sentence" \
   line files.out "$T/splits.md:1 [all] All services, e.g. Python and Go, use the new runner."
 check "a stop before a lowercase word does not end the sentence" \
@@ -271,7 +299,9 @@ check "a fence that never closes does not swallow what follows" has files.out "N
 check "inline code starting with backticks is not a fence" line files.out "$T/inline.md:3 [nothing] Nothing is lost."
 check "compound universals and contractions are listed" \
   line files.out "$T/inline.md:5 [everything, mustn't] Everything was migrated, and it mustn't move."
-check "--file: every matching sentence, and nothing more" count_is files.out 11
+check 'two ``` lines indented four spaces do not swallow the prose between' \
+  line files.out "$T/indented.md:5 [nothing] Nothing is cached."
+check "--file: every matching sentence, and nothing more" count_is files.out 12
 
 # Usage errors exit 2; nothing to sweep is not one.
 run noargs "$R"
@@ -307,6 +337,16 @@ yes 'Nothing is final.' 2>/dev/null | head -n 3000 >"$T/big.md"
 check "a closed pipe: exit 0" rc_is pipe 0
 check "a closed pipe: no traceback" lacks pipe.err "Traceback"
 check "a closed pipe: the count still reaches stderr" has pipe.err "sentences to check"
+(cd "$R" && bash "$SCRIPT" --file "$T/big.md" 2>&1 | head -n 1 >/dev/null
+ echo "${PIPESTATUS[0]}" >"$T/pipe2.rc")
+check "a closed pipe that stderr shares too (2>&1 | head): exit 0" rc_is pipe2 0
+
+# A locale that cannot encode a curly apostrophe does not crash the list.
+printf 'It doesn\342\200\231t move.\n' >"$T/curly.md"
+(cd "$R" && PYTHONIOENCODING=latin-1 bash "$SCRIPT" --file "$T/curly.md") >"$T/curly.out" 2>"$T/curly.err"
+echo $? >"$T/curly.rc"
+check "a Latin-1 output encoding: exit 0" rc_is curly 0
+check "a Latin-1 output encoding: the sentence is listed" has curly.out "t move."
 
 # Without python3 the skill must stay usable: one line, exit 0.
 (cd "$R" && env PATH="$T/nopython" "$BASH" "$SCRIPT" --base main) >"$T/nopy.out" 2>"$T/nopy.err"
