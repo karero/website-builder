@@ -41,7 +41,8 @@ Inspect, in this order:
    repo, an app store, a booking tool): the offer is wherever the CTA goes. If
    the target is missing or unreachable, the visitor has no next step — make
    that the Primary blur and carry on with the pages you have.
-3. **`POSITIONING.md`, `CONTENT_GUIDE.md` and `STORY.md`**, when present — last, so the site
+3. **`POSITIONING.md`, `CONTENT_GUIDE.md` and `STORY.md`**, when present (repo root or
+   `docs/`) — last, so the site
    is judged by what a visitor sees and only then compared with what it meant
    to say.
 

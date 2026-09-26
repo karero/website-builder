@@ -17,6 +17,11 @@ const CONFIG = {
   directCta: '',
   /** Header plus at least one repeat. */
   directCtaMin: 2,
+  /**
+   * The CTA's target (e.g. '/contact'). Set it and every link carrying the label
+   * must point there. Empty = the target is not checked.
+   */
+  directCtaHref: '',
   /** The one-liner OR the controlling idea, verbatim. Empty = that test skips. */
   keyLine: '',
   /** Selector for the plan container, one element (e.g. '#plan ol'). Empty = that test skips. */
@@ -34,9 +39,14 @@ const CONFIG = {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Case- and whitespace-insensitive containment, same spirit as positioning.spec.ts:
-// a label wrapped onto two lines or set in small caps still counts.
+// Case- and whitespace-insensitive, same spirit as positioning.spec.ts: a label
+// wrapped onto two lines or set in small caps still counts.
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+// A CTA label matches when it IS the label, give or take trailing decoration such as
+// an emoji or an arrow. "Book" does not match "Bookings", and "Request quote" does
+// not match "Get a quote": label drift fails the count instead of hiding in it.
+const isLabel = (text: string, label: string) =>
+  norm(text).replace(/[^\p{L}\p{N}]+$/u, '') === norm(label).replace(/[^\p{L}\p{N}]+$/u, '');
 
 test.beforeEach(() => {
   test.skip(!CONFIG.directCta,
@@ -46,14 +56,21 @@ test.beforeEach(() => {
 test.describe('story layer (home page)', () => {
   test('the direct CTA appears as a link or button at least twice', async ({ page }) => {
     await page.goto(CONFIG.home);
-    // Counted in <a>/<button> text, not body text, so a sentence that merely
-    // mentions the words is not mistaken for a call to action.
-    const labels = await page.locator('a, button').allInnerTexts();
-    const hits = labels.filter((t) => norm(t).includes(norm(CONFIG.directCta))).length;
-    expect(hits,
-      `"${CONFIG.directCta}" found ${hits}x as a link/button on ${CONFIG.home}; ` +
-      `STORY.md asks for at least ${CONFIG.directCtaMin} (header + one repeat)`)
+    // Counted in visible <a>/<button> text, not body text, so a sentence that merely
+    // mentions the words is not a call to action, a collapsed mobile menu does not
+    // count, and a <button> inside an <a> counts once.
+    const ctas = await page.locator('a:visible, button:visible').evaluateAll((els) =>
+      els.filter((el) => !(el.tagName === 'BUTTON' && el.closest('a')))
+        .map((el) => ({ text: (el as HTMLElement).innerText, href: el.getAttribute('href') ?? '' })));
+    const hits = ctas.filter((c) => isLabel(c.text, CONFIG.directCta));
+    expect(hits.length,
+      `"${CONFIG.directCta}" found ${hits.length}x as a visible link/button on ${CONFIG.home}; ` +
+      `STORY.md asks for at least ${CONFIG.directCtaMin} (header + one repeat), same label`)
       .toBeGreaterThanOrEqual(CONFIG.directCtaMin);
+    if (CONFIG.directCtaHref) {
+      const off = hits.filter((c) => !c.href.endsWith(CONFIG.directCtaHref)).map((c) => c.href || '(none)');
+      expect(off, `"${CONFIG.directCta}" must always point to ${CONFIG.directCtaHref}`).toEqual([]);
+    }
   });
 
   test('the one-liner or controlling idea is in the body text', async ({ page }) => {

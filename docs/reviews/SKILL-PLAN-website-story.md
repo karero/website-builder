@@ -123,3 +123,20 @@ the report went to the owner.
   The Astro overlay itself is unchanged.
 - r2 (2026-09-26): Skill Creator audit fixes, eval iteration 1, the real-site run; `planStep`
   selector and the existing-site note in §0 came out of the real-site run.
+- r3 (2026-09-26): eval round 2 after the four real-site lessons: with skill 100%, without 28%.
+  The first test case copied the worked example (same genai-wednesday case as the fixture),
+  so its 11/11 was not evidence. Fix: the fixture is now a fictional bike repair service,
+  an assertion checks nothing is copied from the example, and two single-reply assertions
+  describe only what one reply can show. Note for reruns: the aggregation script reads
+  token counts from `timing.json` only when `grading.json` has no `timing` block.
+- r4 (2026-09-26): confirmation run on the new bike-repair fixture: with skill 11/12, without
+  5/12, nothing copied from the worked example (the one miss: an empathy line adding a fact
+  not in the positioning; §3 now says empathy adds no new fact). Code review of the branch
+  (10 findings, all confirmed and fixed): the spec's CTA check now counts only visible
+  links and buttons, matches the whole label, and can check the target; the home page map
+  no longer asks for more stakes, outcomes or benefits than STORY.md holds; the §2a answer
+  is recorded yes or no when the README exists; STORY.md goes next to POSITIONING.md; the
+  template's source map covers every element; the worked example claims only its proof;
+  the getting-started guide places the question after positioning. The spec change was
+  re-verified against the real-site build (label and target pass; wrong target and a
+  partial label fail).

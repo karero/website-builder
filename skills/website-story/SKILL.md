@@ -65,7 +65,9 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 
 - **`STORY.md`** (from `~/.claude/skills/website-story/templates/story.md`, or the
   site's own `.claude/skills/website-story/templates/story.md` on a handed-off repo):
-  the story elements, the one-liner, and the seven-section home page map.
+  the story elements, the one-liner, and the seven-section home page map. It goes next
+  to `POSITIONING.md`: the repo root on a new site, or `docs/` on a site that keeps its
+  strategy documents there. Look in both places before concluding either file is missing.
 - Optional **`tests/story.spec.ts`** (from `templates/story.spec.ts`), see §6.
 
 Explicitly **not** touched: `POSITIONING.md`, `tests/positioning.spec.ts`,
@@ -94,7 +96,8 @@ in the story.
 
 ## 3. Fill STORY.md
 
-Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
+Copy the template as `STORY.md` next to `POSITIONING.md` (repo root or `docs/`, see §1)
+and fill every `[BRACKET]`:
 
 - **Character.** Who they are and the one thing they want, in their words (pull
   phrasing from `customer-research` voice-of-customer where it exists).
@@ -103,8 +106,9 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
   put up with it. Name the villain: the situation, the status quo, the way things
   are usually done.
 - **Guide.** One empathy sentence ("we know what it is like to…") and one authority
-  sentence backed by proof already in `POSITIONING.md` §3. Empathy without proof
-  is a claim; proof without empathy is a brochure.
+  sentence backed by proof already in `POSITIONING.md` §3. Empathy restates the
+  customer's situation from §4 in warmer words; it adds no new fact about it.
+  Empathy without proof is a claim; proof without empathy is a brochure.
 - **Plan.** Three steps, each starting with a verb and ending in what the visitor
   gets. Give it a title. Four is the maximum; five is a process page, not a plan.
 - **Direct call to action.** One label ("Get a quote", "Book a call"), used verbatim
@@ -113,12 +117,19 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
   checklist, a short guide, a sample), in exchange for an email. If the site has
   none, leave the slot blank. Do not invent one.
 - **Stakes.** One to three things that stay wrong or get worse if nothing changes.
-  Loss language is what makes people act, but keep it proportionate.
+  Loss language is what makes people act, but keep it proportionate, and mind the
+  register: state what the visitor keeps missing ("meet before the conference, and she
+  may introduce you to the people you need"), not what will go wrong for them. In
+  formal-register markets and most B2B copy, one such line is enough; agitation reads
+  as pressure there and costs trust.
 - **Success.** One to three lines of life after, about the customer, concrete.
-- **One-liner.** Character + problem + plan + success in one sentence, at most 30
-  words. It must pass a stranger test: does someone who has never heard of you
-  understand what you do and for whom? No em dashes, so it survives the tone test
-  when pasted into copy.
+- **One-liner.** Character + problem + plan + success, at most 30 words, usually two
+  or three short sentences. Open on the visitor's own moment, in the second person
+  and the present tense ("When you travel, you keep missing people worth seeing
+  again."), then the mechanism, then the outcome. A moment the visitor recognises
+  lands harder than a statistic about people like them ("Most travelers…"). It must
+  pass a stranger test: does someone who has never heard of you understand what you do
+  and for whom? No em dashes, so it survives the tone test when pasted into copy.
 - **Controlling idea.** The single thought the whole page reinforces, at most ten
   words. It must agree with the core positioning term in `POSITIONING.md`.
 
@@ -126,21 +137,26 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
 sentences; do not fill an English frame with translated words (same rule as
 `POSITIONING.md`).
 
-**Worked example** (a small-business website studio; the same case as eval 1):
+**Worked example** (this suite's own story, from a real site it built; the evals use a
+different business on purpose, so reuse the shape, not the words):
 
-- Input, from `POSITIONING.md`: target = owners of small independent bakeries who want
-  more pre-orders; alternatives = a generic web agency or doing it themselves; unique
-  attribute = a fixed-price site delivered in ten days with a test suite; proof = 14
-  bakery sites shipped; value = a site that brings in pre-orders.
-- Feature-list one-liner (fails the stranger test, the studio is the subject):
-  "We build fast, tested Astro websites with SEO for small businesses."
-- Story one-liner (22 words, the customer is the subject): "Most bakery owners lose
-  pre-orders to a website nobody finished. We deliver yours in ten days, at a fixed
-  price, so orders come in."
-- Controlling idea: "Your bakery site, live in ten days."
-- Plan, titled "Live in ten days": 1. Book a call → get a fixed quote. 2. Approve
-  the design → see your menu on it. 3. Go live → take your first pre-order.
-- Direct CTA: "Get a fixed quote", used in the header, after the plan, and at the end.
+- Input, from `POSITIONING.md`: target = organizers, founders and small businesses who
+  need a site that ranks within a week and will not pay a monthly fee; alternatives = a
+  subscription site builder, WordPress, an agency; unique attributes = open-source
+  skills an AI assistant runs end to end, static output on free hosting, a shipped test
+  suite; proof = genai-wednesday.de live in one week, PageSpeed 98/100/100/100, no
+  monthly fee; value = a site that ranks and reads well.
+- Feature-list one-liner (fails the stranger test, the product is the subject): "An
+  open-source suite of Claude Code skills that scaffolds Astro sites with SEO, tests
+  and Cloudflare deployment."
+- Story one-liner (28 words, the visitor's own moment first): "You need a site people
+  find, and every option costs months or a monthly fee. With the builder, your AI
+  assistant ships a tested site in a week."
+- Controlling idea: "A site that ranks, live in a week."
+- Plan, titled "Live in a week": 1. Say what you offer and for whom → the positioning.
+  2. Let the assistant build and test → every page checked. 3. Publish on free hosting
+  → your domain, your code.
+- Direct CTA: "Build your first site", used in the header, after the plan, and at the end.
 
 Every line above traces to one positioning section; nothing was added to it.
 
@@ -150,10 +166,10 @@ Fill the map in `STORY.md`; `copywriting` writes the page from it in this order:
 
 | # | Section | Job |
 |---|---|---|
-| 1 | **Header** | Pass the grunt test in five seconds: what you do, how it makes life better, how to get it. `<h1>` plus the one-liner as the first paragraph. Direct CTA button. Three short outcomes (the value stack). An image of the customer succeeding, not of the company. |
-| 2 | **Stakes** | Three or four "are you worried about…" pains the visitor recognises. Agitate briefly, then pivot: "if so, we are here to help." |
+| 1 | **Header** | Pass the grunt test in five seconds: what you do, how it makes life better, how to get it. `<h1>` plus the one-liner as the first paragraph. Direct CTA button. Up to three short outcomes, one per success line in `STORY.md` §7 (fewer is fine; never invent one). An image of the customer succeeding, not of the company. |
+| 2 | **Stakes** | The stakes from `STORY.md` §6, one to three lines in the "what you keep missing" register (one line in formal-register and most B2B copy), then a one-line pivot to the guide. No extra pains beyond §6. |
 | 3 | **Plan** | The titled three-step plan as an `<ol>`. Direct CTA again. |
-| 4 | **Value stack** | Three benefits, each a headline plus one sentence, describing life after. |
+| 4 | **Value stack** | The success lines from `STORY.md` §7, each a headline plus one sentence, describing life after. As many as §7 has, up to three. |
 | 5 | **Explanatory paragraph** | The guide: empathy, then authority. Answer the top objections, using only facts already in `POSITIONING.md`; an objection the positioning cannot answer is listed for the owner, not answered with an invented promise. Give the visitor room for due diligence with a "read more" to the about or offer page. |
 | 6 | **Lead generator** | The transitional CTA with its specific title. Omit the section if the slot is blank. |
 | 7 | **Junk drawer** | FAQ, careers, everything else. Final direct CTA. |
@@ -187,7 +203,7 @@ in the `new-website` Astro overlay because a fresh scaffold has no story to asse
 
 | assertion | the bug it catches |
 |---|---|
-| The direct CTA appears at least twice as a link or button | the label drifting ("Get a quote" / "Request quote") or the repeat being cut |
+| The direct CTA appears at least twice as a visible link or button with exactly that label, and (with `directCtaHref`) always the same target | the label drifting ("Get a quote" / "Request quote"), the repeat being cut, or one copy pointing somewhere else |
 | The one-liner or controlling idea is in the body text | the one line the page exists to say being edited away |
 | The plan is one container of three or four non-empty steps (a list, or a card grid via `planStep`) | the plan growing into a process, or being restyled into prose |
 
@@ -202,6 +218,10 @@ the site's `npm test`.
 ## 7. Gotchas
 
 - The villain is a situation, never a named competitor.
+- If the problem reads like a missed nicety rather than a pain, do not inflate it.
+  Narrow the character instead: find the visitor for whom it is a loss (the founder
+  whose next investor is someone they already know), and tell their story. A vitamin
+  for everyone is a painkiller for someone.
 - Stakes that are overdone read as a threat and lose the reader; one true cost
   beats three invented ones.
 - The one-liner is not the `<title>` and not the tagline. Those stay with
