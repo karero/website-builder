@@ -77,6 +77,6 @@ plain sentences: *"One more, optional: I can also check every week whether ChatG
 assistants mention your business when someone asks for what you offer. You prepay once, 5 or 10
 dollars or euros, and that covers the checks for weeks."* On a yes, follow `references/geo-check.md` → "Setting
 it up". Unlike Google and Bing above, this one can cost money and sends your questions to the AI
-companies you choose, so say that plainly. After the first run, show the report page and tell them how to see it
+companies you choose (through OpenRouter, unless you use each company's own key), so say that plainly. After the first run, show the report page and tell them how to see it
 again: *"Just ask me: show me my AI report."* A no is a complete answer; don't re-ask in the same
 session.

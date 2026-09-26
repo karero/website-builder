@@ -340,7 +340,7 @@ class ViaOpenRouter(GeoTestCase):
         # Sonar always searches and has no native-search option on OpenRouter: no plugin, and
         # no "from memory" rows for Perplexity on this route.
         self.assertFalse([h for h in posts if h[3]["model"].startswith("perplexity/") and "plugins" in h[3]])
-        self.assertTrue(all(h[3]["max_tokens"] == 2000 for h in posts))
+        self.assertTrue(all(h[3]["max_tokens"] == 4000 for h in posts))
         self.assertEqual({r["mode"] for r in self.history() if r["engine"] == "perplexity"}, {"finds"})
         rows = self.history()
         self.assertTrue(rows and all(r["route"] == "openrouter" for r in rows))
@@ -365,6 +365,73 @@ class ViaOpenRouter(GeoTestCase):
         self.assertEqual(len(self.posts()), 1)
         self.assertIn("Insufficient credits", out)
         self.assertNotIn(self.RKEY, out)
+
+    def test_one_model_error_does_not_stop_the_others(self):
+        # Gemini runs FIRST: a 404 for its model (e.g. a retired slug) must not blank the week
+        # for the three assistants after it. Only 401/402 are account-wide.
+        stub.engine_reply("gemini", "", status=404, body='{"error": {"message": "No endpoints found for this model."}}')
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        self.assertIn("gemini FAILED", out)
+        answered = {r["engine"] for r in self.history() if int(r["ok"] or 0)}
+        self.assertEqual(answered, {"openai", "anthropic", "perplexity"})
+        self.assertGreater(len(self.posts()), 1)
+
+    def test_request_details_cost_and_redaction(self):
+        stub.STATE["engines"]["anthropic"]["status"] = 400
+        stub.STATE["engines"]["anthropic"]["body"] = '{"error": {"message": "bad request for ' + self.RKEY + '"}}'
+        rc, out = self.cli()
+        self.assertNotIn(self.RKEY, out)                             # the router key is redacted
+        rows = self.history()
+        self.assertEqual({r["model_requested"] for r in rows if r["engine"] == "openai"}, {"openai/gpt-6-luna"})
+        # One question, 3 answers each: Gemini 3 + ChatGPT 6 + Perplexity 3 = 12 at the stub's
+        # $0.0012; Claude's refused calls carry no cost.
+        self.assertIn("cost of this run via OpenRouter: $0.014 (12 answers)", out)
+
+    def test_cut_off_answer_is_a_failure_but_its_cost_counts(self):
+        cut = geo_check.EngineError
+        with self.assertRaises(cut) as cm:
+            geo_check._openrouter_parse({"choices": [{"finish_reason": "length", "message": {"content": "Bäck"}}],
+                                         "usage": {"cost": 0.04}})
+        self.assertEqual(cm.exception.cost, 0.04)
+
+    def test_searched_follows_the_reply_s_own_search_counter(self):
+        base = {"choices": [{"finish_reason": "stop", "message": {"content": "An answer.", "annotations": []}}]}
+        self.assertTrue(geo_check._openrouter_parse({**base, "usage": {"server_tool_use_details": {"web_search_requests": 2}}})[3])
+        self.assertFalse(geo_check._openrouter_parse({**base, "usage": {"server_tool_use_details": {"web_search_requests": 0}}})[3])
+        self.assertFalse(geo_check._openrouter_parse(base)[3])      # no counter, no citations
+
+    def test_old_perplexity_memory_answer_is_not_current_after_the_switch(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        os.environ["GEO_PERPLEXITY_API_KEY"] = "test-placeholder-pplx"
+        self.cli("--engines", "perplexity")                        # direct: knows + finds
+        os.environ["GEO_OPENROUTER_API_KEY"] = self.RKEY
+        self.cli("--engines", "perplexity")                        # OpenRouter: finds only
+        rc, out = self.cli("--report")
+        page = html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
+        self.assertIn("always searches the web", page)
+        self.assertNotIn("named you at least once <strong>from memory</strong>", page)
+
+    def test_rows_from_before_the_route_column_count_as_direct(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        self.cli("--engines", "openai")
+        Trend.age_history(self)
+        p = geo_check.history_path()
+        rows = self.history()
+        with open(p, "w", newline="") as f:                          # write them in the old schema
+            old = [x for x in geo_check.FIELDS if x != "route"]
+            w = csv.DictWriter(f, fieldnames=old, extrasaction="ignore")
+            w.writeheader(); w.writerows(rows)
+        os.environ["GEO_OPENROUTER_API_KEY"] = self.RKEY
+        self.cli("--engines", "openai")
+        rc, out = self.cli("--trend")
+        self.assertIn("route changed", out)
+
+    def test_no_key_message_points_to_openrouter(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        rc, out = self.cli()
+        self.assertIn("add GEO_OPENROUTER_API_KEY=...", out)
 
     def test_route_switch_is_marked_in_the_trend(self):
         del os.environ["GEO_OPENROUTER_API_KEY"]

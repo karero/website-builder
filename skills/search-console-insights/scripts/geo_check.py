@@ -417,7 +417,7 @@ def _openrouter_request(engine, mode, question, key):
             "messages": [{"role": "user", "content": question}],
             # Without a cap OpenRouter reserves credit for the model's longest possible answer
             # (65k tokens) and refuses the call on a small balance; these answers need far less.
-            "max_tokens": 2000,
+            "max_tokens": 4000,          # includes the model's hidden reasoning; answers need far less
             "usage": {"include": True}}          # the response then carries the call's real cost
     # Perplexity's Sonar searches by itself and has no "native" search option on OpenRouter
     # (verified 2026-09-26: HTTP 404 "does not support native web search"), so it gets no plugin.
@@ -432,14 +432,22 @@ def _openrouter_parse(data):
     """(text, model, cited URLs, searched, cost) from an OpenRouter chat completion."""
     choice = (data.get("choices") or [{}])[0]
     if choice.get("finish_reason") in ("length", "content_filter"):
-        raise EngineError(f"incomplete answer ({choice['finish_reason']})")
+        billed = (data.get("usage") or {}).get("cost")        # billed all the same
+        raise EngineError(f"incomplete answer ({choice['finish_reason']})",
+                          cost=billed if isinstance(billed, (int, float)) else None)
     msg = choice.get("message") or {}
     text = msg.get("content") or ""
     urls = [a.get("url_citation", {}).get("url", "") for a in msg.get("annotations") or []
             if isinstance(a, dict) and a.get("type") == "url_citation"]
-    urls += [u for u in data.get("citations") or [] if isinstance(u, str)]   # Perplexity also lists these
-    cost = (data.get("usage") or {}).get("cost")
-    return text, data.get("model", ""), urls, bool(urls), cost if isinstance(cost, (int, float)) else None
+    if not urls:   # some replies list their sources only at the top level
+        urls = [u for u in data.get("citations") or [] if isinstance(u, str)]
+    usage = data.get("usage") or {}
+    searches = (usage.get("server_tool_use_details") or {}).get("web_search_requests")
+    # The reply's own search counter when it has one (seen in real replies, not documented);
+    # otherwise "it cited a web page".
+    searched = searches > 0 if isinstance(searches, int) else bool(urls)
+    cost = usage.get("cost")
+    return text, data.get("model", ""), urls, searched, cost if isinstance(cost, (int, float)) else None
 
 
 def build_request(engine, mode, question, cfg, key, route="direct"):
@@ -585,9 +593,11 @@ NO_ANSWER_SAYS = {"no AI Overview shown": "Google showed no AI Overview",
 class EngineError(Exception):
     """A failed call. `fatal` = retrying this engine this run can't help (bad key, missing
     permission, no credit, a request the API rejects), so the run stops asking it."""
-    def __init__(self, message, fatal=False):
+    def __init__(self, message, fatal=False, status=None, cost=None):
         super().__init__(message)
         self.fatal = fatal
+        self.status = status   # the HTTP status, when the failure was an HTTP answer
+        self.cost = cost       # what the call cost even though its answer is unusable (OpenRouter)
 
 
 def _error_obj(r):
@@ -639,13 +649,13 @@ def _send(method, url, headers, payload, all_keys, deadline):
             # SerpApi's key is a query parameter, so a transport error's URL carries it.
             raise EngineError(redact(f"{type(e).__name__}: {e}", all_keys)) from None
         if r.status_code == 429 and _out_of_credit(r):
-            raise EngineError(_error_line(r, all_keys), fatal=True)
+            raise EngineError(_error_line(r, all_keys), fatal=True, status=r.status_code)
         if r.status_code == 429 and attempt < 2:
             time.sleep(delay * (attempt + 1))
             continue
         if r.status_code != 200:
-            fatal = 400 <= r.status_code < 500 and r.status_code != 429
-            raise EngineError(_error_line(r, all_keys), fatal=fatal)
+            fatal = 400 <= r.status_code < 500 and r.status_code not in (408, 429)   # 408 = timeout
+            raise EngineError(_error_line(r, all_keys), fatal=fatal, status=r.status_code)
         try:
             return r.json()
         except ValueError:
@@ -798,7 +808,7 @@ def run(domain: str, only=None) -> int:
     queries = [q for q in cfg.get("queries", []) if q.get("text")]
     if not usable and keys.get("google-ai-mode") and not cfg.get("google"):
         problems.append(f"the AI check has no engine it may ask: SERPAPI_KEY is set but Google is off "
-                        f"for this site (turn on with --google on, or add e.g. {KEY_VARS['gemini']})")
+                        f"for this site (turn on with --google on, or add {ROUTER_VAR}: one key for all four assistants)")
     elif not usable:
         problems.append("the AI check is set up but has no engine key "
                         f"(add {ROUTER_VAR}=... to {base_dir() / '.env'}: one key for all four assistants)")
@@ -847,13 +857,18 @@ def run(domain: str, only=None) -> int:
                     try:
                         text, model, sources, did_search, cost = call_engine(
                             engine, mode, q["text"], cfg, key, all_keys, deadline, route)
-                        if cost is not None:
-                            run_cost.append(cost)
+                        if route == "openrouter":
+                            run_cost.append(cost)          # None = OpenRouter reported no price
                     except EngineError as e:
                         errors.append(str(e))
+                        if route == "openrouter" and e.cost is not None:
+                            run_cost.append(e.cost)          # a cut-off answer is still billed
                         if e.fatal:
                             dead = f"{e} (not retried)"
-                            if route == "openrouter":
+                            # Only account-wide answers stop the other assistants on the route:
+                            # a bad key (401) or no credit (402). A per-model error (e.g. 404
+                            # "no native search" for one model) stops that assistant alone.
+                            if route == "openrouter" and e.status in (401, 402):
                                 route_dead[route] = dead
                         continue
                     except Exception as e:  # noqa: BLE001 — keep the run's other rows (Rule 12: still reported)
@@ -876,7 +891,7 @@ def run(domain: str, only=None) -> int:
                         answers.mkdir(parents=True, exist_ok=True)
                         (answers / f"{engine}-{mode}-{slot}-{i}.txt").write_text(
                             f"# engine={engine} mode={mode} slot={slot} rev={q['rev']} "
-                            f"model={model} searched={'yes' if did_search else 'no'}\n"
+                            f"model={model} searched={'yes' if did_search else 'no'} route={route}\n"
                             f"# question: {q['text']}\n\n{text}\n\n# sources:\n"
                             + "".join(f"{s}\n" for s in sources), encoding="utf-8")
                     except (OSError, UnicodeError) as e:
@@ -916,7 +931,10 @@ def run(domain: str, only=None) -> int:
 
     print(f"  engines: {len(checked)} checked, {len(failed)} failed, {len(not_set_up)} not set up")
     if run_cost:
-        print(f"  cost of this run via OpenRouter: ${sum(run_cost):.3f} ({len(run_cost)} answers)")
+        priced = [c for c in run_cost if c is not None]
+        unknown = len(run_cost) - len(priced)
+        print(f"  cost of this run via OpenRouter: ${sum(priced):.3f} ({len(priced)} answers"
+              + (f"; cost unknown for {unknown} more)" if unknown else ")"))
     if rows:
         print(f"  answers: {answers}")
         try:
@@ -1005,7 +1023,7 @@ def trend(domain: str) -> int:
             causes.append("model changed")
         if prev["config_rev"] != now["config_rev"]:
             causes.append("settings changed")
-        if prev.get("route") and now.get("route") and prev["route"] != now["route"]:
+        if (prev.get("route") or "direct") != (now.get("route") or "direct"):   # older rows had no column: all direct
             causes.append("route changed")
         dagger = f"  ‡ {', '.join(causes)} — not directly comparable" if causes else ""
         print(f"{head} named {prev['named']}/{_ok(prev)} ({prev['date']}) → "
@@ -1168,13 +1186,18 @@ def build_report(domain: str, run_id=None):
     for r in sorted(rows, key=lambda r: r["run_id"]):
         latest[(r["engine"], r["mode"], r["slot"])] = r
     run_id = run_id or max(r["run_id"] for r in latest.values())
+    keys = load_keys()
+    router = setting(ROUTER_VAR)
+    # An answer in a mode the current route can't ask (Perplexity "from memory" after a switch to
+    # OpenRouter) is history, not a current result.
+    latest = {k: r for k, r in latest.items()
+              if k[1] in modes_for(k[0], route_for(k[0], keys, router)[0] or "direct")}
     names = cfg.get("names", [])
     name = names[0] if names else site
     h = html.escape
     queries = {q["slot"]: q for q in cfg.get("queries", [])}
     scored = [s for s in QUESTION_LABEL if s in queries]
-    keys = load_keys()
-    on = [e for e in ENGINES if route_for(e, keys, setting(ROUTER_VAR))[0] and (e not in SERP_ENGINES or cfg.get("google"))]
+    on = [e for e in ENGINES if route_for(e, keys, router)[0] and (e not in SERP_ENGINES or cfg.get("google"))]
     engines = [e for e in on if any(k[0] == e for k in latest)]
     any_stale = False
 
@@ -1184,7 +1207,8 @@ def build_report(domain: str, run_id=None):
         parts = []
         for i, fp in enumerate(files, 1):
             _, text, sources = read_answer(fp)
-            src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in sources[:12]) + "</div>") if sources else ""
+            uniq = list(dict.fromkeys(sources))[:12]      # a reply may cite the same page several times
+            src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in uniq) + "</div>") if uniq else ""
             label = f"Answer {i} of {len(files)}" if len(files) > 1 else "The answer"
             parts.append(f"<details><summary>{label}</summary>"
                          f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
@@ -1238,7 +1262,7 @@ def build_report(domain: str, run_id=None):
             cells = []
             for mode in ("finds", "knows"):
                 r = latest.get((e, mode, slot))
-                cls, main, note = _cell(r, e, mode, route_for(e, keys, setting(ROUTER_VAR))[0])
+                cls, main, note = _cell(r, e, mode, route_for(e, keys, router)[0])
                 star = ""
                 if r is not None and _stale(r, q):
                     star, any_stale = " *", True
@@ -1344,13 +1368,14 @@ def prepare_env() -> int:
     env = base_dir() / ".env"
     env.parent.mkdir(parents=True, exist_ok=True)
     text = env.read_text(encoding="utf-8") if env.exists() else ""
-    names = [ROUTER_VAR, "SERPAPI_KEY"]   # the default route + Google's AI; direct keys are optional extras
+    names = [ROUTER_VAR, "SERPAPI_KEY", KEY_VARS["gemini"]]   # the default route, Google's AI, the free Gemini option
     missing = [v for v in names
                if not re.search(r"(?m)^\s*(?:export\s+)?" + v + r"\s*=", text)]
     if missing:
         block = ("\n# Weekly AI check (does AI name you?) — paste each key after the = sign,\n"
                  "# no spaces, no quotes. GEO_OPENROUTER_API_KEY is one key for ChatGPT, Claude,\n"
-                 "# Gemini and Perplexity; SERPAPI_KEY is only for Google's AI (optional).\n"
+                 "# Gemini and Perplexity; SERPAPI_KEY is only for Google's AI (optional);\n"
+                 "# GEO_GEMINI_API_KEY is the free way to start (Gemini 'from memory' only).\n"
                  + "".join(f"{v}=\n" for v in missing))
         with open(env, "a", encoding="utf-8") as f:
             f.write(("" if not text or text.endswith("\n") else "\n") + block)

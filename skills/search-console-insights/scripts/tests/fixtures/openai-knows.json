@@ -51,12 +51,6 @@
  "previous_response_id": null,
  "prompt_cache_key": null,
  "prompt_cache_retention": "24h",
- "reasoning": {
-  "context": "all_turns",
-  "effort": "medium",
-  "mode": "standard",
-  "summary": null
- },
  "safety_identifier": null,
  "service_tier": "default",
  "store": false,

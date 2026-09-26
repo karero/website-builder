@@ -33,7 +33,8 @@ the questions on to ChatGPT, Claude, Gemini and Perplexity, and bills all four f
 prepaid balance**. It uses each assistant's **own** web search, so "ChatGPT with web search on"
 is what a ChatGPT user gets. The owner tops up once (5 or 10 USD/EUR is plenty to start; see
 Costs for how long that lasts) and adds one key. They pay what the AI companies charge, plus
-about 5.5% when topping up; OpenRouter doesn't store the questions or answers by default.
+a top-up fee (5.5%, at least $0.80); OpenRouter says it doesn't store the questions or answers
+by default.
 
 | Assistant | From memory | With web search on | Key (in `~/.config/gsc-insights/.env`) |
 |---|---|---|---|
@@ -46,8 +47,14 @@ about 5.5% when topping up; OpenRouter doesn't store the questions or answers by
   (`GEO_GEMINI_API_KEY`, `GEO_OPENAI_API_KEY`, `GEO_ANTHROPIC_API_KEY`,
   `GEO_PERPLEXITY_API_KEY`) are only used when there is no OpenRouter key. The report says which
   route each assistant went through, and a switch between routes is marked in the trend.
+- **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
+  pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
+  barely matters, because its questions name the place ("… in Munich-Schwabing"). A business that
+  sells everywhere gets search results without a country, which can lean towards the US; if that
+  matters, use direct keys or name the market in the question.
 - **Perplexity through OpenRouter only answers "with web search on".** Its model always searches
-  by itself, so there is no "from memory" answer to collect on that route.
+  by itself, so there is no "from memory" answer to collect on that route (checked: even "What is
+  2 + 2?" came back with 20 web sources).
 - **A free start:** a direct Gemini key from Google AI Studio costs nothing (outside the EU/UK/CH)
   and gives Gemini's "from memory" column. Everything else needs a paid route.
 
@@ -84,7 +91,8 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
 A full weekly check for **one site** asks ChatGPT, Claude, Gemini and Perplexity 42 times in total.
-Through OpenRouter it cost **$0.72**, plus the 5.5% top-up fee: **about $0.76 a week per site**.
+Through OpenRouter it cost **$0.72 a week per site**. The top-up fee comes on top when buying credit:
+5.5%, at least $0.80, so a $5 top-up costs $5.80 and a $10 top-up $10.80.
 
 | Prepaid once | Lasts for one site | For three sites |
 |---|---|---|
@@ -139,7 +147,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
    **OpenRouter (the default: one key for all four)**
    1. openrouter.ai → sign in (a Google login works).
    2. **Credits → Add credits**: 5 or 10 USD/EUR. That is a one-time top-up, not a subscription;
-      it lasts for weeks (see Costs). OpenRouter adds about 5.5% on top-ups.
+      it lasts for weeks (see Costs). OpenRouter's fee is 5.5%, at least $0.80, so $10 is the better value.
    3. **Keys → Create Key**, name it "AI check". Setting a **credit limit** on the key (for
       example the amount just added) means it can never spend more. Don't set it below a
       few dollars, or calls get refused.
@@ -253,7 +261,7 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 - **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. (For Perplexity
   this means "among the search results it used": its API doesn't say which of them it quoted.)
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
-- **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, or the settings (names, domain, country).
+- **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.
 
 Every answer is saved verbatim with its sources under

@@ -35,7 +35,8 @@ def trim(o, meta=False):
     if isinstance(o, dict):
         out = {}
         for k, v in o.items():
-            if k.startswith("encrypted_"):
+            # encrypted blobs, and OpenRouter's reasoning traces/signatures: never read by the tests
+            if k.startswith("encrypted_") or k in ("reasoning", "reasoning_details", "signature", "thoughtSignature"):
                 continue
             if meta and k in BLANK and isinstance(v, str):
                 out[k] = ""

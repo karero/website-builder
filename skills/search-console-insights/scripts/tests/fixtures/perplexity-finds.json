@@ -168,7 +168,6 @@
  "presence_penalty": 0,
  "previous_response_id": null,
  "prompt_cache_key": null,
- "reasoning": null,
  "safety_identifier": null,
  "service_tier": "default",
  "status": "completed",
