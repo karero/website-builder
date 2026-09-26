@@ -252,10 +252,16 @@ only if the owner wants a second pair of eyes on every change.
 there. Say so plainly, then enable the local guard the kit already ships:
 `scripts/hooks/pre-push` contains a commented-out **PR-only main** block (the six
 lines from `while read` to `done`, marked OPTIONAL). First read the current state —
-re-runs must not edit twice:
+re-runs must not edit twice, and a site scaffolded before the block existed has no
+block to uncomment at all:
 ```bash
 grep -n '^while read -r _lref' scripts/hooks/pre-push && echo "already enabled"
+grep -q 'ALLOW_MAIN_PUSH' scripts/hooks/pre-push || echo "no block in this hook — older kit; copy the kit's scripts/hooks/pre-push first"
 ```
+No block (the second line fires): replace the site's hook with the kit's
+`templates/astro/scripts/hooks/pre-push` in the setup pull request — the two differ
+only by the block and the publish-classifier step, both additive — then continue.
+Found this on the first real site the skill ran on: its hook predated the block.
 If it is not enabled: remove the leading `# ` from those six lines and replace only
 the first sentence of the comment above them ("OPTIONAL: PR-only main flow …") with
 the date and why it is on — keep the rest of that comment: it is the **single source
