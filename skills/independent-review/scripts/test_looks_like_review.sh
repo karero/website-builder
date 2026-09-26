@@ -2,7 +2,7 @@
 # Regression cases for looks_like_review() in independent_review.sh: which reviewer output counts as
 # a review, and which as a refusal. Run: bash skills/independent-review/scripts/test_looks_like_review.sh
 set -u
-here="$(cd "$(dirname "$0")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/independent_review.sh")"
 [ -n "$fn" ] || { echo "FAIL: could not extract looks_like_review"; exit 1; }
 # eval must only ever see the function: if the extraction ran past its closing brace, it would run

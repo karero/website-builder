@@ -15,7 +15,7 @@
 #
 # Usage: bash skills/independent-review/scripts/test_failed_tier_report.sh
 set -u
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$HERE/independent_review.sh"
 T="$(mktemp -d "${TMPDIR:-/tmp}/ir-test.XXXXXX")"
 trap 'rm -rf "$T"' EXIT

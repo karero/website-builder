@@ -3,7 +3,7 @@
 # zip — run this instead of editing a separate package copy.
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT="$REPO_DIR/dist"
 mkdir -p "$OUT"
 rm -f "$OUT/website-builder.zip"

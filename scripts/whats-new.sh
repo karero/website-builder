@@ -36,7 +36,7 @@
 # Needs the git clone of the suite (a zip has no history to compare against).
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 
 # The suite must be a git clone, and REPO_DIR must be that repo's own toplevel —
 # not a zip extraction sitting inside some unrelated enclosing repository, whose

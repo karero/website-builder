@@ -8,7 +8,7 @@
 # checking — that duplication is exactly the bug class PR #87 exposed (a hand-maintained
 # list one file at a time silently missing a new template file).
 set -uo pipefail
-cd "$(dirname "$0")/.."
+CDPATH= cd -- "$(dirname -- "$0")/.."
 
 WN="scripts/whats-new.sh"
 TEMPLATE_ASTRO_DIR="skills/new-website/templates/astro"
