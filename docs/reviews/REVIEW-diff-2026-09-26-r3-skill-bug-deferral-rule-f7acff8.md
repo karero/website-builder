@@ -101,10 +101,9 @@ directory; its model is the CLI's default. Consent: the owner's "ok round 4, inc
 | D5 | RISK | Antigravity, fresh-eyes | The two-status paragraph read as if a deferred BUG needs no verification at all | Fixed: its merge-base reproduction must be `locally_verified` |
 | D6 | RISK | Antigravity, ollama | A verification round was told to "confirm each fix landed", not to check the deferrals | Fixed: it also confirms each deferral meets point 5's three conditions |
 | D7 | RISK | ollama | "Its test's name" and "a test" were singular, where a BUG has many KNOWN WRONG cases | Fixed: plural throughout |
-| D8 | RISK | Antigravity | Closeout's trail list omitted the reproduction record | Fixed with D1 |
-| D9–D13 | NIT | fresh-eyes 5 | "Its own dated line in the row"; the round-3 trail cited `1bb12b7`, not #110's merge-base `b586b4b`; whether a sign-off carries over to later gates; the gate-status body read as contradicting its heading | Fixed, or gone with widenings. `b586b4b` and `1bb12b7` hold the same function byte for byte, so the round-3 result stands. A sign-off now carries over; each gate records its own reproduction |
-| D14 | NIT | ollama | "Point 2's exclusion" names the wrong point | **Refuted:** Procedure point 2 is where `docs/reviews/` is left out of the artifact |
-| D15 | NIT | Antigravity | A deferred BUG's re-raise duplicates the "still OPEN" bullet, so point 7 double-counts | **Refuted:** that bullet covers a claim held open on a missing prerequisite; a deferral is a different disposition, and the owner accepted it |
+| D8–D12 | NIT | fresh-eyes 5 | "Its own dated line in the row"; the round-3 trail cited `1bb12b7`, not #110's merge-base `b586b4b`; whether a sign-off carries over to later gates; the gate-status body read as contradicting its heading | Fixed, or gone with widenings. `b586b4b` and `1bb12b7` hold the same function byte for byte, so the round-3 result stands. A sign-off now carries over; each gate records its own reproduction |
+| D13 | NIT | ollama | "Point 2's exclusion" names the wrong point | **Refuted:** Procedure point 2 is where `docs/reviews/` is left out of the artifact |
+| D14 | NIT | Antigravity | A deferred BUG's re-raise duplicates the "still OPEN" bullet, so point 7 double-counts | **Refuted:** that bullet covers a claim held open on a missing prerequisite; a deferral is a different disposition, and the owner accepted it |
 
 ## Merge-base reproduction for the two deferred BUGs (D1)
 
@@ -123,7 +122,7 @@ change has merged, so they are pre-existing for this one.
 
 ## Convergence
 
-BUG/RISK per round: 10, 8, 4, 8, with BUGs 5, 4, 0, 1. Round 3's four RISKs: two landed on round
+BUG/RISK per round: 10, 8, 4, 7, with BUGs 5, 4, 0, 1. Round 3's four RISKs: two landed on round
 2's own fixes, one was new ground, one was refuted. Round 4 rose again, and two of its RISKs were
 the widening definition once more: every round found a new gap in it. That is point 7's signal to
 stop patching, so the owner took the decision, and the definition is gone rather than rewritten a
