@@ -13,6 +13,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import contextlib
 import csv
+import html
 import io
 import os
 import sys
@@ -515,6 +516,49 @@ class KeySetup(GeoTestCase):
         self.assertNotIn(GKEY, out)
         self.assertRegex(out, r"GEO_GEMINI_API_KEY\s+set")
         self.assertRegex(out, r"GEO_OPENAI_API_KEY\s+empty")
+
+
+class Report(GeoTestCase):
+    """The owner-facing page. Answers are untrusted text from outside: they must never run
+    as code in the owner's browser, and highlighting the name must not break links."""
+
+    def test_markdown_is_rendered_safely(self):
+        html_out = geo_check._mark_names(geo_check._light_markdown(
+            "### Top\nTry **Bäckerei Example** at [site](https://example-bakery.de/x)"
+            " <script>alert(1)</script> [bad](javascript:alert(1))"), ["Bäckerei Example", "example"])
+        self.assertIn("<strong>Top</strong>", html_out)
+        self.assertIn("<strong><mark>Bäckerei Example</mark></strong>", html_out)
+        self.assertIn('href="https://example-bakery.de/x"', html_out)  # no <mark> inside the href
+        self.assertIn("&lt;script&gt;", html_out)
+        self.assertNotIn("<script>", html_out)
+        self.assertNotIn('href="javascript', html_out)
+
+    def test_report_shows_latest_answers_of_every_engine(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Nothing about bakeries.")
+        self.cli()
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"reconstructed_markdown": "Go to **Bäckerei Example**.",
+                                                       "references": [{"link": "https://example-bakery.de"}]})
+        stub.STATE["serp"]["google"] = (200, {})
+        self.cli("--engines", "google-ai-mode,google-overview")  # a later run with only Google
+        rc, out = self.cli("--report")
+        self.assertEqual(rc, 0, out)
+        page = Path(out.split("Report: ")[1].strip()).read_text()
+        self.assertIn("Gemini", page)                      # the earlier run is not hidden
+        self.assertIn("Google AI Mode", page)
+        self.assertIn("named in 1 of 1", page)
+        self.assertIn("named in 0 of 3", page)
+        self.assertIn("Google showed no AI Overview", page)
+        self.assertIn(html.escape(BROAD), page)
+
+    def test_weekly_run_writes_the_report(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        rc, out = self.cli()
+        self.assertIn("report:", out)
 
 
 class Safety(GeoTestCase):

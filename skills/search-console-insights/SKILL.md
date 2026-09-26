@@ -427,6 +427,7 @@ from it that apply every time:
   `python scripts/geo_check.py <domain> --check-drift` first.** If the homepage changed since
   the questions were confirmed, read the homepage (and POSITIONING.md if present), propose
   updated questions, and **ask the owner** before changing anything.
+- **Show results as the report page** (`geo_check.py <domain> --report`), not raw files.
 - **You draft the questions; you never answer them.** The whole point is a buyer's
   un-primed question to an engine that knows nothing about this conversation.
 

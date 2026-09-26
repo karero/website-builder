@@ -161,8 +161,8 @@ free to start with; the others cost a few cents a week if you want them."*
    - Add an alias for each other spelling the owner uses ("ExampleCo" for "Example-Co").
    - `--domain` defaults to the site's domain.
    - `--confirm` prints what it read from the homepage. If that isn't the real page (a "checking your browser" wall), it refuses to save.
-5. 🤖 **Run it once** (`python scripts/geo_check.py example.com`) and walk the owner through the
-   result. It takes a few minutes with all four engines. If an engine shows FAILED, read its
+5. 🤖 **Run it once** (`python scripts/geo_check.py example.com`), then open the report
+   (`--report`) and walk the owner through it. It takes a few minutes with all four engines. If an engine shows FAILED, read its
    reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
@@ -185,7 +185,14 @@ ones, keeps the week's data and logs a warning. Asking is this session's job.
 
 ## Reading the results
 
-`python scripts/geo_check.py <domain> --trend` (track.sh prints it every week):
+**Show the owner the report page first:** `python scripts/geo_check.py <domain> --report` builds
+one readable page with each engine's latest answer to each question and opens it in the browser.
+It shows who named the business, whether the owner's site was cited, the answer with the name
+highlighted, and the sources. Every weekly run also writes it and prints its path
+(`~/.config/gsc-insights/geo/reports/<domain>/`). Walk the owner through it in plain words.
+
+For the week-over-week movement, `python scripts/geo_check.py <domain> --trend` (track.sh prints
+it every week):
 
 ```
 gemini     knows you broad   named 0/3 (2026-09-28) → 1/3 (2026-10-05) ▲

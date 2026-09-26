@@ -35,6 +35,7 @@ import json
 import os
 import random
 import re
+import subprocess
 import sys
 import time
 import unicodedata
@@ -697,6 +698,12 @@ def run(domain: str, only=None) -> int:
     print(f"  engines: {len(checked)} checked, {len(failed)} failed, {len(not_set_up)} not set up")
     if rows:
         print(f"  answers: {answers}")
+        try:
+            report = build_report(domain, run_id)
+            if report:
+                print(f"  report:  {report}   (open it in a browser)")
+        except OSError as e:
+            print(f"  (couldn't write the report page: {e})")
     for p in problems:
         print(f"⚠ {p}")
     return 1 if problems else 0
@@ -772,6 +779,173 @@ def trend(domain: str) -> int:
     return 0
 
 
+# ─── report (a readable page per run) ─────────────────────────────────────────
+
+ENGINE_LABEL = {"gemini": "Gemini", "openai": "ChatGPT (OpenAI)", "anthropic": "Claude (Anthropic)",
+                "perplexity": "Perplexity", "google-ai-mode": "Google AI Mode",
+                "google-overview": "Google AI Overview"}
+MODE_LABEL = {"knows": "Knows you · no web search", "finds": "Finds you · web search on"}
+SLOT_LABEL = {"broad": "Broad question", "narrow": "Narrow question",
+              "branded": "Branded question (not scored: the answer repeats the name either way)"}
+
+
+def read_answer(path: Path):
+    """(header dict, answer text, [sources]) from one saved answer file."""
+    raw = path.read_text(encoding="utf-8")
+    head, _, rest = raw.partition("\n\n")
+    body, _, src = rest.rpartition("\n\n# sources:\n")
+    if not _:
+        body, src = rest, ""
+    meta = dict(re.findall(r"(\w+)=(\S+)", head.splitlines()[0])) if head else {}
+    return meta, body.strip(), [s for s in src.splitlines() if s.strip()]
+
+
+def _light_markdown(text: str) -> str:
+    """Escape an answer, then render the little markdown engines use: headings, **bold**,
+    and [text](http links). Anything else stays plain text — answers are untrusted input."""
+    out = []
+    for line in html.escape(text.replace("\\(", "(").replace("\\)", ")")).split("\n"):
+        m = re.match(r"\s*#{1,6}\s+(.*)", line)
+        line = f"<strong>{m.group(1)}</strong>" if m else line
+        line = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", line)
+        line = re.sub(r"\[([^\]]+)\]\((https?://[^)\s\"]+)\)",
+                      r'<a href="\2" rel="noopener noreferrer" target="_blank">\1</a>', line)
+        out.append(line)
+    return "\n".join(out)
+
+
+def _mark_names(rendered: str, names) -> str:
+    """Highlight the business names (case-insensitive) in the visible text only — never
+    inside a tag, where "example" in href="https://example.com" would break the link."""
+    alts = [re.escape(html.escape(n)) for n in sorted(names, key=len, reverse=True) if n]
+    if not alts:
+        return rendered
+    # One pass over all names, longest first, so "Bäckerei Example" is never re-marked
+    # inside by a shorter alias such as "Example".
+    pat = re.compile(r"(?<!\w)(" + "|".join(alts) + r")(?!\w)", re.IGNORECASE)
+    parts = [p if p.startswith("<") else pat.sub(r"<mark>\1</mark>", p)
+             for p in re.split(r"(<[^>]+>)", rendered)]
+    return "".join(parts)
+
+
+def _link(s: str) -> str:
+    e = html.escape(s)
+    if re.match(r"https?://", s):
+        return f'<a href="{e}" rel="noopener noreferrer" target="_blank">{html.escape(norm_host(s)) or e}</a>'
+    return e
+
+
+_CSS = """
+:root{--bg:#f6f3ec;--card:#fffdf8;--ink:#1d1b16;--muted:#6b665c;--line:#e4ddcf;--yes:#2f6b3f;--yesbg:#e3f0e4;
+--no:#9a3b2f;--nobg:#f6e3df;--mark:#fbe7a1}
+@media (prefers-color-scheme:dark){:root{--bg:#171613;--card:#211f1b;--ink:#eee9df;--muted:#a59e90;--line:#37332c;
+--yes:#8fd19e;--yesbg:#1f3325;--no:#f0a092;--nobg:#3a2320;--mark:#5c4a12}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:28px;margin:0 0 4px}h2{font-size:20px;margin:40px 0 4px}
+.muted{color:var(--muted)}.q{font-size:18px;font-style:italic;margin:4px 0 16px}
+table{border-collapse:collapse;width:100%;margin:16px 0;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}th{color:var(--muted);font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card h3{margin:0;font-size:16px}.mode{font-size:13px;color:var(--muted);margin-bottom:8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600;margin:0 6px 6px 0}
+.yes{background:var(--yesbg);color:var(--yes)}.no{background:var(--nobg);color:var(--no)}.info{background:var(--line);color:var(--ink)}
+details{margin-top:8px}summary{cursor:pointer;color:var(--muted);font-size:14px}
+.answer{white-space:pre-wrap;font-size:14px;max-height:320px;overflow:auto;border-left:3px solid var(--line);padding-left:10px;margin-top:6px}
+mark{background:var(--mark);color:inherit;padding:0 2px;border-radius:3px}.sources{font-size:13px;margin-top:6px}
+.sources a{color:inherit;margin-right:8px}
+"""
+
+
+def build_report(domain: str, run_id=None):
+    """Write the HTML page for one run (default: the latest) and return its path, or None."""
+    site = normalize_site(domain)
+    cfg = load_config(domain) or {"names": [site], "queries": []}
+    path = history_path()
+    if not path.exists():
+        return None
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        rows = [r for r in csv.DictReader(f) if r.get("site") == site]
+    if not rows:
+        return None
+    # Each engine's latest answer to each question, whichever run it came from: a run
+    # limited with --engines must not hide the other engines' most recent results.
+    latest = {}
+    for r in sorted(rows, key=lambda r: r["run_id"]):
+        latest[(r["engine"], r["mode"], r["slot"])] = r
+    rows = list(latest.values())
+    run_id = run_id or max(r["run_id"] for r in rows)
+    names = cfg.get("names", [])
+    h = html.escape
+
+    def count(r):
+        if r["slot"] == "branded":
+            return "—"
+        if not _ok(r):
+            return "failed"
+        if r.get("status") == "no AI Overview shown":
+            return "no overview"
+        return f"{r['named']}/{_ok(r)}"
+
+    # Summary grid: one line per engine x mode, a column per scored question.
+    lines = []
+    for e in ENGINES:
+        for m in MODES:
+            rs = {r["slot"]: r for r in rows if r["engine"] == e and r["mode"] == m}
+            if rs:
+                cells = "".join(f"<td>{h(count(rs[s])) if s in rs else ''}</td>" for s in ("broad", "narrow"))
+                lines.append(f"<tr><td>{h(ENGINE_LABEL.get(e, e))}</td><td>{h(MODE_LABEL[m])}</td>{cells}</tr>")
+
+    sections = []
+    for q in cfg.get("queries", []):
+        cards = []
+        for r in [r for r in rows if r["slot"] == q["slot"]]:
+            adir = geo_dir() / "answers" / site / r["run_id"]
+            files = sorted(adir.glob(f"{r['engine']}-{r['mode']}-{r['slot']}-*.txt"))
+            badges = []
+            if q["slot"] != "branded":
+                if not _ok(r):
+                    badges.append(f'<span class="badge no">failed: {h(r["status"])}</span>')
+                elif r.get("status") == "no AI Overview shown":
+                    badges.append('<span class="badge info">Google showed no AI Overview</span>')
+                else:
+                    n = int(r["named"] or 0)
+                    badges.append(f'<span class="badge {"yes" if n else "no"}">named in {n} of {_ok(r)}</span>')
+                    if r.get("cited_own") not in ("", None):
+                        c = int(r["cited_own"])
+                        badges.append(f'<span class="badge {"yes" if c else "no"}">your site cited in {c} of {_ok(r)}</span>')
+                    if r.get("searched") not in ("", None) and int(r["searched"]) < _ok(r):
+                        badges.append(f'<span class="badge info">searched in only {r["searched"]} of {_ok(r)}</span>')
+            answers = []
+            for i, fp in enumerate(files, 1):
+                _, text, sources = read_answer(fp)
+                src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in sources[:12]) + "</div>") if sources else ""
+                answers.append(f"<details{' open' if i == 1 else ''}><summary>Answer {i} of {len(files)}</summary>"
+                               f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
+            cards.append(f"<div class='card'><h3>{h(ENGINE_LABEL.get(r['engine'], r['engine']))}</h3>"
+                         f"<div class='mode'>{h(MODE_LABEL.get(r['mode'], r['mode']))}</div>"
+                         f"{''.join(badges)}{''.join(answers) or '<p class=muted>No answer saved.</p>'}</div>")
+        sections.append(f"<h2>{h(SLOT_LABEL.get(q['slot'], q['slot']))}</h2><p class='q'>“{h(q['text'])}”</p>"
+                        f"<div class='grid'>{''.join(cards)}</div>")
+
+    dates = sorted({r["date"] for r in rows})
+    when = dates[-1] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
+    page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Does AI name {h(site)}?</title>
+<style>{_CSS}</style></head><body><main>
+<h1>Does AI name {h(', '.join(names[:1]) or site)}?</h1>
+<p class="muted">{h(site)} · latest answers, {h(when)} · the engines were asked each question without the business name,
+the way a new customer would ask. “Knows you” = the AI answered from memory; “Finds you” = it searched the web first.</p>
+<table><tr><th>Engine</th><th>Mode</th><th>Broad question</th><th>Narrow question</th></tr>{''.join(lines)}</table>
+{''.join(sections)}
+<p class="muted">Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
+</main></body></html>"""
+    out = geo_dir() / "reports" / site / f"{run_id}.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page, encoding="utf-8")
+    return out
+
+
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
 ENV_HINTS = {
@@ -821,7 +995,7 @@ def main(argv=None) -> int:
     ap.add_argument("domain", nargs="?")
     cmd = ap.add_mutually_exclusive_group()
     for c in ("init", "set-names", "set-question", "check-drift", "confirm", "trend",
-              "keys", "prepare-env"):
+              "keys", "prepare-env", "report"):
         cmd.add_argument(f"--{c}", action="store_true")
     ap.add_argument("--name")
     ap.add_argument("--legal-name")
@@ -844,6 +1018,16 @@ def main(argv=None) -> int:
 
     if args.trend:
         return trend(domain)
+
+    if args.report:
+        out = build_report(domain)
+        if not out:
+            print("AI check: no results yet for this site — run it first.")
+            return 3
+        print(f"Report: {out}")
+        if sys.platform == "darwin" and os.environ.get("GEO_TEST_MODE") != "1":
+            subprocess.run(["open", str(out)], check=False)
+        return 0
 
     if args.init:
         if load_config(domain):
