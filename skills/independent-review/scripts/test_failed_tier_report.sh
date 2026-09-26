@@ -73,6 +73,8 @@ case "${CODEX_STUB:-ok}" in
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
   slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  tokens) # a run that reports its token count on stderr, as codex ends a run
+        printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
         trap '' TERM; echo $$ >"$STUB_MARKS/codex-pid"; sleep 30 ;;
 esac
@@ -135,7 +137,7 @@ chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -463,6 +465,44 @@ check "effort: explicit effort after the model override" \
 run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff"
 check "effort: an unknown value exits 2 before any reviewer runs" \
   sh -c '[ "$(cat "$1/effbad.rc")" = 2 ] && [ ! -e "$1/effbad.marks/codex-ran" ]' _ "$T"
+
+# 27. The cost log (review_log.sh, 2026-09-26): one line per attempted seat, with depth and round
+#     from the flags, codex's own token count, and nothing when REVIEW_LOG=off. A log that cannot
+#     be written never fails the review.
+LOGT="$T/costs.tsv"
+run costlog REVIEW_LOG="$LOGT" CODEX_STUB=tokens bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+check "costlog: exit 0" rc_is costlog 0
+check "costlog: a header and one line per seat" [ "$(wc -l <"$LOGT" | tr -d ' ')" = 3 ]
+check "costlog: codex line — gate, depth, round, seat, model, effort, tokens, outcome" \
+  awk -F'\t' '$8=="codex" && $5=="diff" && $6=="normal" && $7=="2" && $9=="stub-codex" && $10=="config" && $11 ~ /^[0-9]+$/ && $12=="61108" && $13=="OK" {f=1} END {exit !f}' "$LOGT"
+check "costlog: ollama line" awk -F'\t' '$8=="ollama-cloud" && $10=="-" && $12=="-" && $13=="OK" {f=1} END {exit !f}' "$LOGT"
+check "costlog: the timings line carries codex's tokens" grep -qE '^timings: codex [0-9]+s \(61108 tokens\), ollama-cloud [0-9]+s$' "$T/costlog.out"
+run costfail REVIEW_LOG="$T/costs2.tsv" OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "costlog: a failed seat is logged as FAILED" awk -F'\t' '$8=="ollama-cloud" && $13=="FAILED" {f=1} END {exit !f}' "$T/costs2.tsv"
+run costskip REVIEW_LOG="$T/costs3.tsv" OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+check "costlog: a skipped seat is not logged" [ "$(wc -l <"$T/costs3.tsv" | tr -d ' ')" = 2 ]
+DEFLOG="$T/u/.local/state/independent-review/runs.tsv"   # earlier runs here set no REVIEW_LOG
+before="$(cat "$DEFLOG" 2>/dev/null | wc -l | tr -d ' ')"
+run costoff REVIEW_LOG=off bash "$SCRIPT" "$T/change.diff"
+check "costlog: REVIEW_LOG=off writes nothing" \
+  sh -c '[ ! -e "$1/off" ] && [ ! -e "$1/u/off" ] && [ ! -e "$PWD/off" ] && [ "$(cat "$2" 2>/dev/null | wc -l | tr -d " ")" = "$3" ]' _ "$T" "$DEFLOG" "$before"
+run costdefault bash "$SCRIPT" "$T/change.diff"
+check "costlog: default path under the (relocated) home" [ -s "$T/u/.local/state/independent-review/runs.tsv" ]
+: >"$T/notadir"
+run costbad REVIEW_LOG="$T/notadir/x/costs.tsv" bash "$SCRIPT" "$T/change.diff"
+check "costlog: an unwritable log never fails the review" rc_is costbad 0
+check "costlog: ...and says so" has costbad.err "could not write the review cost log"
+run costdepth bash "$SCRIPT" "$T/change.diff" --depth extreme
+check "costlog: an unknown depth exits 2" rc_is costdepth 2
+# The host logs its own seats; the summary groups by depth and seat, and counts rounds per gate.
+REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --seat fresh-eyes --model sonnet --seconds 395 \
+  --tokens 156477 --gate diff --depth normal --round 1
+REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" summary >"$T/summary.out"
+check "summary: a row per depth and seat" grep -qE '^normal +fresh-eyes +1 +1 +395 +395 +156477$' "$T/summary.out"
+check "summary: codex row with its mean tokens" grep -qE '^normal +codex +1 +1 +[0-9]+ +[0-9]+ +61108$' "$T/summary.out"
+check "summary: rounds per gate" grep -qE '^normal +1 +2\.0 +2$' "$T/summary.out"
+REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --model x >/dev/null 2>&1
+check "add without --seat is refused" [ $? = 2 ]
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

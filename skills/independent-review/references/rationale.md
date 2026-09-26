@@ -399,3 +399,17 @@ session may extend to other changes. Normal runs fresh-eyes once, on a mid-tier 
 cross-model pair carries the gate; High keeps every seat at full strength every round. Verification
 rounds drop Codex to medium effort because they check fixes and a small delta. Whether these
 trades pay off is to be judged from the trails' `timings:` lines and fresh-eyes token counts.
+
+## Verification chains and the stamp; the cost log
+
+Before delta verification rounds (2026-09-26), a re-gate had to send every seat the full
+`(base, head)` pair, because the stamp certifies that reviewers saw that pair. With delta rounds,
+closeout's chain rule carries that guarantee instead: round 1 saw `base...h1` in full and each
+later round saw exactly the delta from the previous head, with the merge-base unchanged. A moved
+base breaks the chain, which is why SKILL.md step 6 falls back to a full round then.
+
+The cost log (`scripts/review_log.sh`) exists because the depths and effort levels were set from
+a handful of trails, not from measurements. It records seconds and tokens per seat per round —
+codex's own token count where it prints one, the host's sub-agent report for its seats — locally,
+outside any repo, so measuring adds no paperwork. Ollama tokens are not captured: getting them
+needs a change to the ollama call that could not be tested when this was written.

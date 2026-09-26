@@ -107,7 +107,8 @@ Codex's effort for any run.
 2. **Run the external half** (Normal and High; Light runs its one seat instead). Set Codex's
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
-   [--verify <prior-findings>]` (relative to this skill's directory). Type is auto-detected
+   [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
+   directory; depth and round only feed the cost log). Type is auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
    `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'` (the trail still ships in the PR;
@@ -118,8 +119,13 @@ Codex's effort for any run.
    TOP (the list is ranked); never through `tail`.
 3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
    round 1 only at Normal, every round at High, never at Light — started in the background
-   BEFORE the script so every seat runs at once. Note its duration and tokens
-   for the trail.
+   BEFORE the script so every seat runs at once.
+
+   **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
+   gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
+   <name> --model <m> --seconds <s> --tokens <t> --gate <plan|diff> --depth <d> --round <N>`
+   (a Claude Code sub-agent reports its duration and tokens). The log is local, never committed;
+   `scripts/review_log.sh summary` compares depths and seats across PRs.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
    - *refuted* — shown not to be an issue, to step 5's evidence standard; no sign-off.
@@ -201,7 +207,7 @@ Codex's effort for any run.
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
 8. **Keep the owner in the loop.** Between rounds: what was found, fixed and pending, the BUG/RISK
-   trend, what the round cost (the `timings:` line; the fresh-eyes pass's duration and tokens) and
+   trend, what the round cost (the `timings:` line; the host seats' duration and tokens) and
    any follow-ups. The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
    fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger

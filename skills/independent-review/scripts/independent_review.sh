@@ -85,8 +85,8 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>]"
-FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE=""
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N]"
+FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND=""
 while [ $# -gt 0 ]; do
   a="$1"; shift
   case "$a" in
@@ -100,6 +100,13 @@ while [ $# -gt 0 ]; do
                      # head, and this file holds the prior round's findings (SKILL.md step 6)
              [ $# -gt 0 ] && [ -n "$1" ] || { echo "--verify needs the prior-findings file" >&2; echo "$USAGE" >&2; exit 2; }
              VERIFY_FILE="$1"; shift ;;
+    --depth|--round) # recorded in the cost log only (review_log.sh); they change nothing else
+             [ $# -gt 0 ] || { echo "$a needs a value" >&2; echo "$USAGE" >&2; exit 2; }
+             case "$a:$1" in
+               --depth:light|--depth:normal|--depth:high) DEPTH="$1" ;;
+               --round:[1-9]|--round:[1-9][0-9]) ROUND="$1" ;;
+               *) echo "bad value for $a: $1" >&2; echo "$USAGE" >&2; exit 2 ;;
+             esac; shift ;;
     -)       FILE="-" ;;
     -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
              echo "$USAGE" >&2; exit 2 ;;
@@ -108,6 +115,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$FILE" ] || { echo "$USAGE" >&2; exit 2; }
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: $FILE" >&2; exit 2; }
 PRIOR=""
 if [ -n "$VERIFY_FILE" ]; then
@@ -758,7 +766,9 @@ report_tier() {
     { read -r rc; read -r TIER_PRINTED; read -r secs; IFS= read -r WHY; } <"$RAW_DIR/$stem.status"
   fi
   [ -f "$RAW_DIR/$stem.section" ] && cat "$RAW_DIR/$stem.section"
-  [ $rc -ne 3 ] && [ -n "$secs" ] && TIMINGS="${TIMINGS:+$TIMINGS, }$label ${secs}s"
+  local tokens=""
+  [ "$stem" = codex ] && tokens="$(codex_tokens)"
+  [ $rc -ne 3 ] && [ -n "$secs" ] && TIMINGS="${TIMINGS:+$TIMINGS, }$label ${secs}s${tokens:+ ($tokens tokens)}"
   if [ $rc -eq 0 ]; then
     OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); outcome="OK"
   elif [ $rc -eq 3 ]; then
@@ -814,7 +824,32 @@ report_tier() {
     printf '\n'
   fi
   SUMMARY="${SUMMARY:+$SUMMARY, }$label $outcome"
+  [ $rc -ne 3 ] && log_seat "$label" "$stem" "$secs" "$tokens" "$outcome"
   return $rc
+}
+# Codex's own token count: it ends a run with a "tokens used" line on stderr and the number on
+# the next line (or the same one). Best effort — empty when absent, never guessed.
+codex_tokens() {
+  awk '/^[[:space:]]*tokens used/ {
+         line = $0; sub(/.*tokens used/, "", line); gsub(/[^0-9]/, "", line)
+         if (line == "") { if ((getline nxt) > 0) { line = nxt; gsub(/[^0-9]/, "", line) } }
+         if (line != "") { print line; exit }
+       }' "$RAW_DIR/codex.err" 2>/dev/null
+}
+# One cost-log line per attempted seat (review_log.sh). Absent helper (an older vendored copy):
+# nothing is logged, nothing fails.
+log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
+  local model="" effort="-" oc="${5%% (*}"
+  [ -x "$SCRIPT_DIR/review_log.sh" ] || return 0
+  case "$2" in
+    codex)  model="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
+            effort="${CODEX_EFFORT_EFFECTIVE:-config}" ;;
+    ollama) model="${OLLAMA_MODEL:-}" ;;
+    agy)    model="${AGY_MODEL:-default}" ;;
+  esac
+  "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
+    --seconds "$3" --tokens "$4" --gate "$TYPE" --depth "$DEPTH" --round "$ROUND" \
+    --outcome "$(printf '%s' "$oc" | tr ' ' '-')"
 }
 # attempt <label> <file stem> <run function> — one tier, in the foreground
 attempt() { run_tier "$2" "$3"; report_tier "$1" "$2"; }
