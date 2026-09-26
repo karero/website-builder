@@ -3,7 +3,8 @@
 # test_failed_tier_report.sh — drives independent_review.sh end to end, the way a
 # caller does (default flags, auto-detected ollama model), with stub `codex` and
 # `ollama` CLIs first on PATH and $HOME relocated. No reviewer is contacted and
-# nothing leaves the machine; Antigravity is forced off.
+# nothing leaves the machine; Antigravity is forced off except in case 23, which
+# turns it on against a stub `agy`.
 #
 # Why it exists: on 2026-09-11 the ollama-cloud tier hit its weekly quota (HTTP
 # 429). The error sat only in a temp .err file, stdout carried the codex section
@@ -31,6 +32,26 @@ STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex-ran"
+# Like the real CLI (0.157.0, seen 2026-09-26): outside a git repo, refuse to start
+# unless --skip-git-repo-check is passed. Records its whole argv, the prompt replaced by
+# <prompt> (found by its content, not its position), so a test can pin it exactly: an
+# added sandbox override fails the match instead of hiding behind "-s read-only is in
+# there somewhere" (round 1, fresh-eyes), and so does one placed after the prompt or
+# after a prompt moved to stdin (round 2, fresh-eyes and ollama). Each argument is
+# bracketed, so "-s read-only" passed as ONE argument does not match (round 3, fresh-eyes).
+skip=0 argv=
+for a; do
+  [ "$a" = --skip-git-repo-check ] && skip=1
+  case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
+  argv="$argv[$a]"
+done
+printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
+  "$(git rev-parse --is-inside-work-tree 2>/dev/null || echo no)" >"$STUB_MARKS/codex-args"
+if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf '%s\n' 'Reading additional input from stdin...' \
+    'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
+  exit 1
+fi
 case "${CODEX_STUB:-ok}" in
   ok)   printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two' ;;
   auth) # codex echoes the reviewed artifact into stderr — here one that mentions
@@ -50,6 +71,7 @@ case "${CODEX_STUB:-ok}" in
           'tokens used' '0' 'session end' 'bye' >&2; exit 1 ;;
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
+  reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -59,7 +81,7 @@ case "$1" in
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
-  run)  : >"$STUB_MARKS/ollama-ran" ;;
+  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
@@ -81,15 +103,34 @@ case "${OLLAMA_STUB:-ok}" in
   notreview) # a reply the refusal check rejects, carrying a decoy error-shaped 429 line
           printf '%s\n' 'No findings.' 'I could not read the retry code.' \
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
+  reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
 esac
 EOF
-chmod +x "$T/bin/codex" "$T/bin/ollama"
+cat >"$T/bin/agy" <<'EOF'
+#!/bin/sh
+# Records its argv as the codex stub does, prompt replaced by <prompt>, and keeps the
+# prompt itself so a test can check WHICH prompt was sent, not just that one was.
+argv=
+for a; do
+  case "$a" in *'--- BEGIN '*) printf '%s\n' "$a" >"$STUB_MARKS/agy-prompt"; a='<prompt>' ;; esac
+  argv="$argv[$a]"
+done
+printf 'argv=%s\n' "$argv" >"$STUB_MARKS/agy-args"
+printf '%s\n' "$(pwd -P)" >"$STUB_MARKS/agy-cwd"
+ls -A | wc -l | tr -d ' ' >"$STUB_MARKS/agy-cwd-entries"
+case "${AGY_STUB:-ok}" in
+  ok)     printf '%s\n' '- BUG: stub agy finding' '- NIT: another' ;;
+  denied) # the 2026-09-26 failure: exit 0, nothing on stdout, the reason on stderr
+          printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
+esac
+EOF
+chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
 
 # run <name> [VAR=value ...] <command ...> — leaves $T/<name>.out, .err and .rc
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL \
+  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -101,6 +142,7 @@ check() {   # check <description> <command ...>
 }
 has()   { grep -qF -- "$2" "$T/$1"; }
 lacks() { ! grep -qF -- "$2" "$T/$1"; }
+not_in() { [ -e "$1" ] && ! grep -qF -- "$2" "$1"; }   # not_in <path> <text>: file exists, text absent
 rc_is() { [ "$(cat "$T/$1.rc")" = "$2" ]; }
 
 # 1. The incident itself: codex answers, ollama-cloud is refused with a 429.
@@ -237,6 +279,101 @@ check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: co
 # 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, kimi).
 run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
 check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
+
+# 19. A clean verdict with a qualifier between "no" and the severity word counts. On 2026-09-20
+#     a genuine clean codex review reading "No confirmed BUG or RISK in the supplied diff." was
+#     reported FAILED (output is not a review), and the seat was lost. Both seats share the check.
+n=0
+for reply in "No confirmed BUG or RISK in the supplied diff." "No definite BUG." \
+             "I found no confirmed bugs in this change." "No new or confirmed RISK."; do
+  n=$((n+1))
+  run "verdict$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
+  check "verdict$n: codex counted — $reply" has "verdict$n.out" "reviewers: codex OK, ollama-cloud OK"
+  check "verdict$n: printed as codex's review, not quoted in a FAILED section" lacks "verdict$n.out" "— FAILED"
+done
+run verdictollama OLLAMA_STUB=reply STUB_REPLY="No confirmed BUG or RISK in the supplied diff." bash "$SCRIPT" "$T/change.diff"
+check "verdictollama: the ollama seat counts the same verdict" has verdictollama.out "reviewers: codex OK, ollama-cloud OK"
+check "verdictollama: no FAILED section" lacks verdictollama.out "FAILED"
+
+# 20. ...and what must still be rejected is: a plain refusal (a baseline: rejected before the
+#     fix too), a refusal carrying the qualified verdict in a phrase the refusal check knows (it
+#     runs first; the phrases it misses are pinned KNOWN WRONG in test_looks_like_review.sh), and
+#     "no way to find bugs" (the qualifiers are a literal list, not any word).
+n=0
+for reply in "I'm sorry, but I am unable to review this diff because the repository is not available to me." \
+             "No confirmed BUG or RISK, because I cannot access the diff you supplied." \
+             "There is no way to find bugs in this without more context."; do
+  n=$((n+1))
+  run "refusal$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
+  check "refusal$n: exit 0 (ollama-cloud counted)" rc_is "refusal$n" 0
+  check "refusal$n: codex rejected — $reply" has "refusal$n.out" "reviewers: codex FAILED (output is not a review), ollama-cloud OK"
+done
+
+# 21. Called from outside any git repo (a plan in a scratch dir): codex must still run,
+#     in the caller's cwd, with the read-only sandbox still requested and project AGENTS.md
+#     and skills kept out — on both command lines, the default and the CODEX_MODEL one.
+#     Before the fix the PLAN round came back with codex FAILED and one reviewer
+#     (2026-09-26). GIT_CEILING_DIRECTORIES keeps git from finding a repo above $T, wherever
+#     TMPDIR lives; run() drops GIT_DIR and GIT_WORK_TREE, which a git hook exports and
+#     which would otherwise override it.
+mkdir -p "$T/nogit"
+NOGIT="$(cd "$T/nogit" && pwd -P)"
+CEILING="$(cd "$T" && pwd -P)"
+for m in "" stub-override; do
+  name="nogit${m:+-model}"
+  run "$name" CODEX_MODEL="$m" GIT_CEILING_DIRECTORIES="$CEILING" \
+    sh -c 'cd "$1" && shift && exec bash "$@"' _ "$NOGIT" "$SCRIPT" "$T/plan.md"
+  check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
+  # git=no is what git said from inside the stub itself, so the case cannot pass from
+  # inside a repo (round 4, fresh-eyes).
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
+  check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
+    grep -qxF -- "$want" "$T/$name.marks/codex-args"
+done
+
+# 22. KNOWN WRONG (B-TAGCLASS), deferred with the owner's sign-off of 2026-09-26: the size arms of
+# is_cloud_ollama_tag() call any "*:120b" tag cloud, even a model pulled and run locally, so it is
+# refused under --local-only and counted as a cloud reviewer outside it. These pin today's wrong
+# results through the real entry point, so whoever fixes the classifier changes them on purpose.
+BIG_TAG="stub-big"; BIG_TAG="${BIG_TAG}:120b"   # built at runtime, like STUB_TAG
+run bigtaglocal OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff" --local-only
+check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag is refused under --local-only" has bigtaglocal.err "looks like a cloud tag"
+check "KNOWN WRONG (B-TAGCLASS): ...with exit 2, before any reviewer runs" \
+  sh -c '[ "$(cat "$1/bigtaglocal.rc")" = 2 ] && [ ! -e "$1/bigtaglocal.marks/ollama-ran" ]' _ "$T"
+run bigtag OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff"
+check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag counts as a cloud reviewer" has bigtag.out "reviewers: codex OK, ollama-cloud OK"
+check "B-TAGCLASS guard: the tag that ran is the configured one, not the listed cloud model" \
+  grep -qxF -- "$BIG_TAG" "$T/bigtag.marks/ollama-model"
+
+# 23. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy reached for a
+#     tool needing the "command" permission, headless mode auto-denied it, and the tier exited 0
+#     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and sends the text-only
+#     prompt, and loosens nothing: no --dangerously-skip-permissions. The exact argv pins that
+#     on both command lines, the default and the AGY_MODEL one. The stub cannot show the real
+#     CLI now answers; it shows the script asks for what the manual run that did answer used.
+for m in "" stub-agy-model; do
+  name="agy${m:+-model}"
+  run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff"
+  check "$name: agy counted alongside the pair" has "$name.out" "reviewers: codex OK, ollama-cloud OK, antigravity OK"
+  check "$name: header names the model" has "$name.out" "## Independent review — antigravity/agy (${m:-CLI default}"
+  check "$name: header says plan mode, text-only prompt" has "$name.out" ", sandbox, plan mode, text-only prompt)"
+  want="argv=[--sandbox][--mode][plan]${m:+[--model][$m]}[-p][<prompt>]"
+  check "$name: exact argv (sandbox + plan mode, nothing looser)" grep -qxF -- "$want" "$T/$name.marks/agy-args"
+  check "$name: sent the text-only prompt" grep -qF -- "You have NO tools" "$T/$name.marks/agy-prompt"
+  check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
+  check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
+  # These pin the directory agy is LAUNCHED in, not an access boundary: its tools run elsewhere
+  # and can read absolute paths (see the tier table in independent_review.sh).
+  check "$name: ran outside the caller's cwd" \
+    sh -c '[ -s "$1" ] && [ "$(cat "$1")" != "$(pwd -P)" ]' _ "$T/$name.marks/agy-cwd"
+  check "$name: in an empty dir" [ "$(cat "$T/$name.marks/agy-cwd-entries")" = 0 ]
+done
+# ...and if agy still comes back empty, the tier is FAILED with its stderr quoted, not dropped
+# and not counted; the pair still carries the round.
+run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
+check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
+check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
+check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
