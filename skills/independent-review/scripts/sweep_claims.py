@@ -29,13 +29,14 @@ import sys
 # What counts as a claim worth checking: an absence, a universal, or an order ("first",
 # "last"). Each entry is a regex fragment, matched case-insensitively on word boundaries.
 # Extend it here. Bare "not" is left out on purpose: on this skill's own docs, the sentences
-# it adds are mostly contrasts ("X, not Y"), not absences.
+# it adds are mostly contrasts ("X, not Y"), not absences. "Must", "mustn't" and "should
+# not" are left out too: they give instructions, not claims about the record.
 WORDS = [
     # absences
     r"has not", r"have not", r"had not", r"is not", r"are not", r"was not", r"were not",
     r"does not", r"do not", r"did not", r"cannot", r"can not", r"could not",
     r"will not", r"would not",
-    r"(?:has|have|had|is|are|was|were|does|do|did|ca|could|wo|would|must)n[\u2019']t",
+    r"(?:has|have|had|is|are|was|were|does|do|did|ca|could|wo|would)n[\u2019']t",
     r"not been", r"not yet", r"yet to", r"no longer", r"never", r"nobody", r"no one",
     r"nothing", r"nowhere", r"none", r"neither", r"without", r"no [a-z]+", r"zero",
     r"impossible",
@@ -43,7 +44,7 @@ WORDS = [
     r"only", r"first", r"last", r"all", r"every", r"any", r"every(?:thing|one|body|where)",
     r"any(?:thing|one|body|where)", r"always", r"ever", r"whole",
     r"entire", r"exactly", r"solely", r"both", r"unchanged", r"identical", r"since",
-    r"until", r"must", r"by design", r"on purpose",
+    r"until", r"by design", r"on purpose",
 ]
 WORD_RE = re.compile(r"\b(?:" + "|".join(WORDS) + r")\b", re.I)
 

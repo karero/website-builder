@@ -77,7 +77,8 @@ more than the tool.
 - A claim without a listed word: "X was introduced in R" claims "first" without saying it.
   The list is `WORDS` in `scripts/sweep_claims.py`; extend it there, and add a case to
   `scripts/test_sweep_claims.sh`. Bare "not" is left out on purpose: on this skill's own
-  docs, the sentences it adds are mostly contrasts ("X, not Y"), not absences.
+  docs, the sentences it adds are mostly contrasts ("X, not Y"), not absences. "Must",
+  "mustn't" and "should not" are left out too: they give instructions, not claims about the record.
 - A false sentence split. The sweep does not split before a lowercase word or after "e.g." or
   "i.e.", but another abbreviation before a capital or a digit ("Mr. Smith", "Fig. 2") still
   ends a sentence there. If the claim word lands in the half the change did not touch, it is
