@@ -213,17 +213,20 @@ unset PROMPT 2>/dev/null || true
 #
 #   codex     `exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0`
 #             in the CALLER'S cwd                      -> read-only sandbox, sees the working tree
-#   agy       `--sandbox --mode plan`, `cd "$sbox"`   -> treated as NO tool access. Its cwd is an
-#             into an empty mktemp dir                    empty dir, so it has nothing of the
-#                                                         project to inspect, and headless print mode
-#                                                         auto-denies any tool call that needs a
-#                                                         permission prompt -- both runs that hit this
-#                                                         ended with exit 0 and no output (2026-09-26,
-#                                                         agy 1.2.9). So it gets the text-only prompt,
-#                                                         which tells it not to try.
-#                                                         What it COULD read or run is still not
-#                                                         established: an empty cwd is not an access
-#                                                         boundary.
+#   agy       `--sandbox --mode plan`, `cd "$sbox"`   -> HAS tools, sent the text-only prompt anyway.
+#             into an empty mktemp dir                    agy applies the user's own settings
+#                                                         allow-list, which needs no prompt: on the
+#                                                         maintainer's machine it allowed read_file(*)
+#                                                         and ls/find/cat (agy's own log, 2026-09-26).
+#                                                         Its cwd is empty, so there is nothing of the
+#                                                         project to inspect there, but an empty cwd is
+#                                                         not an access boundary. Any other tool call
+#                                                         needs a permission prompt, which headless mode
+#                                                         auto-denies; both runs that hit this ended with
+#                                                         exit 0 and no output. The text-only prompt is
+#                                                         sent to steer it away from tools, NOT because
+#                                                         it has none: its "You have NO tools" is untrue
+#                                                         for agy, and a reply may still cite a file.
 #   ollama    a prompt string, no tool plumbing        -> no tool access
 #   fallback  printed for a human to paste anywhere    -> UNKNOWN; could be a browsing web model
 #
@@ -495,17 +498,18 @@ run_codex() {
 # "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
 # --sandbox asks for terminal restrictions, --mode plan for the CLI's planning mode, and -p print
 # mode is meant not to auto-approve tool calls (we do NOT pass --dangerously-skip-permissions, and
-# add no allow-rules). All three describe what is REQUESTED; none is tested here, the same gap as
+# add no allow-rules; the user's own allow-list still applies -- see the tier table). All three describe what is REQUESTED; none is tested here, the same gap as
 # codex's (R-SANDBOX in OPEN-FINDINGS). The throwaway cwd limits what a write would reach only if
 # the CLI stays in it. Treat output as untrusted.
 # Why --mode plan and the text-only prompt: with `--sandbox -p` and the capability-agnostic
-# prompt, agy 1.2.9 twice reached for a tool needing the "command" permission, which headless
-# mode auto-denied, and exited 0 with no stdout (2026-09-26; one run's stderr is kept in
-# docs/reviews/RAW-diff-2026-09-26-r3-fix-independent-review-clean-verdict-8375234.md). Run by
-# hand as `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir, agy returned a full
-# review. That is one run with three things changed at once -- the flag, the prompt, and possibly
-# the CLI itself: agy was upgraded to 1.2.11 the same day, and 1.2.10's changelog says it asks to
-# bypass the sandbox less often. Which of the three is load-bearing was not isolated.
+# prompt, agy reached for a command outside the allow-list, headless mode auto-denied it, and the
+# run exited 0 with no stdout -- once on 1.2.9 and once on 1.2.11 (2026-09-26, agy's own logs; one
+# run's stderr is kept in
+# docs/reviews/RAW-diff-2026-09-26-r3-fix-independent-review-clean-verdict-8375234.md). So the
+# same-day CLI upgrade alone did not fix it. Run by hand on 1.2.11 as
+# `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir, agy logged plan mode applied,
+# no denial, and returned a full review. Flag and prompt changed together in that run: which of
+# the two is load-bearing was not isolated.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"

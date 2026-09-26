@@ -120,7 +120,7 @@ printf '%s\n' "$(pwd -P)" >"$STUB_MARKS/agy-cwd"
 ls -A | wc -l | tr -d ' ' >"$STUB_MARKS/agy-cwd-entries"
 case "${AGY_STUB:-ok}" in
   ok)     printf '%s\n' '- BUG: stub agy finding' '- NIT: another' ;;
-  denied) # the 2026-09-26 failure on agy 1.2.9: exit 0, nothing on stdout, the reason on stderr
+  denied) # the 2026-09-26 failure: exit 0, nothing on stdout, the reason on stderr
           printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
 esac
 EOF
@@ -330,9 +330,9 @@ for m in "" stub-override; do
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
 
-# 22. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy 1.2.9 reached for a
+# 22. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy reached for a
 #     tool needing the "command" permission, headless mode auto-denied it, and the tier exited 0
-#     with no output — twice (2026-09-26). The fix asks for plan mode and sends the text-only
+#     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and sends the text-only
 #     prompt, and loosens nothing: no --dangerously-skip-permissions. The exact argv pins that
 #     on both command lines, the default and the AGY_MODEL one. The stub cannot show the real
 #     CLI now answers; it shows the script asks for what the manual run that did answer used.
