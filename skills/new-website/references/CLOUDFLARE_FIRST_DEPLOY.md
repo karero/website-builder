@@ -221,11 +221,14 @@ showing the current build:
    shows the current build: browsers remember a 301, so a typo'd domain keeps sending
    visitors to the wrong place even after you correct the variable.
 2. **Redeploy with a new commit.** A variable only reaches deployments made after it was
-   set. `npm run ship` or a push with nothing new to publish does **not** redeploy — git
-   says "Everything up-to-date", Cloudflare builds nothing, and ship's "✓ LIVE" check still
-   passes on the old build. So make an empty commit first:
-   `git commit --allow-empty -m "Apply CANONICAL_URL"`, then push `main` and run
-   `npm run ship` (two-stage), or just push `main` (single-stage). Direct-upload sites
+   set, so the redirect starts with the site's next ordinary publish. To switch it on now,
+   note that `npm run ship` or a push with nothing new to publish does **not** redeploy —
+   git says "Everything up-to-date", Cloudflare builds nothing, and ship's "✓ LIVE" check
+   still passes on the old build. Make an empty commit
+   (`git commit --allow-empty -m "Apply CANONICAL_URL"`) and bring it onto `main` the way
+   this site takes changes (`AGENTS.md` §2: an assistant opens a pull request; the owner
+   may push directly unless the site is pull-request-only), then run `npm run ship`
+   (two-stage); on a single-stage site reaching `main` is the publish. Direct-upload sites
    (§A): re-run `npx wrangler pages deploy dist --project-name <project> --branch
    <production-branch>` — without `--branch`, wrangler may take the local git branch
    (`main`) and make a preview deployment instead.
@@ -234,12 +237,13 @@ showing the current build:
    `x-robots-tag: noindex, nofollow` — two-stage: `main.<project>.pages.dev`; single-stage:
    any `<hash>.<project>.pages.dev` from `npx wrangler pages deployment list`. Still `200`
    on the alias? The variable isn't under **Production** (missing, misnamed, or added to
-   Preview), the deployment predates it (step 2), the value was rejected (it must start
-   with `https://` and name the live domain, not a `pages.dev` host — check it by eye),
-   or the site's `functions/_middleware.ts` predates the redirect (below).
+   Preview), the deployment predates it (step 2), the value was rejected (not `https://`,
+   a `pages.dev` host, or a malformed host such as `example..com` — check it by eye), or
+   the site's `functions/_middleware.ts` predates the redirect (below).
 
-A value the middleware can't use (not `https://`, or itself a `pages.dev` host) is ignored
-and logged, so the alias stays noindexed rather than breaking.
+A value the middleware can't use (not `https://`, a `pages.dev` host, or a malformed host)
+is ignored and logged, so the alias stays noindexed rather than breaking. A well-formed but
+wrong domain is not caught: it redirects there, which is why step 1 checks the value first.
 
 **Sites scaffolded before this redirect existed** need the new `functions/_middleware.ts`
 first: copy it from `templates/astro/functions/_middleware.ts`
