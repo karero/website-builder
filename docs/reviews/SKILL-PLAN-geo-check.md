@@ -19,6 +19,9 @@ Revision 4, the plan to build from. It went through three PLAN review rounds: Co
 | S8 engine failed | done (stub) | `test_s8_failed_engine_is_a_problem_and_redacted`, `test_s8_failed_engine_is_red` |
 | S9 GSC token dead | done (stub) | `test_gsc_no_browser.py`, `test_s9_dead_gsc_signin_does_not_cost_the_ai_week` |
 | Live smoke test (real engines) | done, OpenAI pending | 2026-09-26, three real sites: Gemini, Anthropic, Perplexity answered and parsed (detector spot-checked against saved answers); OpenAI blocked by no account credit, which exposed the retry waste fixed in `47568d3` |
+| Google AI Mode + AI Overview (SerpApi), owner request | done (stub + live) | `335c146`; live on three real sites 2026-09-26 |
+| Readable report page (`--report`), owner request | done (stub + browser check) | `94d34a4` |
+| OpenAI live answer | blocked | the owner's OpenAI account has no credit yet (key and restricted permissions confirmed fine) |
 | DIFF gate | not started | — |
 | PR | not started | — |
 
@@ -46,6 +49,14 @@ the one after `4268689` on this branch. The live smoke test is the first contact
   final exit = GSC's code if GSC failed, else 4 if a history write failed, else 1.
 - **check_clean key patterns** start at a word boundary: an unanchored `sk-` with hyphens
   flagged ordinary prose like "risk-free-and-easy-to-use" (tested).
+- **Google's AI answers via SerpApi** (owner request, 2026-09-26): AI Mode and AI Overview as two
+  more engines, "finds" only, 1 sample per question (Google's answers are steadier, and each
+  call is a paid search), reusing the skill's existing `SERPAPI_KEY`. "No AI Overview shown" is
+  its own state.
+- **Report page** (owner request, 2026-09-26): after the owner couldn't tell where results live,
+  `--report` renders each engine's latest answers as one HTML page; every weekly run writes it.
+- **Key setup redone** (owner feedback, 2026-09-26: "Even I am lost now"): `--prepare-env`,
+  `--keys`, and a one-engine-at-a-time walkthrough in geo-check.md.
 - **Process deviation:** geo_check.py was written before its tests, not tests-first. Mitigation:
   four deliberate breaks (no `--no-browser`, GEO rc 3 treated as a problem, German folding
   removed, the good-row guard removed) each turned the matching tests red.
