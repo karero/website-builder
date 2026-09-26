@@ -42,7 +42,7 @@ cat >"$T/bin/codex" <<'EOF'
 skip=0 argv=
 for a; do
   [ "$a" = --skip-git-repo-check ] && skip=1
-  case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
+  case "$a" in *'--- BEGIN '*) printf '%s\n' "$a" >"$STUB_MARKS/codex-prompt"; a='<prompt>' ;; esac
   argv="$argv[$a]"
 done
 printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
@@ -72,6 +72,11 @@ case "${CODEX_STUB:-ok}" in
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
+  slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  tokens) # a run that reports its token count on stderr, as codex ends a run
+        printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
+  stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
+        trap '' TERM; echo $$ >"$STUB_MARKS/codex-pid"; sleep 30 ;;
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -81,7 +86,8 @@ case "$1" in
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
-  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model" ;;
+  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model"
+        printf '%s\n' "$3" >"$STUB_MARKS/ollama-prompt" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
@@ -112,6 +118,7 @@ case "${OLLAMA_STUB:-ok}" in
           printf '%s\n' 'No findings.' 'I could not read the retry code.' \
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
   reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
+  slow)   sleep 2; printf '%s\n' '- RISK: stub ollama finding' ;;
 esac
 EOF
 cat >"$T/bin/agy" <<'EOF'
@@ -132,13 +139,43 @@ case "${AGY_STUB:-ok}" in
           printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
 esac
 EOF
-chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
+# A stub curl for the ollama HTTP API transport: records the URL, the request body and the header
+# file it was handed (the file, not argv, must carry any key), and plays back a canned NDJSON stream.
+cat >"$T/bin/curl" <<'EOF'
+#!/bin/sh
+out= body= url=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift ;;
+    --data-binary) body="${2#@}"; shift ;;
+    -H) case "$2" in @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
+    -w|--max-time) shift ;;
+    http*) url="$1" ;;
+  esac
+  shift
+done
+printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
+cp "$body" "$STUB_MARKS/curl-body"
+case "${API_STUB:-ok}" in
+  ok)    printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: api "},"done":false}' \
+           '{"message":{"role":"assistant","content":"finding one\n- NIT: two"},"done":false}' \
+           '{"message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":500,"eval_count":250}' >"$out"
+         printf 200 ;;
+  429)   printf '%s\n' '{"error":"you have reached your weekly usage limit"}' >"$out"; printf 429 ;;
+  trunc) printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: cut off"},"done":false}' >"$out"; printf 200 ;;
+  502)   printf 'upstream request failed' >"$out"; printf 502 ;;
+  down)  echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
+esac
+EOF
+chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy" "$T/bin/curl"
+# A PATH with no ollama CLI, as in a cloud session: the codex and curl stubs, then the system.
+mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 
 # run <name> [VAR=value ...] <command ...> — leaves $T/<name>.out, .err and .rc
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -402,6 +439,173 @@ run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
 check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
+
+# 24. The default pair runs at once (2026-09-26): two reviewers that take 2s each finish in
+#     well under the 4s they took one after the other, and the sections still print in tier
+#     order, codex first. A timings line follows the reviewers line.
+start=$SECONDS
+run parallel CODEX_STUB=slow OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff"
+elapsed=$((SECONDS - start))
+check "parallel: both counted" has parallel.out "reviewers: codex OK, ollama-cloud OK"
+check "parallel: took ${elapsed}s, under the 4s of a sequential run" [ "$elapsed" -lt 4 ]
+check "parallel: codex's section prints before ollama's" \
+  sh -c 'c=$(grep -n "^## Independent review — codex" "$1" | cut -d: -f1); o=$(grep -n "^## Independent review — ollama" "$1" | cut -d: -f1); [ -n "$c" ] && [ -n "$o" ] && [ "$c" -lt "$o" ]' _ "$T/parallel.out"
+check "parallel: a timings line names both tiers" \
+  grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s$' "$T/parallel.out"
+check "parallel: a failed tier still gets its FAILED section" has incident.out "## Independent review — ollama-cloud — FAILED"
+# --first-success stays one tier at a time: the second never starts once the first counts.
+run firstsucc CODEX_STUB=ok bash "$SCRIPT" "$T/change.diff" --first-success
+check "first-success: ollama never ran" [ ! -e "$T/firstsucc.marks/ollama-ran" ]
+check "first-success: timings name codex alone" grep -qE '^timings: codex [0-9]+s$' "$T/firstsucc.out"
+# A skipped tier (not installed) has no time to report.
+run notimeskip CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+check "skipped tier: not in the timings line" grep -qE '^timings: codex [0-9]+s$' "$T/notimeskip.out"
+
+# 24b. Stopping the script stops its reviewers, even one that ignores SIGTERM: none keeps
+#      running (and billing) after the script is gone (round 1, fresh-eyes).
+mkdir -p "$T/stop.marks"
+env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
+  WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stop.raw" STUB_MARKS="$T/stop.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=stubborn OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stop.out" 2>"$T/stop.err" &
+spid=$!
+i=0; while [ ! -s "$T/stop.marks/codex-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/stop.rc"
+check "stop: the script exits 130" rc_is stop 130
+# Gone or a zombie: once its parent subshell is killed the CLI is reparented, and a container's
+# PID 1 may never reap it, so it can linger as <defunct> -- dead, not running.
+check "stop: the TERM-ignoring reviewer is gone" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/stop.marks/codex-pid"
+
+# 25. --verify: a verification round sends the prior findings in their own block, with the
+#     round's scope, to every tier; without the flag the prompt carries neither.
+printf '%s\n' 'F1 BUG fixed in abc1234: retry loop never ended' 'F2 RISK waived: owner J1' >"$T/prior.md"
+run verify bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+check "verify: exit 0" rc_is verify 0
+for tier in codex ollama; do
+  check "verify: $tier gets the scope paragraph" grep -qF -- "VERIFICATION ROUND." "$T/verify.marks/$tier-prompt"
+  check "verify: $tier gets the prior findings, delimited" \
+    sh -c 'grep -qxF -- "--- BEGIN PRIOR FINDINGS ---" "$1" && grep -qxF -- "F1 BUG fixed in abc1234: retry loop never ended" "$1" && grep -qxF -- "--- END PRIOR FINDINGS ---" "$1"' _ "$T/verify.marks/$tier-prompt"
+  check "verify: $tier's prior findings come before the artifact" \
+    sh -c 'p=$(grep -nxF -- "--- END PRIOR FINDINGS ---" "$1" | cut -d: -f1); a=$(grep -nxF -- "--- BEGIN diff ---" "$1" | cut -d: -f1); [ -n "$p" ] && [ -n "$a" ] && [ "$p" -lt "$a" ]' _ "$T/verify.marks/$tier-prompt"
+done
+run noverify bash "$SCRIPT" "$T/change.diff"
+check "no --verify: no scope paragraph" not_in "$T/noverify.marks/codex-prompt" "VERIFICATION ROUND"
+check "no --verify: no prior-findings block" not_in "$T/noverify.marks/ollama-prompt" "PRIOR FINDINGS"
+check "no --verify: one blank line before the artifact, as before" \
+  sh -c 'grep -B2 -xF -- "--- BEGIN diff ---" "$1" | head -1 | grep -qF "Every WRONG must also appear as a BUG."' _ "$T/noverify.marks/codex-prompt"
+run verifynoarg bash "$SCRIPT" "$T/change.diff" --verify
+check "verify without a file: exit 2" rc_is verifynoarg 2
+run verifymissing bash "$SCRIPT" "$T/change.diff" --verify "$T/no-such-file.md"
+check "verify with a missing file: exit 2, nothing ran" \
+  sh -c '[ "$(cat "$1/verifymissing.rc")" = 2 ] && [ ! -e "$1/verifymissing.marks/codex-ran" ]' _ "$T"
+printf '  \n\n' >"$T/blank.md"
+run verifyblank bash "$SCRIPT" "$T/change.diff" --verify "$T/blank.md"
+check "verify with an empty record: exit 2" has verifyblank.err "the prior-findings file is empty"
+
+# 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
+#     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
+#     round and lands after the model override, before the prompt.
+base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]'
+argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
+run effverify bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+check "effort: a verify round asks for medium" \
+  [ "$(argv_of effverify)" = "$base[-c][model_reasoning_effort=\"medium\"][<prompt>]" ]
+check "effort: the codex header names it" has effverify.out "## Independent review — codex (stub-codex, effort medium, read-only)"
+run effconfig CODEX_EFFORT=config bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+check "effort: CODEX_EFFORT=config keeps config.toml's, even on a verify round" \
+  [ "$(argv_of effconfig)" = "$base[<prompt>]" ]
+run efffull bash "$SCRIPT" "$T/change.diff"
+check "effort: a full round leaves config.toml's alone" [ "$(argv_of efffull)" = "$base[<prompt>]" ]
+check "effort: ...and its header says nothing about effort" has efffull.out "## Independent review — codex (stub-codex, read-only)"
+run effboth CODEX_EFFORT=xhigh CODEX_MODEL=stub-strong bash "$SCRIPT" "$T/change.diff"
+check "effort: explicit effort after the model override" \
+  [ "$(argv_of effboth)" = "$base[-c][model=\"stub-strong\"][-c][model_reasoning_effort=\"xhigh\"][<prompt>]" ]
+run effbad CODEX_EFFORT='high"' bash "$SCRIPT" "$T/change.diff"
+check "effort: an unknown value exits 2 before any reviewer runs" \
+  sh -c '[ "$(cat "$1/effbad.rc")" = 2 ] && [ ! -e "$1/effbad.marks/codex-ran" ]' _ "$T"
+
+# 27. The cost log (review_log.sh, 2026-09-26): one line per attempted seat, with depth and round
+#     from the flags, codex's own token count, and nothing when REVIEW_LOG=off. A log that cannot
+#     be written never fails the review.
+LOGT="$T/costs.tsv"
+run costlog REVIEW_LOG="$LOGT" CODEX_STUB=tokens bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+check "costlog: exit 0" rc_is costlog 0
+check "costlog: a header and one line per seat" [ "$(wc -l <"$LOGT" | tr -d ' ')" = 3 ]
+check "costlog: codex line — gate, depth, round, seat, model, effort, tokens, outcome" \
+  awk -F'\t' '$8=="codex" && $5=="diff" && $6=="normal" && $7=="2" && $9=="stub-codex" && $10=="config" && $11 ~ /^[0-9]+$/ && $12=="61108" && $13=="OK" {f=1} END {exit !f}' "$LOGT"
+check "costlog: ollama line" awk -F'\t' '$8=="ollama-cloud" && $10=="-" && $12=="-" && $13=="OK" {f=1} END {exit !f}' "$LOGT"
+check "costlog: the timings line carries codex's tokens" grep -qE '^timings: codex [0-9]+s \(61108 tokens\), ollama-cloud [0-9]+s$' "$T/costlog.out"
+run costfail REVIEW_LOG="$T/costs2.tsv" OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "costlog: a failed seat is logged as FAILED" awk -F'\t' '$8=="ollama-cloud" && $13=="FAILED" {f=1} END {exit !f}' "$T/costs2.tsv"
+run costskip REVIEW_LOG="$T/costs3.tsv" OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+check "costlog: a skipped seat is not logged" [ "$(wc -l <"$T/costs3.tsv" | tr -d ' ')" = 2 ]
+DEFLOG="$T/u/.local/state/independent-review/runs.tsv"   # earlier runs here set no REVIEW_LOG
+before="$(cat "$DEFLOG" 2>/dev/null | wc -l | tr -d ' ')"
+run costoff REVIEW_LOG=off bash "$SCRIPT" "$T/change.diff"
+check "costlog: REVIEW_LOG=off writes nothing" \
+  sh -c '[ ! -e "$1/off" ] && [ ! -e "$1/u/off" ] && [ ! -e "$PWD/off" ] && [ "$(cat "$2" 2>/dev/null | wc -l | tr -d " ")" = "$3" ]' _ "$T" "$DEFLOG" "$before"
+run costdefault bash "$SCRIPT" "$T/change.diff"
+check "costlog: default path under the (relocated) home" [ -s "$T/u/.local/state/independent-review/runs.tsv" ]
+: >"$T/notadir"
+run costbad REVIEW_LOG="$T/notadir/x/costs.tsv" bash "$SCRIPT" "$T/change.diff"
+check "costlog: an unwritable log never fails the review" rc_is costbad 0
+check "costlog: ...and says so" has costbad.err "could not write the review cost log"
+run costdepth bash "$SCRIPT" "$T/change.diff" --depth extreme
+check "costlog: an unknown depth exits 2" rc_is costdepth 2
+# The host logs its own seats; the summary groups by depth and seat, and counts rounds per gate.
+REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --seat fresh-eyes --model sonnet --seconds 395 \
+  --tokens 156477 --gate diff --depth normal --round 1
+REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" summary >"$T/summary.out"
+check "summary: a row per depth and seat" grep -qE '^normal +fresh-eyes +1 +1 +395 +395 +156477$' "$T/summary.out"
+check "summary: codex row with its mean tokens" grep -qE '^normal +codex +1 +1 +[0-9]+ +[0-9]+ +61108$' "$T/summary.out"
+check "summary: rounds per gate" grep -qE '^normal +1 +2\.0 +2$' "$T/summary.out"
+check "summary with the log off says so, reads no file named off" \
+  sh -c 'REVIEW_LOG=off bash "$1" summary | grep -qF "is off"' _ "$HERE/review_log.sh"
+REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --model x >/dev/null 2>&1
+check "add without --seat is refused" [ $? = 2 ]
+
+# 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
+#     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, rides in a
+#     header FILE that is gone afterwards; the tokens reach the timings line and the cost log.
+NOCLI="$T/bin2:/usr/bin:/bin"
+run api PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" REVIEW_LOG="$T/api.tsv" bash "$SCRIPT" "$T/change.diff"
+check "api: counted" has api.out "reviewers: codex OK, ollama-cloud OK"
+check "api: header names the transport" has api.out "## Independent review — ollama ($STUB_TAG, HTTP API)"
+check "api: the streamed pieces are joined" has api.out "- BUG: api finding one"
+check "api: ollama.com, /api/chat" grep -qxF "https://ollama.com/api/chat" "$T/api.marks/curl-url"
+check "api: the model without its :cloud suffix, streamed, carrying the artifact" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-model" && $j->{stream} && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/api.marks/curl-body"
+check "api: no key set, no Authorization header sent" not_in "$T/api.marks/curl-hdr" "Authorization"
+check "api: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s \(750 tokens\)$' "$T/api.out"
+check "api: tokens in the cost log" awk -F'\t' '$8=="ollama-cloud" && $12=="750" && $13=="OK" {f=1} END {exit !f}' "$T/api.tsv"
+run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
+check "apikey: the key rides in the header file" grep -qxF "Authorization: Bearer stub-secret" "$T/apikey.marks/curl-hdr"
+check "apikey: and the file is gone afterwards" [ ! -e "$T/apikey.raw/ollama.hdr" ]
+check "apikey: never in any output" sh -c '! grep -rqF stub-secret "$1/apikey.out" "$1/apikey.err" "$1/apikey.raw"' _ "$T"
+run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "api429: read as quota" has api429.out "ollama-cloud FAILED (HTTP 429; quota/rate limit: wait or add credits)"
+check "api429: the API's message is quoted" has api429.out "weekly usage limit"
+run apitrunc PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc bash "$SCRIPT" "$T/change.diff"
+check "apitrunc: a stream without its done line fails the tier" has apitrunc.out "ollama-cloud FAILED (HTTP 200)"
+check "apitrunc: and says it was truncated" has apitrunc.out "a truncated review"
+run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff"
+check "api502: a non-JSON error body is quoted" has api502.out "response is not JSON: upstream request failed"
+run apidown PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=down bash "$SCRIPT" "$T/change.diff"
+check "apidown: a network failure names curl's exit" has apidown.out "ollama-cloud FAILED (curl exit 56)"
+check "apidown: ...with a hint" has apidown.out "is the host allowed by the network policy?"
+run apinomodel PATH="$NOCLI" bash "$SCRIPT" "$T/change.diff"
+check "apinomodel: no CLI and no model — skipped" has apinomodel.out "ollama SKIPPED (not available)"
+check "apinomodel: the note names OLLAMA_MODEL" has apinomodel.err "Set OLLAMA_MODEL=<name>:cloud"
+check "apinomodel: nothing was sent" [ ! -e "$T/apinomodel.marks/curl-url" ]
+run apiforced OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff"
+check "apiforced: OLLAMA_TRANSPORT=api wins over an installed CLI" \
+  sh -c '[ -e "$1/curl-url" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/apiforced.marks"
+run apibadtransport OLLAMA_TRANSPORT=grpc bash "$SCRIPT" "$T/change.diff"
+check "an unknown OLLAMA_TRANSPORT exits 2" rc_is apibadtransport 2
+run apilocal PATH="$NOCLI" OLLAMA_MODEL=stub-local OLLAMA_HOST=127.0.0.1:11434 bash "$SCRIPT" "$T/change.diff"
+check "apilocal: a local tag goes to OLLAMA_HOST" grep -qxF "http://127.0.0.1:11434/api/chat" "$T/apilocal.marks/curl-url"
+check "apilocal: with its tag unchanged" grep -qF '"model":"stub-local"' "$T/apilocal.marks/curl-body"
+check "apilocal: and stays a sanity pass" has apilocal.out "ollama-local NOT COUNTED (local model: sanity pass only)"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
