@@ -13,7 +13,7 @@ directory, a project AGENTS.md found there would be loaded into its instructions
 **Verdict.** No open BUG. All three seats returned zero BUGs in rounds 2, 3 and 4. Round 4's fixes
 (one RISK, three NITs) are `locally_verified` only — test suite plus mutation runs — and were not
 sent to a fifth round. One round-4 RISK, raised by Codex and ollama in some form every round, is
-waived by the owner: see "Open" below.
+waived by the owner: see "Waived" below.
 
 ## Rounds
 
@@ -57,7 +57,7 @@ runs themselves), which is the live check that codex accepts `-c project_doc_max
 | F4 | RISK | fresh-eyes | The flag lets codex start in a broad non-repo cwd such as `$HOME` | Refuted by P3: read reach is unchanged, only the default cwd |
 | F5 | NIT | fresh-eyes | cwd assertion was a substring match | Fixed `8094deb` |
 | F6 | NIT | fresh-eyes | SKILL.md and the SECURITY header showed the old command | Fixed `8094deb` |
-| F7 | RISK | Codex, ollama, fresh-eyes | "The flag keeps the read-only sandbox" had no evidence | `locally_verified` by P2; an automated real-CLI test is not possible in CI (no codex sign-in) — see "Open" |
+| F7 | RISK | Codex, ollama, fresh-eyes | "The flag keeps the read-only sandbox" had no evidence | `locally_verified` by P2; an automated real-CLI test is not possible in CI (no codex sign-in) — waived with J6, see "Waived" |
 | F8 | RISK | ollama | An older codex might reject the flag | **Waived by the owner** 2026-09-26: 0.148 and 0.157 accept it (P7), and the refusal message itself names the flag; a rejection shows as a FAILED codex section |
 | F9 | RISK | ollama | Codex might not keep the caller's cwd | Refuted by P2's `workdir:` line |
 | — | NIT | ollama | Date 2026-09-26 "in the future"; "agy's" a typo | Refuted: it is today's date; `agy` is the Antigravity tier |
@@ -97,7 +97,7 @@ runs themselves), which is the live check that codex accepts `-c project_doc_max
 | J3 | NIT | fresh-eyes | "Would outrank the review prompt" unsupported: P4 showed obedience, not precedence | Fixed `b9f5dc4`, `locally_verified` |
 | J4 | NIT | fresh-eyes | R-PROJCTX could name project hooks and `.rules` files | Fixed `b9f5dc4`, `locally_verified` |
 | J5 | NIT | fresh-eyes | Commit `87f4622`'s subject still says "follows no AGENTS.md" | Not rewritable (no force-push); keep it out of the PR title and any squash message |
-| J6 | RISK | Codex, ollama | The codex behaviour the comments rely on is not tested against the real binary | Re-raise of F7 with no new evidence. **Waived by the owner** 2026-09-26; see "Open" |
+| J6 | RISK | Codex, ollama | The codex behaviour the comments rely on is not tested against the real binary | Re-raise of F7 with no new evidence. **Waived by the owner** 2026-09-26; see "Waived" |
 
 ## Waived
 
