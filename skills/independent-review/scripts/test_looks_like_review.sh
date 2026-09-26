@@ -12,11 +12,13 @@ fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/i
   || { echo "FAIL: extraction did not stop at looks_like_review's own closing brace"; exit 1; }
 eval "$fn"
 fail=0
-# The clean-verdict regex spells its qualifier list out twice; the copies must not drift.
-lists="$(printf '%s\n' "$fn" | grep -oE '\(confirmed\|[a-z|]+\)')"
-if [ "$(printf '%s\n' "$lists" | wc -l | tr -d ' ')" = 2 ] && [ "$(printf '%s\n' "$lists" | sort -u | wc -l | tr -d ' ')" = 1 ]; then
+# The clean-verdict regex spells its qualifier list out twice; the copies must not drift. A
+# qualifier list is any group of eleven or more alternated words; no other group comes close.
+lists="$(printf '%s\n' "$fn" | grep -oE '\([a-z-]+(\|[a-z-]+){10,}\)')"
+n="$(printf '%s' "$lists" | grep -c .)"; distinct="$(printf '%s' "$lists" | sort -u | grep -c .)"
+if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
   echo "ok   the two copies of the qualifier list are identical"
-else echo "FAIL the qualifier list must appear exactly twice, identically"; fail=1; fi
+else echo "FAIL expected two identical qualifier lists, found $n list(s), $distinct distinct"; fail=1; fi
 check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
   if looks_like_review "$3"; then got=accept; else got=reject; fi
   if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
@@ -89,4 +91,12 @@ check accept "KNOWN WRONG: qualified verdict + 'don't have access'" "No confirme
 check accept "KNOWN WRONG: qualified verdict + 'unable to view'" "No confirmed BUG or RISK: I was unable to view the diff."
 check accept "KNOWN WRONG: qualified verdict + 'can not review'" "No confirmed BUG or RISK - the diff was not attached, so I can not review it."
 check accept "KNOWN WRONG: the unqualified twin, accepted before the fix too" "No BUG or RISK, because I couldn't access the diff you supplied."
+# A non-answer in the passive voice or with the severity word as a noun modifier, no refusal
+# phrase at all (R-VERDICT-TEXT). The qualified forms reject on the script as it was before
+# 2026-09-20; their unqualified twins ("No risk can be assessed…") were accepted before too.
+check accept "KNOWN WRONG: passive 'can be assessed'" "No significant risk can be assessed without the file contents."
+check accept "KNOWN WRONG: passive 'could be evaluated'" "The diff was empty, so no confirmed bugs could be evaluated."
+check accept "KNOWN WRONG: 'no further risk analysis possible'" "Error: stream disconnected. no further risk analysis possible"
+# Why the passive voice cannot simply be rejected: a genuine verdict takes the same shape.
+check accept "clean verdict: passive 'could be found'" "No confirmed bugs could be found in this diff."
 exit $fail
