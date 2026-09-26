@@ -264,8 +264,10 @@ No block (the second line fires): bring the site's hook up to the kit's
 `templates/astro/scripts/hooks/pre-push` **by hand** in the setup pull request, the
 way `whats-new.sh` treats every drift-tracked file (it reports the hook, never
 rewrites it — same as `ci.yml` in §6.8). Diff the two first: on a stock hook they
-differ only by the block and the publish-classifier step, both additive; a site that
-added a step of its own keeps it. Re-stamp afterwards, as for any hand-merged tracked
+differ by four additions — the stdin capture, the block, the deletion-only skip and
+the publish-classifier step — and the order matters: the capture sits above the
+block and the skip below it, or a push deleting `main` gets past the block. A site
+that added a step of its own keeps it. Re-stamp afterwards, as for any hand-merged tracked
 file. Then continue. Found this on the first real site the skill ran on: its hook
 predated the block.
 If it is not enabled: remove the leading `# ` from those six lines and replace only
