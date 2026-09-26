@@ -12,7 +12,7 @@ description: >
   branch", pull requests not running CI, or connecting Cloudflare to the repo, even
   without the word "team". Trigger phrases: "set up the team", "my colleague will
   work on the site", "invite a collaborator", "block pushes to main", "CI is not
-  running on pull requests", "connect Cloudflare to GitHub".
+  running on pull requests".
 ---
 
 # Website team setup — from one owner to a team, once
