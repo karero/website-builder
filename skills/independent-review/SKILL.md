@@ -6,9 +6,9 @@ description: >
   scripts/independent_review.sh — the standard pair (Codex + your signed-in
   ollama-cloud model) runs automatically; Antigravity/Gemini only on explicit
   opt-in, its credits are scarce. Consolidates a ranked BUG/RISK/NIT list and
-  BLOCKS until every BUG is fixed, refuted, or owner-deferred (only one that
-  predates the change), and every RISK/NIT is fixed, refuted, or owner-waived;
-  first use runs a guided onboarding wizard. Use
+  BLOCKS until every BUG is fixed, refuted, or owner-deferred (only a BUG the
+  change did not introduce), and every RISK/NIT is fixed, refuted, or
+  owner-waived; first use runs a guided onboarding wizard. Use
   BEFORE building from any non-trivial plan, BEFORE merging any non-trivial
   PR, and whenever asked for a "codex review", "gemini review", "antigravity
   review", "agy review", "adversarial review", "cross-model review",
@@ -289,11 +289,12 @@ teach the plain-language trigger phrases.
    **The one exception: a BUG the change did not introduce.** DIFF gate only; a plan has no base
    to compare against, so a BUG in a plan is fixed before anyone builds from it. The owner may
    defer the BUG out of the change when all three hold:
-   - every input the row covers goes wrong at the merge-base with the target branch, through an
-     entry point production already uses there — so the change did not create it;
+   - every wrong input the row quotes goes wrong at the merge-base with the target branch,
+     through an entry point the target branch already used at the merge-base, before this change
+     — so the change did not create it;
    - a row describes it in the repo's open-findings tracker — a file in the repo with a BUG
      section, whose row gives the id, the location, the finding and the owner's dated sign-off;
-   - tests that the repo's CI runs assert today's wrong result for each of those inputs, are
+   - tests that the repo's CI runs assert today's wrong result for each quoted input, are
      labelled KNOWN WRONG and name the row, so whoever fixes the BUG changes them on purpose. A
      BUG no test can pin, such as wrong wording, does not qualify: fix it.
 
@@ -385,8 +386,9 @@ teach the plain-language trigger phrases.
    **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
    `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
    to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
-   a later round. A checkable claim with neither status stays OPEN and blocking, unless it is a
-   BUG DEFERRED under point 5, whose merge-base reproduction is itself `locally_verified`. Record both per
+   a later round. A checkable claim with neither status stays OPEN and blocking. The one exception
+   is a BUG DEFERRED under point 5: it has no fix to verify, and its merge-base reproduction must
+   itself be `locally_verified`. Record both per
    finding; a trail that says only "fixed" does not say which.
 7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
    while quality demonstrably rises each round. After every round, check three signals:

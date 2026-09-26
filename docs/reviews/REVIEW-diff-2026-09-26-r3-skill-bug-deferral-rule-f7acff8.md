@@ -5,7 +5,7 @@ Branch `docs/skill-bug-deferral-rule`, head `f7acff8`, base `origin/main` `5e310
 **The change.** SKILL.md said every confirmed BUG must be fixed, "no exceptions", yet the owner had
 deferred BUGs, and once a widening of one, three times. On 2026-09-26 the owner decided to change
 the rule rather than keep ignoring it. Point 5 now lets the owner defer a BUG the change did not
-introduce, when every input its row covers goes wrong at the merge-base, the row carries a dated
+introduce, when every wrong input its row quotes goes wrong at the merge-base, the row carries a dated
 sign-off, and KNOWN WRONG tests in CI pin those inputs. A widening is a BUG the change introduced.
 DEFERRED becomes its own status: closed for the gate, open in the tracker. The tracker is brought
 into line: R-VERDICT-TEXT's BUG-rated half moves to the BUG table as B-VERDICT-TEXT, and B-TAGCLASS

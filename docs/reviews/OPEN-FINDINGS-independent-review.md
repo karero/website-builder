@@ -27,7 +27,7 @@ skill's own vocabulary: `locally_verified`, not `externally_reverified`. One mor
 close that, and is the single highest-value thing left here.
 
 **Deferred BUGs and the rule.** Since 2026-09-26, SKILL.md point 5 lets the owner defer a BUG
-the change did not introduce: every input its row covers goes wrong at the merge-base, the row
+the change did not introduce: every wrong input its row quotes goes wrong at the merge-base, the row
 here carries a dated sign-off, and KNOWN WRONG tests in CI pin those inputs. A widening does not
 qualify. B-REFUSAL-TEXT and B-VERDICT-TEXT meet all three. Their 2026-09-20 widening was accepted
 before this rule existed; since that change merged, its inputs go wrong on `main` too, so for any
