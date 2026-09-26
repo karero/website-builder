@@ -114,3 +114,27 @@ independent round.
 The **redesigned guard is `locally_verified` only.** It is new code written after round 2's
 reviewers reported, so no external seat has seen it. Saying otherwise would claim coverage this
 gate did not have. F5 remains **open** pending the owner's waive-or-fix call.
+
+---
+
+## Close-out — F5 waived by the owner, 2026-09-26
+
+**F5** `skills/new-website/templates/astro/tests/check_ship_push.sh:26,128` — `$0` is used after
+`cd`, so invoking the script from inside `tests/` breaks the marker lookup and reports a false
+"a template-version marker is missing". codex ranked it BUG, the fresh-eyes seat NIT.
+
+**Status: WAIVED by the owner, not fixed and not refuted.**
+
+**Reason and sign-off.** The finding was put to the owner explicitly — stated as pre-existing,
+not a regression, reachable only through an undocumented invocation (every documented call site
+— the repo root, CI, and the pre-push hook — starts outside `tests/` and is unaffected), and
+flagged as needing either a fix or a waiver because a NIT cannot close on its own. The owner's
+answer was to merge. That is the sign-off; the defect is accepted as-is rather than resolved.
+
+It remains a real defect in `main` after this merge. Anyone who later runs that script from
+inside `tests/` will see a false marker-missing failure. The fix, if it is ever wanted, is to
+resolve the script's own absolute path before line 26 and pass that to `version_of`.
+
+No other finding from either round is left open. Everything else is fixed, and the CDPATH
+conversions plus F1/F4/F6 are `externally_reverified`. The redesigned guard remains
+`locally_verified` only — no external seat ever saw it.
