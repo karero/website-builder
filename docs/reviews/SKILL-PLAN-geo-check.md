@@ -18,7 +18,7 @@ Revision 4, the plan to build from. It went through three PLAN review rounds: Co
 | S7b set up without key | done (stub) | `test_s7b_config_without_keys_is_a_problem`, `test_s7b_set_up_without_key_is_red` |
 | S8 engine failed | done (stub) | `test_s8_failed_engine_is_a_problem_and_redacted`, `test_s8_failed_engine_is_red` |
 | S9 GSC token dead | done (stub) | `test_gsc_no_browser.py`, `test_s9_dead_gsc_signin_does_not_cost_the_ai_week` |
-| Live smoke test (real engine) | not started | — (needs the owner's key in `.env`) |
+| Live smoke test (real engines) | done, OpenAI pending | 2026-09-26, three real sites: Gemini, Anthropic, Perplexity answered and parsed (detector spot-checked against saved answers); OpenAI blocked by no account credit, which exposed the retry waste fixed in `47568d3` |
 | DIFF gate | not started | — |
 | PR | not started | — |
 
