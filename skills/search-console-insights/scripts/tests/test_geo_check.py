@@ -220,6 +220,31 @@ class WeeklyRun(GeoTestCase):
         self.assertTrue(g and all(r["ok"] == "0" and r["named"] == "0" for r in g))
         self.assertTrue(all(r["ok"] == "3" for r in self.history() if r["engine"] == "openai"))
 
+    def test_no_credit_stops_asking_that_engine(self):
+        # The live smoke test: OpenAI answered every call with this 429, the run retried each
+        # one with pauses and took 9 minutes. Waiting doesn't add credit.
+        self.setup_site()
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        os.environ["GEO_ANTHROPIC_API_KEY"] = "test-anthropic-placeholder"
+        stub.engine_reply("openai", "", status=429, body=(
+            '{"error": {"message": "You have no credits remaining. Add credits to continue.",'
+            ' "type": "insufficient_quota", "code": "credit_balance_exhausted"}}'))
+        stub.engine_reply("anthropic", "Bäckerei Example.")
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        openai_calls = [h for h in stub.STATE["hits"] if h[1] == "/v1/responses"]
+        self.assertEqual(len(openai_calls), 1)
+        self.assertIn("openai FAILED: HTTP 429: You have no credits remaining. Add credits to continue."
+                      " (not retried)", out)
+        self.assertTrue(any(h[1] == "/v1/messages" for h in stub.STATE["hits"]))  # others still asked
+
+    def test_plain_rate_limit_is_retried(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "", status=429, body='{"error": {"message": "Resource exhausted, slow down"}}')
+        self.cli()
+        self.assertEqual(len([h for h in stub.STATE["hits"] if h[0] == "POST"]), 9)  # 3 samples x 3 tries
+
     def test_failed_rerun_does_not_erase_a_good_row(self):
         self.setup_site()
         os.environ["GEO_GEMINI_API_KEY"] = GKEY
@@ -388,6 +413,39 @@ class Trend(GeoTestCase):
         out = self.trend()
         self.assertIn("latest attempt", out)
         self.assertIn("named 3/3", out)
+
+
+class KeySetup(GeoTestCase):
+    """The owner walkthrough: prepare the key file, then check what's set — never show a key."""
+
+    def env_file(self):
+        return self.home / ".config/gsc-insights/.env"
+
+    def cli_bare(self, *args):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = geo_check.main(list(args))
+        return rc, out.getvalue()
+
+    def test_prepare_env_appends_once_and_keeps_existing_lines(self):
+        self.env_file().parent.mkdir(parents=True)
+        self.env_file().write_text("BING_API_KEY=keepme")  # no trailing newline
+        rc, out = self.cli_bare("--prepare-env")
+        self.assertEqual(rc, 0, out)
+        text = self.env_file().read_text()
+        self.assertTrue(text.startswith("BING_API_KEY=keepme\n"))
+        self.assertIn("GEO_GEMINI_API_KEY=\n", text)
+        self.cli_bare("--prepare-env")
+        self.assertEqual(self.env_file().read_text(), text)  # a second run adds nothing
+        self.assertEqual(self.env_file().stat().st_mode & 0o777, 0o600)
+
+    def test_keys_never_prints_a_value(self):
+        self.env_file().parent.mkdir(parents=True)
+        self.env_file().write_text(f"GEO_GEMINI_API_KEY={GKEY}\nGEO_OPENAI_API_KEY=\n")
+        rc, out = self.cli_bare("--keys")
+        self.assertNotIn(GKEY, out)
+        self.assertRegex(out, r"GEO_GEMINI_API_KEY\s+set")
+        self.assertRegex(out, r"GEO_OPENAI_API_KEY\s+empty")
 
 
 class Safety(GeoTestCase):

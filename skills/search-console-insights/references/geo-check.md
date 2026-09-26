@@ -81,30 +81,72 @@ free to start with; the others cost a few cents a week if you want them."*
 1. 🤖 **Draft the questions.**
    - Read the live homepage and `POSITIONING.md` (if the site repo has one).
    - Write a **broad** and a **narrow** buyer question in the site's language, the way a real customer would type it.
-   - **Name the place** in both. Engines without location settings (Gemini) otherwise answer for anywhere.
+   - For a **local** business, **name the place** in both: engines without location settings (Gemini) otherwise answer for anywhere. A business that sells everywhere (an app, an online shop) leaves the place out.
    - Never put the business name in them.
    - Also write the **branded** question.
    - Show all three to the owner and ask them to confirm or change the wording.
-2. 🧑 **Get a key.** Start with Gemini: Google AI Studio → *Get API key*. In the EU/UK/CH, also turn on billing.
-   - Other engines are optional: platform.openai.com, console.anthropic.com, perplexity.ai → API.
-   - The owner adds the key to `~/.config/gsc-insights/.env` themselves, e.g. `GEO_GEMINI_API_KEY=...`.
-   - **Never ask them to paste the key into the chat.**
-3. 🤖 **Save it all** with the confirmed wording (question text via stdin, never pasted into a shell string):
+2. 🤖 **Prepare the key file**: run `python scripts/geo_check.py --prepare-env`, then
+   `open -e ~/.config/gsc-insights/.env`. The first adds four empty lines (`GEO_GEMINI_API_KEY=`
+   and so on) without touching anything already there. The second opens the file in TextEdit.
+   Tell the owner where it lives in words they can use. The `.config` folder is hidden in Finder:
+   **Go → Go to Folder…** (⇧⌘G), then `~/.config/gsc-insights`, or ⇧⌘. to show hidden files.
+3. 🧑 **Get the keys — one engine at a time, Gemini first.** Hand over the steps for one engine,
+   wait until the owner says it's done, run `python scripts/geo_check.py --keys` (it shows
+   "set ✓" or "empty", never the key itself), and only then offer the next one. **Never ask for
+   a key in the chat.** If a key is pasted there anyway, tell the owner to delete that key at
+   the provider and make a new one.
+
+   Button names below come from the providers' docs (checked 2026-09) and may be worded slightly
+   differently on screen; say so.
+
+   **Gemini (free to start)**
+   1. aistudio.google.com → sign in with a Google account → **Get API key** → **Create API key**.
+   2. It asks for a **project**: pick the one AI Studio already created (usually "Gemini API").
+      A project is just the folder the key and its bills belong to. Limits and billing are per
+      project, not per key.
+   3. In the EU/UK/Switzerland: **Set up billing** for that same project (see the EU note above).
+   4. Copy the key and paste it after `GEO_GEMINI_API_KEY=`, with no space and no quotes. Save (⌘S).
+
+   **OpenAI (paid)**
+   1. platform.openai.com → sign in. A ChatGPT login works, but the API is billed separately.
+   2. **Settings → Billing**: add a payment method and a small credit (about $5).
+   3. **Settings → Limits**: set a monthly budget, e.g. $5.
+   4. **API keys → Create new secret key → Restricted**. Set **Model capabilities** (or
+      "Responses") to **Write** and leave everything else, including Agents and Traces, at
+      **None**. The check only sends questions; it stores nothing at OpenAI.
+   5. Copy it right away (it is shown once) and paste it after `GEO_OPENAI_API_KEY=`.
+
+   **Anthropic (paid)**
+   1. console.anthropic.com → sign in. The key belongs to the owner's organization and bills its credit.
+   2. **Settings → Billing**: buy a small credit. **Settings → Limits**: set a monthly spend limit.
+      Optionally create a workspace called "AI check" first, so its use shows separately.
+   3. **API Keys → Create Key**. Copy it right away and paste it after `GEO_ANTHROPIC_API_KEY=`.
+
+   **Perplexity (paid)**
+   1. perplexity.ai → sign in → **Settings → API** → add a small credit → **Generate API key**.
+   2. Paste it after `GEO_PERPLEXITY_API_KEY=`.
+
+   An empty line just skips that engine. Every paid engine is optional; "Knows you" with the free
+   Gemini key alone is a real result.
+4. 🤖 **Save the site and its questions** with the confirmed wording. Write each question to a
+   small text file first. Never put it inside a shell command string: an apostrophe
+   ("contacts' plans") breaks the quoting.
    ```bash
    python scripts/geo_check.py example.com --init --name "Bäckerei Example" \
        [--legal-name "..."] [--alias "..."] --lang de --country DE
-   python scripts/geo_check.py example.com --set-question --slot broad --text-file - <<'Q'
-   Where can I buy sourdough bread in Munich-Schwabing?
-   Q
-   # …the same for --slot narrow and --slot branded…
+   python scripts/geo_check.py example.com --set-question --slot broad   --text-file broad.txt
+   python scripts/geo_check.py example.com --set-question --slot narrow  --text-file narrow.txt
+   python scripts/geo_check.py example.com --set-question --slot branded --text-file branded.txt
    python scripts/geo_check.py example.com --confirm
    ```
    - `--name` comes from the site's `src/config.ts` (`SITE.name`); `--legal-name` from `SITE.legalName`.
-   - Add aliases the owner uses.
+   - Add an alias for each other spelling the owner uses ("ExampleCo" for "Example-Co").
    - `--domain` defaults to the site's domain.
    - `--confirm` prints what it read from the homepage. If that isn't the real page (a "checking your browser" wall), it refuses to save.
-4. 🤖 **Run it once** (`python scripts/geo_check.py example.com`) and walk the owner through the result.
-5. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
+5. 🤖 **Run it once** (`python scripts/geo_check.py example.com`) and walk the owner through the
+   result. It takes a few minutes with all four engines. If an engine shows FAILED, read its
+   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
+6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
 ## Every session: is the question still right?
 

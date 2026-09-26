@@ -398,7 +398,25 @@ def parse_response(engine, data):
 
 
 class EngineError(Exception):
-    pass
+    """A failed call. `fatal` = retrying this engine this run can't help (bad key, missing
+    permission, no credit, a request the API rejects), so the run stops asking it."""
+    def __init__(self, message, fatal=False):
+        super().__init__(message)
+        self.fatal = fatal
+
+
+_NO_CREDIT = re.compile(r"insufficient_quota|credit|billing|quota exceeded", re.IGNORECASE)
+
+
+def _error_line(r) -> str:
+    """One readable line from an error response: the API's own message when it has one."""
+    try:
+        err = r.json().get("error", r.json())
+        msg = err.get("message") if isinstance(err, dict) else str(err)
+    except ValueError:
+        msg = None
+    msg = re.sub(r"\s+", " ", msg or r.text or r.reason or "").strip()
+    return f"HTTP {r.status_code}: {msg[:240]}"
 
 
 def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
@@ -413,11 +431,15 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
                               timeout=min(CALL_TIMEOUT, max(1, remaining)))
         except requests.RequestException as e:
             raise EngineError(redact(f"{type(e).__name__}: {e}", all_keys)) from None
+        if r.status_code == 429 and _NO_CREDIT.search(r.text):
+            # "No credit" arrives as a 429 too (OpenAI), but waiting won't fix it.
+            raise EngineError(redact(_error_line(r), all_keys), fatal=True)
         if r.status_code == 429 and attempt < 2:
             time.sleep(delay * (attempt + 1))
             continue
         if r.status_code != 200:
-            raise EngineError(redact(f"HTTP {r.status_code}: {r.text[:300]}", all_keys))
+            fatal = 400 <= r.status_code < 500 and r.status_code != 429
+            raise EngineError(redact(_error_line(r), all_keys), fatal=fatal)
         try:
             return parse_response(engine, r.json())
         except (ValueError, AttributeError, TypeError) as e:
@@ -523,17 +545,23 @@ def run(domain: str) -> int:
             continue
         engine_ok = 0
         engine_err = None
+        dead = None  # set by a fatal error: the rest of this engine's calls are skipped
         for mode in modes_for(engine):
             for q in queries:
                 slot, n = q["slot"], SAMPLES[q["slot"]]
                 ok = named = cited = searched = 0
                 models, domains, errors = set(), set(), []
                 for i in range(1, n + 1):
+                    if dead:
+                        errors.append(dead)
+                        continue
                     try:
                         text, model, sources, did_search = call_engine(
                             engine, mode, q["text"], cfg, key, all_keys, deadline)
                     except EngineError as e:
                         errors.append(str(e))
+                        if e.fatal:
+                            dead = f"{e} (not retried)"
                         continue
                     finally:
                         time.sleep(pause)
@@ -658,11 +686,51 @@ def trend(domain: str) -> int:
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+ENV_HINTS = {
+    "gemini": "aistudio.google.com → Get API key (free; in the EU/UK/CH also turn on billing)",
+    "openai": "platform.openai.com → add credit under Billing → API keys → Create",
+    "anthropic": "console.anthropic.com → add credit under Billing → API Keys → Create Key",
+    "perplexity": "perplexity.ai → Settings → API → add credit → Generate API key",
+}
+
+
+def show_keys() -> int:
+    """Which engines have a key — never the values. For the owner walkthrough."""
+    keys = load_keys()
+    print(f"Key file: {base_dir() / '.env'}")
+    for e in ENGINES:
+        state = "set ✓" if keys[e] else f"empty — {ENV_HINTS[e]}"
+        print(f"  {KEY_VARS[e]:<24} {state}")
+    return 0
+
+
+def prepare_env() -> int:
+    """Add the empty GEO_* lines to the shared .env (never touching existing lines),
+    so the owner only pastes each key after its = sign."""
+    env = base_dir() / ".env"
+    env.parent.mkdir(parents=True, exist_ok=True)
+    text = env.read_text(encoding="utf-8") if env.exists() else ""
+    missing = [v for v in KEY_VARS.values()
+               if not re.search(r"(?m)^\s*(?:export\s+)?" + v + r"\s*=", text)]
+    if missing:
+        block = ("\n# Weekly AI check (does AI name you?) — paste each key after the = sign,\n"
+                 "# no spaces, no quotes. Leave a line empty to skip that engine.\n"
+                 + "".join(f"{v}=\n" for v in missing))
+        with open(env, "a", encoding="utf-8") as f:
+            f.write(("" if not text or text.endswith("\n") else "\n") + block)
+        os.chmod(env, 0o600)
+    print(f"Key file: {env}")
+    print("  (the folder .config is hidden in Finder: Go → Go to Folder… → ~/.config/gsc-insights)")
+    print(f"  {'added' if missing else 'already has'} the lines: {', '.join(KEY_VARS.values())}")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("domain")
+    ap.add_argument("domain", nargs="?")
     cmd = ap.add_mutually_exclusive_group()
-    for c in ("init", "set-names", "set-question", "check-drift", "confirm", "trend"):
+    for c in ("init", "set-names", "set-question", "check-drift", "confirm", "trend",
+              "keys", "prepare-env"):
         cmd.add_argument(f"--{c}", action="store_true")
     ap.add_argument("--name")
     ap.add_argument("--legal-name")
@@ -673,7 +741,13 @@ def main(argv=None) -> int:
     ap.add_argument("--slot", choices=SLOTS)
     ap.add_argument("--text-file")
     args = ap.parse_args(argv)
+    if args.keys:
+        return show_keys()
+    if args.prepare_env:
+        return prepare_env()
     domain = args.domain
+    if not domain:
+        ap.error("a domain is required (e.g. example.com)")
 
     if args.trend:
         return trend(domain)
