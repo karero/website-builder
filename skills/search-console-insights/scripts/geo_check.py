@@ -2,12 +2,14 @@
 """
 geo_check.py — weekly "does AI name you?" check (GEO), next to the GSC + Bing tracker.
 
-Asks up to four AI engines the owner's confirmed buyer questions, in two modes:
+Asks up to four AI engines — plus, if switched on per site, Google's AI Mode and AI Overview
+via SerpApi — the owner's confirmed buyer questions, in two modes:
   knows  — no web tools: what the model learned in training (the long-term goal)
   finds  — web search on: what a buyer gets today, plus which sites were cited
 and counts, in code, how often the business is named. Each answer is saved verbatim;
 one row per engine x mode x question lands in geo_history.csv; --trend prints the
-week-over-week movement. The plan and its review trail: docs/reviews/SKILL-PLAN-geo-check.md.
+week-over-week movement and --report a readable page. The plan and its review trail:
+docs/reviews/SKILL-PLAN-geo-check.md in the website-builder repo.
 
   geo_check.py <domain>                          weekly run (track.sh calls this)
   geo_check.py <domain> --init --name N --domain D --lang de --country DE [--legal-name L] [--alias A]...
@@ -15,11 +17,15 @@ week-over-week movement. The plan and its review trail: docs/reviews/SKILL-PLAN-
   geo_check.py <domain> --set-question --slot broad|narrow|branded --text-file PATH|-
   geo_check.py <domain> --check-drift            homepage vs. the confirmed questions, no engine calls
   geo_check.py <domain> --confirm                save the homepage fingerprint for the question set
-  geo_check.py <domain> --trend
+  geo_check.py <domain> --google on|off          Google AI Mode + AI Overview for this site (paid searches)
+  geo_check.py <domain> --trend | --report
+  geo_check.py <domain> --engines gemini,openai  a run limited to some engines
+  geo_check.py --keys | --prepare-env            which keys are set (never shown) / add the empty lines
 
-Keys: GEO_GEMINI_API_KEY, GEO_OPENAI_API_KEY, GEO_ANTHROPIC_API_KEY, GEO_PERPLEXITY_API_KEY,
-from the environment or ~/.config/gsc-insights/.env. The generic OPENAI_API_KEY etc. are
-never read, so a key exported in a developer shell is never billed by accident.
+Keys: GEO_GEMINI_API_KEY, GEO_OPENAI_API_KEY, GEO_ANTHROPIC_API_KEY, GEO_PERPLEXITY_API_KEY and
+the skill's SERPAPI_KEY (used only for sites with --google on), plus optional GEO_<ENGINE>_MODEL
+overrides — from the environment or ~/.config/gsc-insights/.env. The generic OPENAI_API_KEY etc.
+are never read, so a key exported in a developer shell is never billed by accident.
 
 Exit (weekly run): 0 no problems · 1 problems (each printed as a ⚠ line) · 3 not set up.
 Homepage warnings are never problems: the owner is asked about them in the next Claude session.
@@ -70,7 +76,8 @@ FIELDS = ["date", "run_id", "site", "engine", "mode", "slot", "rev", "query",
           "cited_own", "cited_domains", "searched", "status"]
 
 CALL_TIMEOUT = 120      # seconds per engine call — web search answers can take a while
-TIME_BUDGET = int(os.environ.get("GEO_TIME_BUDGET", "900"))
+# Per engine, so a slow engine early in the list can't starve the ones after it.
+ENGINE_BUDGET = int(os.environ.get("GEO_ENGINE_BUDGET", "400"))
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
 
@@ -97,21 +104,31 @@ def eprint(*a):
 
 # ─── keys ─────────────────────────────────────────────────────────────────────
 
-def load_keys() -> dict:
-    """GEO_* keys from the environment, else parsed from the shared .env. Only these
-    names are read — never the generic OPENAI_API_KEY and friends."""
-    keys = {e: os.environ.get(v, "").strip() for e, v in KEY_VARS.items()}
+def setting(name: str) -> str:
+    """One of this tool's own settings (GEO_*_API_KEY, SERPAPI_KEY, GEO_*_MODEL): the process
+    environment first (track.sh sources .env), else the shared .env itself, so a direct run
+    in a Claude session sees the same values. Only these names are ever read — never the
+    generic OPENAI_API_KEY and friends."""
+    val = os.environ.get(name, "").strip()
+    if val:
+        return val
     env = base_dir() / ".env"
-    if env.exists() and not all(keys.values()):
-        for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
-            m = re.match(r"\s*(?:export\s+)?(GEO_[A-Z]+_API_KEY|SERPAPI_KEY)\s*=\s*(.*)$", line)
-            if not m:
-                continue
-            val = m.group(2).strip().strip('"').strip("'")
-            for e, v in KEY_VARS.items():
-                if m.group(1) == v and not keys[e]:
-                    keys[e] = val
-    return keys
+    if not env.exists():
+        return ""
+    for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+        m = re.match(r"\s*(?:export\s+)?([A-Z_]+)\s*=\s*(.*)$", line)
+        if not m or m.group(1) != name:
+            continue
+        raw = m.group(2).strip()
+        if raw and raw[0] in "\"'" and raw[0] in raw[1:]:
+            val = raw[1:raw.index(raw[0], 1)]          # quoted: up to the closing quote
+        else:
+            val = re.split(r"\s+#", raw, maxsplit=1)[0].strip()  # unquoted: an inline "# note" ends it, as in bash
+    return val
+
+
+def load_keys() -> dict:
+    return {e: setting(v) for e, v in KEY_VARS.items()}
 
 
 def redact(msg: str, keys) -> str:
@@ -196,9 +213,13 @@ class _Extract(html.parser.HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.title, self.desc, self.h1 = "", "", ""
+        self.visible = []     # body text a visitor would read (no scripts, styles or tags)
         self._in = None
+        self._skip = 0
 
     def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style", "noscript", "template"):
+            self._skip += 1
         a = dict(attrs)
         if tag == "title" and not self.title:
             self._in = "title"
@@ -208,10 +229,14 @@ class _Extract(html.parser.HTMLParser):
             self.desc = a.get("content") or ""
 
     def handle_endtag(self, tag):
+        if tag in ("script", "style", "noscript", "template") and self._skip:
+            self._skip -= 1
         if tag == self._in:
             self._in = None
 
     def handle_data(self, data):
+        if not self._skip:
+            self.visible.append(data)
         if self._in == "title":
             self.title += data
         elif self._in == "h1":
@@ -237,10 +262,17 @@ def read_homepage(domain: str, cfg: dict):
     p = _Extract()
     p.feed(r.text)
     text = "\n".join(_norm_text(x) for x in (p.title, p.desc, p.h1))
-    page = html.unescape(r.text)
-    if not (is_named(page, cfg["names"]) or any(norm_host(d) in page.lower() for d in cfg["domains"])):
+    if _CHALLENGE.search(f"{p.title} {p.h1}"):
+        return None, f"a bot check or consent page ({_norm_text(p.title or p.h1)[:60]})"
+    visible = _norm_text(" ".join(p.visible))
+    if not (is_named(visible, cfg["names"]) or any(norm_host(d) in visible.lower() for d in cfg["domains"])):
         return None, "the page names neither the business nor its domain (bot wall or consent page?)"
     return text, None
+
+
+_CHALLENGE = re.compile(r"just a moment|checking (your|the) browser|attention required|verify (that )?"
+                        r"you are (a )?human|are you a robot|captcha|access denied|enable javascript "
+                        r"and cookies|ddos protection|security check", re.IGNORECASE)
 
 
 def fingerprint(text: str) -> str:
@@ -253,9 +285,13 @@ def drift(domain: str, cfg: dict):
     if text is None:
         return "unreadable", reason
     fp = cfg.get("fingerprint")
-    if not fp:
+    if not fp or cfg.get("confirmed_questions") != _question_set(cfg):
         return "unconfirmed", text
     return ("same" if fp == fingerprint(text) else "changed"), text
+
+
+def _question_set(cfg) -> dict:
+    return {q["slot"]: q["rev"] for q in cfg.get("queries", [])}
 
 
 # ─── config ───────────────────────────────────────────────────────────────────
@@ -313,7 +349,9 @@ KNOWS_SUPPORTED = {e: e not in SERP_ENGINES for e in ENGINES}
 
 
 def model_for(engine: str) -> str:
-    return os.environ.get(f"GEO_{engine.upper()}_MODEL", DEFAULT_MODELS[engine])
+    if engine in SERP_ENGINES:
+        return DEFAULT_MODELS[engine]
+    return setting(f"GEO_{engine.upper()}_MODEL") or DEFAULT_MODELS[engine]
 
 
 def modes_for(engine: str):
@@ -349,7 +387,7 @@ def build_request(engine, mode, question, cfg, key):
                 {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, body)
     if engine == "anthropic":
         base = override("GEO_ANTHROPIC_BASE_URL", "https://api.anthropic.com")
-        body = {"model": model, "max_tokens": 1500,
+        body = {"model": model, "max_tokens": 4000,
                 "messages": [{"role": "user", "content": question}]}
         if finds:
             tool = {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}
@@ -407,9 +445,14 @@ def parse_response(engine, data):
     """(answer_text, reported_model, [cited URL or host, ...], searched: bool)."""
     if engine == "gemini":
         cand = (data.get("candidates") or [{}])[0]
+        reason = cand.get("finishReason") or (data.get("promptFeedback") or {}).get("blockReason")
+        if reason and reason not in ("STOP", "FINISH_REASON_UNSPECIFIED"):
+            raise EngineError(f"incomplete answer ({reason})")
         text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []))
         return text, data.get("modelVersion", ""), [], False
     if engine == "openai":
+        if data.get("status") == "incomplete":
+            raise EngineError(f"incomplete answer ({(data.get('incomplete_details') or {}).get('reason', '?')})")
         out = data.get("output", []) or []
         sources = [a.get("url", "") for item in out if item.get("type") == "message"
                    for c in item.get("content", []) or []
@@ -417,6 +460,8 @@ def parse_response(engine, data):
         searched = any(item.get("type") == "web_search_call" for item in out)
         return "\n".join(_output_texts(data)), data.get("model", ""), sources, searched
     if engine == "anthropic":
+        if data.get("stop_reason") in ("max_tokens", "pause_turn", "refusal"):
+            raise EngineError(f"incomplete answer ({data['stop_reason']})")
         texts, sources = [], []
         for b in data.get("content", []) or []:
             if b.get("type") == "text":
@@ -457,17 +502,35 @@ class EngineError(Exception):
         self.fatal = fatal
 
 
-_NO_CREDIT = re.compile(r"insufficient_quota|credit|billing|quota exceeded", re.IGNORECASE)
-
-
-def _error_line(r) -> str:
-    """One readable line from an error response: the API's own message when it has one."""
+def _error_obj(r):
     try:
-        err = r.json().get("error", r.json())
-        msg = err.get("message") if isinstance(err, dict) else str(err)
+        j = r.json()
     except ValueError:
-        msg = None
-    msg = re.sub(r"\s+", " ", msg or r.text or r.reason or "").strip()
+        return {}
+    err = j.get("error", j) if isinstance(j, dict) else {}
+    return err if isinstance(err, dict) else {"message": str(err)}
+
+
+def _out_of_credit(r) -> bool:
+    """A 429 that waiting won't fix: no prepaid credit (OpenAI) or a used-up DAILY quota
+    (Gemini). Decided from the error's structured fields, not its wording: Gemini's
+    ordinary per-minute 429 also says "check your plan and billing details"."""
+    err = _error_obj(r)
+    if err.get("code") in ("insufficient_quota", "credit_balance_exhausted") \
+            or err.get("type") == "insufficient_quota":
+        return True
+    for d in err.get("details") or []:
+        for v in (d.get("violations") or []) if isinstance(d, dict) else []:
+            if "PerDay" in str(v.get("quotaId", "")):
+                return True
+    return False
+
+
+def _error_line(r, all_keys) -> str:
+    """One readable line from an error response: the API's own message when it has one.
+    Redacted BEFORE it is shortened, so a key cut in half can't slip past the redaction."""
+    msg = _error_obj(r).get("message") or r.text or r.reason or ""
+    msg = re.sub(r"\s+", " ", redact(str(msg), all_keys)).strip()
     return f"HTTP {r.status_code}: {msg[:240]}"
 
 
@@ -485,15 +548,14 @@ def _send(method, url, headers, payload, all_keys, deadline):
         except requests.RequestException as e:
             # SerpApi's key is a query parameter, so a transport error's URL carries it.
             raise EngineError(redact(f"{type(e).__name__}: {e}", all_keys)) from None
-        if r.status_code == 429 and _NO_CREDIT.search(r.text):
-            # "No credit" arrives as a 429 too (OpenAI), but waiting won't fix it.
-            raise EngineError(redact(_error_line(r), all_keys), fatal=True)
+        if r.status_code == 429 and _out_of_credit(r):
+            raise EngineError(_error_line(r, all_keys), fatal=True)
         if r.status_code == 429 and attempt < 2:
             time.sleep(delay * (attempt + 1))
             continue
         if r.status_code != 200:
             fatal = 400 <= r.status_code < 500 and r.status_code != 429
-            raise EngineError(redact(_error_line(r), all_keys), fatal=fatal)
+            raise EngineError(_error_line(r, all_keys), fatal=fatal)
         try:
             return r.json()
         except ValueError:
@@ -507,26 +569,36 @@ _SERP_FATAL = re.compile(r"api key|run out of searches|plan|account", re.IGNOREC
 
 def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
     method, url, headers, payload = build_request(engine, mode, question, cfg, key)
-    data = _send(method, url, headers, payload, all_keys, deadline)
-    if engine in SERP_ENGINES and isinstance(data, dict) and data.get("error"):
-        # SerpApi reports some failures inside a 200, and "Google showed nothing" as one too.
-        msg = redact(str(data["error"]), all_keys)
-        if not _SERP_NO_RESULT.search(msg):
-            raise EngineError(f"SerpApi: {msg[:240]}", fatal=bool(_SERP_FATAL.search(msg)))
-        data = {}
+    data = _serp_checked(engine, _send(method, url, headers, payload, all_keys, deadline), all_keys)
     if engine == "google-overview":
         ov = (data or {}).get("ai_overview") or {}
         if ov.get("page_token") and not ov.get("text_blocks"):
             # Google sometimes serves the overview through a second request; its token
             # expires within minutes, so fetch it right away.
             base = override("GEO_SERPAPI_BASE_URL", "https://serpapi.com")
-            data = _send("GET", f"{base}/search", {},
-                         {"engine": "google_ai_overview", "page_token": ov["page_token"],
-                          "api_key": key}, all_keys, deadline)
+            data = _serp_checked(engine, _send(
+                "GET", f"{base}/search", {},
+                {"engine": "google_ai_overview", "page_token": ov["page_token"], "api_key": key},
+                all_keys, deadline), all_keys)
     try:
-        return parse_response(engine, data or {})
+        text, model, sources, searched = parse_response(engine, data or {})
     except (ValueError, AttributeError, TypeError) as e:
         raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
+    if not text.strip():
+        # An answer we couldn't read is a failed call, not "the business wasn't named".
+        raise EngineError("empty answer (nothing to read in the response)")
+    return text, model, sources, searched
+
+
+def _serp_checked(engine, data, all_keys):
+    """SerpApi reports some failures inside an HTTP 200 — after every call, the follow-up
+    included. "Google showed nothing" arrives that way too and is not a failure."""
+    if engine in SERP_ENGINES and isinstance(data, dict) and data.get("error"):
+        msg = redact(str(data["error"]), all_keys)
+        if not _SERP_NO_RESULT.search(msg):
+            raise EngineError(f"SerpApi: {msg[:240]}", fatal=bool(_SERP_FATAL.search(msg)))
+        return {}
+    return data
 
 
 # ─── history ──────────────────────────────────────────────────────────────────
@@ -603,8 +675,9 @@ def run(domain: str, only=None) -> int:
 
     keys = load_keys()
     all_keys = [k for k in keys.values() if k]
+    usable = [e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))]
     queries = [q for q in cfg.get("queries", []) if q.get("text")]
-    if not all_keys:
+    if not usable:
         problems.append("the AI check is set up but has no engine key "
                         f"(add e.g. {KEY_VARS['gemini']}=... to {base_dir() / '.env'})")
     if not queries:
@@ -613,14 +686,20 @@ def run(domain: str, only=None) -> int:
     run_id = new_run_id()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     answers = geo_dir() / "answers" / site / run_id
-    deadline = time.monotonic() + TIME_BUDGET
     pause = 0 if os.environ.get("GEO_TEST_MODE") == "1" else 1.0
     rows, checked, failed, not_set_up = [], [], [], []
+    write_errors = set()
 
     for engine in ENGINES:
         if only and engine not in only:
             continue
+        if engine in SERP_ENGINES and not cfg.get("google"):
+            print(f"  {engine}: off for this site — it spends SerpApi searches; "
+                  f"turn on with: geo_check.py {site} --google on")
+            not_set_up.append(engine)
+            continue
         key = keys[engine]
+        deadline = time.monotonic() + ENGINE_BUDGET
         if not key:
             print(f"  {engine}: skipped — no {KEY_VARS[engine]} (add it to {base_dir() / '.env'})")
             not_set_up.append(engine)
@@ -647,6 +726,9 @@ def run(domain: str, only=None) -> int:
                         if e.fatal:
                             dead = f"{e} (not retried)"
                         continue
+                    except Exception as e:  # noqa: BLE001 — keep the run's other rows (Rule 12: still reported)
+                        errors.append(redact(f"unexpected {type(e).__name__}: {e}", all_keys)[:240])
+                        continue
                     finally:
                         time.sleep(pause)
                     ok += 1
@@ -659,12 +741,15 @@ def run(domain: str, only=None) -> int:
                         named += 1
                     if any(host_matches(h, cfg["domains"]) for h in hosts):
                         cited += 1
-                    answers.mkdir(parents=True, exist_ok=True)
-                    (answers / f"{engine}-{mode}-{slot}-{i}.txt").write_text(
-                        f"# engine={engine} mode={mode} slot={slot} rev={q['rev']} "
-                        f"model={model} searched={'yes' if did_search else 'no'}\n"
-                        f"# question: {q['text']}\n\n{text}\n\n# sources:\n"
-                        + "".join(f"{s}\n" for s in sources), encoding="utf-8")
+                    try:
+                        answers.mkdir(parents=True, exist_ok=True)
+                        (answers / f"{engine}-{mode}-{slot}-{i}.txt").write_text(
+                            f"# engine={engine} mode={mode} slot={slot} rev={q['rev']} "
+                            f"model={model} searched={'yes' if did_search else 'no'}\n"
+                            f"# question: {q['text']}\n\n{text}\n\n# sources:\n"
+                            + "".join(f"{s}\n" for s in sources), encoding="utf-8")
+                    except OSError as e:
+                        write_errors.add(f"couldn't save an answer file ({e})")
                 engine_ok += ok
                 if errors:
                     engine_err = errors[-1]
@@ -674,7 +759,7 @@ def run(domain: str, only=None) -> int:
                     "mode": mode, "slot": slot, "rev": q["rev"], "query": q["text"],
                     "model_requested": model_for(engine),
                     "models_reported": "|".join(sorted(models)),
-                    "config_rev": cfg.get("config_rev", config_rev(cfg)), "ok": ok,
+                    "config_rev": config_rev(cfg), "ok": ok,
                     "named": "" if branded else named,
                     "cited_own": "" if (branded or mode == "knows") else cited,
                     "cited_domains": "|".join(sorted(domains)) if mode == "finds" else "",
@@ -689,6 +774,7 @@ def run(domain: str, only=None) -> int:
         if engine_ok:
             checked.append(engine)
 
+    problems += sorted(write_errors)
     if rows:
         try:
             append_history(history_path(), rows)
@@ -727,13 +813,17 @@ def trend(domain: str) -> int:
         print("AI check: no history for this site yet.")
         return 0
     rows.sort(key=lambda r: r["run_id"])
-    latest_run = rows[-1]["run_id"]
-    last = [r for r in rows if r["run_id"] == latest_run]
+    # Each engine's most recent run — the same counting as the run summary, and a run
+    # limited with --engines doesn't make the others look "not set up".
+    last_run = {}
+    for r in rows:
+        last_run[r["engine"]] = r["run_id"]
+    last = [r for r in rows if last_run[r["engine"]] == r["run_id"]]
     eng_ok = {r["engine"] for r in last if _ok(r)}
-    eng_seen = {r["engine"] for r in last}
+    eng_failed = {r["engine"] for r in last if "failed" in r.get("status", "")}
     print(f"═══ Does AI name you? — named / answers; ▲ = named more often ═══")
-    print(f"  latest run {latest_run[:16]}: engines {len(eng_ok)} checked, "
-          f"{len(eng_seen - eng_ok)} failed, {len(ENGINES) - len(eng_seen)} not set up")
+    print(f"  latest answers: engines {len(eng_ok)} checked, {len(eng_failed)} with failures, "
+          f"{len(ENGINES) - len(last_run)} never set up")
 
     groups = {}
     for r in rows:
@@ -763,7 +853,11 @@ def trend(domain: str) -> int:
         if len(good) == 1:
             print(f"{head} named {now['named']}/{_ok(now)}{cite} ({now['date']}, first){note}")
             continue
-        prev = good[-2]
+        comparable = [r for r in good[:-1] if r.get("status") != "no AI Overview shown"]
+        if not comparable:
+            print(f"{head} named {now['named']}/{_ok(now)}{cite} ({now['date']}, first){note}")
+            continue
+        prev = comparable[-1]
         a, b = _ratio(prev), _ratio(now)
         mark = "▲" if b > a else "▼" if b < a else "→"
         causes = []
@@ -922,8 +1016,12 @@ def build_report(domain: str, run_id=None):
                 src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in sources[:12]) + "</div>") if sources else ""
                 answers.append(f"<details{' open' if i == 1 else ''}><summary>Answer {i} of {len(files)}</summary>"
                                f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
+            stale = ""
+            if str(r.get("rev")) != str(q["rev"]) or r.get("query") != q["text"]:
+                stale = (f"<p class='muted'>This answer is from {h(r['date'])}, to an earlier version of the "
+                         f"question: “{h(r.get('query', ''))}”. The next run asks the new one.</p>")
             cards.append(f"<div class='card'><h3>{h(ENGINE_LABEL.get(r['engine'], r['engine']))}</h3>"
-                         f"<div class='mode'>{h(MODE_LABEL.get(r['mode'], r['mode']))}</div>"
+                         f"<div class='mode'>{h(MODE_LABEL.get(r['mode'], r['mode']))}</div>{stale}"
                          f"{''.join(badges)}{''.join(answers) or '<p class=muted>No answer saved.</p>'}</div>")
         sections.append(f"<h2>{h(SLOT_LABEL.get(q['slot'], q['slot']))}</h2><p class='q'>“{h(q['text'])}”</p>"
                         f"<div class='grid'>{''.join(cards)}</div>")
@@ -962,9 +1060,10 @@ def show_keys() -> int:
     """Which engines have a key — never the values. For the owner walkthrough."""
     keys = load_keys()
     print(f"Key file: {base_dir() / '.env'}")
-    for e in ENGINES:
-        state = "set ✓" if keys[e] else f"empty — {ENV_HINTS[e]}"
-        print(f"  {KEY_VARS[e]:<24} {state}")
+    for var in dict.fromkeys(KEY_VARS.values()):          # SERPAPI_KEY serves two engines
+        engines = [e for e in ENGINES if KEY_VARS[e] == var]
+        state = "set ✓" if keys[engines[0]] else f"empty — {ENV_HINTS[engines[0]]}"
+        print(f"  {var:<24} {state}  ({', '.join(engines)})")
     return 0
 
 
@@ -1005,6 +1104,8 @@ def main(argv=None) -> int:
     ap.add_argument("--country")
     ap.add_argument("--slot", choices=SLOTS)
     ap.add_argument("--text-file")
+    ap.add_argument("--google", choices=["on", "off"],
+                    help="ask Google's AI Mode + AI Overview for this site (spends SerpApi searches)")
     ap.add_argument("--engines", help="comma-separated: ask only these engines this run "
                     f"(of {', '.join(ENGINES)})")
     args = ap.parse_args(argv)
@@ -1037,7 +1138,8 @@ def main(argv=None) -> int:
             ap.error("--init needs --name, --lang and --country")
         cfg = {"names": [n for n in [args.name, args.legal_name, *(args.alias or [])] if n],
                "domains": sorted({norm_host(d) for d in (args.domains or [domain])}),
-               "lang": args.lang, "country": _country(args.country), "queries": []}
+               "lang": args.lang, "country": _country(args.country), "queries": [],
+               "google": args.google == "on"}
         save_config(domain, cfg)
         print(f"✓ AI check set up for {normalize_site(domain)}: {config_path(domain)}")
         print("  Next: add the questions with --set-question, then --confirm.")
@@ -1048,9 +1150,20 @@ def main(argv=None) -> int:
         print("AI check: not set up (ask Claude: 'set up the weekly AI check')")
         return 3
 
+    if args.google:
+        cfg["google"] = args.google == "on"
+        save_config(domain, cfg)
+        print(f"✓ Google AI Mode + AI Overview {'on' if cfg['google'] else 'off'} for {normalize_site(domain)}"
+              + (" — each weekly run spends 6–9 SerpApi searches." if cfg["google"] else "."))
+        return 0
+
     if args.set_names:
-        if args.name or args.legal_name or args.alias:
+        if args.name:  # a new main name replaces the list: name, legal name, aliases
             cfg["names"] = [n for n in [args.name, args.legal_name, *(args.alias or [])] if n]
+        else:          # otherwise --legal-name/--alias ADD to the names already there
+            for n in [args.legal_name, *(args.alias or [])]:
+                if n and n not in cfg["names"]:
+                    cfg["names"].append(n)
         if args.domains:
             cfg["domains"] = sorted({norm_host(d) for d in args.domains})
         if args.lang:
@@ -1072,7 +1185,7 @@ def main(argv=None) -> int:
         old = next((q for q in cfg.get("queries", []) if q["slot"] == args.slot), None)
         rev = (old["rev"] + 1) if old else 1
         qs.append({"slot": args.slot, "rev": rev, "text": text,
-                   "confirmed": datetime.now(timezone.utc).strftime("%Y-%m-%d")})
+                   "saved": datetime.now(timezone.utc).strftime("%Y-%m-%d")})
         cfg["queries"] = sorted(qs, key=lambda q: SLOTS.index(q["slot"]))
         save_config(domain, cfg)
         print(f"✓ {args.slot} question saved (rev {rev}): {text}")
@@ -1098,6 +1211,8 @@ def main(argv=None) -> int:
             return 0
         cfg["fingerprint"] = fingerprint(detail)
         cfg["fingerprint_text"] = detail
+        cfg["confirmed_questions"] = _question_set(cfg)   # the set this homepage was checked against
+        cfg["confirmed"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         save_config(domain, cfg)
         print("✓ Confirmed — these questions now match this homepage.")
         return 0

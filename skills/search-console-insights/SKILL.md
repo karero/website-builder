@@ -12,8 +12,8 @@ description: >
   data", "connect GSC", "where do I rank", "top queries", "striking distance
   keywords", "quick SEO wins", "why is my CTR low", "which pages to optimize",
   "who ranks for", "competitor Top 10", "how do I rank on Bing", "Copilot
-  visibility", "track my rankings over time", "weekly SEO report", "does AI name
-  my business", "weekly AI check".
+  visibility", "ChatGPT search visibility", "track my rankings over time", "weekly
+  SEO report", "does AI name my business", "weekly AI check".
 metadata:
   version: 1.7.0
 ---
@@ -401,8 +401,8 @@ answers from real data instead of a single snapshot.
 Every step runs even if an earlier one failed (an expired Google sign-in no longer costs the
 week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
 each problem. Exit code: 0 when that list is empty; otherwise GSC's own code if GSC failed
-(2 = the sign-in needs renewing — the job never waits for a browser), else 4 if a history
-write failed, else 1. An AI check that isn't set up is not a problem; homepage warnings from
+(2 = the sign-in needs renewing — the job never waits for a browser), else 4 if a GSC or Bing
+history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
 the AI check aren't either (see `references/geo-check.md`).
 
 - **macOS** uses **launchd** — one LaunchAgent per site, *never* cron. Per-site means each is
@@ -420,11 +420,11 @@ business — twice: **"knows you"** (no web search: what the model learned) and 
 mentions; every answer is saved verbatim; `track.sh` runs it weekly after Bing and prints its
 trend under the keyword trend.
 
-**Read `references/geo-check.md` before setting it up or reading its results.** Two rules
+**Read `references/geo-check.md` before setting it up or reading its results.** Three rules
 from it that apply every time:
 
 - **At the start of any session that looks at this site's AI results, run
-  `python scripts/geo_check.py <domain> --check-drift` first.** If the homepage changed since
+  `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --check-drift` first.** If the homepage changed since
   the questions were confirmed, read the homepage (and POSITIONING.md if present), propose
   updated questions, and **ask the owner** before changing anything.
 - **Show results as the report page** (`geo_check.py <domain> --report`), not raw files.

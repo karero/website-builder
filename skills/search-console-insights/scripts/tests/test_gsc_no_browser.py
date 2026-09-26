@@ -106,6 +106,37 @@ class NoBrowser(unittest.TestCase):
         self.assertEqual(calls, ["loaded token"])
         self.assertIn("RefreshError", err)
 
+    def test_missing_token_file_exits_2_without_browser(self):
+        # The one case that used to hang: no token.json at all (a fresh machine, a deleted file).
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            secret = os.path.join(d, "client_secret.json")
+            Path(secret).write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token",
+                    os.path.join(d, "absent.json"), "--client-secret", secret, "--no-browser"]
+            err = io.StringIO()
+            with mock.patch.dict(sys.modules, google_stubs(Creds(), calls)), \
+                    mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(calls, [])  # never reached the browser flow (or loaded a token)
+        self.assertIn("sign-in needs renewing", err.getvalue())
+
+    def test_missing_google_libraries_exit_2_with_their_own_message(self):
+        # Distinct from a dead sign-in: the owner needs to install, not to reconnect.
+        blocked = {m: None for m in ("google.oauth2.credentials", "google.auth.transport.requests",
+                                     "google_auth_oauthlib.flow", "google.auth.exceptions")}
+        err = io.StringIO()
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(sys.modules, blocked), \
+                mock.patch.object(sys, "argv", ["gsc_query.py", "--site", "sc-domain:example.com",
+                                                "--token", os.path.join(d, "t.json"), "--no-browser"]), \
+                contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as cm:
+                gsc_query.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("Missing dependencies", err.getvalue())
+
     def test_without_the_flag_the_browser_flow_still_starts(self):
         # Interactive behaviour is unchanged: the owner at a terminal still gets the browser.
         # (The stub raises instead of opening one; reaching it is the point.)

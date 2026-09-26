@@ -12,7 +12,7 @@ The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website
 
 | Column | How it asks | What it tells the owner |
 |---|---|---|
-| **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Moves slowly: only when a new model version ships. |
+| **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Expect it to move slowly: what a model learned changes mostly with new model versions, so week-to-week wiggles here are usually sampling noise. |
 | **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited. Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
 
 Each engine gets up to three questions:
@@ -99,13 +99,13 @@ free to start with; the others cost a few cents a week if you want them."*
    - Never put the business name in them.
    - Also write the **branded** question.
    - Show all three to the owner and ask them to confirm or change the wording.
-2. 🤖 **Prepare the key file**: run `python scripts/geo_check.py --prepare-env`, then
-   `open -e ~/.config/gsc-insights/.env`. The first adds four empty lines (`GEO_GEMINI_API_KEY=`
+2. 🤖 **Prepare the key file**: run `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py --prepare-env`, then
+   `open -e ~/.config/gsc-insights/.env`. The first adds the empty lines (`GEO_GEMINI_API_KEY=`
    and so on) without touching anything already there. The second opens the file in TextEdit.
    Tell the owner where it lives in words they can use. The `.config` folder is hidden in Finder:
    **Go → Go to Folder…** (⇧⌘G), then `~/.config/gsc-insights`, or ⇧⌘. to show hidden files.
 3. 🧑 **Get the keys — one engine at a time, Gemini first.** Hand over the steps for one engine,
-   wait until the owner says it's done, run `python scripts/geo_check.py --keys` (it shows
+   wait until the owner says it's done, run `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py --keys` (it shows
    "set ✓" or "empty", never the key itself), and only then offer the next one. **Never ask for
    a key in the chat.** If a key is pasted there anyway, tell the owner to delete that key at
    the provider and make a new one.
@@ -137,8 +137,11 @@ free to start with; the others cost a few cents a week if you want them."*
    3. **API Keys → Create Key**. Copy it right away and paste it after `GEO_ANTHROPIC_API_KEY=`.
 
    **SerpApi (Google's AI answers)**: if the owner already set up the Top-10 check,
-   `SERPAPI_KEY` is there and nothing is needed. Otherwise: serpapi.com → sign up → Dashboard →
+   `SERPAPI_KEY` is already there. Otherwise: serpapi.com → sign up → Dashboard →
    copy "Your Private API Key" → paste it after `SERPAPI_KEY=`.
+   Either way, Google is **off until the owner switches it on for the site**, because it spends
+   paid searches: ask first, then run `geo_check.py <domain> --google on`. Having the key
+   for the Top-10 check never turns it on by itself.
 
    **Perplexity (paid)**
    1. perplexity.ai → sign in → **Settings → API** → add a small credit → **Generate API key**.
@@ -150,19 +153,22 @@ free to start with; the others cost a few cents a week if you want them."*
    small text file first. Never put it inside a shell command string: an apostrophe
    ("contacts' plans") breaks the quoting.
    ```bash
-   python scripts/geo_check.py example.com --init --name "Bäckerei Example" \
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --init --name "Bäckerei Example" \
        [--legal-name "..."] [--alias "..."] --lang de --country DE
-   python scripts/geo_check.py example.com --set-question --slot broad   --text-file broad.txt
-   python scripts/geo_check.py example.com --set-question --slot narrow  --text-file narrow.txt
-   python scripts/geo_check.py example.com --set-question --slot branded --text-file branded.txt
-   python scripts/geo_check.py example.com --confirm
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --set-question --slot broad   --text-file broad.txt
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --set-question --slot narrow  --text-file narrow.txt
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --set-question --slot branded --text-file branded.txt
+   ~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com --confirm
    ```
    - `--name` comes from the site's `src/config.ts` (`SITE.name`); `--legal-name` from `SITE.legalName`.
    - Add an alias for each other spelling the owner uses ("ExampleCo" for "Example-Co").
+   - To change names later: `--set-names --alias "..."` **adds** an alias; `--set-names --name "..."`
+     replaces the whole list (name, then any `--legal-name` / `--alias` given with it). Either
+     marks the next trend line "settings changed".
    - `--domain` defaults to the site's domain.
    - `--confirm` prints what it read from the homepage. If that isn't the real page (a "checking your browser" wall), it refuses to save.
-5. 🤖 **Run it once** (`python scripts/geo_check.py example.com`), then open the report
-   (`--report`) and walk the owner through it. It takes a few minutes with all four engines. If an engine shows FAILED, read its
+5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
+   (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
    reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
@@ -170,7 +176,7 @@ free to start with; the others cost a few cents a week if you want them."*
 
 The questions only mean something while they match what the business sells. **At the start
 of any session that looks at this site's AI results, run
-`python scripts/geo_check.py <domain> --check-drift`.** It prints the homepage's title,
+`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --check-drift`.** It prints the homepage's title,
 description and main heading, and says whether they changed since the questions were confirmed.
 
 - **State: same.** Go on.
@@ -185,13 +191,13 @@ ones, keeps the week's data and logs a warning. Asking is this session's job.
 
 ## Reading the results
 
-**Show the owner the report page first:** `python scripts/geo_check.py <domain> --report` builds
+**Show the owner the report page first:** `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report` builds
 one readable page with each engine's latest answer to each question and opens it in the browser.
 It shows who named the business, whether the owner's site was cited, the answer with the name
 highlighted, and the sources. Every weekly run also writes it and prints its path
 (`~/.config/gsc-insights/geo/reports/<domain>/`). Walk the owner through it in plain words.
 
-For the week-over-week movement, `python scripts/geo_check.py <domain> --trend` (track.sh prints
+For the week-over-week movement, `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --trend` (track.sh prints
 it every week):
 
 ```
@@ -201,7 +207,8 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 ```
 
 - **named 2/3**: the business was named in 2 of the 3 answers.
-- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3.
+- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. (For Perplexity
+  this means "among the search results it used": its API doesn't say which of them it quoted.)
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
 - **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, or the settings (names, domain, country).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.

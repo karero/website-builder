@@ -48,8 +48,9 @@ class GeoTestCase(unittest.TestCase):
         stub.reset()
         self.tmp = tempfile.TemporaryDirectory()
         self.home = Path(self.tmp.name)
-        env = {k: v for k, v in os.environ.items()
-               if not k.startswith("GEO_") and k not in ("OPENAI_API_KEY",)}
+        # An allowlist, so no key or setting exported in the developer's shell (SERPAPI_KEY,
+        # GEO_*_MODEL, OPENAI_API_KEY…) can reach the code under test.
+        env = {k: os.environ[k] for k in ("PATH", "LANG", "TMPDIR") if k in os.environ}
         env.update(stub.env_for(self.base))
         env["HOME"] = str(self.home)
         self.env = mock.patch.dict(os.environ, env, clear=True)
@@ -305,6 +306,8 @@ class GoogleViaSerpApi(GeoTestCase):
         super().setUp()
         self.setup_site()
         os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        rc, out = self.cli("--google", "on")
+        self.assertEqual(rc, 0, out)
 
     def rows(self, engine):
         return [r for r in self.history() if r["engine"] == engine]
@@ -365,6 +368,148 @@ class GoogleViaSerpApi(GeoTestCase):
         self.assertNotIn("test-serpapi-placeholder", out)
         ai_mode_calls = [h for h in stub.STATE["hits"] if h[1] == "/search" and h[3]["engine"] == "google_ai_mode"]
         self.assertEqual(len(ai_mode_calls), 1)
+
+
+class ReviewFindings(GeoTestCase):
+    """Regression tests for the DIFF-gate round-1 findings (docs/reviews trail)."""
+
+    def test_serpapi_key_alone_does_not_switch_google_on(self):
+        # An owner with SERPAPI_KEY for the Top-10 check must not start paying for Google AI
+        # checks without saying yes: off until --google on, and no key counts until then.
+        self.setup_site()
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        self.assertIn("has no engine key", out)
+        self.assertIn("off for this site", out)
+        self.assertFalse([h for h in stub.STATE["hits"] if h[1] == "/search"])
+
+    def test_gemini_per_minute_limit_is_retried_not_treated_as_no_credit(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        # Gemini's real per-minute 429 also mentions "plan and billing details".
+        stub.engine_reply("gemini", "", status=429, body=(
+            '{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "You exceeded your current '
+            'quota, please check your plan and billing details.", "details": [{"@type": '
+            '"type.googleapis.com/google.rpc.QuotaFailure", "violations": [{"quotaId": '
+            '"GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}]}}'))
+        self.cli()
+        self.assertEqual(len([h for h in stub.STATE["hits"] if h[0] == "POST"]), 9)  # 3 samples x 3 tries
+
+    def test_gemini_daily_quota_stops_that_engine(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "", status=429, body=(
+            '{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "Quota exceeded", '
+            '"details": [{"violations": [{"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]}]}}'))
+        rc, out = self.cli()
+        self.assertEqual(len([h for h in stub.STATE["hits"] if h[0] == "POST"]), 1)
+        self.assertIn("(not retried)", out)
+
+    def test_key_is_redacted_even_where_the_message_is_cut(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "", status=400,
+                          body='{"error": {"message": "' + "x" * 230 + GKEY + '"}}')
+        rc, out = self.cli()
+        self.assertNotIn(GKEY[:8], out)
+
+    def test_empty_or_cut_off_answers_are_failures_not_misses(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "   ")
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        self.assertIn("empty answer", out)
+        self.assertTrue(all(r["ok"] == "0" for r in self.history()))
+
+    def test_anthropic_answer_cut_at_max_tokens_is_a_failure(self):
+        self.assertRaises(geo_check.EngineError, geo_check.parse_response, "anthropic",
+                          {"stop_reason": "max_tokens", "content": [{"type": "text", "text": "Bäckerei"}]})
+        self.assertRaises(geo_check.EngineError, geo_check.parse_response, "openai",
+                          {"status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"}})
+        self.assertRaises(geo_check.EngineError, geo_check.parse_response, "gemini",
+                          {"candidates": [{"finishReason": "SAFETY", "content": {"parts": []}}]})
+
+    def test_model_override_from_env_file_with_inline_comment(self):
+        env = self.home / ".config/gsc-insights/.env"
+        env.parent.mkdir(parents=True, exist_ok=True)
+        env.write_text("GEO_OPENAI_MODEL=replacement-model   # set 2026-10\n"
+                       "GEO_OPENAI_API_KEY=\"quoted-key # not a comment\"\n")
+        self.assertEqual(geo_check.model_for("openai"), "replacement-model")
+        self.assertEqual(geo_check.load_keys()["openai"], "quoted-key # not a comment")
+
+    def test_detector_version_bump_marks_the_trend(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        self.cli()
+        with mock.patch.object(geo_check, "DETECTOR_VERSION", "99"):
+            before = self.history()[0]["config_rev"]
+            self.assertNotEqual(geo_check.config_rev(geo_check.load_config(DOMAIN)), before)
+
+    def test_set_names_alias_adds_and_name_replaces(self):
+        self.setup_site()
+        self.cli("--set-names", "--alias", "Example Bakery")
+        self.assertEqual(geo_check.load_config(DOMAIN)["names"], ["Bäckerei Example", "Example Bakery"])
+        self.cli("--set-names", "--name", "Neue Bäckerei")
+        self.assertEqual(geo_check.load_config(DOMAIN)["names"], ["Neue Bäckerei"])
+
+    def test_bot_wall_that_mentions_the_domain_is_unreadable(self):
+        self.setup_site()
+        before = geo_check.load_config(DOMAIN)["fingerprint"]
+        stub.STATE["homepage"] = ("<html><head><title>Just a moment...</title>"
+                                  "<link rel=canonical href='https://example-bakery.de/'></head>"
+                                  "<body><h1>Checking your browser</h1>example-bakery.de</body></html>")
+        rc, out = self.cli("--confirm")
+        self.assertEqual(rc, 1)
+        self.assertEqual(geo_check.load_config(DOMAIN)["fingerprint"], before)
+
+    def test_domain_only_in_markup_is_not_enough(self):
+        self.setup_site()
+        stub.STATE["homepage"] = ("<html><head><title>Cookie settings</title>"
+                                  "<link rel=canonical href='https://example-bakery.de/'></head>"
+                                  "<body><h1>We value your privacy</h1></body></html>")
+        rc, out = self.cli("--check-drift")
+        self.assertIn("Couldn't read the homepage", out)
+
+    def test_new_question_without_confirm_is_flagged(self):
+        self.setup_site()
+        self.cli("--set-question", "--slot", "narrow", "--text-file", "-", stdin="Sourdough on Sunday?")
+        rc, out = self.cli("--check-drift")
+        self.assertIn("State: unconfirmed", out)
+
+    def test_set_question_reads_a_file_path(self):
+        self.setup_site()
+        qf = self.home / "q.txt"
+        qf.write_text("Where is the best sourdough in Schwabing?\n")
+        rc, out = self.cli("--set-question", "--slot", "narrow", "--text-file", str(qf))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(geo_check.load_config(DOMAIN)["queries"][1]["text"],
+                         "Where is the best sourdough in Schwabing?")
+
+    def test_report_labels_answers_to_an_earlier_question(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        self.cli()
+        self.cli("--set-question", "--slot", "broad", "--text-file", "-", stdin="Best cake in Schwabing?")
+        rc, out = self.cli("--report")
+        page = Path(out.split("Report: ")[1].strip()).read_text()
+        self.assertIn("an earlier version of the question", page)
+        self.assertIn(html.escape(BROAD), page)
+
+    def test_follow_up_overview_error_is_a_failure(self):
+        self.setup_site()
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        self.cli("--google", "on")
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"reconstructed_markdown": "x"})
+        stub.STATE["serp"]["google"] = (200, {"ai_overview": {"page_token": "tok"}})
+        stub.STATE["serp"]["google_ai_overview"] = (200, {"error": "Invalid API key."})
+        rc, out = self.cli()
+        self.assertIn("google-overview FAILED: SerpApi: Invalid API key", out)
+        r = next(r for r in self.history() if r["engine"] == "google-overview" and r["slot"] == "broad")
+        self.assertNotEqual(r["status"], "no AI Overview shown")
 
 
 class Homepage(GeoTestCase):
@@ -539,6 +684,7 @@ class Report(GeoTestCase):
         stub.engine_reply("gemini", "Nothing about bakeries.")
         self.cli()
         os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        self.cli("--google", "on")
         stub.STATE["serp"]["google_ai_mode"] = (200, {"reconstructed_markdown": "Go to **Bäckerei Example**.",
                                                        "references": [{"link": "https://example-bakery.de"}]})
         stub.STATE["serp"]["google"] = (200, {})

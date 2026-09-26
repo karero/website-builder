@@ -79,8 +79,9 @@ elif [ "$rc" = 4 ]; then
   echo "  ⚠ Bing pulled fine but the history write failed — this run added nothing to the trend."
   problems+=("Bing history write failed"); history_gap=1
 elif [ "$rc" != 0 ]; then
-  # Still swallowed, as before the AI check (a noted follow-up in the GEO plan).
+  # Used to be swallowed; now listed like every other failure (the "needs attention" list).
   echo "  ✗ Bing API error (exit $rc) — run bing_query.py directly to see why"
+  problems+=("Bing: exit $rc")
 fi
 
 echo "▶ AI answers (does AI name you?) …"

@@ -22,7 +22,7 @@ Revision 4, the plan to build from. It went through three PLAN review rounds: Co
 | Google AI Mode + AI Overview (SerpApi), owner request | done (stub + live) | `335c146`; live on three real sites 2026-09-26 |
 | Readable report page (`--report`), owner request | done (stub + browser check) | `94d34a4` |
 | OpenAI live answer | blocked | the owner's OpenAI account has no credit yet (key and restricted permissions confirmed fine) |
-| DIFF gate | not started | — |
+| DIFF gate | round 1 done, fixes in; round 2 pending | round 1: Codex (both halves) + Claude fresh-eyes; ollama-cloud FAILED (weekly usage limit). Trail: `REVIEW-diff-2026-09-26-r1-geo-check-*.md` |
 | PR | not started | — |
 
 "done (stub)" = passing against the local stub server; the commit that carries these tests is
@@ -48,7 +48,10 @@ the one after `4268689` on this branch. The live smoke test is the first contact
 - **track.sh keeps exit 4 for a history-write gap** (as before) instead of folding it into 1:
   final exit = GSC's code if GSC failed, else 4 if a history write failed, else 1.
 - **check_clean key patterns** start at a word boundary: an unanchored `sk-` with hyphens
-  flagged ordinary prose like "risk-free-and-easy-to-use" (tested).
+  flagged ordinary prose like "risk-free-and-easy-to-use" (checked by hand on sample strings;
+  there is no committed test harness for check_clean.sh).
+- **Google is opt-in per site** (`--google on`, DIFF review round 1): an owner who has
+  `SERPAPI_KEY` for the Top-10 check must not start paying for Google AI checks unasked.
 - **Google's AI answers via SerpApi** (owner request, 2026-09-26): AI Mode and AI Overview as two
   more engines, "finds" only, 1 sample per question (Google's answers are steadier, and each
   call is a paid search), reusing the skill's existing `SERPAPI_KEY`. "No AI Overview shown" is
@@ -103,7 +106,7 @@ Buyers increasingly ask AI engines instead of Google. juliet.space shows this on
 
 | # | Given | When | Then |
 |---|---|---|---|
-| S1 | A bakery site in Munich, GSC connected, only `GEO_GEMINI_API_KEY` set | the weekly job runs | Gemini rows for "knows" and "finds" land in `geo_history.csv`. The log says "skipped: no GEO_OPENAI_API_KEY (add it to ~/.config/gsc-insights/.env)", and the same for Anthropic and Perplexity. The GEO trend prints under the keyword trend with "engines: 1 checked, 0 failed, 3 not set up". track.sh exits 0. |
+| S1 | A bakery site in Munich, GSC connected, only `GEO_GEMINI_API_KEY` set | the weekly job runs | Gemini "knows" rows land in `geo_history.csv` (no "finds": see Build decisions). The log says "skipped: no GEO_OPENAI_API_KEY (add it to ~/.config/gsc-insights/.env)", the same for Anthropic and Perplexity, and the two Google engines are off for the site. The GEO trend prints under the keyword trend; the run says "engines: 1 checked, 0 failed, 5 not set up". track.sh exits 0. |
 | S2 | The broad question is "Where can I buy sourdough bread in Munich-Schwabing?" | a stubbed Gemini "finds" names the bakery in each of 3 samples, each citing a source on `www.example-bakery.de` | ok=3, named=3, cited_own=3 |
 | S3 | The names are "Bäckerei Example", "Café Müller", "Bäckerei Café" and "Luigi's Pizza" | the answers say "Baeckerei Example", "BÄCKEREI EXAMPLE", "Bäckerei-Example", "Cafe Mueller", "Cafe Muller", "CAFE MUELLER", "Baeckerei Cafe", "Luigi’s Pizza" (curly ’) | all named. "Examples" is not named (the genitive-s limitation is documented). |
 | S4 | The homepage's title / meta description / H1 changed since confirmation, and the page still contains a configured name or domain | the unattended job runs | The questions still run. The log shows ⚠ "homepage changed since your questions were confirmed" with the old and new text. **The exit code is unaffected.** |

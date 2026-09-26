@@ -161,6 +161,11 @@ class TrackEntry(unittest.TestCase):
         self.assertIn("GSC: exit 2", out)
         self.assertIn("keyword trend failed: exit 1", out)
 
+    def test_bing_api_error_is_listed_not_swallowed(self):
+        rc, out, _ = self.track(SHIM_BING_RC=1)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Bing: exit 1", out)
+
     def test_history_gap_keeps_exit_4(self):
         rc, out, _ = self.track(SHIM_BING_RC=4)
         self.assertEqual(rc, 4, out)
