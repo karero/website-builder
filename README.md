@@ -271,6 +271,7 @@ scripts/
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+  check_cdpath_safe.sh      every script locates itself CDPATH-safely (make check)
 docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)

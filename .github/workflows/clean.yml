@@ -1,6 +1,7 @@
 name: clean
 # Fails the build if any personal name, contact info, or credential enters the skill
-# suite (see scripts/check_clean.sh), if a concrete model name/tag creeps into
+# suite (see scripts/check_clean.sh), if any script locates itself with a CDPATH-unsafe
+# `cd "$(dirname "$0")"` (see scripts/check_cdpath_safe.sh), if a concrete model name/tag creeps into
 # independent-review's pipeline files — that skill is model-agnostic and lets the
 # owner's own CLI config/signin choose the models (see scripts/check_model_agnostic.sh),
 # if a new file under the astro template overlay isn't accounted for in any of
@@ -25,6 +26,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Scan skills for names / contact info / credentials
         run: bash scripts/check_clean.sh
+  cdpath-safe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check every script locates itself CDPATH-safely
+        run: bash scripts/check_cdpath_safe.sh
   model-defaults:
     runs-on: ubuntu-latest
     steps:
