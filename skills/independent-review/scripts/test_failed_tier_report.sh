@@ -42,7 +42,7 @@ cat >"$T/bin/codex" <<'EOF'
 skip=0 argv=
 for a; do
   [ "$a" = --skip-git-repo-check ] && skip=1
-  case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
+  case "$a" in *'--- BEGIN '*) printf '%s\n' "$a" >"$STUB_MARKS/codex-prompt"; a='<prompt>' ;; esac
   argv="$argv[$a]"
 done
 printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
@@ -72,6 +72,7 @@ case "${CODEX_STUB:-ok}" in
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
+  slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -81,7 +82,8 @@ case "$1" in
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
-  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model" ;;
+  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model"
+        printf '%s\n' "$3" >"$STUB_MARKS/ollama-prompt" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
@@ -104,6 +106,7 @@ case "${OLLAMA_STUB:-ok}" in
           printf '%s\n' 'No findings.' 'I could not read the retry code.' \
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
   reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
+  slow)   sleep 2; printf '%s\n' '- RISK: stub ollama finding' ;;
 esac
 EOF
 cat >"$T/bin/agy" <<'EOF'
@@ -374,6 +377,53 @@ run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
 check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
+
+# 24. The default pair runs at once (2026-09-26): two reviewers that take 2s each finish in
+#     well under the 4s they took one after the other, and the sections still print in tier
+#     order, codex first. A timings line follows the reviewers line.
+start=$SECONDS
+run parallel CODEX_STUB=slow OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff"
+elapsed=$((SECONDS - start))
+check "parallel: both counted" has parallel.out "reviewers: codex OK, ollama-cloud OK"
+check "parallel: took ${elapsed}s, under the 4s of a sequential run" [ "$elapsed" -lt 4 ]
+check "parallel: codex's section prints before ollama's" \
+  sh -c 'c=$(grep -n "^## Independent review — codex" "$1" | cut -d: -f1); o=$(grep -n "^## Independent review — ollama" "$1" | cut -d: -f1); [ -n "$c" ] && [ -n "$o" ] && [ "$c" -lt "$o" ]' _ "$T/parallel.out"
+check "parallel: a timings line names both tiers" \
+  grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s$' "$T/parallel.out"
+check "parallel: a failed tier still gets its FAILED section" has incident.out "## Independent review — ollama-cloud — FAILED"
+# --first-success stays one tier at a time: the second never starts once the first counts.
+run firstsucc CODEX_STUB=ok bash "$SCRIPT" "$T/change.diff" --first-success
+check "first-success: ollama never ran" [ ! -e "$T/firstsucc.marks/ollama-ran" ]
+check "first-success: timings name codex alone" grep -qxF -- "timings: codex 0s" "$T/firstsucc.out"
+# A skipped tier (not installed) has no time to report.
+run notimeskip CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
+check "skipped tier: not in the timings line" grep -qE '^timings: codex [0-9]+s$' "$T/notimeskip.out"
+
+# 25. --verify: a verification round sends the prior findings in their own block, with the
+#     round's scope, to every tier; without the flag the prompt carries neither.
+printf '%s\n' 'F1 BUG fixed in abc1234: retry loop never ended' 'F2 RISK waived: owner J1' >"$T/prior.md"
+run verify bash "$SCRIPT" "$T/change.diff" --verify "$T/prior.md"
+check "verify: exit 0" rc_is verify 0
+for tier in codex ollama; do
+  check "verify: $tier gets the scope paragraph" grep -qF -- "VERIFICATION ROUND." "$T/verify.marks/$tier-prompt"
+  check "verify: $tier gets the prior findings, delimited" \
+    sh -c 'grep -qxF -- "--- BEGIN PRIOR FINDINGS ---" "$1" && grep -qxF -- "F1 BUG fixed in abc1234: retry loop never ended" "$1" && grep -qxF -- "--- END PRIOR FINDINGS ---" "$1"' _ "$T/verify.marks/$tier-prompt"
+  check "verify: $tier's prior findings come before the artifact" \
+    sh -c 'p=$(grep -nxF -- "--- END PRIOR FINDINGS ---" "$1" | cut -d: -f1); a=$(grep -nxF -- "--- BEGIN diff ---" "$1" | cut -d: -f1); [ -n "$p" ] && [ -n "$a" ] && [ "$p" -lt "$a" ]' _ "$T/verify.marks/$tier-prompt"
+done
+run noverify bash "$SCRIPT" "$T/change.diff"
+check "no --verify: no scope paragraph" not_in "$T/noverify.marks/codex-prompt" "VERIFICATION ROUND"
+check "no --verify: no prior-findings block" not_in "$T/noverify.marks/ollama-prompt" "PRIOR FINDINGS"
+check "no --verify: one blank line before the artifact, as before" \
+  sh -c 'grep -B2 -xF -- "--- BEGIN diff ---" "$1" | head -1 | grep -qF "Every WRONG must also appear as a BUG."' _ "$T/noverify.marks/codex-prompt"
+run verifynoarg bash "$SCRIPT" "$T/change.diff" --verify
+check "verify without a file: exit 2" rc_is verifynoarg 2
+run verifymissing bash "$SCRIPT" "$T/change.diff" --verify "$T/no-such-file.md"
+check "verify with a missing file: exit 2, nothing ran" \
+  sh -c '[ "$(cat "$1/verifymissing.rc")" = 2 ] && [ ! -e "$1/verifymissing.marks/codex-ran" ]' _ "$T"
+printf '  \n\n' >"$T/blank.md"
+run verifyblank bash "$SCRIPT" "$T/change.diff" --verify "$T/blank.md"
+check "verify with an empty record: exit 2" has verifyblank.err "the prior-findings file is empty"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

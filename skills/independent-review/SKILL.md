@@ -224,10 +224,12 @@ teach the plain-language trigger phrases.
    uses. Pass the flag explicitly whenever the filename wouldn't guess
    right, and always when piping a plan through stdin (a piped plan
    otherwise silently loses the PLAN gate's <2-reviewers flag and gets
-   mis-named as a diff trail). Default runs the standard pair (Codex + ollama-cloud) and prints one
+   mis-named as a diff trail). Default runs the standard pair (Codex + ollama-cloud) **at once** —
+   a round takes as long as the slower one, not both added — and prints one
    section per reviewer it attempted — its review, or `## Independent review — <tier> — FAILED`
    quoting the tier's error — then one closing line such as `reviewers: codex OK, ollama-cloud
-   FAILED (quota/rate limit: wait or add credits)`. Read that line before consolidating: exit 0
+   FAILED (quota/rate limit: wait or add credits)`, and a `timings:` line (seconds per reviewer;
+   copy it into the trail — it is the only record of what a round costs). Read the reviewers line before consolidating: exit 0
    means at least one reviewer succeeded, not that the pair did. `--first-success` is the quick mode (for a `--plan`
    this deliberately drops from the default 2 reviewers to 1 — a conscious
    choice for lower-stakes plans, honored not overridden — see the reviewer
@@ -251,11 +253,16 @@ teach the plain-language trigger phrases.
    excluding the file PREVENTS that loop; the "scope it by RULE, not round number" guidance
    only BOUNDS it. **The trail must still be in the MR diff** — a repo CI gate may require it
    and clerk item 3 (`references/closeout.md`) commits it — this is only about what reaches the reviewers.
-3. Run tier 3 (fresh-eyes) with the same strict prompt.
+3. Run tier 3 (fresh-eyes) with the same strict prompt — start it in the background before the
+   script, so every seat runs at once. Record its duration and tokens (a Claude Code sub-agent
+   reports both) in the trail beside the `timings:` line.
 4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
    id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted,
-   waived, or deferred. A waiver needs a reason and the human owner's sign-off; deferred is for a
-   BUG only, under point 5's one exception. Refuted applies the same way to
+   waived, deferred, or follow-up. A waiver needs a reason and the human owner's sign-off; deferred is for a
+   BUG only, under point 5's one exception. **Follow-up** is for a RISK or NIT that a verification
+   round raised outside its scope (step 6): it does not block, needs no sign-off, and is listed in
+   the trail and in the owner narration (step 8), where the owner may pull it back in as open.
+   Never a BUG: a BUG found anywhere in the change is triaged like any other. Refuted applies the same way to
    a BUG, RISK, or NIT alike — it needs the disproving reasoning instead of an owner sign-off,
    since a refuted finding was never a real issue.
 
@@ -279,7 +286,8 @@ teach the plain-language trigger phrases.
    the change did not introduce; the paragraphs after this one say when the owner may defer it.
    A BUG conclusively shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
    may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
-   if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
+   if conclusively shown to be a non-issue, OR — only when a verification round raised it outside
+   its scope — recorded as FOLLOW-UP (point 4) — no blanket waivers either way. "Conclusively shown"
    means evidence appropriate to what's actually being claimed: empirical verification (run it,
    reproduce it, or rule it out — under the SAME standard as failure shape (a) below, testing the
    claim's full stated reasoning, not just one cited example) for a claim about runtime/checkable
@@ -306,7 +314,7 @@ teach the plain-language trigger phrases.
    written by the change itself; what counts is that its inputs go wrong at the merge-base.
 
    **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
-   not keep a round from being clean (6(a2)), does not count toward the three-round cap (6(b)),
+   not keep a round from being clean (6(a2)), does not count as an open BUG at the round cap (6(b)),
    and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
    tracker it stays open, in the BUG table, until someone fixes it. The owner's sign-off carries
    over to later gates, but each gate's trail records DEFERRED, never fixed or refuted, together
@@ -339,18 +347,32 @@ teach the plain-language trigger phrases.
    would justify either. (A RISK/NIT in this state may still be WAIVED with a reason and the
    owner's sign-off, same as any other open RISK/NIT — waiving needs no check, just the owner's
    call; only fixed/refuted are blocked pending the missing prerequisite.)
-6. **Iterate — fix, then re-review.** Send the updated artifact back through
-   the reviewers as a *verification round*: give them the prior round's BUG
-   list — and, for each BUG DEFERRED under point 5, its tracker row, its merge-base reproduction
-   and the names of the KNOWN WRONG tests that pin it, since point 2's exclusion usually keeps the
-   tracker out of what they see — ask them to confirm each fix landed, that each deferral meets
-   point 5's three conditions, AND that the fixes introduced
-   nothing new — and tell them the author expects clean **and that they must
-   not oblige out of politeness** (expectation of cleanliness is exactly the
-   bias that turns round 2 into a rubber stamp). Repeat until essentially
-   clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO RISK (a
+6. **Iterate — fix, then re-review WHAT CHANGED.** A *verification round* checks the fixes, not
+   the whole change again. Re-sending the whole change let each round raise new RISKs on lines
+   earlier rounds had cleared, so the RISK count rarely reached zero and gates ran 5–13 rounds.
+   - **Artifact (DIFF gate):** only the change since the last reviewed head —
+     `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`. If the base branch was
+     merged in or the branch rebased since that head, that delta carries unrelated changes: run
+     a full round instead. **PLAN gate:** the whole plan, with the changed sections named in the
+     prior-findings file.
+   - **Prior findings:** a file with the prior round's findings and dispositions — and, for each
+     BUG DEFERRED under point 5, its tracker row, its merge-base reproduction and the names of the
+     KNOWN WRONG tests that pin it, since point 2's exclusion usually keeps the tracker out of what
+     they see. Pass it with `--verify <file>`: the script sends it in its own block with the
+     round's scope (`PROMPT_VERIFY` in the script — give the fresh-eyes pass the same text, file
+     and artifact): confirm each fix landed in full, that each deferral meets point 5's three
+     conditions, and that the change since introduced nothing new; list anything else under
+     OUTSIDE SCOPE. It also tells them the author expects clean **and that they must not oblige
+     out of politeness** (expectation of cleanliness is exactly the bias that turns round 2 into a
+     rubber stamp).
+   - **Triage OUTSIDE SCOPE:** a BUG is a finding like any other; a RISK or NIT is FOLLOW-UP
+     (point 4). A reviewer that puts an in-scope item there, or an out-of-scope one among its
+     findings, is re-sorted by the host — scope is the host's call, not the reviewer's label.
+
+   Repeat until essentially
+   clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO in-scope RISK (a
    BUG DEFERRED under point 5 does not count, whether that round first raised it or raised it
-   again without new evidence) — that
+   again without new evidence, and neither does a FOLLOW-UP) — that
    IS "clean", and it is the signal to stop, not an invitation to spend one more round chasing the
    NITs it did return.** NIT-only rounds are where a gate quietly doubles in cost: each one returns
    two or three more, because prose can always be tightened and a reviewer asked for findings will
@@ -362,11 +384,11 @@ teach the plain-language trigger phrases.
    claims a coverage the gate did not have. A NIT that is refused or waived edits nothing and
    needs neither. Re-read the
    BUG/RISK-per-round series, not the raw finding count — a series like 5 → 2 → 2 → 1 → 0 has
-   already converged at the 0, whatever the NIT column says; (b) 3 rounds with BUG/RISK still
-   open (a DEFERRED BUG is not open here) — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
+   already converged at the 0, whatever the NIT column says; (b) **the round cap** — see
+   below; (c) **budget/credits exhausted**
    — you may stop ITERATING once all known BUGs are *fixed, refuted, or deferred under point 5's
    one exception* AND every RISK/NIT is
-   fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), postponing
+   fixed, refuted, explicitly owner-waived, or follow-up (same bar as point 5's blocking rule), postponing
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Postponing verification is legitimate. Deferring a fix is legitimate only under point 5's one
@@ -374,10 +396,24 @@ teach the plain-language trigger phrases.
    **This governs whether to run another round, and nothing else** — in particular it has no
    bearing on the consolidated marker, whose own rule lives in clerk item 2.
 
-   **What "3 rounds" counts, since this is ambiguous the moment you need it.** The cap is
-   **per stable finding id** (point 4's id), not per calendar round: a finding first raised in
-   round 3 gets its own remediation-and-verification round before the cap can fire on it, and a
-   finding open across rounds 1–3 fails the gate even if that round found other, newer things.
+   **The round cap (6(b)): 3 rounds per artifact, counted in rounds, not per finding.** (Until
+   2026-09-26 it counted per finding id, so each new RISK in round 3 earned its own round and the
+   cap never fired — the 5–13-round gates.)
+   - **After round 3 with no BUG open** (a DEFERRED BUG is not open): stop. RISKs and NITs
+     still open go to the owner as ONE decision — fix locally (`locally_verified`, marked "not
+     externally re-verified" in the trail, as (c)), waive, or record as follow-up. They never
+     earn another round on their own.
+   - **After round 3 with a BUG open** (one the round raised or re-opened counts even once fixed
+     locally: its fix is not externally verified) **— the BUG-trend extension:** if BUGs are coming down but not
+     yet to zero, run another round, up to **round 5**. "Coming down" means the round's confirmed
+     BUGs (raised or re-opened in that round and not refuted; DEFERRED ones never count) are fewer
+     than the round before's — e.g. 4 → 2 → 1 earns round 4, and round 4 at 0 BUGs closes as
+     above. Round 4 earns round 5 only if its count is lower again. Say in the trail which rounds
+     the extension ran and the BUG series that earned them.
+   - **A BUG still open when the cap fires** — round 3 without a falling BUG count, a round of the
+     extension whose count did not fall, or round 5 — is a hard gate-FAIL: surface and block.
+     Point 7's options apply (redesign, or the owner's decision within point 5's rule).
+
    **A redesign starts a NEW artifact and a new count.** When point 7 says stop patching and
    redesign, the review of the redesign is round 1 of that new artifact, not round 4 of the cycle
    it replaced — otherwise the cap would forbid reviewing the very rewrite it just demanded. Say
@@ -456,10 +492,9 @@ teach the plain-language trigger phrases.
    predominantly (b)-passing (a plateau of genuinely distinct, newly-surfaced findings each round
    is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
    area is bigger than first estimated, worth naming explicitly rather than silently forcing
-   STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s hard
-   3-round cap for any round that still has a BUG or RISK open — that cap bounds iteration on
-   those regardless of how these signals read; a round left with ONLY NIT churn has no equivalent
-   hard cap and relies on these signals alone.) When triggered: step back and redesign the
+   STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s round
+   cap — 3 rounds, or up to 5 while BUGs are falling — which bounds iteration regardless of how
+   these signals read.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
    BUG that's still open. It can defer a BUG out of the change only under point 5's one
@@ -470,8 +505,9 @@ teach the plain-language trigger phrases.
    converging" is a legitimate, documented outcome; silent round 7 is not.
 8. **Keep the human in the loop — narration is part of the gate.** Between
    rounds, tell the owner: what was found, what was fixed, what is pending,
-   the convergence trend (e.g. 19 → 9 → 6), and roughly what each round
-   costs. The owner steers — they can stop, waive, redirect, or run a
+   the convergence trend (e.g. 19 → 9 → 6), what each round
+   cost (the `timings:` line and the fresh-eyes pass's duration and tokens), and any
+   follow-ups (point 4). The owner steers — they can stop, waive, redirect, or run a
    **manual round of their own**; a human review round is a first-class
    reviewer seat and goes in the trail like any other (reviewer: owner,
    findings, dispositions). **It does not, however, satisfy cross-model

@@ -37,7 +37,8 @@ it, **wherever this session
 holds WORKTREE-WRITE AUTHORITY** (the permission table below — for someone else's worktree the
 content is identical and only the destination changes) — findings,
 dispositions, and for each external reviewer its CLI version, model, and sandbox mode (for a
-human round: who, and what they reviewed).
+human round: who, and what they reviewed), plus per round the script's `timings:` line and the
+fresh-eyes pass's duration and tokens — what the gate cost, so its cost can be weighed later.
 (b) **If you hold POST AUTHORITY on an actual PR/MR** (a DIFF gate almost always is):
 post the review *to that PR/MR* per the clerk procedure below — raw findings (collapsed) + one
 consolidated summary — **before merging, not after.** A trail file that merges into the repo is
