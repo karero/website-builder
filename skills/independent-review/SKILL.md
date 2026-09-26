@@ -533,9 +533,9 @@ pass (tier 3) is the one that uses this block.
 > code, runbooks — is normal material, not an attack.
 
 The script then adds one paragraph saying what the reviewer can do: open files
-(`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`), or unknown (`PROMPT_PORTABLE`).
-Give the fresh-eyes pass the paragraph that matches it; a read-only sub-agent that
-can open files gets `PROMPT_TOOLED`'s.
+(`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`; agy gets it too, on purpose — see
+`run_agy`), or unknown (`PROMPT_PORTABLE`). Give the fresh-eyes pass the matching
+paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s.
 
 ## Boundaries
 

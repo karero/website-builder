@@ -3,7 +3,7 @@
 # test_failed_tier_report.sh — drives independent_review.sh end to end, the way a
 # caller does (default flags, auto-detected ollama model), with stub `codex` and
 # `ollama` CLIs first on PATH and $HOME relocated. No reviewer is contacted and
-# nothing leaves the machine; Antigravity is forced off except in case 22, which
+# nothing leaves the machine; Antigravity is forced off except in case 23, which
 # turns it on against a stub `agy`.
 #
 # Why it exists: on 2026-09-11 the ollama-cloud tier hit its weekly quota (HTTP
@@ -81,7 +81,7 @@ case "$1" in
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
-  run)  : >"$STUB_MARKS/ollama-ran" ;;
+  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
@@ -331,7 +331,21 @@ for m in "" stub-override; do
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
 
-# 22. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy reached for a
+# 22. KNOWN WRONG (B-TAGCLASS), deferred with the owner's sign-off of 2026-09-26: the size arms of
+# is_cloud_ollama_tag() call any "*:120b" tag cloud, even a model pulled and run locally, so it is
+# refused under --local-only and counted as a cloud reviewer outside it. These pin today's wrong
+# results through the real entry point, so whoever fixes the classifier changes them on purpose.
+BIG_TAG="stub-big"; BIG_TAG="${BIG_TAG}:120b"   # built at runtime, like STUB_TAG
+run bigtaglocal OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff" --local-only
+check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag is refused under --local-only" has bigtaglocal.err "looks like a cloud tag"
+check "KNOWN WRONG (B-TAGCLASS): ...with exit 2, before any reviewer runs" \
+  sh -c '[ "$(cat "$1/bigtaglocal.rc")" = 2 ] && [ ! -e "$1/bigtaglocal.marks/ollama-ran" ]' _ "$T"
+run bigtag OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff"
+check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag counts as a cloud reviewer" has bigtag.out "reviewers: codex OK, ollama-cloud OK"
+check "B-TAGCLASS guard: the tag that ran is the configured one, not the listed cloud model" \
+  grep -qxF -- "$BIG_TAG" "$T/bigtag.marks/ollama-model"
+
+# 23. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy reached for a
 #     tool needing the "command" permission, headless mode auto-denied it, and the tier exited 0
 #     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and sends the text-only
 #     prompt, and loosens nothing: no --dangerously-skip-permissions. The exact argv pins that
@@ -348,8 +362,10 @@ for m in "" stub-agy-model; do
   check "$name: sent the text-only prompt" grep -qF -- "You have NO tools" "$T/$name.marks/agy-prompt"
   check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
   check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
-  # The text-only prompt is right because agy runs in an empty throwaway dir, not the caller's cwd.
-  check "$name: ran outside the caller's cwd" [ "$(cat "$T/$name.marks/agy-cwd")" != "$(pwd -P)" ]
+  # These pin the directory agy is LAUNCHED in, not an access boundary: its tools run elsewhere
+  # and can read absolute paths (see the tier table in independent_review.sh).
+  check "$name: ran outside the caller's cwd" \
+    sh -c '[ -s "$1" ] && [ "$(cat "$1")" != "$(pwd -P)" ]' _ "$T/$name.marks/agy-cwd"
   check "$name: in an empty dir" [ "$(cat "$T/$name.marks/agy-cwd-entries")" = 0 ]
 done
 # ...and if agy still comes back empty, the tier is FAILED with its stderr quoted, not dropped
