@@ -120,7 +120,7 @@ the current value first, change only what differs, and say what you changed.
 | **Secret scanning + push protection** | **on** where the plan offers it (free on public repos; paid on private) | Catches a token pasted into a commit before it lands; the kit's `.gitignore` is the backstop either way. | Settings → Code security |
 | **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. On a personal-account repo GitHub cannot restrict *who* pushes to `production`, so "who may ship" (§1 Q4) stays a written rule in `AGENTS.md`, not an enforced one. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
 | **Cloudflare GitHub App** | access to **this repo only** | The app gets read access to every repo it is granted; least privilege. | GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure (see §6.2) |
-| **2FA** | every collaborator turns it on | A personal-account repo cannot require it (only organizations can); ask, and put it in `TEAM-GUIDE.md`. | each person: GitHub → Settings → Password and authentication |
+| **2FA** | every collaborator has a second sign-in step (a passkey counts) | A personal-account repo cannot require it (only organizations can). Do not hand a non-technical collaborator a settings path: GitHub prompts for it on sign-in, and `TEAM-GUIDE.md` tells them to accept that prompt. You only check it is on: `gh api users/<login>` shows nothing about 2FA, so ask them, or look at Settings → Collaborators, which flags accounts without it. | the collaborator follows GitHub's own prompt |
 | **Watching** | each collaborator watches the repo (at least "Participating and @mentions", the default) | Otherwise nobody sees a review comment or a failed check on their pull request. | the "Watch" button on the repo |
 
 Skipped on purpose: CODEOWNERS with required code-owner review (needs the paid
@@ -252,10 +252,16 @@ only if the owner wants a second pair of eyes on every change.
 there. Say so plainly, then enable the local guard the kit already ships:
 `scripts/hooks/pre-push` contains a commented-out **PR-only main** block (the six
 lines from `while read` to `done`, marked OPTIONAL). First read the current state —
-re-runs must not edit twice:
+re-runs must not edit twice, and a site scaffolded before the block existed has no
+block to uncomment at all:
 ```bash
 grep -n '^while read -r _lref' scripts/hooks/pre-push && echo "already enabled"
+grep -q 'ALLOW_MAIN_PUSH' scripts/hooks/pre-push || echo "no block in this hook — older kit; copy the kit's scripts/hooks/pre-push first"
 ```
+No block (the second line fires): replace the site's hook with the kit's
+`templates/astro/scripts/hooks/pre-push` in the setup pull request — the two differ
+only by the block and the publish-classifier step, both additive — then continue.
+Found this on the first real site the skill ran on: its hook predated the block.
 If it is not enabled: remove the leading `# ` from those six lines and replace only
 the first sentence of the comment above them ("OPTIONAL: PR-only main flow …") with
 the date and why it is on — keep the rest of that comment: it is the **single source

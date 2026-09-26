@@ -50,9 +50,10 @@ press **Merge pull request** | tell [OWNER_NAME] it is ready to merge].
 What "merge" does on this site: [MERGE_MEANS: updates the preview at [PREVIEW_URL];
 live needs `npm run ship` by [SHIP_RIGHTS] | goes live at [LIVE_URL] within minutes].
 
-One-time, for your own account: turn on **two-factor authentication** on GitHub
-(Settings → Password and authentication) and press **Watch** on the repository so you
-see comments and failed checks on your pull requests.
+Two things GitHub itself will ask you for, once: when it asks you to add a **second
+sign-in step** (a passkey, or a code from an app on your phone), say yes and follow
+its steps. And on the repository page, press the **Watch** button so GitHub emails you
+when something happens to your pull request. Nothing else to set up.
 
 ## When to ask instead of pressing on
 
