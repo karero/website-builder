@@ -64,18 +64,18 @@ prompt changed together and are not isolated; and agy has tools, whatever the te
 | R1-1 | BUG | Codex | setup-guide `AGY_MODEL="x" agy … --model "$AGY_MODEL"` expands before the assignment applies (pre-existing, on an edited line) | Fixed `9660da4`; reproduced first with a shell function |
 | R1-2 | RISK | Codex | Real agy behaviour behind the fix is unverified | Evidence table above; **open — owner decision** (a live run spends a credit) |
 | R1-3 | NIT | Codex, fresh-eyes | "onboarding Step 5 has the full invocation" is false | Fixed `9660da4`: points at `run_agy` |
-| R1-4 | RISK | ollama | `PROMPT_TEXTONLY` may be undefined | Refuted: assigned at `independent_review.sh` `PROMPT_TEXTONLY=`, readonly; case 22 asserts its text reaches agy |
+| R1-4 | RISK | ollama | `PROMPT_TEXTONLY` may be undefined | Refuted: assigned at `independent_review.sh` `PROMPT_TEXTONLY=`, readonly; case 22 (now 23) asserts its text reaches agy |
 | R1-5 | RISK | ollama | Header said "text-only", which overclaims | Fixed `9660da4`: "text-only prompt" |
 | R1-6 | RISK | ollama, fresh-eyes | Flag, prompt and CLI version changed together | Narrowed by R2-1: the upgrade is ruled out; flag vs prompt remains, stated in the comment. Folded into R1-2 |
 | R1-7 | RISK | ollama | Test asserts prompt wording | Refuted: a wording change fails loudly, the safe direction; it is how the test tells the prompts apart |
 | R1-8 | NIT | ollama | Docs show bare `-p` | Fixed in setup-guide; SKILL.md names flags in prose |
 | R1-9 | NIT | ollama | Flag order differs | Refuted: identical order |
 | R1-10 | RISK | fresh-eyes | Binary string: "--mode plan has no effect while slash command expansion is disabled" | Refuted: expansion is disabled only by `--disable-slash-commands`, not passed; the 14:02 log shows `expanded slash command "plan"` |
-| R1-11 | NIT | fresh-eyes | Case 22 did not pin the empty cwd | Fixed `9660da4`; mutation dropping `cd "$sbox"` fails 4 checks |
+| R1-11 | NIT | fresh-eyes | Case 22 (now 23) did not pin the empty cwd | Fixed `9660da4`; mutation dropping `cd "$sbox"` fails 4 checks |
 | R1-12 | NIT | fresh-eyes | The exit-0-no-output incident was untested | Fixed `9660da4`: case `agydenied` |
 | R1-13 | NIT | fresh-eyes | Comment generalised from two runs | Fixed `9660da4` |
 
-Case 22 on `origin/main`'s script failed 8 of its checks; on `9e24d25` all passed.
+Case 22 (now 23) on `origin/main`'s script failed 8 of its checks; on `9e24d25` all passed.
 
 ## Round 2 (on `9660da4`)
 
@@ -110,6 +110,17 @@ Case 22 on `origin/main`'s script failed 8 of its checks; on `9e24d25` all passe
 | R4-5 | NIT | Codex, Antigravity, fresh-eyes | Test comment still called the empty launch dir the reason for the text-only prompt | Fixed `cde653b` |
 | R4-6 | NIT | fresh-eyes | R-AGY-PROMPT overstated what the old MODE warning caught | Fixed `cde653b` |
 | R4-7 | NIT | fresh-eyes | SKILL.md described `PROMPT_TEXTONLY` as for tool-less reviewers only | Fixed `cde653b`, same line count |
+
+## Narrow re-gate of the final pair
+
+Head `21daef4`, merge-base `6f960b4`. Scoped to real defects only, since the diff moved after round 4
+by the merge of main, the cwd assertion and two rewordings. Codex: 0 BUG, 0 NIT, 1 RISK, a re-raise
+of R1-2's evidence point ("less likely" rests on a handful of runs, not a measured rate) with no new
+evidence; not reopened, since the wording claims no rate. ollama: FAILED (weekly quota). Fresh-eyes:
+no BUG or RISK; ran the suite (118 ok) and `make check`, confirmed main's scenario 22 survived
+byte-identical; one NIT, the three "case 22" references in this trail, fixed with "(now 23)".
+Antigravity did not see this pair (another credit), so the consolidated marker is **not stamped**:
+per `closeout.md` every seat in the verdict must have seen the pair it names.
 
 BUG/RISK per round, this change only: 7 → 3 → 3 → 4. Round 3's were one re-raise and two findings
 from a new evidence source (agy's transcripts); round 4's one re-raise, now closed, one test hole,

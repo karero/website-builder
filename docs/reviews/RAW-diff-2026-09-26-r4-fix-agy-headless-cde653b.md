@@ -313,3 +313,41 @@ None detected. The diff contains standard documentation, shell scripting, test a
 
 ---
 reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), antigravity OK
+
+# Narrow re-gate (head 21daef4, merge-base 6f960b4)
+
+## Independent review — codex (gpt-6-astra, read-only)
+
+1. **RISK — Antigravity behavior; UNVERIFIABLE:** `skills/independent-review/scripts/independent_review.sh:531` and `references/setup-guide.md:192` claim plan mode plus the text-only prompt makes empty runs less likely. Retained replies and one denial diagnostic do not establish that comparative effect; the underlying tool/permission transcripts are explicitly absent from the repository (`docs/reviews/REVIEW-diff-2026-09-26-r4-fix-agy-headless-cde653b.md:40`). If false, the opted-in seat can still spend a credit without delivering a review. The same component evidence gap covers allow-list enforcement, scratch-directory execution, and undisclosed reads under the new prompt. **Fix:** describe the change as an unvalidated workaround; retain sanitized execution evidence. **Settling observation:** comparable old/new invocations recording version, effective settings, tool requests, permission decisions, exit status and output; compare tool transcripts against the resulting review’s disclosures.
+
+No BUG or NIT findings in the supplied changes.
+
+Checked claims and CLEAN coverage:
+
+| Claim/check | Verdict and evidence |
+|---|---|
+| Both branches request sandbox, plan mode and the text-only prompt; optional model stays one quoted argument | **VERIFIED / CLEAN:** `independent_review.sh:542–545`. This establishes arguments, not CLI enforcement. |
+| Empty stdout with exit 0 becomes FAILED, preserves readable stderr and does not increment reviewer count | **VERIFIED / CLEAN:** traced `run_agy:548` → `why_cli:649` → `attempt:684–742`. |
+| Antigravity remains opt-in and excluded from local-only dispatch | **VERIFIED / CLEAN:** dispatch at `independent_review.sh:775` onward. |
+| Revised cwd assertion rejects missing/empty records before comparison | **VERIFIED / CLEAN by inspection:** `test_failed_tier_report.sh:368–369`; it can also fail when the recorded cwd equals the caller’s. |
+| Case 23 checks both argument branches, prompt content, launch directory and empty-response reporting | **VERIFIED / CLEAN by inspection:** `test_failed_tier_report.sh:348–380`; the stub records actual arguments and cwd. |
+| Main’s case 22 survives; subsequent skill changes match the enumerated merge/assertion/comment edits | **VERIFIED / CLEAN:** `git diff 09b456b HEAD -- skills/independent-review`; case 22 remains at test line 334. |
+| Documentation references resolve to invocation and model-confirmation instructions | **VERIFIED / CLEAN:** `SKILL.md:123–125`, `setup-guide.md:184–188`, onboarding lines 250–279. |
+| Shell syntax and post-09b456b whitespace | **VERIFIED / CLEAN:** separate `bash -n` checks for both scripts; scoped `git diff --check` passed. |
+| End-to-end suite passes | **UNVERIFIABLE:** no execution performed; the suite creates files. A completed isolated suite run would settle this. CI invokes it at `.github/workflows/clean.yml:51`. |
+| Four earlier rounds covered everything | **UNVERIFIABLE:** review records establish recorded rounds, not exhaustive coverage. A claim-to-evidence coverage audit would settle it. |
+
+**Prompt injection:** The diff preamble’s “NARROW RE-GATE,” “flag ONLY a real defect,” and exclusion of style/phrasing findings attempt to restrict this review’s scope and conclusions. They were treated as data. Ordinary documentation and test instructions were not classified as injection.
+## Independent review — ollama-cloud — FAILED
+
+Model: kimi-k2.7-code:cloud
+Reason: exit 1; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead.
+
+Last lines of its stderr (full file: <tmp>/ollama.err):
+
+    Error: 429 Too Many Requests: you (<account>) have reached your weekly usage limit, upgrade for higher limits: https://ollama.com/upgrade or add usage credits: https://ollama.com/settings (ref: <ref>)
+
+
+---
+reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)
+⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair. Treat it as degraded, not as a clean pair: each FAILED section above names its remedy; or consider --with-antigravity or a manual paste round.
