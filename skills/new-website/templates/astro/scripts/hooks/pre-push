@@ -16,9 +16,10 @@ set -e
 #   <local ref> <local sha> <remote ref> <remote sha>
 # stdin can be read only once and two steps below want it, so read it here into
 # $push_lines and hand the same lines back as stdin: the optional PR-only block reads
-# them from there, the deletion check reads $push_lines. (Run by hand from a terminal
-# there is nothing to read, so don't wait for it.)
-if [ -t 0 ]; then push_lines=""; else push_lines=$(cat); fi
+# them from there, the deletion check reads $push_lines. Read only a pipe or a file,
+# which is what git gives: run by hand from a terminal there is nothing to read, and
+# with stdin closed `cat` hangs (bash) or fails (dash).
+if [ -p /dev/stdin ] || [ -f /dev/stdin ]; then push_lines=$(cat); else push_lines=""; fi
 exec <<PUSH_LINES
 $push_lines
 PUSH_LINES
@@ -56,6 +57,8 @@ done <<PUSH_LINES
 $push_lines
 PUSH_LINES
 if [ "$saw_ref" = 1 ] && [ "$pushes_commits" = 0 ]; then
+  # Never give this line the "▶ pre-push gate" prefix: scripts/ship.sh reads that
+  # prefix as a gate that ran, and without "✓ pre-push gate passed" as one that failed.
   echo "pre-push gate: skipped — this push only deletes a branch or tag, so there is nothing to build or test."
   exit 0
 fi
