@@ -176,8 +176,9 @@ Claude Code following `AGENTS.md`.
   marked as following Cloudflare's documentation, not exercised on the reference site.
 - **B17 — Hook without the block.** The site was scaffolded before the pre-push hook
   carried the commented-out PR-only block. → §5-B detects the missing block (no
-  `ALLOW_MAIN_PUSH` in the hook), says so, and has the kit's hook copied in first
-  instead of failing to find six lines to uncomment. Found on the first real site.
+  `while read` line, commented out or not), says so, and has the kit's hook merged in
+  by hand first — diffed, the site's own steps kept — instead of failing to find six
+  lines to uncomment. Found on the first real site.
 - **B13 — The remaining settings.** The owner asks "is anything else worth setting?"
   → The skill's §3b table covers merge method, auto-merge off, collaborator
   permission level, visibility, Actions permissions, the Actions minutes budget (with
