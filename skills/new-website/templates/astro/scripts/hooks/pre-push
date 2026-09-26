@@ -16,10 +16,11 @@ set -e
 #   <local ref> <local sha> <remote ref> <remote sha>
 # stdin can be read only once and two steps below want it, so read it here into
 # $push_lines and hand the same lines back as stdin: the optional PR-only block reads
-# them from there, the deletion check reads $push_lines. Read only a pipe or a file,
-# which is what git gives: run by hand from a terminal there is nothing to read, and
-# with stdin closed `cat` hangs (bash) or fails (dash).
-if [ -p /dev/stdin ] || [ -f /dev/stdin ]; then push_lines=$(cat); else push_lines=""; fi
+# them from there, the deletion check reads $push_lines. Skip the read only for a
+# terminal (a hand-run, nothing to read) or a closed stdin (`cat` would hang under bash
+# and fail under dash); read anything else, so the PR-only block always sees git's refs.
+# `true`, not `:` — dash treats a failed redirect on `:` as fatal.
+if [ -t 0 ] || ! true 2>/dev/null 3<&0; then push_lines=""; else push_lines=$(cat); fi
 exec <<PUSH_LINES
 $push_lines
 PUSH_LINES
