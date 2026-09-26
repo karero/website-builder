@@ -61,12 +61,25 @@ rc=0
 # deliberate choice instead of being silently uncovered. Discovery is by SHEBANG, not a *.sh
 # glob — templates/astro/scripts/hooks/pre-push is a tracked, shipped, extensionless #!/bin/sh
 # script, and self-location is most idiomatic in exactly that file class.
+# Prefer git's own file list where there is one: it excludes NESTED CHECKOUTS for free, and a
+# primary checkout routinely has them — .claude/worktrees/<name>/ per parallel session, each a
+# full copy of this tree. A plain find walks straight into those and demands every script in
+# every one of them be listed, which is how this guard broke `make check` in the primary
+# checkout while passing in CI and in a linked worktree, neither of which has any. The find
+# branch is not dead code: the handoff zip has no git at all, and it is the zip recipients that
+# `make check` most needs to work for.
 discover() {
-  find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
-       ! -path './docs/reviews/*' -print 2>/dev/null |
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null | head -n1)" ]; then
+    git ls-files 2>/dev/null
+  else
+    find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
+         ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
+      sed 's|^\./||'
+  fi |
   while IFS= read -r f; do
+    [ -f "$f" ] || continue
     case "$(head -n 1 -- "$f" 2>/dev/null)" in
-      '#!'*sh|'#!'*sh' '*) printf '%s\n' "${f#./}" ;;
+      '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
 }
@@ -101,10 +114,16 @@ mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"
 diffs=0
 for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
-  a_out="$(bash "$s" 2>&1)"; a_rc=$?
-  b_out="$(CDPATH="$decoy" bash "$s" 2>&1)"; b_rc=$?
+  # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
+  # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
+  # stdout+status is the whole signal. stderr is not deterministic: check_prompt_sync.sh:30 is a
+  # `grep | head -1`, and whether grep loses the SIGPIPE race and prints "write error: Broken
+  # pipe" depends on machine load. That raced zero times in 15 local runs and ten times in one
+  # CI run, failing this guard with the tell "(exit 0 vs 0)" — identical status, noise-only diff.
+  a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
+  b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
-    echo "FAIL — $s behaves differently under an exported CDPATH (exit $a_rc vs $b_rc):"
+    echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
     diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'
     diffs=$((diffs + 1)); rc=1
   fi
@@ -114,6 +133,15 @@ done
 # --- regression case for the original bug -----------------------------------------------------
 # The loop above cannot catch it: <project_dir> comes from the CALLER, so it needs a real
 # project and a same-named decoy to resolve away to.
+# whats-new.sh compares git history, so it cannot run in an unpacked handoff zip. Skip loudly
+# rather than fail: a zip recipient should not get a red `make check` over a regression test
+# that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
+# SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
+if ! command -v git >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "SKIP — the whats-new.sh regression case needs git (it compares suite history)."
+  exit $rc
+fi
+
 mkdir -p "$proj/real/myproj/.claude/skills" "$proj/decoy/myproj/.claude/skills"
 printf 'suite_commit: %s\n' "$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
   > "$proj/real/myproj/.claude/skills/SUITE-VERSION"
