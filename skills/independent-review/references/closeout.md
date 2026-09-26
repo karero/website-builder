@@ -225,8 +225,7 @@ page through long output from the top (why: `rationale.md`, "never read reviewer
 
 4. **Cleanup**: once items 1–3 are posted/committed **and a durable copy of the raw verbatim
 output exists somewhere other than `$RAW_DIR`** — the posted PR comment (item 1) is that copy. A
-PLAN gate has no PR/MR (item 1 is N/A): post the raw sections on the PR/MR or issue that carries
-the plan when one exists; only when none does, append them to the plan's trail as collapsed
+PLAN gate has no PR/MR (item 1 is N/A), so its raw sections go into the plan's trail as collapsed
 sections — the one case raw text is committed — rather than deleting the only copy. An inline hand-off to the owner under one of step 9's
 permission-table fallbacks does NOT count, since nothing durable landed anywhere — delete the run's
 `$RAW_DIR` (path printed to stderr as `raw output: <dir>`) — it held the full artifact content

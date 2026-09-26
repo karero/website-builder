@@ -33,7 +33,7 @@ runbook headed for production, or a plan an agent will execute weighs more than 
 CI will catch. Pick the depth by that (Review depth, below), name it and why in the trail; never
 skip silently. With a config diff, send the code that reads the config too.
 
-**PLAN gate preconditions — the host checks these itself before the pair goes out**
+**PLAN gate preconditions — the host checks these itself before any reviewer runs**
 (`references/plan-preconditions.md` for scope and contested cases):
 1. The plan can report its own progress: each step's state is recorded, and every state claiming
    progress cites something another person can open (commit SHA, repo-qualified PR, a retained
@@ -81,7 +81,7 @@ commands.
 
 Match the reviewers to what a mistake would cost. The host picks from the changed-file inventory
 (a plan: from what it would change); when unsure, the deeper one. The owner may override. The trail
-names the depth and why.
+names the depth and why, and the host tells the owner the depth before round 1 runs.
 
 | Depth | For | Reviewers | Rounds |
 |---|---|---|---|
@@ -104,8 +104,9 @@ Codex's effort for any run.
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
-2. **Run the external half** (Normal and High; Light runs its one seat instead):
-   `scripts/independent_review.sh <artifact|-> [--plan|--diff]
+2. **Run the external half** (Normal and High; Light runs its one seat instead). Set Codex's
+   effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
+   verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>]` (relative to this skill's directory). Type is auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
@@ -115,8 +116,9 @@ Codex's effort for any run.
    and a `timings:` line. Exit 0 means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
    TOP (the list is ranked); never through `tail`.
-3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names, started
-   in the background BEFORE the script so every seat runs at once. Note its duration and tokens
+3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
+   round 1 only at Normal, every round at High, never at Light — started in the background
+   BEFORE the script so every seat runs at once. Note its duration and tokens
    for the trail.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
