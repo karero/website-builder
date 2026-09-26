@@ -1,0 +1,74 @@
+{
+ "id": "gen-1790458854-D7TUEco6XKXz1MLsKpcI",
+ "object": "chat.completion",
+ "created": 1790458854,
+ "model": "openai/gpt-6-luna",
+ "provider": "OpenAI",
+ "system_fingerprint": null,
+ "service_tier": "default",
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "completed",
+   "message": {
+    "role": "assistant",
+    "content": "These Munich bakeries are good places to look for sourdough bread (*Sauerteigbrot*):\n\n- **Julius Brantner Brothandwerk** — an artisan bakery known for naturally leavened breads; its shop is at **Kreittmayrstraße 5**.\n- **Hofpfisterei** — a long-established bakery with many branches across Munich. Its rye and mixed-rye loaves are made with natural sourdough.\n- **Bäckerei Neulinger** — an organic bakery with several Munich locations; it offers sourdough breads.\n\nThe selection can vary by day, so it’s worth asking for *Sauerteigbrot* when you visit.",
+    "refusal": null,
+    "reasoning": "**Listing Munich bakeries**\n\nI’m looking for information on local bakeries in Munich that sell sourdough bread. I want to make sure not to misrepresent anything, so I'll list a few established places. Here are some options: \n\n- Julius Brantner Brothandwerk, located at Kreittmayrstraße 5, is known for its sourdough. \n- Hofpfisterei, with several locations, offers traditional sourdough breads. \n- Bäckerei Neulinger also sells organic sourdough. \n- There are others like Bäckerei Traublinger and Brotraum. \n\nI’ll focus on locations and recommendations!**Identifying notable bakeries**\n\nI’m exploring bakeries in Munich that are specifically known for sourdough. I want to focus on reliable names and offer some neighborhoods for the user. \n\nHere are a few I could mention: \n\n- Hofpfisterei, which has been around since 1331 and uses \"Natursauerteig\" for various breads. \n- Julius Brantner, located at Kreittmayrstraße 5, which specializes in sourdough. \n- Bäckerei Neulinger is also an organic bakery with sourdough options. \n\nI might suggest calling ahead as availability can vary!",
+    "reasoning_details": [
+     {
+      "type": "reasoning.summary",
+      "summary": "**Listing Munich bakeries**\n\nI’m looking for information on local bakeries in Munich that sell sourdough bread. I want to make sure not to misrepresent anything, so I'll list a few established places. Here are some options: \n\n- Julius Brantner Brothandwerk, located at Kreittmayrstraße 5, is known for its sourdough. \n- Hofpfisterei, with several locations, offers traditional sourdough breads. \n- Bäckerei Neulinger also sells organic sourdough. \n- There are others like Bäckerei Traublinger and Brotraum. \n\nI’ll focus on locations and recommendations!**Identifying notable bakeries**\n\nI’m exploring bakeries in Munich that are specifically known for sourdough. I want to focus on reliable names and offer some neighborhoods for the user. \n\nHere are a few I could mention: \n\n- Hofpfisterei, which has been around since 1331 and uses \"Natursauerteig\" for various breads. \n- Julius Brantner, located at Kreittmayrstraße 5, which specializes in sourdough. \n- Bäckerei Neulinger is also an organic bakery with sourdough options. \n\nI might suggest calling ahead as availability can vary!",
+      "format": "openai-responses-v1",
+      "index": 0
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDvthMz05pnfvbzQrsz42ui27GQn5Q9rp3Ml18rsrq2sQ26xVnCxs_7vlgoiLALyF7kReEMHkZRFEwbeGX_5Z0v9LVJW-wYLiEqChXWVAUX2z4T3_dTuSb9la9RRJ5thJT4cwIAaC-k9VeaBhgCe0KK9g9DjMCNWLl7cIVi_Lz0W6ELHiMRVS25snPu3aezDba8-yP4xVu7M4R6UPXP4U4n-XMnafD3VYxpsMmqwxez0rm_AxxtlYiKT6OHH1zkTF4IT5CmNK-MmAuufleUD4XQeJod2lU6khhgT9BmybQlt11b41EwTmHgs73yCzKSesgkQmBlueBR6hGK3WZmukU1eKcyWQ0xdOjTnINkUaJ92zG5EGkC7ewir3ZNYxzeMEMsXJgJne6SQfSlDM0tPhJ6mGzuehKTS-oQVxlFD-C29Rm4XVCY5pJjNHlKhAfR3Axu19xDQjVZmzqZ7Bn_e6M51pg7SqnrKFu4Wp56VRoApTZ1zO9K0fD7nUwSwDbWvAzK-4Dlc1GDRydPmYyP0AB9mlvtAcb_XcSNOutXCQNbiI8F2lhRsQ0Mjv5UIa_6HS2YKAIWqPx-mcGqb9MCDc5n1jqyQRaUDxl4tgstb_cbM32VGxeWi2dVQmCJ3r-Wng9UDbkEAzSxB-z8xFukRhwPCg4KkmN2bnCpVchezKAxfamgCOlNQjbAQ0qpoirlsYYT-cVQ6qvIbOuHirYiggAM-SYUXZ-qGqhHf729vK7ruccyKWNN6jj7CqxBLSjAnwFseQZVvcPn4Q2RjIaLDjLr908BPQoLAWG4KEGwCG-VMDj4Sivj4BcFHEOfdMEG_LiEsNgoL01dsB6kVAZs_fRyyiI3BATvCwmSaqvJSKXaI_1u9dOYelGzB1AyoMJbYKV4MJ5QC8dAIm2U3MBWnTvLC0ubZsx74UV06AnHlYaYFiXYaW9NRuq4Di1KAgqq_wIw4kJ30xgIGOgTJ6g3HC2EXhWq4NF8XW4zq3T4INxWRaEQEW-qGITE-SuMM1l1QC7dQU62trSPUeMQwxbLna86DPkUBdYA6iBMkKjoQF2CNM6fnXOXmskBewbG7S-hfcpryzBGV90DOi3CJvNe68oDRDSSdc0nLuoz0mBKrrqaw_BJqmwAw6LXXrH_KOlgxCV4Q3ggHVPW1ZWQmOuc2E6okcpGva5zN5f6C9l6TonBtcHUBdNBf3VwWxnBu_uTO-x47GxEnxkk_hYUd_ch8vtxKuePNw7OfIGd1XsyZXyM7cDXfoJ9Be9gbcIcL4BHCCRmmqbVl1AOsPzbF-jxyQzGUzSZmKFQMsqIrJH5XV3iZXwGCeF9lGD8mSmuHRZA9gWdkyyp0pUBIdk8TBA0qMgv0QsyT1YhJcPTPFgfz9Zx-V4r220XYz2UXaVXmJC3-Hw3t7C7zgrGTtm6iDpAB1wvrkQQzi9dAARz9kYIT7RT_zqEKdcX3MS6MbBhtsd2MqTOQz9weC6lnNdQETBSxp5q5BoTsJ3nb1hjWkmzYLmXN69y4eBWsNXndXSKw0nKkA0EYb1W-jHYZ7CuLj2cOLVSFC9evlposkQB1W_1TEmt1IUy0Rvg6-sRNCmtlfIavSWlDJjaA84vhmfI6-W4_eWnHmIbxQX79zSiNYXC8jbKQB08Uou6JB8V6JTKWx06VF-jGzHQHFdLvtkSbTzjJhY0HhpS8DGtsikcnnKmF0bzscDMRdQ_3N0S_d-KxXEyeVUWIxpuPJq_nq8P2iJFsGqyjUsIXSvR1TgwEnsREFaLLt8Tr42TS7p7ZbIY_1kWfL4UdDu4ewMrKhyrpYhvaqzVJW6Lf0xUFEA37X0D2kPo-YiKo5DVkdWx0EzFgiYZIvOJuUaxFbcafvFWNPVl6dzJ97xAxpW51M5M55l7Wp09paVudeXFJMmub4Sx-jGbG8yQNxhWZ2_PMB0iFBRp0ftLTrYDAM4nysnbUM3rVEU77zhX6ZrugVznyRyRioPhhDUOVQJ-WYvR6dFAK3VQs5K7tm6yEsdgtxU2Czrp-MJqXO_j4OAHbzmX8KaC55wxAWBSkmlRr9GMZUA1P4w-7iGYQ0baX6INT-Nc6QUWlD-7XNFhtk76taoTWv1w-ZeLfW8e79V6amm8_aJqCAuEGbqOwFIkiHMA_DgI90EUfehMpSLaJ2P3ljhZccpnYBvsx-cQpBgDfXV3N_H-i7YoypYMsRBblsoPh-YzGsw1w6XxhKDfkB4fuVikdN2uYJZucOzI0I8MQUTqLPn24kLmSCXABhoU5dcswIzl0FVFI-aHw73AFD1JCWGCpm0WS6HzzxSTqSCJ2jEFoOEDUYIvkDqc7aE2tKL3NEa53V3fzaFCO6bUXk_Ms-7XMCpseNdbWCVOHmOBQ5-3vAa3q2k69dgIGxQ1aOpeYS_uGPVU7WmCen9OG7IWxyCAU-EfRaWJDfgtF1rQQb_0cmv8Btc_YJgAuCNqZwagUMNRc2KtxXzw5F_yFVNPsfmvSDTlvgd6tn-cGBviBeY_BF6vNsU4PBxKeaG6zt4zlyu9GRGJYilwMArAbz5Okf9U409GhdHwHdUWQDo1GA2rqjt6YBPNlq_CgvqvAeDV23EVUl_2hDm1UyZL-9Nvjug90y21_UA9-CUJcVDBqYf6hZ1myYOT9KczGW-S5JzrRS481G1CU67TZ06bTETAmJK14wqSsApcIV6cl2sLiTonrcY7Zx09lgpmAvSOnWKtNShbHwWm5R_wvllPrlf2OHCWR2oCYYRHeNMcKKeAh8LzsbPGwtMs3azvV40yZmlnhX6vmpm-ckw9nqfbH96we9TmdnX0d7szJC9R8YSu6qjOVILm6ytqj9aL03An98tg4DxyFMd0Rn2FsnY34-f590x6qgWCYoaACg1-I5jG9q5cyftrsY7ZARKdvHl-fhFCgTel1qAD6h0JAiIHKPZnzKiBJX6LcDIrS9eSIcbgNJNrg2QgBLU-awsjlklPWG4ULyG6VLMbaetWFoppklq5j_aaPRqe9X8TN6c1rp22WiH9hUBjGrSl-4eS4IwPQkoGMNSV8PMecrpERDallRgg_ehjaOkr8p9wSYPL7Y1bTv4y5aWCe6YU1vuBbAyk8ymoongArQ8V5kv12uoN6SYV0Om46DNyGURpTdnaZCqvAEtkaLr_iYSSt363QVAZ2CyEQrbNYz27iVILqZVefKL-UXd964PW-p22Bhi1fGBC-5W7OOba5FPuPlFKVw_1d66LGKUK5yD3PYSxVTEpk8fDVbK0GMnL73S76vDfF23EOW32TmUhpAIF2Y9zFNWD5oE41urdiyH4DjiheQAdDv1PkP-q5dCvTJeJ6QGzrBDamNUENozFIFsWvD5bVl9bHAD2idEgL7tKDkQmsXaE5d8GcJ3VeISnJ1m_ctfFjnLRTUSG7zCkv02-k3tGKu72WbPHn8_OKYOkCtG8Dl2BKlySejs8YbBLgrrDT9EAVsZR2Rxnyux_1AM7b3C0fLY6xeoDH7CdNF-Rj-lDM4ZDtNf3iS8_bkkHdpG2PNSjPLf6r8tKaLF3YzwtDmBJTEQwZjCVHkwM1fdzgf2D_E3WplINX3cKWosztoexWzs73waKT7s18zLx6Kg3_gtGX3gafZXaPacRLRrnl41iwJlTI_28KyHdUhazTEa5nBBBSwrVSeIIC0llLhzT0wO3RNsBEGWNiouly1o3weLYLJUy4yAg49Dg-5X2yUMGZacylwOQyB-bbX3D_ujeiZ0PHGvTVvj9TtUNB9w1gc2mQrRJMk9ExeSHfAZoq2Jwwrtld1pvdofF8fcK5OiMzRrvKccV8-hQGo5yqtCHowuzy18ejA8zbVtsB-apO_PJtvCo8Qy-2DCxGsGFtvgfFYXZ6uE-KmjANZsThMj-wTKCcN3GXk6Ahrd1OfyWlAdw6gVBI31D5Qv-tjrEROsU8dn_enJMjVJVij0WnxKkc3K18mceEeFBGlwJqWEEY5zH82v4PcGAvfivRUM2XXLs4XUXr-0SMurIp-6dLDUs-pRweoIuPVrXXdw4uUXHgoC6OhETFsWDL42gSULpVfcbjWScGAA==.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_0dc06a035da79151016ab83be78df887d184ad36ada1e37310",
+      "index": 1
+     },
+     {
+      "type": "reasoning.summary",
+      "summary": "**Identifying sourdough bakeries**\n\nI'm looking into known traditional Bavarian bakeries that specialize in sourdough. For example, \"Bäckerei Konditorei Aumüller\" may be recognized for this. I'm also considering \"Zeit für Brot\" with its locations in Munich, and \"Brotraum\" at Viktualienmarkt, which offers specialty organic sourdough. \n\nI could suggest places like Julius Brantner Brothandwerk for naturally leavened breads, Hofpfisterei for rye breads, and Bäckerei Neulinger for organic options. It's good to note that sourdough is called \"Sauerteig\" in German when asking.**Clarifying sourdough distinctions**\n\nI want to clarify that not all bread from these bakeries is sourdough, so I'll mention specific names and the current assortment they offer. For example, Hofpfisterei has items like Pfister Öko-Roggenvollkorn and standard sourdough, while Julius Brantner has a strong reputation. Neulinger focuses on organic options. There's also \"Bäckerei Zöttl,\" a family business likely offering \"Sauerteigbrot.\" It’d be wise to suggest checking Google Maps for current addresses, as bakery branches can frequently change.",
+      "format": "openai-responses-v1",
+      "index": 2
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDvxIuCIso1_COv6uaiBJ7U61uBxkg6Z_j698FTEMpxfpjmWK6A-ZvfLJ76HSmRFt634ZOTF-DeHqfhgbvSA7RmW9o71gLtW8inX5IYNV0QOUkhp6kmKfvdzoWcMD3Hc-FWDzom16ufg7t9BB6bAJN9_xP39N8dSOGMwV8338-ue6vy5omqfJrDSwHA-VMtI61KvGNk9q_1k_u6q7mSGYzD8Ht7zX0_ZZzab6cwbR2vSgNZS70_tr-DvNOW8U3wNsqytNx4ZvhBeIuvQm5arodYGdZdbT7N4fnn95Cq9jbDHAS6vT4NVg4L7ptVftpoIK5lNKevduWyXcxbJFmiD94eYrUfFmwyoFmyYX4EWfem_CI_5WzfMfd-TCHP_2ixWvvJgAcviJgQWJOHklH_nE0_tP2r942tax6pAbQKKEEzp8QPA2cOuZ5gKAFWMAUC6VSWll9N3GwPFyrFvnX2ZEx69WKq5Cwc34LgEzd3bMLUUzObUvpJU8B_x9MTVBxvrWVOmvFxf9OAuYdGG6P-5f23gpGuTMqp8LekJNYbLWBVh1OVOuJttUxhCHGa-tE_dnBxnj_Mox_kF_A7ga36Cv9Ne_ocmiiYzmmfvyLZT9EiYuSk5MmkitZoOhZ0mP-c1LC4FaX7OlbMDp_e0Goo0NCsZ4c9SPe40ZwxEo-htUZ810l89IbcFSS7Cpg6w0wERVSBic1SyWWZtx8Pel1OMiwBiYiw5ZKs_kZ0qMej3IOPIgiPV1hVn7tJqA55pU9F9oEdTzrNZ8-_OuGAKcS8dJcChMtpl9-hcyJD_NAvNwlqFvtcThhinnnCBhklQuprgGmpjT0jxLlk8IThjZj1C_TuwLqtumT2QlR_rlSUDH9Zt-T0sCyScnkCtOztLldi7KozadJ1Xv6aCNnYaChYt7yXeeVS5DJIMGewNQcZn7E1hTEMdeEa4XjCEJELz5YB7t_j5BD6duE2Ite8RhycHdvklU2veRdUZsowptD9Z0-vTJa1ZtGSDAXmzhm559cl_vo2Ir1s6STpIKDhogJvespAWN5QNTXwBExq5qLodYdV1pwMwkfL5dDZCwRyq2CS3sS0cRY1ScSlQiYxhw5HnE8cawKVZt0XWYhd7nta5cLOr2HitBxpMmyST8fdIhkGMfRtlnkN6kzwwsu3bP3qN6GXZpROVETEkGHXQEGxHsCw-mLSjyzQnpNIqZRECgGSOmrrNQClIYf3IhG_H5c2r0mxGst38Fgm1XxxhOArgYwXmhRC53N1wj9xgNtP5zHxGK8Y4brWHsBCa793KXPp3zVr6co9i2OZ5rh0JULREtlISNXxx-5ja9FWyJV6aIeJtigmZBdNIihUFDLq0ZtFnt05lBB71U-Ps3cHF4tQBzJCA2EMS0zyMFI9l6uIUInUefnwAgVHm-re13jKIY300mUnaSnuwzm0xfMl37pdJULluJ6ZGrlBeUPVMPp4kNrLlfCfNHdIQSHVBjfCVJ9TaMu9oDzQaR-Vy65yYCp56a0zEXUIR80BOwOIp9qlrxtmVgJbJ3VbV091SGMZCOYgKAEEl7xhoF3YIqcMIjreF2ymcAgWdKU205ykpm1Ix5GJcE7Y8iVlFX_yrob-JcVcGiaJGqBzo5efAj3BWYE77XMuf74zLIp94qJddz2MdCShAOMnN-G_Yk31wLvSafORTHFHU2XlpafhBFj6-u6DT5rbUqRCvaUr9EJxYF0yORDWYdv0AvC4oTU_lMgYWWsGHgkWxeaEIXejWw1CDbP3WstsdKDepmSrP-x2Pbll5hH5sC5Cf4wSPbiz8pb3TNhpyxN4zxWTBLCssms3OdQhrPj5-yRbcl0W8XJ2fC6HCG90wQxNFrrHq1XBkfeKFtgIJPE80KXblDAx1PcM470yw14JUZ4LUFXtrA42xtq25NsH5Ts2QKOAHxm2m5wUrfrQUbiL7XtFa0wQ3cWjZe7WGryN1QyFtFmYtdftCJvaALSMbDQF2dUl-ixQ2Nkn6iewEfKcSCofVX9T6fMPrUghONXwU8XJa69jw6PSn4NXZ4AVxzt77qAwWpKyWKhA2oRkVpCnYLdmg2aLsDbaPESC5k-omhaVyMy5qRZza-nX-5RSAYJFu87_n_arjO3gwEAJSVwD_Ysyr1uOB68WjX6hsNH-UL2uVAYhOTnJBa2wQjwTv-h9g1VwaZHsRfpIJDqi78KQRzr16VcloWF53moPZijY2ENtaJfj2GHzs4KBoKb8XjIYKGCFAnYUjKQPSErBP9CcAtY3p2jOag-K1ETJOQWLcsto_EAvTr6L7NacZrOUPLVACXdnoUvIwlyjePN7vSKkMz7ia8YoSdkicl2kswBxEN8XHhD404qjJPNd4O_gdKn35ekNeAuttdu9CFR5b2JHBB6qbXmKI_sFOg_MaKBbEmOjY-qDxg98WEmjoKz1E5JqhubDp7bwsTIKPxNdYeZUXp0kWhluL-Xdi1mV2pHqWvI7UHwh83H3VBriEwZ_BlVna61RofYk8qrFI5JMgX0Yk5UAGYxUSQ06GruIZea9a7NhfQmUIOvn9CV4bWV5LtbmiPUOdRDiHonBIOERyjxe8XHr0wjDSBXK9-2EUNf9btNmwOH7yVcSSoQK2AqH_y9QnspuHxiuIIyGymQh1GBkBKBwZ0-mxGKdhKUYpAilNOPOVSTPrZ3uTGqZNYN8Bx13LPz5W9aUgpa4qrBMO5E2jJ4uTzBpWwjgLnCLcAxFwgEEjFytkYGDt0vB_HR6N7U0B0CNiiqwZguz5it1N5TDevpw1LOJuVjSXXVB3hV9NaIMG0GCjlZFZ1592w58Wgul5cBtiDXXjlnb9tAVgFg_MJJs_wy9r5NLExjGVBelG8N1z4et_ResBo2OKltn8SxLAHTIN4EqWI0llgJFD_4bYXNWDKuloPamhk3E3dM5EvIkSyuPaMsX6CUssn57Kvge8sIFxQs7dBnaQyh0ZzCuE5Sxz4KkUo-vW6B4D6NHWA81SzLYNyzb-Qoq68uTprs1twTBSgOQZ2KH6fBLKKOnzLIZ9IqYxFUk1BUMC2gBcP1Au5buFzB_yANqS_-noRBXyjfw7T47AV2gsTyA5papPexw0qxS1HKpdf2H5hLKI8lrxW92fhxN4WMfgVayOFO473VUvwKdSbIf4hnaf8cOk039Am8GtUK1H6My2mw2QTW-lLSun7ExT19feBNTxdUd_X9vPjR22i6yJOQjVkXsCN04hRE3j01r3f7FZ833ok4F-_nDbLZnL9FFzNBgLXMTTOliNTmYF6ZAhangGXr9i9_DWAnXuz5ovTuuH-7K2EIximLIcCjyZK03tA6XVDdjHSXBUgq5f5a_3nqgr7hQ4_TsGv7L37xtrsOAmgWJO5Qi_i0bLLwkQVdfCQ6b4Mi_4OTyJ2hSp0K-RJzxSd8ua2N5fR-qMyGyviL1OUnSgtqGRm-OrFUbIqfEnjNdsaAANkw7OpgzzCWnMZRCC8wm0g5BoYkF_Lqb0Ycl8fSq7v21P9sIHvD3hrqLRRNz3DXAMdrpiU9mbZGbfMZ4fkEXQbUowo8VGv3kMpUjmcvqnsfz8BHwcbUjypk0RYzWWm9OI08H1MXUhbRhprMBuYfOKwOn9RV5AR6EwokjZS3Pw4s4f5-zF2JzClNyXO-ccRi6_.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_0dc06a035da79151016ab83bedaeac87d1934b9b935961dc24",
+      "index": 3
+     }
+    ]
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 17,
+  "completion_tokens": 1083,
+  "total_tokens": 1100,
+  "cost": 0.0005432,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.0005432,
+   "upstream_inference_prompt_cost": 1.7e-06,
+   "upstream_inference_completions_cost": 0.0005415
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 930,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  }
+ }
+}

@@ -1,0 +1,158 @@
+{
+ "id": "gen-1790458865-V0Nm3ZiZcgTI9gnOUzqV",
+ "object": "chat.completion",
+ "created": 1790458865,
+ "model": "openai/gpt-6-luna",
+ "provider": "OpenAI",
+ "system_fingerprint": null,
+ "service_tier": "default",
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "completed",
+   "message": {
+    "role": "assistant",
+    "content": "Yes—look for **Sauerteigbrot** (“sourdough bread”) at these Munich bakeries:\n\n- **Brotatelier** — Tumblingerstraße 45, by Bahnwärter Thiel. It bakes its breads and pastries with sourdough only; the shop lists rye, spelt and wheat breads. ([brotatelier.sumupstore.com](https://brotatelier.sumupstore.com/))\n- **Julius Brantner Brothandwerk** — locations in Schwabing (Nordendstraße 23), the Altstadt (Kreuzstraße 1) and Haidhausen (Pariser Straße 38). Its range includes sourdough bread and a Saturday sourdough baguette. ([julius-brantner.de](https://julius-brantner.de/de/produkte))\n- **Bageri** — Adlzreiterstraße 21, in the Schlachthofviertel. It makes sourdough bread with Bavarian organic flour. ([bageri.de](https://bageri.de/))\n- **Hofpfisterei** — a convenient choice with many branches around Munich. Its Pfister Öko breads are made with natural sourdough; the range includes rye, mixed-grain and wholegrain loaves. ([hofpfisterei.de](https://www.hofpfisterei.de/?utm_source=openai))\n- **REIS** — Festingstraße 4 in Solln, with additional Munich locations in Forstenried and on Wolfratshauser Straße. It offers rye, mixed-rye, farmhouse and spelt sourdough breads. ([plasma.cafe](https://plasma.cafe/brot/))\n\nFor a small specialist bakery, try **Brotatelier**; for easy access across the city, **Hofpfisterei** is a good bet. Check the day’s selection before going, as some breads can sell out.",
+    "refusal": null,
+    "reasoning": "**Searching for bakery recommendations**\n\nI need to look for current recommendations on sourdough bakeries in Munich. It seems like a good idea to search the web for this information. I should also consider providing some specific examples along with sources. Plus, it’s essential to verify the availability of these bakeries, so I want to ensure I’m giving the user the most accurate and helpful details. Let’s go ahead and query for this!",
+    "reasoning_details": [
+     {
+      "type": "reasoning.summary",
+      "summary": "**Searching for bakery recommendations**\n\nI need to look for current recommendations on sourdough bakeries in Munich. It seems like a good idea to search the web for this information. I should also consider providing some specific examples along with sources. Plus, it’s essential to verify the availability of these bakeries, so I want to ensure I’m giving the user the most accurate and helpful details. Let’s go ahead and query for this!",
+      "format": "openai-responses-v1",
+      "index": 0
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDvzp9AepW2cyGwOUZ0T4_OFas6qlWlIzyprLC_gd-cbSg_M_JtAO009vjasRtptr_M3xb2MIwEbP9CBAyC6KoNPbTFpIUxPZQCdZlEcywvmjYIBlwQ6gYg25uHhzH6hxNE2kXWg0e9wmqwg-u9UocyNR9uKVaPDmNm2KoS17j6LT7HNl5cV2qwoI27HE5gS2YHE8lLUZD9BB61-TISlvwVc4X7t62iRRddQLTlL4EPuho1ReWDX6KsVYr4nn8c2XndjqqoibvKqHdVGLoxpYKamQJdQOFIZGyuwGpATkK027j8GKzurLbiRp7mOgF_XGTUIIGy_0nu4MmVPgKIB8MseTQHArt7qbSNWMi9tGy3M7oja3ifgE0X11RfYUmFYL_3r8S3EZlxtRzJjDiIya5spbsJWobbo048O67i1TNcTYQ8KGwp5HgMhJIw0IKgrdtEw18G0IxxgMah3cJAt1R7b0_fCr0tCLVjmMpSfC2CTBrl_MD6a5AjlOKQit2K8ySqXwdGcwYkx7N7Q4vpGZRYnYIvuaR1iy9Km7JorfH9xK-cAzFyKDZS0yLh4sxnLKB5pfMPpkaKi_ru_b0OsNRPid_9bcqKXwSLcFt4bpMiGvJT_bGsAbl6n-g-ep68VdlZVB_qn4dBraQoNxOWT9TDesNA4ZnFGSMrAhJ4sR5X1Zccw-fAqGT1mTClkIkIvaUFBJqEuXpZ8fOdRHitfCt0RMwKZoobq44y7u6H6RQAfzoURWwemu9qvSAAAEcERDlYFA5JorDDBMi93ogyFRoqv-8Iz9cJrh-i2RE9k3S9hXqTFrliD1QLbkZUYcFNTjZhpBJvb7cXBPD3_poQk5o-ghD_xTExxJByOrugWSVbX4iYgLRAKPfziqCCRhznjFTQerx3x5sBmu440cFTlPr3UtYK-AiYeS0PbIAuOqPlFXE4Z908mcWTO-RkpIQ0CkuUVAZEMsywRjka_GwJOxo3wUSgPIa8VthQsJ7jl9IuOYbbg0x4Ew2r7e643GXpn34wPhTdmYH1CPrsM3vICeT4jk4WH1RgN07p-NRpes38ltVFOmlB9NErnivFq8SqkkBfo1Px1m47g8TRmlgwhBIFj4-XDsNtqIel7hDP-9ZZDhEjv-wLNJvoWDbBhk7oilWehtCBpj1jlCiwd0-sMJXoaVF4jiB27FAu1bo3nmXwm1-IWM3dKMWfsrKZpSxKa-w0vtGsNTHzLEZGIiIJzQSvG6Eg8zILBPVoom7m5XkrubmlryShq3rqP8ulMui2fdcoOJ5e9YkB4ZNrLLCH_BrMsZlycgRCuYjt-41r6zwe58hl78yNXCgN67HtWy-kjo8SVDQRQjXXHQoCDbk_wGGgaB7tmtzev5ZhM-KCwSFX-tpFWsn9v4jba_gvH9rCRqjqp0r6Y5fnzPoPN2IzXFEbQiWM8mtXzuYfbJDW829N15rEqL57ZgUhV-FJfR8Vw4s6LIOt_IjM-JtXt35cfYpQ5knvU5I3uXgodI-_anoVJnNPm3fLGlASOJoe6T-5E6owkwRdFeE8Ursx1CL0eY-uUgw==.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_04a35f6275d7600e016ab83bf294c087d1a35a691a3af7ec32",
+      "index": 1
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDv2wfNRy9lGtGBZYa77G9yrUWEBPC_oPUlF2yxTUAWtsDshvjn8aos-vh-6y8MGOMBqu1zU4dvMDlggQQmHObFS1m9zSbRHaWV1YwDQmtW4bcUtBzkbUq74fEjAXxXdqL2qG6I2aaPIjeREDUP56NeXPpaXDu2YxLgBsRN3nJutCaPhHzZ3M2aOd7Lc81vUi2AcQhg6ctLGqGlARymUnAD6g5cubxu2rm3THFjUSA9wsxEWuuiaS1LAf6g53wQ1ZQdZL5ZC1n-REiQ51_8mpGK7aI6tqqgPjXYRw-0oRrqCC_hGJoT_eCxgc8nudcaLtmcb_iLd6g8uMim4OVAtRYcNrM48hqnRIjX4ohQhhx3yG5XLRxXjNyaQB-qKyCo49av4n2dqljA7fLyoPWWYjAG50E0P-hY3t7psRNg-H88lshQGhQXI9epiBoQFApokfIWAy4J3PDO6PWo2OCwBm5p9Pe__hHhiYmE5dAJAsm4wah0qppQY7ize_5LnfF3MN11jU8sfJOPCBw1S-dOoHfT2TW4HPgIqWEt954qOyDrzm8nxc1SdwIhrbabLQ7PBonbTAKaI7XUlUA5RVzVDM90ljpzfDqKOyAOrUlAuuxW9yMAqI28pQ77MWq-aM8EbyPb41Ry3mj7jV4WmQ4kA4fbVQ9zaTQK3I7NHanxfjaa4YVx41gT8eB7zw71mRvfkwEbV2pNaiwr_PJUB2LauJ6ZEHncL3WtIvPNRxJnLtPpYRZaUQkZd5CqxY4W43SwOyGw70Zsr6n7Fms0V1sdvJI_22eSVRqYMOJ5oWIaANcgL0b_g5Oyj8tZl2nV_TlLXqVm3FwZQib_5a1iBpuHLLxljTMyczJ1mnuwv10bZ5k6tF3Iay95F5HE5JpDq5wVO8MuYXN_t3xmB1KCwkp38A4OQ_aVS_iUSXFV_n0FPylBNTUUNOT25NUsReaJOfI9_SgdMTb4bbxoKzz0w8GPIvlbMyoX4JB7naEcF_UnCOZzhqx7P7FNfPSv8Q5liXP7RG2ndPtf5HK1H37FSJciqjw3x3ZjjO1V0NRUd3Bxe28jyPLV97Ux9Mh6BgaTMFV3p5hJykXFskuqn58XmJFINyTWXO_daqeO7XBE27CYzDmdgPIfGM2U_RoDsyfIG94OBiUfqrwMReLjqJiDPYE22Wog-6-Bn6iO9Vw4g6uIR2SZjCpcELprzJ97p6jmnjG3D7ZBYj-BIDt14rMQC5bB6TTO8LZ5e0Id_Wd5mdj9JMkQmvnvtCBiYKO1HSeetdZ5HkClFk32j09-ShtxoEFSs2r6pk5dOkiKrrFA_7xTE_Ktg6LyZmZIF8GQDsuvJewOvZI85EYZrF9_hjQigLqdlJuQCdNaMsksBVJyuOaQEyorJC2FJuqFWA7tT3ZtNluJOR_vM2CglB0scucnThgahOxRlBEpZti4tUNqPFXLhSy_FNd-UxNH4EKtMJVFO1WWaTuuh6ZjefnUU85NC81S7Q6SivUJu1zrxNr5Ce3xZQi_2qUM2XnSs63DOn4XP_KfjWmW5.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_04a35f6275d7600e016ab83bf6515087d18786767a396e680f",
+      "index": 2
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDv8wP0eTlGF-R1gbBf8sidDoZ63_1mPspDtKGP9krWBG1e7SWspXAlcZrjSdRYhVU1XSe0eVC2UGn75T06gHN0VlFA1i__-LG3Co3jA8ymGPqGGKBaeDCMJ1tbMYoIvkKelWjBlqPLD4RVo6kDSfZWfM5QGScdvpvMS-8vtBdAs05aRoY7axfwrY2406duOCfQWIg-BfPULo526sozHncseOsSfE7KjBrpvK7IXHB9wuyapJbvIVP2SbNhPz-MGCYMiSCrw9olkmL1qnev8ozZ-esryQLJwdw0wwOTAQ7TAU0deJdDkzEXyd1J8Q47AAmGSUG-NfD3t2nTcYRZUfjrSdDV-YXFed2AVmoDky-l4koRlypBwTIR6qpGaHiPftzqDwG49vh4Kg67NeWgspjQUwr3Oxl-PF92exDTlZjQ9_RjQg7fDmvZEScO1iV9NC6SdjRmR9RDZ-361xYchAHDcpfx9d2I762-i_dtAbwYSfgxTlzffi5OEQ-0kcN1OIVZu0YrIrBlhJYNfq3gQspUXUbvuszNrPmvIHSzmF0gL4nddGjtpO9h91w3_e2E8GXE920_5pF_Hua77sHiFraxElr9cDZb8wjl0Zn3dYA1p6UIunF6f11svsl32p-0S7TVqW8RIJkEXsLKnecg-rvaKJQ7QTgFjo3uOGVvUOdCHFjTBpuBWLsX4bOr-J3ku1R5LXdVP3alkMuYD-pzsTrpMMAHG-FAhVH7XP_8XB8sqHy-2YILmGZoSaE16Ce_6593rl7z2d2b53JJiRr2ffDeVsiqqWl8yPEQKBCKev46adxFGMPxzrpWbDgzSEucei_de-TvBG2re5421JDJmAjDjn7f_hBX8R4yBEbwN0hjd_9YW84XJtQEjKYnosrktay0TNHrh_BAqmDwsYawcyvZpmGKbv4P-a8JOD1ATMzvJ8jVWyXK5DyAQVIdYEOpdz1juUk8JboE7xK91LBP_2G74glrjtIziv4dNkrkJORc7ZlVEXHsYN9XjgTunelon7rpxm3sEQIeZjr0GTGimt3tE6kJOKfeLdcrMkem3zgF4cRZKf93715Eit_k90lFhFRHTuNQl_w6tEdXN_g7NiAveeygF2Y3mcL9txpc9Kvq6AMqMl2zjeI6bWhLEzPJlS_VgpqitqzsrhNTCxqJMKbwpnxDUSAfqvc0QMXdi_vU-vlk-ctCu247jtNTvqqxn-WPV1j6x31OXS2scdxXdL3pVS0h_qzqPG_mVem9VqDGzDRJ-9C81GbJA-eB3BAnDtbGjgbjKZCMNneDP8Q1OzDjewqjH42DEzzXRd8OQHp71yu8gCDKzq60xqesTmpiAoTZknsD9zeoR821Jkvjkj-EFYIqCAbYK3nZyFhiViFa0KqKlDn8BCKq5Ty8e01iqp54FnA9jpM65rWmLPu6N5JxBzcN747XBKpuwSSS369_Y208=.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_04a35f6275d7600e016ab83bfc237c87d1a0adbe9fb00d7c3d",
+      "index": 3
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDv-JetRBuVE3zU8BOOwLo0USGlxhtReIfo0fsoFyt886p0MZreNKxVNBkgVYq1VEgi0q-x5rOjNKnnnIQAxziisGHMpJI1YC3QQl8Br3IBZFtCNRe0lZ8ImHFSAYQmS1G1aQLH65OmSPyu16AISN3aVcVAx-YDY3MwoCue6spY4JkHC3ky1wR60dbgUu4ADwfvrLn89GoH5wWOdvySAAPHf9ozIepMRKD1XkmlsPdlmyAjdwc2eADOGTL4uLhi_jk_I1N0owLpa_cMjjiWL1U7z7iWlVZoDpfnTc_ruSrW80t8jq2guqNXUY3z5mz77TPfMsbeFgkwwWKyci5MWlVyV-PL554Miy7c28GQvFwDoV1vYP8gMR14y53lxHYzQNNogJBvkKckplnV9SJzSODLJ-_xDBK--oLzoVdrUMUJjqQeFGkXW8aAlKOnxE1Zfdcd1CohhAEW9GeVHxg2bLcQXcP9q3Ylw8p0KLB16VZPwcw3yeves6heIrp5zGS-0QDIH7QjABuUuh3gPTPH7ajEfEfMJXhXElp3be9mujQyrqwSOGfICKErxbQkE0qjVEN-J8VGhwetIXXu_TNmcJVXrAh95IlX3H_BTs8ACy5nPH1dzkZ6d8Yr2OvffOMpBTRG6Oel7kyyH0CqNRp7jzCYu2Uzks1fJX4SzcBf79sKdtkOVM7jVGexxfSl1WfkQx6e5FqZubu_eNBASto2tnfiF5kPeeHSDh5jE6XqOlXUeTDKgTfZisnS9w23kfU62oKQIdpdN-iPJX49gpu-MJOXgJh4JLecFHY5mvIQ3t7cNKC5vT7O3U2g7xzgQBi-LYH0SWjICQfq6VgZG8vLLTYDom28badayMfFkjD4mCr-6k8FAdadY4CcIyyUxcyI6wHkvF_ic6nC1H2LYiqzCRJKxer8pwlW4Mu9u_OfkulluhaSKEDWIhnU7PstaGNHNctb2eozc-Ry3pUwdnMb13dSqMGUEuK2ceAS2G_WNenH7EDQyxrpjwZm-rk2aazjDY0yL9n3Oi-J_L4TUMw9DVHxH2_WtjxAw2x4TNc5qY3RBglGzPYkJMPD3gktjbuKuTcC36zJrJDGerTwHRCPhsUFhlZ--2P-Nh1NRy5zl109Epgamx8TGjKNVBmg7vA596vMUs9R7qvepxIZvuIQwa7Wqut7YaC6SZ6BSOF5oN0GCiQlzudKMFQL7sevdZBffE6AHZ9aWn0dGohDphAzSGeho-rJhgcY_LNXQYFJ5BtKqU3LELuExXnNqgBd3qptS8ecKnbYvUi9O6XK9OQlD-w2dUjL3myqW0MwAFTwHNdcwmOVnS6djJ3_zRTfNaBc4xrafKS4l4uGSKpURWBPFCKNtc14l6I4xu5lxY8aOzQooyuALaqhH7NLsXQzlu-x0qptiyodWM4_1ABud5pRKGN6E1ro0AONke4_QHdoFP5Mgo85OREVK1MTv2OndNLoNB_CisdnOTM-25j5AJLJs8quPKQ7kl1TMX04rzL_-UXktY3AQzdxA11LazvsYT1G_jjftnmz3oj22xHzsVn-v8JBuQtnysirDW0bdRB3SowNm8OJLWNNBxNh40SvLMQm85xj-eqaM8nL5aHf0opvpIcm9VQ6f6wGpJxOYcafmJ_f_Phh38rVtJGy7xKsj1XBVw7sAcgpnnvpstrLMvl-pB0edxa-AQ3RzY6z9Et-sQyqXSfmlDimzbSd4DQaEZTwUL33z.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_04a35f6275d7600e016ab83bfe34a887d1a863f0b131385232",
+      "index": 4
+     },
+     {
+      "type": "reasoning.summary",
+      "summary": "**Searching for bakery locations**\n\nI think I need to find the Brotatelier's location by searching online. The user is asking for names and addresses of bakeries, so I should gather that information. Omitting the address might not be the best idea since the user likely needs specific details to find them easily. I’ll look for a list of bakeries and get their relevant information, including names and addresses, to present clearly.",
+      "format": "openai-responses-v1",
+      "index": 5
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDwCBvdo7fpjAPpNaqICnikIA1ySt2L7UAuCGRw0jMS9r7S1a5ikPLPHxcgrHeHIhgOCVkDgUkA-LPk0AeANuP34G1M8BLhWVLRwlOFqNYC6NrMe_zT2MC9xKEE1UiyIy1FgsVR1phm-f5vS6kGWVOlJMhww1fiQOlb7bPM5noS45w4WnSiM1nCwT1UZRQmeO-gYvFV5xnXsdTjBWmKwFrVieSTArMAvErt4VrLryOFI2VkgWgMnYNHTTn6oNzFjNh0olRyCseuv7C9j0iON7JjvT2GaS_FiTqxKCBJnSUkWJScmrRGer5Aw-rK_SGuUvjghW-XUxF_PT09h-4506ybU-0gyNSy6uaDHfkqoyJ57wwJLbipdDWkgDEoSNXEetAkxX7QyWkxI_M4wwx1Kaa4ftpqrswYB7115PMSrP9FJMRRGjjxWg7v4w-rusz9twfXK7qLo__5kMDnwF3QNc52M-LhOO_YCz-hS47-VX3m3RTpp2saouKxYPriNL98qju_5xUIYo5k5WB6pRG4ic4FZlquegvIqfrHSAaBMKzb2HVvM6sCw_iHju4f9RQdSECvBDV6-wFipBVJqMMG-F0TFIOM0wXRn-rjLIv46ir4ERdTxyO9XmS9BGfLgjzdFE6rt6SrFRABpLlgKZ18WJc3dkRhZufAdXP5s4QG5xcKDeEhrmFhjIxZpEvtyKzEoh6eh3jX5aO4iWm5U-_KhZ34DCIa-osLifX58um_J6xpTpeVzdl9R3PjRe7mk2UwE02IDuAf7CIGi-weQkxBM920-4Cucjtycfgggy04rKGXQ1WxrQhbwDC97cdpjm-dueEG-9PoNeNGjs1o6KxC6cxP0pqi32ZhPS8fCl3fyiaThq03ttybY11p0MKAmKSUoICNNIwo4MXY19M7OPUXEQid9TAsUf81wvsbFT9i48iQYp_B2sWv6DEAEFJUt0-6_icytwsDU_ljhEJHExDJBE_wB-fWGrAg1YkwAO2CH_G9Eb-a9L6fNgv4DP7-sOSkX7_eHHJb3DJGsYyAf9IEv22_voqJHP7Wo5vJxvar7e9AjhOeb_PMq7nC2xpcJPqzY0hhJsuLzMtmQ1d6fzeJHjHDebBcfoG9U7G62yn6CLUBVTP2eGpYa-a0DNvmhHcixFff2YC0WiJsYgORmfPcD9RP6INTckvbLGjCvoaMHG5TUqFs-ukbD5jsAUqVeqZset1_XDIikgqMWeIDLJ5N7ztf5IqaYD6zkSkXtPbApKe_J-31I9jZRXrxhLI9TlC5dzQkVtCw2G_GUo9ivMTUxHGC4nf7TPg7mvHHcecysAchpPmst8z9oGRVqkIj3Syn1QOiJVJWwgDsUZuQZ-NhETi5xeC5zUx-sHar0R8EylsSSv6dIFJUQo3aOCaNMecdLknVRAZkpl-skl6LwlAMDsSP7JXImTlJ5i4As4VYFrCtDYqKULaMH2wuAKQTlhy9_NRDWIK7_b4f-w3yyRugfbNAFKGRByBPzELHsRn93xlm0rkE=.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_04a35f6275d7600e016ab83c013bc887d1925845ba3bbb6396",
+      "index": 6
+     },
+     {
+      "type": "reasoning.summary",
+      "summary": "**Checking bakery details**\n\nI have enough information now. The correct official address for Bageri is Adlzreiterstr 21, based on another source. I should also maybe mention Adlzreiterstraße 21. I want to confirm their official hours and include Hofpfisterei, which is widely available, plus Julius's three spots. \n\nA richer list would be: Brotatelier, Julius, Bageri, Hofpfisterei, and REIS. I could note that many local bakeries, like Zöttl and Stadler, also exist. It’s key to point out that not all focus solely on sourdough.**Clarifying bakery sources**\n\nI need to find the exact address for Brotatelier from an official source, maybe from MunichTV. I should mention that they sell exclusively sourdough and accept online reservations. Hofpfisterei has branches all over Munich, so I'll refer to their official catalog. I'll also confirm the official address for REIS in Solln. Bageri is another spot where the user can get sourdough. I'll compile this all into a practical list, ensuring I cite all my web-sourced claims properly.",
+      "format": "openai-responses-v1",
+      "index": 7
+     },
+     {
+      "type": "reasoning.encrypted",
+      "data": "gAAAAABquDwH0-dZ-xy-XO_LF2qJB4NMxedOipGUMNXJkXf-Xo8lkGP1n5PuhtXIRurpgD7y055AGc9Za285sIRAXCZzFLzdF_RzN2NTsBcbdlnzYpeC3kOmE5aOqSyvHIteN_NzRFUqe3bxmaYMH3r3aEicKOby4EXp6GZpmiutbvo_jdAosbRWrQCT0_NTxTCZIAwHjYcfRbAwFGX3uKNKgwA9tXI0TPj5QD7WIIVOAUfXamgWrATZbENEFneymb6ffB58p-UxNXH-N3dYL_bfr3nJLZaEtS5mos908QxQTV9WJV3-IvxlUaqNgOrxO49vaZotgB-41yE6pokLY0aNKheG7bOsItTI1BUQKIcjhKJgYhtKKP-e0SkXOODFKva-pR342UUYSNBmH8NjbglPyslHPO29D7rNUmomiH_5JDQJ7GEXa9fl_KgoQgd9hTGU_qoPR5Kmunb72IJbqrKk-qQ8PM61wq1g_2XFw-iY4k2ANmMLSDmJ4SjSim-Ha0ziK6EFL4_eJzJBEgW0aviFCbmWiDJOu9h_wng2i7iV7QqH2Uvrr83zYcqd2ei5uCmwV1LZVcY0zIMOlOLYlMoM-Bzaa5qChW--qsI5EzC12EQvpMoVLtPuh7ZBdyp_tcvHK6GwIBvDGjT8a6V7ngNCHdThKUnFuL-38-XE56zv7kRuQRXlXehsEMqnRSv3BpXT4Olk-_N448CPIK3QCWpE-2T5KG-AYzQLqbEODVJs1ZF8I7xCwWFTFIgeogBY8e9gj0FxSY-jpzJLqDJTHmhAcLtaSog6WrWr6kVPYT436VWBaENbuzbhtMBk8Hf-UjOJkpBOjNPj2MD7qw-haeXUKMaDpNyV9MSmhBo5VNhoVqtj3hWlp0iZkKhPOigCwzlZgY0YlbQoNty0DOxCzSK4IzBRN8vKcL8feDk0_Dsjr0u5oPzCCR84rVG2c7McH4ZZULMi-6pQ6kh1PbxZrEasvstRp3pfsunsqM3x9TRzjeZrI-DcnHFl103vKmtXr-i1TEVlYzOsYQP8EKHilxv0TFoTv1vsdoRMfWe9sZh7MSXD4HXwj_THBsJ0scVSFJV1hEN9NqiRNkvg3nt8zV1OpFilgFeLg5jfjr5fZ_r4lh05-rjbFN0Yz3ve0w05g9ugBwjzCYMeolXBCgAK6WTpowaBbR3vtDsZ2jH2n5QNBmHoYom9UG3eFRnR-SsBUyPzzSnAiS31GyBCMJiMUsaUEDBxpULCooKvJOep42eAT2aCqY6JMaVldrJChVL4POhZ4oYSXXWhjCtBFvXwqtdNjaL7FxLBYEcy86uHxaoTKkJDjMop5U7oHrQ02qYjyMPgdoDFUEpiPUfFAaPo_RqGhTwPQTss0HNStOn3_hTDStbqGn7VAFevoz89rI0Rt6v0GgT8to8hwZxnkhvJTUsY88xZGjXbybRsmnGSOSglryi9ahwlPN72JfCt8m-QisTBJOswebMur4oL66qLhrz5a49sfOMX2rIs7z-D7YQF3uyUht1wMcYH8C7SpUldAaXz1aoTezhUCTcz3segWf23EoivMaTCNyorQWHO4Idu3oHzswK3itK6x-jQtJSovFBCygYZyx-bMUBSOl2i-ACDpYRH7LJa52xeE9KcioSPtrMtJcxqllUwNCVwDZs0LSIneGqSW3zOZ8RJ56_OHAt4ZKLlLZDhe3HsHVnd-XZe7rjC6Pl_9zA26edbXIjHJDFGaGHgMUBi-0p8zvEyVIZJUPpk_mR6M815uTxlU1g6T4seXZ2KRZ7UZjE4wrNk_qglt9sQacmsUJA5XN6LP_YT4JfkOHSh64GoB-AJW5YqHGwJLuDU58h_PPas2kNumLB8MNnl4nHpV-mzp8QQvS4zSjLSwb_DracpF1NmyamdK9oVV8RTCxhaeELK651VhiTkutJ3Bgv3datiJCdMnLEw-9OKtx8mtkOVJMBm1NzkarvOOaEECbB_knVlQwb91wT96edTApVNoMjID8dx5OXrUvemRKdlt-hzdVUcGcmcke1JBOijo9ZkJTeq5dmt5MM0imUTk5ZOdzdoeoIQdNeO1AEdBZ4HRZhWmXQg3o1K6J6mj0Vayimc7ad3ocjpYm6avAnRJGeG3gHVujT2REgTns-hMp5fl6qkfskGz_bkWfEisCVSV9PJ_zSHSogKXyTSvsfTtWc1iQjDQ96GG5UzlhBNcS7x5KmcOXRByGRTE4UodtDrNiOj_eGAf1j8oczBFm4omauWAKP0WGOli5bDQHk1mdI0qcf6UQTZpyGJKlpNQDlGmgEALOwsorw7FbDGpUAgfWR35vRxgXxWMudoGsMjl_OVaV1zKfOHNUhNaLZgUsWpD4V9XyzF4_UNd-qRgcslb5J0zVKlABA3kn1EgvlayspB4Ti1MLOOgqJkFLFH4KcKan2wzXhjxPbzgrOaXjtHjiZwDXDA_X1kwdyI6JTci-pBh2_aijcoy_m_0BN_luDMQk0XM1BJRsMItrWrPdekouVqFQwNx3aAEqfRd5zK3x8yo3xpNbp5CaGztLMJtcfRot0gYc0NpZxYOyT7gj_UL9VViPmRiUa4_G3ZhG_0V8QS3xbzwYwCA8Qx-NoQBoGvuv_GaZyRTtaYwt4Yu-nAt5JCID8HJxa1Qyh2A1Y9_MwjEx3HvUJnfCCghUBjvIVHd_C0WVBm7G0Hb7Ijmz0fpfxxHOty_sEt3pB2J-LVBg_fYJGp4NFydvba5gAtnAQWSMWZYXfV5mWogNxcxZjOr410U1dXlT6yeAQf1K3yDDIXVb9vQ90Xs-Omz416IjJvOPaPB2MeR74ccgE-dPF7rUUGfgF26TlQUUK1Db3Y_Bhk4bjVK2s831JEixO4KxcVDqclYXVoVveUzNnLx76NVU6YAK14i0utV07Pw5oiz_1BIhzt38zSUoR-pJajVqDL34Y9JBr5_b5EjCyu4EuzVqkSOrpQLvdRDCSCeJSVkC4vtlBZt4ULRGfYXyEQe2z3alf8eyg0NwUzr-gV5hft1JdFGb-FpvuZXIX5CIk1BaOfQu1hsbuMWhjFlXyL8EJ4rKkRN7D2o0S6uDZyyTL6kiL1DuHxSxV9uglvYjmIl_jMlRLI44X11F1At7HeqmEh_YnoYrQPv44M_JDdPnzom1frMBaHo1sG-NHC72Kp6FHnID4bX13KT6--hZHO-gpMFJ_eqEZI8TYpFoIywHQ2O5vNctdvklBvafNgPPjkkMFCJA==.eyJlbmRwb2ludF9zbHVnIjoib3BlbmFpL2dwdC02LWx1bmEtMjAyNjA5MjJ8b3BlbmFpIn0",
+      "format": "openai-responses-v1",
+      "id": "rs_04a35f6275d7600e016ab83c055a1887d1a53524c5826b42be",
+      "index": 8
+     }
+    ],
+    "annotations": [
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://brotatelier.sumupstore.com/",
+       "title": "",
+       "start_index": 238,
+       "end_index": 305
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://julius-brantner.de/de/produkte",
+       "title": "",
+       "start_index": 521,
+       "end_index": 583
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://bageri.de/",
+       "title": "",
+       "start_index": 701,
+       "end_index": 734
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.hofpfisterei.de/?utm_source=openai",
+       "title": "",
+       "start_index": 925,
+       "end_index": 992
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://plasma.cafe/brot/",
+       "title": "",
+       "start_index": 1174,
+       "end_index": 1216
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 36819,
+  "completion_tokens": 1269,
+  "total_tokens": 38088,
+  "cost": 0.054426025,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 0,
+   "cache_write_tokens": 4385,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.054426025,
+   "upstream_inference_prompt_cost": 0.003791525,
+   "upstream_inference_completions_cost": 0.0006345
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 856,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  },
+  "server_tool_use_details": {
+   "web_search_requests": 5
+  }
+ }
+}
