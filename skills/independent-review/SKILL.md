@@ -92,10 +92,9 @@ consult it whenever a check's verdict is contested or unclear.
 ## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
 
 1. **Codex CLI** (`codex exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0
-   -c skills.include_instructions=false`: it may start outside a git repo or trusted
-   project, and a project's AGENTS.md and skills stay out of its instructions — one live
-   probe each; it is asked to read AGENTS.md as rules to check against; what else may
-   reach it: R-PROJCTX) — asks the CLI for a read-only sandbox
+   -c skills.include_instructions=false`) — may start outside a git repo or trusted
+   project; a project's AGENTS.md and all skills stay out of its instructions (one live
+   probe each; what else may reach it: R-PROJCTX). Asks the CLI for a read-only sandbox
    (enforcement untested: R-SANDBOX in the open-findings tracker); model +
    effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
    `CODEX_MODEL=<model-tag>` for a harder case or a long plan — config.toml's
