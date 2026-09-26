@@ -31,7 +31,9 @@ subject matter.
 
 - **`POSITIONING.md`** (from `~/.claude/skills/new-website/templates/positioning.md`)
   — the five Dunford components, a one-paragraph positioning statement, reusable
-  boilerplate, and the **per-page positioning spine** (one term per page).
+  boilerplate, and the **per-page positioning spine** (one term per page). It lives
+  in the repo root on a new site; an existing site may keep it in `docs/` with its
+  other strategy documents. Look in both before concluding it is missing.
 - The **`POSITIONING` map** in `tests/positioning.spec.ts` — the same spine, in
   code, that hard-enforces each page carries its term.
 
@@ -66,10 +68,19 @@ subject matter.
    4. **Target customer** — who cares *a lot* about that value; the best-fit
       segment described by traits you can identify, not "everyone".
    5. **Market category** — the context you place the offer in so the value is
-      obvious. Pick the category where your unique value wins.
+      obvious. Pick the category where your unique value wins. Search each
+      candidate before choosing (a trap test): if the results are a different
+      concept, the category will mis-file the site. When the only safe category is
+      also bland ("an app for business travelers"), keep it, and use the frame the
+      customer already holds as the **unlike** in the statement ("not another
+      itinerary app"), never as a title, slug or schema value. The familiar frame
+      does the explaining; the bland category keeps the site correctly filed.
 3. **Write the positioning statement** (one paragraph) and the boilerplate from
    the components. Derive the **core positioning term** — the short, plain phrase
-   you will thread through the home page.
+   you will thread through the home page. Optionally add a **human version** of the
+   statement: the same claim in the owner's own voice, for pitches and the About
+   page. The Dunford paragraph stays the reference; the human version may not add
+   a claim it lacks.
 4. **Set the per-page spine.** One positioning term per page in the
    `POSITIONING.md` table, then mirror it into the `POSITIONING` map in
    `tests/positioning.spec.ts`. The home page also declares `body` phrases (its

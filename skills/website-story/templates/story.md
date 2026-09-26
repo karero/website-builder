@@ -68,10 +68,10 @@
 
 ## One-liner (at most 30 words)
 
-> [Most [character] struggle with [problem]. [Brand] [plan, in one verb phrase] so
-> that [success].]
+> [When you [the visitor's situation], you [the problem, felt]. [Brand] [plan, in one
+> verb phrase]. [Success, as what they do next].]
 
-Stranger test: does someone who has never heard of you understand what you do and
+Open on the visitor's own moment, second person, present tense. Stranger test: does someone who has never heard of you understand what you do and
 for whom? No em dashes (the tone test). **Non-English builds:** write a native
 sentence; do not fill this English frame with translated words.
 

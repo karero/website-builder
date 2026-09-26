@@ -65,7 +65,9 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 
 - **`STORY.md`** (from `~/.claude/skills/website-story/templates/story.md`, or the
   site's own `.claude/skills/website-story/templates/story.md` on a handed-off repo):
-  the story elements, the one-liner, and the seven-section home page map.
+  the story elements, the one-liner, and the seven-section home page map. It goes next
+  to `POSITIONING.md`: the repo root on a new site, or `docs/` on a site that keeps its
+  strategy documents there. Look in both places before concluding either file is missing.
 - Optional **`tests/story.spec.ts`** (from `templates/story.spec.ts`), see §6.
 
 Explicitly **not** touched: `POSITIONING.md`, `tests/positioning.spec.ts`,
@@ -119,10 +121,13 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
   formal-register markets and most B2B copy, one such line is enough; agitation reads
   as pressure there and costs trust.
 - **Success.** One to three lines of life after, about the customer, concrete.
-- **One-liner.** Character + problem + plan + success in one sentence, at most 30
-  words. It must pass a stranger test: does someone who has never heard of you
-  understand what you do and for whom? No em dashes, so it survives the tone test
-  when pasted into copy.
+- **One-liner.** Character + problem + plan + success, at most 30 words, usually two
+  or three short sentences. Open on the visitor's own moment, in the second person
+  and the present tense ("When you travel, you keep missing people worth seeing
+  again."), then the mechanism, then the outcome. A moment the visitor recognises
+  lands harder than a statistic about people like them ("Most travelers…"). It must
+  pass a stranger test: does someone who has never heard of you understand what you do
+  and for whom? No em dashes, so it survives the tone test when pasted into copy.
 - **Controlling idea.** The single thought the whole page reinforces, at most ten
   words. It must agree with the core positioning term in `POSITIONING.md`.
 
@@ -142,9 +147,9 @@ as eval 1):
 - Feature-list one-liner (fails the stranger test, the product is the subject): "An
   open-source suite of Claude Code skills that scaffolds Astro sites with SEO, tests
   and Cloudflare deployment."
-- Story one-liner (28 words, the customer is the subject): "Most organizers wait months
-  and pay monthly for a site nobody finds. With the builder, your AI assistant ships a
-  site that ranks in a week, no subscription."
+- Story one-liner (28 words, the visitor's own moment first): "You need a site people
+  find, and every option costs months or a monthly fee. With the builder, your AI
+  assistant ships one that ranks in a week."
 - Controlling idea: "A site that ranks, live in a week."
 - Plan, titled "Live in a week": 1. Say what you offer and for whom → the positioning.
   2. Let the assistant build and test → every page checked. 3. Publish on free hosting
