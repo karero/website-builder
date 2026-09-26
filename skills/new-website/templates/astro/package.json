@@ -20,20 +20,19 @@
     "prepare": "git config core.hooksPath scripts/hooks 2>/dev/null || true"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.3",
-    "astro": "^7.2.9",
-    "node-html-parser": "^9.0.2"
+    "@astrojs/sitemap": "^3.7.4",
+    "astro": "^7.3.5",
+    "node-html-parser": "^9.0.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@axe-core/playwright": "^4.13.0",
-    "@playwright/test": "^1.62.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.3"
   },
   "allowScripts": {
-    "esbuild@0.28.1": true,
-    "fsevents@2.3.2": true,
+    "esbuild@0.28.2": true,
     "fsevents@2.3.3": true
   }
 }

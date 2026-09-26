@@ -1,0 +1,108 @@
+{
+ "text_blocks": [
+  {
+   "type": "paragraph",
+   "snippet": "Munich has a thriving artisanal bread scene. Several standout craft bakeries specialize in long-fermented, organic, or traditional sourdough (Sauerteig) breads:"
+  },
+  {
+   "type": "list",
+   "list": [
+    {
+     "snippet": "Julius Brantner Brothandwerk — One of Munich's most acclaimed modern artisan bakeries. They specialize in 100% organic ingredients, extended dough resting times, and natural sourdough fermentation. Signature items include their classic \"Brothandwerk 25\" sourdough loaf. Locations include Schwabing (Nordendstraße), Altstadt (Kreuzstraße), and Haidhausen (Pariser Straße).",
+     "snippet_links": [
+      {
+       "text": "Julius Brantner Brothandwerk",
+       "link": "https://julius-brantner.de/"
+      }
+     ],
+     "reference_indexes": [
+      3
+     ]
+    },
+    {
+     "snippet": "Brotraum — A popular organic (bio) artisan bakery in Schwabing known for dedicated handcrafting. They bake a fantastic range of fresh daily sourdough breads, seeded whole-grain (Kornbrot), and walnut sourdough loaves alongside incredible pastries.",
+     "snippet_links": [
+      {
+       "text": "Brotraum",
+       "link": "https://brotraum.bio/"
+      }
+     ]
+    },
+    {
+     "snippet": "Boulangerie Dompierre — While French-focused (using flour imported from a historic mill near Paris), they are famous across Munich for their artisanal naturally leavened French country loaves (levain), baguettes, and rustic sourdough options. They have multiple spots around the city, including on Hans-Sachs-Straße in Glockenbachviertel/Isarvorstadt.",
+     "snippet_links": [
+      {
+       "text": "Boulangerie Dompierre",
+       "link": "http://www.dompierre.de/"
+      }
+     ],
+     "reference_indexes": [
+      4,
+      5
+     ]
+    }
+   ]
+  },
+  {
+   "type": "paragraph",
+   "snippet": "If you're looking for a specific neighborhood or style (like 100% rye sourdough vs. classic wheat sourdough), let me know and I can pinpoint the closest bakery or recommend specific loaves for you."
+  }
+ ],
+ "references": [
+  {
+   "title": "",
+   "link": "https://julius-brantner.de/",
+   "snippet": "",
+   "source": "",
+   "thumbnail": "",
+   "source_icon": "",
+   "index": 0
+  },
+  {
+   "title": "",
+   "link": "https://www.rosewoodhotels.com/de/munich/experiences/munichs-most-respected-baker-julius-brantner-brothandwerk",
+   "snippet": "",
+   "source": "",
+   "thumbnail": "",
+   "source_icon": "",
+   "index": 1
+  },
+  {
+   "title": "",
+   "link": "https://www.muenchen.travel/artikel/stadt-viertel/viertelliebe-muenchen/fachgespraech-julius-brantner",
+   "snippet": "",
+   "source": "",
+   "thumbnail": "",
+   "source_icon": "",
+   "index": 2
+  },
+  {
+   "title": "",
+   "link": "https://www.google.com/searchviewer/10?svid=CAwSGxIZCgNwdnESEkNnc3ZaeTh4ZEhsNWR6SjZjZxgK",
+   "snippet": "",
+   "source": "",
+   "thumbnail": "",
+   "source_icon": "",
+   "index": 3
+  },
+  {
+   "title": "",
+   "link": "https://www.google.com/searchviewer/10?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVdKM2JYYzBkMTl1GAo",
+   "snippet": "",
+   "source": "",
+   "thumbnail": "",
+   "source_icon": "",
+   "index": 4
+  },
+  {
+   "title": "",
+   "link": "https://www.google.com/searchviewer/10?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVhsZmVtbzRaMmN3GAo",
+   "snippet": "",
+   "source": "",
+   "thumbnail": "",
+   "source_icon": "",
+   "index": 5
+  }
+ ],
+ "reconstructed_markdown": "Munich has a thriving artisanal bread scene. Several standout craft bakeries specialize in long\\-fermented, organic, or traditional sourdough \\(Sauerteig\\) breads:\n\n- [Julius Brantner Brothandwerk](https://julius-brantner.de/) — One of Munich's most acclaimed modern artisan bakeries. They specialize in 100% organic ingredients, extended dough resting times, and natural sourdough fermentation. Signature items include their classic \"Brothandwerk 25\" sourdough loaf. Locations include Schwabing \\(Nordendstraße\\), Altstadt \\(Kreuzstraße\\), and Haidhausen \\(Pariser Straße\\). [3]\n- [Brotraum](https://brotraum.bio/) — A popular organic \\(bio\\) artisan bakery in Schwabing known for dedicated handcrafting. They bake a fantastic range of fresh daily sourdough breads, seeded whole\\-grain \\(Kornbrot\\), and walnut sourdough loaves alongside incredible pastries.\n- [Boulangerie Dompierre](http://www.dompierre.de/) — While French\\-focused \\(using flour imported from a historic mill near Paris\\), they are famous across Munich for their artisanal naturally leavened French country loaves \\(levain\\), baguettes, and rustic sourdough options. They have multiple spots around the city, including on Hans\\-Sachs\\-Straße in Glockenbachviertel/Isarvorstadt. [4] [5]\n\nIf you're looking for a specific neighborhood or style \\(like 100% rye sourdough vs. classic wheat sourdough\\), let me know and I can pinpoint the closest bakery or recommend specific loaves for you.\n\n\n### References\n\n[0] [Julius Brantner Brothandwerk](https://julius-brantner.de/) — Unsere Bio Backstuben in München. Backstube Schwabing Nordendstrasse 23 · Backstube Altstadt Kreuzstraße 1 · Backstube Haidhausen Pariser Straße 38\n\n[1] [Münchens angesehenster Bäcker: Julius Brantner Brothandwerk](https://www.google.com/goto?url=CAESqQEB6zswFVzWPSEr_13P08ddfJuHy_lxY8GBbNeT9uK-iL98G9q1f1DuPo8zywo09pAS_hzoAO9M6klVNTs7KV2lzf9lK4r7G3OkNcRkHfi4tTT7EVaXfX3sglm4rtuGINV0XGo3Z3eT_2ofKJXifnhSfyKoeIKI1JoOjwqjSllaOhI6_rlBztwD45J-OVruWa-7C8kz35IS2j_XHDXYVV4gm2q2cpu_5XUC) — Julius Brantner Brothandwerk. StundenDienstag bis Freitag: 08:00 – 18:30 Uhr. Samstag: 08:00 – 17:00 Uhr. Julius Brantner Brothandwerk, Nordendstraße 23, Schwabing...\n\n[2] [Fachgespräch mit Julius Brantner \\- Einfach München](https://www.google.com/goto?url=CAESoAEB6zswFRM0BEXKF7NlC-YByFNwJMP--IEEKg3-qX1Vf5rSr4DL1ZoVgzxEMevrH1Xcacozu08h8zF6ThEOivpreKWgBPdJFymgHrhBXB0wHSmwMg3DU5uM6bnC4zvUL0hw8iHBzBH3BrYL6HWEnzrRQsv_6Gao64cHlaWojBABe4FptD8vGU91wN6JWFh5FkPF0GFyF9hY5tdyW8RgyGDK) — Julius Brantner mit seinen Biobroten, Terrazzo, Marmor und Messing so clean und geschmackvoll,\n\n[3] [Brotraum](https://www.google.com/searchviewer/10?svid=CAwSGxIZCgNwdnESEkNnc3ZaeTh4ZEhsNWR6SjZjZxgK) — Warm bakery \\u0026 cafe for specialty coffees \\u0026 tea, plus savory \\u0026 sweet items like croissants, cinnamon buns \\u0026 fresh bread.\n\n[4] [Boulangerie Dompierre](https://www.google.com/searchviewer/10?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVdKM2JYYzBkMTl1GAo) — Bonjour, wir sind Dompierre\\!\\nUnsere Brote bestehen ausschließlich aus Mehl, Wasser, Hefe, Salz und ganz viel Liebe. Nichts anderes...\n\n[5] [Warmes Sauerteigbrot](https://www.google.com/searchviewer/10?svid=CAwSHRIbCgNwdnESFENnMHZaeTh4TVhsZmVtbzRaMmN3GAo) — Unsere Bio Backstuben in München. Backstube Schwabing Nordendstrasse 23 · Backstube Altstadt Kreuzstraße 1 · Backstube Haidhausen Pariser Straße 38\n"
+}

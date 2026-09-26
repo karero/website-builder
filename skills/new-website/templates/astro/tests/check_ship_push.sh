@@ -23,7 +23,7 @@
 #
 # template-version: 0.21   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
-cd "$(dirname "$0")/.."
+CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
 
 work="$(mktemp -d)"

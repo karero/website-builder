@@ -30,6 +30,10 @@ Everything needed is bundled here:
 - `templates/PUBLISHING.md` — plain-English "how to publish" for the owner
   (`commit`/`push`/`branch` explained + step-by-step per publish model), plus the
   assistant-facing **deploy-time guardrails** (§4).
+- `templates/AGENTS.md` + `templates/CLAUDE.md` — the working rules every assistant
+  (Codex, Claude Code) follows in the repo: fetch the latest state first, pull request
+  instead of a direct push, when a merge is allowed, never invent facts, the new-page
+  checklist. `CLAUDE.md` is one line (`@AGENTS.md`), so both tools read the same rules.
 - `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
   permission allowlist to copy into the repo.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
@@ -51,6 +55,10 @@ repo's permission allowlist (fewer prompts, same guardrails); `search-console-se
 polish layer (stat count-up + section-heading reveal) for sites with a long scrolling
 homepage, plus the reduced-motion contract and the a11y-gate change that keep motion
 from silently hiding content. `website-motion` is never run by default: ask for it.
+`website-team-setup` is the other on-demand skill — run it once when a **second person**
+joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
+pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
+in `AGENTS.md`); a single owner never needs it.
 
 ## 1. Decision interview (answer before any code)
 
@@ -241,12 +249,14 @@ Assemble the project at `<site>/` so it travels without any global setup:
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch. **Astro needs Node ≥22.12** — the overlay's `.nvmrc` pins
    22 for local + Cloudflare Pages builds.
-2. **Permissions.** Copy the setup guide into the project (all tools), then — **Claude Code
+2. **Permissions + working rules.** Copy the setup guide into the project (all tools), then — **Claude Code
    only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't
    prompt (it still asks for `rm -rf`, `git push --force`, `wrangler … delete`, `gh repo delete`):
    ```bash
    cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .          # all tools — receiving party can set up too
    cp "$SKILLS_ROOT"/new-website/templates/PUBLISHING.md .     # owner "how to publish" + assistant deploy guardrails
+   cp "$SKILLS_ROOT"/new-website/templates/AGENTS.md .         # working rules for every assistant (Codex + Claude)
+   cp "$SKILLS_ROOT"/new-website/templates/CLAUDE.md .         # one line: @AGENTS.md
    # Claude Code only:
    mkdir -p .claude
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
@@ -255,7 +265,17 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the twenty-two always-on skills in, plus any
+   **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
+   preview URL (two-stage: `main.<project>.pages.dev`; single-stage: "pull-request
+   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; update the
+   project name if Cloudflare later forces another one), `[TITLE_SUFFIX]` = the
+   ` | {SITE.name}` string `Base.astro` appends, `[SUFFIX_LENGTH]` = its length, and
+   `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
+   interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
+   rule, who publishes) ships with single-owner defaults, not slots; `website-team-setup`
+   rewrites it when a team forms. Non-English owner: translate `AGENTS.md` in-session
+   like `PUBLISHING.md` — rules and commands intact.
+3. **Skills travel with the repo** — copy the twenty-three always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -270,8 +290,10 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `website-permissions` (allowlist),
    `search-console-setup` (post-launch GSC/Bing/IndexNow),
    `business-listings-setup` (post-launch Business Profile/Bing Places/
-   `sameAs` — gated per §4a), and `website-motion` (optional polish — copied so
-   the recipient can opt in later; it never runs on its own):
+   `sameAs` — gated per §4a), `website-motion` (optional polish — copied so
+   the recipient can opt in later; it never runs on its own), and `website-team-setup`
+   (copied so the day a second person joins, the session that sets up the team finds
+   it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
    them, not `cp -R`, or the copy ships broken symlinks pointing back at the
@@ -300,6 +322,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/search-console-setup \
          "$SKILLS_ROOT"/business-listings-setup \
          "$SKILLS_ROOT"/website-motion \
+         "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    ```
    The global copies stay the updateable source of truth; the project copies are
@@ -357,7 +380,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage suite out of the box). Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
@@ -463,6 +486,9 @@ hold Search Console Request Indexing until then.
       translation or replacement MUST keep the "For AI assistants — deploy-time
       guardrails" section (translated is fine, dropped is not — it is the post-handoff
       agent's only copy of those rules).
+- [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
+      this build, Production variable `CANONICAL_URL` set and redeployed; `curl -sI` on the
+      alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
@@ -477,7 +503,9 @@ hold Search Console Request Indexing until then.
       outcomes — distinct from "skipped by owner choice".
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
-      `PUBLISHING.md` (with its "For AI assistants" guardrails section intact), and a
+      `PUBLISHING.md` (with its "For AI assistants" guardrails section intact),
+      `AGENTS.md` + `CLAUDE.md` (no `[BRACKET]` slot left, the scaffold note removed,
+      one publish-model block kept in §2), and a
       `README.md` with the decision answers + "how to add a page / run tests / deploy".
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity

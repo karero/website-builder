@@ -174,7 +174,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > and `--refresh` will never touch it — reports mark it "(pinned)". Plain
 > `make whats-new` shows the suite's recent skill changes.
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
-> `playwright.config.ts`, `functions/_middleware.ts`, `.github/workflows/ci.yml`,
+> `AGENTS.md`, `playwright.config.ts`, `functions/_middleware.ts`, `.github/workflows/ci.yml`,
 > `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
@@ -253,6 +253,9 @@ skills/            the suite skills (canonical)
   search-console-setup, business-listings-setup   (bundled deps)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
+  website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
+                   settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
+                   copied to every site, runs only when a second person joins)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
@@ -262,19 +265,30 @@ scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
   package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
+  whats-new.sh     skill changes since a project was scaffolded (--refresh re-copies them)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
-docs/
+  check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
+  test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
+  GETTING-STARTED.md   the gentle version — start here if the suite is new to you
+  UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
+  ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
+  CODEX-TEST.md    testing the suite itself with Codex
+  DECISIONS_PENDING.md  maintainer-internal: open questions on the toolkit itself
+  PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
+  PROGRESS-TRACKER.html progress-tracker mockup
 ```
 
-### Opt-in setup skills
+### Opt-in and on-demand setup skills
 
-Two skills are **not** part of the default build — the orchestrator pulls them in only when
-the decision interview calls for them:
+Three skills are **not run** by the default build — the orchestrator copies the first two
+into a site only when the decision interview calls for them; the third travels with every
+site (like `website-motion`) but runs only when a team forms:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
   + prefixed others), self-referencing hreflang + `x-default`, sitemap alternates, a language
@@ -288,9 +302,19 @@ the decision interview calls for them:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
+- **`website-team-setup`** — turns a one-person repo into one several people and several
+  AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
+  collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
+  workflow really starts on its own, blocks direct pushes to `main` (ruleset, or the
+  shipped pre-push hook on a private free-plan repo), connects Cloudflare Pages to GitHub
+  without the known traps, and sets the collaborators' rights level and who may publish
+  live in `AGENTS.md`. Every scaffold already ships the `AGENTS.md` working rules (fetch
+  first, pull request instead of a push, never invent facts, the new-page checklist) — this
+  skill adds only what a team needs. Run once, when the second person joins.
 
-Because they're opt-in, the standard scaffold is unchanged — a site with one language and a
-developer-edited repo never touches either.
+A site with one language, a developer-edited repo and a single owner runs none of them.
+Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
+forms, `website-team-setup` only adds what a team needs.
 
 ### Use it locally
 

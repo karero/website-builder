@@ -491,9 +491,25 @@ def main():
     ap.add_argument("--query", default="",
                     help="Exact query string: also report which pages serve it "
                          "(cannibalization check).")
+    ap.add_argument("--no-browser", action="store_true",
+                    help="Never open a browser for sign-in: if the saved token can't be "
+                         "refreshed silently, exit 2 with instructions (track.sh uses this, "
+                         "so a scheduled run can't hang waiting for a browser nobody opens).")
     args = ap.parse_args()
 
-    creds = load_credentials(Path(args.client_secret), Path(args.token))
+    if args.no_browser:
+        try:
+            from google.auth.exceptions import RefreshError
+        except ImportError:  # load_credentials reports missing dependencies itself
+            RefreshError = RuntimeError
+        try:
+            creds = load_credentials(Path(args.client_secret), Path(args.token), interactive=False)
+        except (RuntimeError, RefreshError) as e:
+            eprint(f"Search Console sign-in needs renewing ({type(e).__name__}: {e}).\n"
+                   "Ask Claude to reconnect Search Console (it re-runs the one-time sign-in).")
+            sys.exit(2)
+    else:
+        creds = load_credentials(Path(args.client_secret), Path(args.token))
     service = build_service(creds)
 
     # Confirm access + capture permission level (proxy for "is this set up?").

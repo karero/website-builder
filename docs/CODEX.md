@@ -60,9 +60,13 @@ sequences the rest of the `website-*` skills.
   `$SKILLS_ROOT`, so it works regardless of which tool installed the suite.
 - Codex can also read **repo-scoped** skills from `.agents/skills` within a project.
 - `templates/claude/settings.json` is Claude Code-specific (its command-allowlist model).
-  For Codex, use **`AGENTS.md`** for durable project instructions and Codex's own
-  rules/config for command-approval policy. The bundled `website-permissions` skill is a
-  no-op for Codex.
+  For Codex, durable project instructions live in **`AGENTS.md`** — every scaffold ships
+  one (`templates/AGENTS.md`: fetch the latest state first, pull request instead of a
+  direct push, merge conditions, never invent facts, the new-page checklist; `CLAUDE.md`
+  imports it so Claude Code follows the same rules) — and command-approval policy in
+  Codex's own rules/config. The bundled `website-permissions` skill is a no-op for Codex.
+  `AGENTS.md` also has a dedicated **Codex cloud** path: a browser task starts from a
+  fresh clone, fetches nothing, and the person presses "Create PR".
 - Project-bundled skills are copied into `.claude/skills/` by default (so a Claude
   recipient is self-contained). The scaffold derives `$PROJECT_SKILLS_DIR` automatically —
   if the suite was installed through Codex or Antigravity (`$SKILLS_ROOT` = `~/.agents/skills`

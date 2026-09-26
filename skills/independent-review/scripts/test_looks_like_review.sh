@@ -2,7 +2,7 @@
 # Regression cases for looks_like_review() in independent_review.sh: which reviewer output counts as
 # a review, and which as a refusal. Run: bash skills/independent-review/scripts/test_looks_like_review.sh
 set -u
-here="$(cd "$(dirname "$0")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/independent_review.sh")"
 [ -n "$fn" ] || { echo "FAIL: could not extract looks_like_review"; exit 1; }
 # eval must only ever see the function: if the extraction ran past its closing brace, it would run
@@ -12,6 +12,13 @@ fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/i
   || { echo "FAIL: extraction did not stop at looks_like_review's own closing brace"; exit 1; }
 eval "$fn"
 fail=0
+# The clean-verdict regex spells its qualifier list out twice; the copies must not drift. A
+# qualifier list is any group of eleven or more alternated words; no other group comes close.
+lists="$(printf '%s\n' "$fn" | grep -oE '\([a-z-]+(\|[a-z-]+){10,}\)')"
+n="$(printf '%s' "$lists" | grep -c .)"; distinct="$(printf '%s' "$lists" | sort -u | grep -c .)"
+if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
+  echo "ok   the two copies of the qualifier list are identical"
+else echo "FAIL expected two identical qualifier lists, found $n list(s), $distinct distinct"; fail=1; fi
 check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
   if looks_like_review "$3"; then got=accept; else got=reject; fi
   if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
@@ -23,6 +30,23 @@ check accept "real multi-finding review with a refusal-like aside" "I could not 
 check accept "clean verdict: no findings" "No findings."
 check accept "clean verdict: findings none" "Ranked findings: none."
 check accept "clean verdict: no BUG / RISK / NIT" "No BUG / RISK / NIT findings in this diff."
+# 2026-09-20: a genuine clean review was discarded because a qualifier sat between "no" and the
+# severity word. Each qualified case below rejects on the script as it was before that fix.
+check accept "clean verdict: the 2026-09-20 sentence" "No confirmed BUG or RISK in the supplied diff."
+check accept "clean verdict: the 2026-09-20 sentence inside a full clean review" "No confirmed BUG or RISK in the supplied diff. I cannot verify numeric file:line anchors without reading the files.
+
+Checked and CLEAN by static inspection:
+
+- \`cap.rb:read_count\` — rejects negative, fractional and nonnumeric counts.
+- \`server.rb:tool_description\` — explains the separate totals without encouraging addition.
+
+Coverage limits: no commands or tests were run."
+check accept "clean verdict: one qualifier, singular" "No definite BUG."
+check accept "clean verdict: lower case, plural" "I found no confirmed bugs in this change."
+check accept "clean verdict: two qualifiers joined by 'or'" "No new or confirmed RISK."
+check accept "clean verdict: qualifiers separated by a comma" "No confirmed, definite BUG."
+check accept "clean verdict: three qualifiers, Oxford comma" "No new, confirmed, or likely BUG."
+check accept "clean verdict: the unqualified form still passes" "No BUG or RISK."
 check reject "empty output" ""
 check reject "unrelated output: a rate-limit error" "Error: 429 Too Many Requests: you have reached your weekly usage limit"
 check reject "bare refusal" "I cannot review this content."
@@ -32,21 +56,51 @@ check reject "review refusal with the UNVERIFIABLE marker" "- BUG: I cannot revi
 check reject "access refusal that copies the marker" "- BUG: I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
 check reject "access refusal with the marker and a clean verdict" "I cannot access the file. UNVERIFIABLE. No findings."
 check reject "access refusal that copies the marker and an anchor" "- BUG: foo.rb:12 — I cannot access the file. UNVERIFIABLE. Please paste it before I can assess it."
+check reject "baseline, rejected before the fix too: plain refusal, no verdict" "I'm sorry, but I am unable to review this diff because the repository is not available to me."
+check reject "refusal carrying the qualified clean verdict (the refusal check runs first)" "No confirmed BUG or RISK, because I cannot access the diff you supplied."
+# The qualifiers are a literal list, not "any word": with [a-z-]+ in their place this accepts.
+check reject "'no way to find bugs' is not a clean verdict" "There is no way to find bugs in this without more context."
+check accept "clean verdict: five qualifiers, the bound" "No new, real, actual, confirmed or likely BUG."
+check reject "six qualifiers: the bound is five" "No new, real, actual, genuine, confirmed or likely BUG."
+# A comma or conjunction may stand only between two qualifiers: never first, never last.
+check reject "leading conjunction: 'no and risk'" "I can only answer yes or no and risk being wrong."
+check reject "trailing conjunction: 'no material and risk'" "I received no material and risk guessing if I answer."
+check reject "trailing conjunction: 'No confirmed or BUG'" "No confirmed or BUG."
+check reject "trailing comma: 'no new material, bugs'" "I have no new material, bugs cannot be judged."
 # The price of the marker- and anchor-copying rejects above: an honest lone finding that cannot read its evidence also
 # rejects, because by its text alone it cannot be told from them.
-check reject "KNOWN WRONG: an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
 
 CLEAN: checked the caller's arguments."
 # Known wrong too, and tracked with the case above as B-REFUSAL-TEXT in
 # docs/reviews/OPEN-FINDINGS-independent-review.md. These pin today's behaviour, so a fix has to
 # change them on purpose.
-check accept "KNOWN WRONG: two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
 2. RISK — I cannot access the repository."
-check reject "KNOWN WRONG: the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
-check reject "KNOWN WRONG: a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
-check accept "KNOWN WRONG: 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
-check accept "KNOWN WRONG: 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
-check accept "KNOWN WRONG: 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
-check accept "KNOWN WRONG: 'unable to view' is not a refusal phrase" "- RISK: I was unable to view the diff."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'unable to view' is not a refusal phrase" "- RISK: I was unable to view the diff."
+# The same four phrases in prose after a clean verdict (B-REFUSAL-TEXT, widened). After a plain
+# "No BUG or RISK" each was accepted before 2026-09-20 as well; the qualified verdict is what that
+# fix newly lets through.
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'couldn't access'" "No confirmed BUG or RISK, because I couldn't access the diff you supplied."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'don't have access'" "No confirmed BUG or RISK, because I don't have access to the diff you supplied."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'unable to view'" "No confirmed BUG or RISK: I was unable to view the diff."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'can not review'" "No confirmed BUG or RISK - the diff was not attached, so I can not review it."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): the unqualified twin, accepted before the fix too" "No BUG or RISK, because I couldn't access the diff you supplied."
+# A non-answer in the passive voice or with the severity word as a noun modifier, no refusal
+# phrase at all (B-VERDICT-TEXT). The qualified forms reject on the script as it was before
+# 2026-09-20. The two pinned first are unqualified forms that were accepted before too.
+check accept "KNOWN WRONG (B-VERDICT-TEXT): pre-existing 'No risk can be assessed'" "No risk can be assessed without the file contents."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): pre-existing 'No bug reports can be generated'" "No bug reports can be generated."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): passive 'can be assessed'" "No significant risk can be assessed without the file contents."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): passive 'could be evaluated'" "The diff was empty, so no confirmed bugs could be evaluated."
+check accept "KNOWN WRONG (B-VERDICT-TEXT): 'no further risk analysis possible'" "Error: stream disconnected. no further risk analysis possible"
+check accept "KNOWN WRONG (B-VERDICT-TEXT): 'No further bug reports can be generated'" "No further bug reports can be generated: usage limit reached."
+# Why the passive voice cannot simply be rejected: a genuine verdict takes the same shape.
+check accept "clean verdict: passive 'could be found'" "No confirmed bugs could be found in this diff."
 exit $fail

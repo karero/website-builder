@@ -3,7 +3,7 @@
 # zip — run this instead of editing a separate package copy.
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT="$REPO_DIR/dist"
 mkdir -p "$OUT"
 rm -f "$OUT/website-builder.zip"
@@ -28,7 +28,7 @@ zip -r -X "$OUT/website-builder.zip" \
   skills docs README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md Makefile \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
-  scripts/test_install_pin.sh scripts/check_template_coverage.sh \
+  scripts/test_install_pin.sh scripts/check_template_coverage.sh scripts/check_cdpath_safe.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
 
@@ -36,7 +36,9 @@ echo "built $OUT/website-builder.zip"
 unzip -l "$OUT/website-builder.zip" | tail -1
 
 # Integrity check: a handoff zip missing any of these is broken (legal notices, install
-# path, the orchestrator, or the architecture doc it points at). Fail loud if so.
+# path, the orchestrator, the architecture doc it points at, and every root file the
+# orchestrator's §3 step 2 copies into a site — a zip missing one scaffolds a broken repo — plus
+# the on-demand team skill and its guide, which §3 also copies). Fail loud if so.
 REQUIRED=(
   README.md
   LICENSE
@@ -52,6 +54,7 @@ REQUIRED=(
   scripts/check_skill_budgets.sh
   scripts/test_install_pin.sh
   scripts/check_template_coverage.sh
+  scripts/check_cdpath_safe.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
@@ -60,6 +63,13 @@ REQUIRED=(
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
   skills/new-website/templates/PUBLISHING.md
+  skills/new-website/templates/SETUP.md
+  skills/new-website/templates/.gitignore
+  skills/new-website/templates/claude/settings.json
+  skills/new-website/templates/AGENTS.md
+  skills/new-website/templates/CLAUDE.md
+  skills/website-team-setup/SKILL.md
+  skills/website-team-setup/templates/TEAM-GUIDE.md
 )
 zipfiles="$(unzip -Z1 "$OUT/website-builder.zip")"
 missing=0

@@ -13,7 +13,7 @@
 # loosening it to "match nothing".
 set -uo pipefail
 export LC_ALL=C   # unlocalized grep output — filter_ignored parses "Binary file … matches"
-cd "$(dirname "$0")/.."
+CDPATH= cd -- "$(dirname -- "$0")/.."
 SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
 # handoff, including LICENSE. NOT the scripts (they DEFINE the secret regexes — would
@@ -100,7 +100,9 @@ report "email address" "$(g -rinE "$EMAIL" $SCAN_DOCS \
   | grep -viE '@(example|test|domain|yoursite|site|company)\b|example\.(com|org)|@(type|id|context|media|import|2x|3x|font-face|keyframes)|(you|user|name|email|first\.last|hello|info|team)@|git@(github|gitlab)\.com')"
 
 # 4. Credential / secret formats + private keys + JWTs.
-SECRETS='(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})'
+# sk-/pplx- cover OpenAI (incl. sk-proj-), Anthropic (sk-ant-) and Perplexity keys for the
+# AI check; they must start a word, or hyphenated prose ("risk-free-and-...") would match.
+SECRETS='(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}|(^|[^A-Za-z0-9_-])pplx-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})'
 report "credential/secret" "$(g -rnE "$SECRETS" $SCAN_DOCS)"
 
 # 5. Secret-looking assignments:  (api_key|secret|token|password|...) = "longish-literal"

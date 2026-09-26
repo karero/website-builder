@@ -6,7 +6,7 @@
 # owner's real setup (this script's pre-2026-08-29 ancestor, check_model_defaults.sh,
 # managed that drift; this version prevents the class).
 set -uo pipefail
-cd "$(dirname "$0")/.."
+CDPATH= cd -- "$(dirname -- "$0")/.."
 
 SKILL_DIR="skills/independent-review"
 

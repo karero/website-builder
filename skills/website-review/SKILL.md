@@ -96,7 +96,7 @@ recommendation, never to pick unasked.
   hand against this pass's checklist, or vendor the generic `double-knuth`
   skill from the website-builder suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
-- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
+- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
 - Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
   pages OR `public/` assets (the manifest's fields are brackets too — no spec reads them).
@@ -131,7 +131,11 @@ recommendation, never to pick unasked.
   image eager (`fetchpriority="high"`), below-fold lazy; no oversized files.
 - **Email:** every address rendered via `<EmailLink>`; `email.spec.ts` green.
 - **Headers/redirects:** `_headers` CSP present; legacy URLs 301 in `_redirects`; the
-  `*.pages.dev` preview-noindex middleware in place.
+  `*.pages.dev` middleware in place (previews noindexed); on a launched site,
+  `https://<project>.pages.dev/` answers 301 to the live domain — if it answers 200, see
+  the causes listed in `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
+  go-live", step 3 (variable not under Production or rejected, no redeploy since, or a
+  middleware that predates the redirect).
 - **Secrets:** no `.env`/token committed; `.gitignore` covers them.
 - **Docs match code:** README test list + "how to add a page / run tests / deploy" current;
   `CONTENT_GUIDE.md` + `BRAND.md` filled; decision-interview answers recorded; the handoff
