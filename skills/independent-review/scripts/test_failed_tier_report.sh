@@ -32,14 +32,16 @@ cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex-ran"
 # Like the real CLI (0.157.0, seen 2026-09-26): outside a git repo, refuse to start
-# unless --skip-git-repo-check is passed. Records its whole argv except the prompt (the
-# last argument), so a test can pin it exactly: an added sandbox override fails the match
-# instead of hiding behind "-s read-only is in there somewhere" (round 1, fresh-eyes).
-skip=0 n=$# i=0 argv=
+# unless --skip-git-repo-check is passed. Records its whole argv, the prompt replaced by
+# <prompt> (found by its content, not its position), so a test can pin it exactly: an
+# added sandbox override fails the match instead of hiding behind "-s read-only is in
+# there somewhere" (round 1, fresh-eyes), and so does one placed after the prompt or
+# after a prompt moved to stdin (round 2, fresh-eyes and ollama).
+skip=0 argv=
 for a; do
-  i=$((i+1))
   [ "$a" = --skip-git-repo-check ] && skip=1
-  [ $i -lt $n ] && argv="$argv $a"
+  case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
+  argv="$argv $a"
 done
 printf 'argv=%s cwd=%s\n' "${argv# }" "$(pwd -P)" >"$STUB_MARKS/codex-args"
 if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -270,7 +272,7 @@ for m in "" stub-override; do
   check "$name: the stub really is outside a git repo" env -u GIT_DIR -u GIT_WORK_TREE \
     sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$CEILING"
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
-  want="argv=exec -s read-only --skip-git-repo-check${m:+ -c model=\"$m\"} cwd=$NOGIT"
+  want="argv=exec -s read-only --skip-git-repo-check${m:+ -c model=\"$m\"} <prompt> cwd=$NOGIT"
   check "$name: exact argv (read-only, nothing looser) in the caller's cwd" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done

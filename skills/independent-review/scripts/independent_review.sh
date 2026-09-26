@@ -39,10 +39,11 @@
 # FAILED" quoting its error — and the run ends with one "reviewers:" line
 # (e.g. "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: …)").
 #
-# SECURITY. The preferred reviewer runs as `codex exec -s read-only --skip-git-repo-check`
-# (the flag only lets it start outside a git repo; see run_codex), which ASKS
-# the CLI for a read-only sandbox; whether it blocks writes is not tested here
-# (R-SANDBOX in docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
+# SECURITY. The preferred reviewer runs as `codex exec -s read-only`, which ASKS
+# the CLI for a read-only sandbox (plus --skip-git-repo-check, which only lets it start
+# outside a git repo or trusted project; see the note above codex_bin); whether it
+# blocks writes is not tested here (R-SANDBOX in
+# docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
 # only sends text. So: treat any external reviewer as untrusted, keep reviews off
 # anything you could not afford a stray write to, and never pass a write/danger
 # sandbox flag for a review.
@@ -209,7 +210,8 @@ unset PROMPT 2>/dev/null || true
 # PROMPT is built per TIER. The tiers do not have the same capabilities, and a single prompt
 # written to the weakest one silently caps the strongest.
 #
-#   codex     `exec -s read-only` in the CALLER'S cwd  -> read-only sandbox, sees the working tree
+#   codex     `exec -s read-only --skip-git-repo-check` in the CALLER'S cwd
+#                                                      -> read-only sandbox, sees the working tree
 #   agy       `cd "$sbox"` into an empty mktemp dir    -> UNKNOWN, and deliberately not guessed.
 #                                                         It is sandboxed and its cwd is empty, but
 #                                                         neither fact establishes what it can read
