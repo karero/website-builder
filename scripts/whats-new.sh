@@ -205,6 +205,9 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   # pinned change is reported until the next refresh, not forever.
   keep=""
   [ -f "$skills_dir/REFRESH-KEEP" ] && keep="$(sed 's/#.*//' "$skills_dir/REFRESH-KEEP")"
+  # Matched below via herestrings, not `printf | grep -q`: under pipefail, grep -q exiting
+  # on its match can fail the printf once the list passes the pipe buffer, and a pinned
+  # skill would then read as unpinned and be overwritten.
 
   if [ -z "$stale" ]; then
     echo "Up to date — none of this dir's bundled skills changed upstream since then."
@@ -214,7 +217,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
-    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
+    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$(printf '%s\n' $keep)"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
     else
       echo "  $s"
@@ -252,7 +255,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   missing=0
   for s in $stale; do
-    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
+    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$(printf '%s\n' $keep)"; then
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
@@ -352,7 +355,7 @@ CHANGED
   echo
   echo "Review + merge each by hand, e.g.:"
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(printf '%s\n' "$changed" | head -1)"
-  if printf '%s\n' "$changed" | grep -q '_helpers\.ts$'; then
+  if grep -q '_helpers\.ts$' <<<"$changed"; then
     echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, and i18n.spec.ts"
     echo "on multilingual sites), so merge the helpers together with any spec that uses the"
     echo "new exports, or the import breaks loudly."

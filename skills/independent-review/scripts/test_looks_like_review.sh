@@ -12,6 +12,25 @@ fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/i
   || { echo "FAIL: extraction did not stop at looks_like_review's own closing brace"; exit 1; }
 eval "$fn"
 fail=0
+check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
+  if looks_like_review "$3"; then got=accept; else got=reject; fi
+  if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
+}
+# Replies past the pipe buffer (~64 KiB). independent_review.sh runs under pipefail, and its
+# matches were `printf | grep -q`: grep -q exiting on its match failed the printf, which flipped
+# the result — every large clean review was rejected, and a refusal whose clean verdict came last
+# was accepted. The parent runs these as it was started; a child reruns them with SIGPIPE
+# ignored (EPIPE instead of a signal), as on GitHub Actions runners.
+big_cases() {  # $1 = label suffix
+  local pad
+  pad="$(awk 'BEGIN{for(i=0;i<2000;i++) print "Checked the handler and its callers for regressions, line " i "."}')"
+  check accept "clean verdict ahead of a 140 KB reply$1" "No findings.
+$pad"
+  check reject "refusal ahead of a 140 KB reply whose clean verdict comes last$1" "I cannot access the file.
+$pad
+No findings."
+}
+if [ "${1:-}" = --big-cases ]; then set -o pipefail; big_cases "${2:-}"; exit $fail; fi
 # The clean-verdict regex spells its qualifier list out twice; the copies must not drift. A
 # qualifier list is any group of eleven or more alternated words; no other group comes close.
 lists="$(printf '%s\n' "$fn" | grep -oE '\([a-z-]+(\|[a-z-]+){10,}\)')"
@@ -19,10 +38,6 @@ n="$(printf '%s' "$lists" | grep -c .)"; distinct="$(printf '%s' "$lists" | sort
 if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
   echo "ok   the two copies of the qualifier list are identical"
 else echo "FAIL expected two identical qualifier lists, found $n list(s), $distinct distinct"; fail=1; fi
-check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
-  if looks_like_review "$3"; then got=accept; else got=reject; fi
-  if [ "$got" = "$1" ]; then echo "ok   $2"; else echo "FAIL $2: expected $1, got $got"; fail=1; fi
-}
 check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
 check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
 1. BUG — a.rb:1 — x is wrong now.
@@ -103,4 +118,9 @@ check accept "KNOWN WRONG (B-VERDICT-TEXT): 'no further risk analysis possible'"
 check accept "KNOWN WRONG (B-VERDICT-TEXT): 'No further bug reports can be generated'" "No further bug reports can be generated: usage limit reached."
 # Why the passive voice cannot simply be rejected: a genuine verdict takes the same shape.
 check accept "clean verdict: passive 'could be found'" "No confirmed bugs could be found in this diff."
+set -o pipefail
+big_cases ""
+if command -v perl >/dev/null 2>&1; then
+  perl -e '$SIG{PIPE}="IGNORE"; exec @ARGV' bash "$0" --big-cases " (SIGPIPE ignored)" || fail=1
+else echo "SKIP the SIGPIPE-ignored large replies: they need perl to start bash with SIGPIPE ignored"; fi
 exit $fail
