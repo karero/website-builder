@@ -51,3 +51,6 @@ Tally: 1 fixed, 4 refuted or moot, 3 out of scope. None open in this PR.
 F1–F4: a separate task, "Fix pipefail early-exit pipelines that misreport", covering
 `package.sh`, `independent_review.sh` and the latent SUBJECTS cases, with a >64 KiB
 regression test for the leak check.
+
+**Done:** karero/website-builder#130 (merged `03e32a0`) fixed F1–F4; its record is
+`REVIEW-diff-2026-09-26-r1-pr130.md`. The lint that keeps the pattern out is karero/website-builder#131.
