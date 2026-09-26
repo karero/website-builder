@@ -3,10 +3,10 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "POSITIONING.md is filled: target customer = owners of small independent bakeries who want more pre-orders; competitive alternatives = a generic web agency or building it themselves; unique attribute = a fixed-price site delivered in ten days with the QA suite; proof = 14 bakery sites shipped; value = a site that brings in pre-orders; market category = small-business website studio. Yes, build the home page as a customer story.",
-      "expected_output": "Reads POSITIONING.md before writing anything. Produces STORY.md from the template with every element filled and each traceable to a POSITIONING.md section: character = bakery owner wanting pre-orders; villain = the generic-agency or do-it-yourself status quo, with external, internal and philosophical layers; a guide empathy sentence plus an authority sentence using only the '14 bakery sites' proof; a titled three-step verb-first plan; one direct CTA label stated as repeated, and a transitional CTA or an explicit blank (not an invented lead magnet); proportionate stakes; concrete success; a one-liner of 30 words or fewer and a controlling idea of ten words or fewer that agrees with the core positioning term; the seven-section home page map. The market category is unchanged. Does not edit POSITIONING.md, tests/positioning.spec.ts, SITE.tagline or BRAND.md. Mentions copying story.spec.ts into tests/ and filling its CONFIG.",
+      "prompt": "Yes, build the home page as a story.",
+      "expected_output": "Reads the POSITIONING.md file before writing anything. Produces STORY.md from the template with every element filled and each traceable to a POSITIONING.md section: character = bakery owner wanting pre-orders; villain = the generic-agency or do-it-yourself status quo, with external, internal and philosophical layers; a guide empathy sentence plus an authority sentence using only the '14 bakery sites' proof; a titled three-step verb-first plan; one direct CTA label stated as repeated, and a transitional CTA or an explicit blank (not an invented lead magnet); proportionate stakes; concrete success; a one-liner of 30 words or fewer and a controlling idea of ten words or fewer that agrees with the core positioning term; the seven-section home page map. The market category is unchanged. Does not edit POSITIONING.md, tests/positioning.spec.ts, SITE.tagline or BRAND.md. Mentions copying story.spec.ts into tests/ and filling its CONFIG.",
       "assertions": [
-        "Reads POSITIONING.md first and invents no claims",
+        "Reads the POSITIONING.md file first and invents no claims",
         "Every story element cites the POSITIONING.md section it comes from",
         "The villain is the status quo or situation, not a competitor by name",
         "Guide authority reuses the existing proof only",
@@ -17,20 +17,24 @@
         "POSITIONING.md, positioning.spec.ts, SITE.tagline and BRAND.md are left untouched",
         "Mentions copying story.spec.ts into tests/ and filling CONFIG"
       ],
-      "files": []
+      "files": [
+        "evals/files/POSITIONING.md"
+      ]
     },
     {
       "id": 2,
-      "prompt": "While drafting the story for our consultancy I think the real villain is that clients cannot get senior attention at the big firms, but POSITIONING.md says the competitive alternative is 'an in-house hire'. Which do we go with?",
-      "expected_output": "Applies the governing rule: POSITIONING.md is the source of truth for what is claimed; STORY.md only narrates it. Either derives the villain from the in-house-hire alternative (the status quo the customer actually has), or, if the owner believes the positioning itself is wrong, stops and routes them to website-positioning to change POSITIONING.md first, then corrects STORY.md. Does not quietly write a villain that contradicts the positioning, and does not name the big firms as the villain.",
+      "prompt": "While drafting the story I think the real villain is the big agencies that ignore small clients like bakeries, but POSITIONING.md says the alternatives are a generic agency's slow process, doing it yourself, or leaving the old site. Which do we go with?",
+      "expected_output": "Applies the governing rule: POSITIONING.md is the source of truth for what is claimed; STORY.md only narrates it. Derives the villain from the situation the positioning names (the unfinished, do-it-yourself or agency-delayed website; the status quo), not from a class of named competitors. If the owner believes the positioning itself is wrong, stops and routes them to website-positioning to change POSITIONING.md first, then corrects STORY.md. Does not quietly write a villain that contradicts the positioning.",
       "assertions": [
         "States that POSITIONING.md wins on conflict",
-        "Does not write a STORY.md villain that contradicts the competitive alternative",
+        "Does not write a STORY.md villain that contradicts the competitive alternatives",
         "Routes a change of positioning to website-positioning, then corrects STORY.md",
         "Does not edit POSITIONING.md itself",
         "Does not turn a named competitor into the villain"
       ],
-      "files": []
+      "files": [
+        "evals/files/POSITIONING.md"
+      ]
     },
     {
       "id": 3,

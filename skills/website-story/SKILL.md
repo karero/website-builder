@@ -53,7 +53,12 @@ This text lives here, once. `new-website` §2a reads it from here; do not restat
 - **Later, on any site**, when the owner asks ("build the home page as a story",
   "what do we do in one sentence", "the home page reads like a feature list").
 - **Prerequisite:** a filled `POSITIONING.md`. If it is missing or half-filled, run
-  `website-positioning` first. Never derive story elements from guesswork.
+  `website-positioning` first. Never derive story elements from guesswork. An
+  existing site often has the facts without the file (a wording guide, a pinned
+  definition, comparison pages, a brand doc): then the positioning step is to draft
+  `POSITIONING.md` from those sources, citing the file each line comes from and
+  marking gaps as unverified, and to let the owner confirm it before the story is
+  derived. The story never becomes the place where positioning is decided.
 - **Scope:** the home page. Other pages only when asked, and then one at a time.
 
 ## 1. Outputs
@@ -121,6 +126,24 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
 sentences; do not fill an English frame with translated words (same rule as
 `POSITIONING.md`).
 
+**Worked example** (a small-business website studio; the same case as eval 1):
+
+- Input, from `POSITIONING.md`: target = owners of small independent bakeries who want
+  more pre-orders; alternatives = a generic web agency or doing it themselves; unique
+  attribute = a fixed-price site delivered in ten days with a test suite; proof = 14
+  bakery sites shipped; value = a site that brings in pre-orders.
+- Feature-list one-liner (fails the stranger test, the studio is the subject):
+  "We build fast, tested Astro websites with SEO for small businesses."
+- Story one-liner (22 words, the customer is the subject): "Most bakery owners lose
+  pre-orders to a website nobody finished. We deliver yours in ten days, at a fixed
+  price, so orders come in."
+- Controlling idea: "Your bakery site, live in ten days."
+- Plan, titled "Live in ten days": 1. Book a call → get a fixed quote. 2. Approve
+  the design → see your menu on it. 3. Go live → take your first pre-order.
+- Direct CTA: "Get a fixed quote", used in the header, after the plan, and at the end.
+
+Every line above traces to one positioning section; nothing was added to it.
+
 ## 4. The seven-section home page map
 
 Fill the map in `STORY.md`; `copywriting` writes the page from it in this order:
@@ -158,14 +181,15 @@ Hard notes:
 ## 6. `story.spec.ts`: the opt-in guard
 
 Copy this skill's `templates/story.spec.ts` into the site's `tests/` and fill its
-`CONFIG` block from the values `STORY.md` lists at its end. It lives here rather than
+`CONFIG` block from the values `STORY.md` lists at its end (`planStep` is `li` for a
+real list; a numbered card grid names its card class instead). It lives here rather than
 in the `new-website` Astro overlay because a fresh scaffold has no story to assert.
 
 | assertion | the bug it catches |
 |---|---|
 | The direct CTA appears at least twice as a link or button | the label drifting ("Get a quote" / "Request quote") or the repeat being cut |
 | The one-liner or controlling idea is in the body text | the one line the page exists to say being edited away |
-| The plan is one `<ol>` of three or four non-empty steps | the plan growing into a process, or being restyled into prose |
+| The plan is one container of three or four non-empty steps (a list, or a card grid via `planStep`) | the plan growing into a process, or being restyled into prose |
 
 Hermetic string checks, sibling to `positioning.spec.ts`: no network, no extraction
 library, not a density check. Every test skips with a stated reason while `CONFIG`

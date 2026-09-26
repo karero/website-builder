@@ -98,4 +98,5 @@ term, never replaces it.
 
 - `directCta`: [the direct CTA label from §5]
 - `keyLine`: [the one-liner or the controlling idea, verbatim]
-- `planList`: [selector for the plan list, e.g. `#plan ol`]
+- `planList`: [selector for the plan container, e.g. `#plan ol`]
+- `planStep`: [`li` for a list; the card class for a numbered card grid]

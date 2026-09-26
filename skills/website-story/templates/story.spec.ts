@@ -19,8 +19,14 @@ const CONFIG = {
   directCtaMin: 2,
   /** The one-liner OR the controlling idea, verbatim. Empty = that test skips. */
   keyLine: '',
-  /** Selector for the plan's <ol> (e.g. '#plan ol'). Empty = that test skips. */
+  /** Selector for the plan container, one element (e.g. '#plan ol'). Empty = that test skips. */
   planList: '',
+  /**
+   * Selector for one step inside it, relative to the container. 'li' for a real
+   * list; a card grid of numbered steps uses its card class (e.g. '.card'). The
+   * count and the empty-step check are the assertion, not the markup.
+   */
+  planStep: 'li',
   /** A plan has three steps; four at most. Five is a process page. */
   planSteps: { min: 3, max: 4 },
   /** The page the story is told on. */
@@ -61,14 +67,14 @@ test.describe('story layer (home page)', () => {
       .toBe(true);
   });
 
-  test('the plan is one numbered list of three or four non-empty steps', async ({ page }) => {
+  test('the plan is one container of three or four non-empty steps', async ({ page }) => {
     test.skip(!CONFIG.planList,
-      'CONFIG.planList is empty: point it at the plan <ol>');
+      'CONFIG.planList is empty: point it at the plan container');
     await page.goto(CONFIG.home);
-    const ol = page.locator(CONFIG.planList);
-    await expect(ol, `expected exactly one element matching "${CONFIG.planList}"`)
+    const plan = page.locator(CONFIG.planList);
+    await expect(plan, `expected exactly one element matching "${CONFIG.planList}"`)
       .toHaveCount(1);
-    const steps = await ol.locator(':scope > li').allInnerTexts();
+    const steps = await plan.locator(`:scope > ${CONFIG.planStep}`).allInnerTexts();
     expect(steps.length,
       `plan has ${steps.length} steps; STORY.md asks for ${CONFIG.planSteps.min}-${CONFIG.planSteps.max}`)
       .toBeGreaterThanOrEqual(CONFIG.planSteps.min);
