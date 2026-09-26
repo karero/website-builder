@@ -31,6 +31,7 @@ SUBJECTS=(
   scripts/check_model_agnostic.sh
   scripts/check_template_coverage.sh
   scripts/check_skill_budgets.sh
+  scripts/check_pipefail_pipes.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/sweep_claims.sh
@@ -72,7 +73,7 @@ rc=0
 # branch is not dead code: the handoff zip has no git at all, and it is the zip recipients that
 # `make check` most needs to work for.
 discover() {
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null | head -n1)" ]; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null)" ]; then
     git ls-files 2>/dev/null
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \

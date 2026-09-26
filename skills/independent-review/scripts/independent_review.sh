@@ -136,7 +136,7 @@ if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
     echo "note: 'ollama list' failed — cannot auto-detect a cloud model (check the ollama install/daemon, or set OLLAMA_MODEL explicitly). The ollama tier will be skipped this run." >&2
   else
     cloud_tags="$(printf '%s\n' "$list_out" | awk 'NR>1 {print $1}' | grep ':cloud$' || true)"
-    OLLAMA_MODEL="$(printf '%s\n' "$cloud_tags" | head -1)"
+    OLLAMA_MODEL="$(head -n 1 <<<"$cloud_tags")"
     if [ -z "$OLLAMA_MODEL" ]; then
       echo "note: no OLLAMA_MODEL set and no ':cloud' model in 'ollama list' — the ollama tier will be skipped ('ollama signin' plus a cloud model enables it, or set OLLAMA_MODEL explicitly)." >&2
     else

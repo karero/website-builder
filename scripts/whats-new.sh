@@ -89,7 +89,7 @@ write_tests_stamp() {  # $1 = tests dir
 is_int() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 
 astro_major() {  # $1 = path to a package.json; prints its "astro" dependency's major version
-  sed -n 's/.*"astro"[[:space:]]*:[[:space:]]*"[^0-9]*\([0-9][0-9]*\)\..*/\1/p' "$1" | head -1
+  sed -n 's/.*"astro"[[:space:]]*:[[:space:]]*"[^0-9]*\([0-9][0-9]*\)\..*/\1/p' "$1" | awk 'NR == 1'
 }
 
 check_astro_version() {  # $1 = project dir; report-only, never mutates
@@ -357,7 +357,7 @@ $changed
 CHANGED
   echo
   echo "Review + merge each by hand, e.g.:"
-  echo "  git -C $REPO_DIR diff $short_base HEAD -- $(printf '%s\n' "$changed" | head -1)"
+  echo "  git -C $REPO_DIR diff $short_base HEAD -- $(head -n 1 <<<"$changed")"
   if grep -q '_helpers\.ts$' <<<"$changed"; then
     echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, and i18n.spec.ts"
     echo "on multilingual sites), so merge the helpers together with any spec that uses the"

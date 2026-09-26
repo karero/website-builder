@@ -15,9 +15,10 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak (each script's header says what it checks; the installer test needs git, the claims-sweep test git and python3)
+check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no pipe into an early-exit consumer (head, grep -q, …) under pipefail, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak (each script's header says what it checks; the installer test needs git, the claims-sweep test git and python3)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_cdpath_safe.sh
+	@bash scripts/check_pipefail_pipes.sh
 	@bash scripts/check_model_agnostic.sh
 	@bash scripts/check_template_coverage.sh
 	@bash scripts/check_skill_budgets.sh
