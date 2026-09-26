@@ -310,11 +310,12 @@ for reply in "I'm sorry, but I am unable to review this diff because the reposit
 done
 
 # 21. Called from outside any git repo (a plan in a scratch dir): codex must still run,
-#     in the caller's cwd, with the read-only sandbox still requested and AGENTS.md
-#     loading off — on both command lines, the default and the CODEX_MODEL one. Before
-#     the fix the PLAN round came back with codex FAILED and one reviewer (2026-09-26). GIT_CEILING_DIRECTORIES keeps git
-#     from finding a repo above $T, wherever TMPDIR lives; run() drops GIT_DIR and
-#     GIT_WORK_TREE, which a git hook exports and which would otherwise override it.
+#     in the caller's cwd, with the read-only sandbox still requested and project AGENTS.md
+#     and skills kept out — on both command lines, the default and the CODEX_MODEL one.
+#     Before the fix the PLAN round came back with codex FAILED and one reviewer
+#     (2026-09-26). GIT_CEILING_DIRECTORIES keeps git from finding a repo above $T, wherever
+#     TMPDIR lives; run() drops GIT_DIR and GIT_WORK_TREE, which a git hook exports and
+#     which would otherwise override it.
 mkdir -p "$T/nogit"
 NOGIT="$(cd "$T/nogit" && pwd -P)"
 CEILING="$(cd "$T" && pwd -P)"
@@ -325,7 +326,7 @@ for m in "" stub-override; do
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
   # git=no is what git said from inside the stub itself, so the case cannot pass from
   # inside a repo (round 4, fresh-eyes).
-  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
   check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
