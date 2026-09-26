@@ -31,6 +31,21 @@ STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex-ran"
+# Like the real CLI (0.157.0, seen 2026-09-26): outside a git repo, refuse to start
+# unless --skip-git-repo-check is passed. Records whether the read-only sandbox was
+# still requested, and where it ran.
+skip=0 ro=0 prev=
+for a; do
+  [ "$a" = --skip-git-repo-check ] && skip=1
+  [ "$prev" = -s ] && [ "$a" = read-only ] && ro=1
+  prev="$a"
+done
+printf 'skip=%s ro=%s cwd=%s\n' "$skip" "$ro" "$(pwd -P)" >"$STUB_MARKS/codex-args"
+if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf '%s\n' 'Reading additional input from stdin...' \
+    'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
+  exit 1
+fi
 case "${CODEX_STUB:-ok}" in
   ok)   printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two' ;;
   auth) # codex echoes the reviewed artifact into stderr — here one that mentions
@@ -237,6 +252,24 @@ check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: co
 # 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, kimi).
 run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
 check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
+
+# 19. Called from outside any git repo (a plan in a scratch dir): codex must still run,
+#     in the caller's cwd, with the read-only sandbox still requested — on both command
+#     lines, the default and the CODEX_MODEL one. Before the fix the PLAN round silently
+#     landed with one reviewer (2026-09-26). GIT_CEILING_DIRECTORIES keeps git from
+#     finding a repo above $T, wherever TMPDIR lives.
+mkdir -p "$T/nogit"
+NOGIT="$(cd "$T/nogit" && pwd -P)"
+for m in "" stub-override; do
+  name="nogit${m:+-model}"
+  run "$name" CODEX_MODEL="$m" GIT_CEILING_DIRECTORIES="$(cd "$T" && pwd -P)" \
+    sh -c 'cd "$1" && shift && exec bash "$@"' _ "$NOGIT" "$SCRIPT" "$T/plan.md"
+  check "$name: the stub really is outside a git repo" \
+    sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$(cd "$T" && pwd -P)"
+  check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
+  check "$name: sandbox still read-only, git check skipped, caller's cwd" \
+    has "$name.marks/codex-args" "skip=1 ro=1 cwd=$NOGIT"
+done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

@@ -399,6 +399,13 @@ looks_like_review() {
 # CODEX_MODEL overrides the model for this run only (e.g. a stronger tier for a hard
 # case or a long plan) via `-c model=...`; config.toml's reasoning-effort setting still
 # applies on top of it, since that's a separate key the override doesn't touch.
+# --skip-git-repo-check: without it, codex refuses to start in a directory that is not a
+# git repo or a trusted project ("Not inside a trusted directory ...", exit 1), so a PLAN
+# gate run from a scratch dir silently lost its codex reviewer (2026-09-26). The flag only
+# lifts that start-up check; codex 0.157.0 still reported "sandbox: read-only" with it, and
+# refused `touch` and a shell redirect there ("Operation not permitted") — one probe, not a
+# test of R-SANDBOX. Codex keeps the caller's cwd rather than agy's throwaway dir, because
+# seeing the working tree is what lets it check a diff's claims.
 codex_bin() {
   command -v codex 2>/dev/null && return 0
   ls -1 "$HOME"/.vscode/extensions/openai.chatgpt-*/bin/*/codex 2>/dev/null | sort -V | tail -1
@@ -421,9 +428,9 @@ run_codex() {
       *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; WHY="CODEX_MODEL rejected: contains a newline"; return 1 ;;
       *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; WHY="CODEX_MODEL rejected: contains a backslash"; return 1 ;;
     esac
-    "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+    "$bin" exec -s read-only --skip-git-repo-check -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   else
-    "$bin" exec -s read-only "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+    "$bin" exec -s read-only --skip-git-repo-check "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   fi
   local rc=$?
   # An explicit CODEX_MODEL request failing must not fail silently — with
