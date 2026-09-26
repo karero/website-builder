@@ -65,7 +65,8 @@ Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OP
 | Round | Head | Artifact (full / delta since <sha>) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 | id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction.
-Follow-ups: one line each. Notes: at most five lines (degraded seats, cap extension, stops).
+Follow-ups: one line each. Notes: at most five lines (degraded seats, rounds past 3 and the BUG
+that earned each, final full read, wording pass, stops).
 ```
 
 **(b) The PR/MR comment — ONE per gate, edited each round, posted before merging** (with POST
@@ -94,8 +95,9 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      re-check matches them anyway), then record `git merge-base <target> HEAD` and
      `git rev-parse HEAD`. **A verification chain counts as seeing the pair:** round 1 saw
      `base...h1` in full, each later round saw exactly the delta from the previous round's head to
-     its own, and the merge-base never changed. A merged-in or rebased base breaks the chain: run
-     a full round (step 6). **The chain holds per seat**, never for the round as a whole: a seat
+     its own. A merge of the base or a rebase is bridged by a **merge link** (SKILL.md step 6: the
+     change's own files from the last seen head to the new one, merge effects included); from it
+     on, the new merge-base is the recorded one. **The chain holds per seat**, never for the round as a whole: a seat
      counts toward the stamp only if it produced a counted result in every link since its last full
      round — check the trail's per-round reviewer column, not just the recorded pair; a seat that
      FAILED or was skipped in a link has a gap there. At least one cross-model seat must hold an
@@ -109,19 +111,21 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      at High depth that includes fresh-eyes) — by the chain rule where it still holds for that
      seat, else in full; rebuild the verdict from those runs alone, mark
      superseded raw sections, and re-check. **At most two attempts,** then surface an actively
-     moving branch. These re-gates don't count against step 6(b)'s cap. If a re-gate can't run, do
+     moving branch. These re-gates don't count as rounds (step 6(b)). If a re-gate can't run, do
      NOT stamp: the gate stays blocked, like any missing prerequisite. **No seen pair, no stamp.**
    - **After posting,** re-fetch the PR's head and diff-scope once. Only the SHA moved and the
      diff-scope is byte-identical (a bare rebase): re-stamp the new head. The diff-scope changed:
      never re-stamp with the findings you have — re-gate as above. Open gap: the marker names only
      `head`, so a target-branch advance after an unmoved stamp is not encoded; closing it needs
      `base` in the marker, a change shared with a downstream CI job — left open, not claimed solved.
-   - **A prose-only re-gate is scoped narrow, never skipped.** When everything since the last seen
-     head is prose, tell every seat so, and to flag ONLY a factual contradiction or misleading claim
-     against the code or behaviour described — not style or phrasing; the scope is prepended to
-     the unchanged strict prompt and the ranking still applies. Send the delta since each seat's
-     last seen head, as any chain link (a seat without an unbroken chain gets the full pair). A
-     clean narrow pass IS the re-gate.
+   - **A prose-only re-gate is scoped narrow, never skipped** — and needs only ONE cross-model
+     seat (SKILL.md 6(e), the wording pass); the stamp then relies on that seat's chain, and the
+     other seats' chains end at the head before it. When everything since the last seen head is
+     prose, tell the seat so, and to flag ONLY a factual contradiction or misleading claim against
+     the code or behaviour described — not style or phrasing; the scope is prepended to the
+     unchanged strict prompt and the ranking still applies. Send the delta since that seat's last
+     seen head, as any chain link (without an unbroken chain it gets the full pair). A clean
+     narrow pass IS the re-gate.
      **Prose-only** is decided from a changed-file/hunk inventory, never by eye: every hunk is
      Markdown body text or comment text. A code hunk, fenced snippet, YAML or config block, shell
      command, generated file or mixed commit is not prose. **Unsure means code** — prose treated as

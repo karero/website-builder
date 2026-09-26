@@ -93,8 +93,8 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N]"
-FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND=""
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--seat codex|ollama|agy]"
+FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
 while [ $# -gt 0 ]; do
   a="$1"; shift
   case "$a" in
@@ -108,6 +108,11 @@ while [ $# -gt 0 ]; do
                      # head, and this file holds the prior round's findings (SKILL.md step 6)
              [ $# -gt 0 ] && [ -n "$1" ] || { echo "--verify needs the prior-findings file" >&2; echo "$USAGE" >&2; exit 2; }
              VERIFY_FILE="$1"; shift ;;
+    --seat)  # run this ONE reviewer only (SKILL.md step 6: the wording pass, the final full read)
+             [ $# -gt 0 ] || { echo "--seat needs a value" >&2; echo "$USAGE" >&2; exit 2; }
+             case "$1" in codex|ollama|agy) SEAT="$1" ;;
+               *) echo "bad value for --seat: $1 (codex, ollama or agy)" >&2; echo "$USAGE" >&2; exit 2 ;;
+             esac; shift ;;
     --depth|--round) # recorded in the cost log only (review_log.sh); they change nothing else
              [ $# -gt 0 ] || { echo "$a needs a value" >&2; echo "$USAGE" >&2; exit 2; }
              case "$a:$1" in
@@ -142,6 +147,12 @@ esac
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
 fi
+# --seat agy names Antigravity explicitly, which is the owner's opt-in; --seat with --local-only can
+# only be the local ollama seat; --seat with --first-success is one seat either way.
+if [ -n "$SEAT" ] && [ "$LOCAL_ONLY" = "1" ] && [ "$SEAT" != ollama ]; then
+  echo "--local-only runs local ollama only; --seat $SEAT would send content out — refusing." >&2; exit 2
+fi
+[ "$SEAT" = agy ] && WITH_ANTIGRAVITY=1
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
   # Antigravity is already structurally unreachable from the LOCAL_ONLY
@@ -962,6 +973,8 @@ report_round() {
     note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
     if [ "$LOCAL_ONLY" = "1" ]; then
       note="$note — --local-only, degraded by owner choice."
+    elif [ -n "$SEAT" ]; then
+      note="$note — --seat $SEAT was requested (one reviewer by design)."
     elif [ "$FIRST_SUCCESS" = "1" ]; then
       note="$note — --first-success was requested."
     else
@@ -990,6 +1003,12 @@ if [ "$LOCAL_ONLY" = "1" ]; then
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
   echo "── LOCAL-ONLY mode: external reviewers skipped; gate is DEGRADED by owner choice ──" >&2
   attempt "$OLLAMA_LABEL" ollama run_ollama
+elif [ -n "$SEAT" ]; then
+  case "$SEAT" in
+    codex)  attempt codex codex run_codex ;;
+    ollama) attempt "$OLLAMA_LABEL" ollama run_ollama ;;
+    agy)    attempt antigravity agy run_agy ;;
+  esac
 elif [ "$FIRST_SUCCESS" = "1" ]; then
   attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
   [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                     # 2. ollama-cloud

@@ -607,5 +607,20 @@ check "apilocal: a local tag goes to OLLAMA_HOST" grep -qxF "http://127.0.0.1:11
 check "apilocal: with its tag unchanged" grep -qF '"model":"stub-local"' "$T/apilocal.marks/curl-body"
 check "apilocal: and stays a sanity pass" has apilocal.out "ollama-local NOT COUNTED (local model: sanity pass only)"
 
+# 29. --seat runs ONE named reviewer (2026-09-26: the wording pass and the final full read).
+run seatollama bash "$SCRIPT" "$T/change.diff" --seat ollama
+check "seat ollama: only ollama ran" sh -c '[ -e "$1/ollama-ran" ] && [ ! -e "$1/codex-ran" ]' _ "$T/seatollama.marks"
+check "seat ollama: the summary names it alone" has seatollama.out "reviewers: ollama-cloud OK"
+check "seat ollama: the one-reviewer note says it was asked for" has seatollama.out "--seat ollama was requested"
+run seatcodex bash "$SCRIPT" "$T/change.diff" --seat codex
+check "seat codex: only codex ran" sh -c '[ -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/seatcodex.marks"
+run seatagy bash "$SCRIPT" "$T/change.diff" --seat agy
+check "seat agy: names Antigravity, so it runs without WITH_ANTIGRAVITY" has seatagy.out "reviewers: antigravity OK"
+run seatbad bash "$SCRIPT" "$T/change.diff" --seat gemini
+check "seat: an unknown seat exits 2" rc_is seatbad 2
+run seatlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only --seat codex
+check "seat: --local-only refuses an external seat, exit 2, nothing ran" \
+  sh -c '[ "$(cat "$1/seatlocal.rc")" = 2 ] && [ ! -e "$1/seatlocal.marks/codex-ran" ]' _ "$T"
+
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
