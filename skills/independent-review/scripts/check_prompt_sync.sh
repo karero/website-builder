@@ -24,10 +24,13 @@ TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 # string built at runtime, or a `declare -n` alias, would evade any textual rule. The runtime
 # backstop is `readonly` on the four prompt variables in independent_review.sh: a later write of
 # any shape fails there, whether or not this check sees it.
+# Every consumer of `uncommented` reads to EOF: no `grep -q`, no `head`. A consumer that exits
+# early leaves the upstream grep writing into a closed pipe, and where SIGPIPE is ignored (as on
+# GitHub's runners) that grep prints "write error: Broken pipe" -- noise in a passing log.
 uncommented() { grep -vE '^[[:space:]]*#' "$1"; }
 assignments() { uncommented "$1" | grep -oE "$2\+?=|-v[[:space:]]+$2\b" | wc -l | tr -d ' '; }
 assign_line() {  # line number of the first occurrence of $2 being assigned, or empty
-  uncommented "$1" | grep -nE "$2\+?=" | head -1 | cut -d: -f1
+  uncommented "$1" | grep -nE "$2\+?=" | awk -F: 'NR==1{print $1}'
 }
 
 norm() { tr -s ' \t\n' '   ' | sed -e 's/^ //' -e 's/ $//'; }
@@ -75,7 +78,7 @@ check() {  # $1 script, $2 SKILL.md; prints each problem, returns 1 if there is 
   for v in $TIERS; do
     n=$(assignments "$1" "$v")
     [ "$n" = 1 ] || { echo "$v is assigned $n times; expected once"; bad=1; }
-    uncommented "$1" | grep -qE "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
+    uncommented "$1" | grep -E "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" >/dev/null || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
     vl=$(assign_line "$1" "$v")
     [ -n "$cl" ] && [ -n "$vl" ] && [ "$cl" -lt "$vl" ] || { echo "PROMPT_CORE is not assigned before $v"; bad=1; }
   done
