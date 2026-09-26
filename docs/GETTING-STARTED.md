@@ -73,8 +73,9 @@ are *decisions*, not commands — things like:
 - What is this website for? Who is it for?
 - What should it be called?
 - Roughly what pages do you want?
-- Whether you want the home page told as a story, with your visitor as the hero
-  (optional; it explains the idea and asks once)
+Later, once it has worked out with you what you offer and for whom, it asks one optional
+question: whether you want the home page told as a story, with your visitor as the hero.
+It explains the idea first and asks only once.
 
 Answer in your own words. There are no wrong answers, and you can change your mind.
 

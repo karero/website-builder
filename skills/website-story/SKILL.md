@@ -96,7 +96,8 @@ in the story.
 
 ## 3. Fill STORY.md
 
-Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
+Copy the template as `STORY.md` next to `POSITIONING.md` (repo root or `docs/`, see §1)
+and fill every `[BRACKET]`:
 
 - **Character.** Who they are and the one thing they want, in their words (pull
   phrasing from `customer-research` voice-of-customer where it exists).
@@ -105,8 +106,9 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
   put up with it. Name the villain: the situation, the status quo, the way things
   are usually done.
 - **Guide.** One empathy sentence ("we know what it is like to…") and one authority
-  sentence backed by proof already in `POSITIONING.md` §3. Empathy without proof
-  is a claim; proof without empathy is a brochure.
+  sentence backed by proof already in `POSITIONING.md` §3. Empathy restates the
+  customer's situation from §4 in warmer words; it adds no new fact about it.
+  Empathy without proof is a claim; proof without empathy is a brochure.
 - **Plan.** Three steps, each starting with a verb and ending in what the visitor
   gets. Give it a title. Four is the maximum; five is a process page, not a plan.
 - **Direct call to action.** One label ("Get a quote", "Book a call"), used verbatim
@@ -135,8 +137,8 @@ Copy the template to the project root as `STORY.md` and fill every `[BRACKET]`:
 sentences; do not fill an English frame with translated words (same rule as
 `POSITIONING.md`).
 
-**Worked example** (this suite's own story, from a real site it built; the same case
-as eval 1):
+**Worked example** (this suite's own story, from a real site it built; the evals use a
+different business on purpose, so reuse the shape, not the words):
 
 - Input, from `POSITIONING.md`: target = organizers, founders and small businesses who
   need a site that ranks within a week and will not pay a monthly fee; alternatives = a
@@ -149,7 +151,7 @@ as eval 1):
   and Cloudflare deployment."
 - Story one-liner (28 words, the visitor's own moment first): "You need a site people
   find, and every option costs months or a monthly fee. With the builder, your AI
-  assistant ships one that ranks in a week."
+  assistant ships a tested site in a week."
 - Controlling idea: "A site that ranks, live in a week."
 - Plan, titled "Live in a week": 1. Say what you offer and for whom → the positioning.
   2. Let the assistant build and test → every page checked. 3. Publish on free hosting
@@ -164,10 +166,10 @@ Fill the map in `STORY.md`; `copywriting` writes the page from it in this order:
 
 | # | Section | Job |
 |---|---|---|
-| 1 | **Header** | Pass the grunt test in five seconds: what you do, how it makes life better, how to get it. `<h1>` plus the one-liner as the first paragraph. Direct CTA button. Three short outcomes (the value stack). An image of the customer succeeding, not of the company. |
-| 2 | **Stakes** | Three or four "are you worried about…" pains the visitor recognises. Agitate briefly, then pivot: "if so, we are here to help." |
+| 1 | **Header** | Pass the grunt test in five seconds: what you do, how it makes life better, how to get it. `<h1>` plus the one-liner as the first paragraph. Direct CTA button. Up to three short outcomes, one per success line in `STORY.md` §7 (fewer is fine; never invent one). An image of the customer succeeding, not of the company. |
+| 2 | **Stakes** | The stakes from `STORY.md` §6, one to three lines in the "what you keep missing" register (one line in formal-register and most B2B copy), then a one-line pivot to the guide. No extra pains beyond §6. |
 | 3 | **Plan** | The titled three-step plan as an `<ol>`. Direct CTA again. |
-| 4 | **Value stack** | Three benefits, each a headline plus one sentence, describing life after. |
+| 4 | **Value stack** | The success lines from `STORY.md` §7, each a headline plus one sentence, describing life after. As many as §7 has, up to three. |
 | 5 | **Explanatory paragraph** | The guide: empathy, then authority. Answer the top objections, using only facts already in `POSITIONING.md`; an objection the positioning cannot answer is listed for the owner, not answered with an invented promise. Give the visitor room for due diligence with a "read more" to the about or offer page. |
 | 6 | **Lead generator** | The transitional CTA with its specific title. Omit the section if the slot is blank. |
 | 7 | **Junk drawer** | FAQ, careers, everything else. Final direct CTA. |
@@ -201,7 +203,7 @@ in the `new-website` Astro overlay because a fresh scaffold has no story to asse
 
 | assertion | the bug it catches |
 |---|---|
-| The direct CTA appears at least twice as a link or button | the label drifting ("Get a quote" / "Request quote") or the repeat being cut |
+| The direct CTA appears at least twice as a visible link or button with exactly that label, and (with `directCtaHref`) always the same target | the label drifting ("Get a quote" / "Request quote"), the repeat being cut, or one copy pointing somewhere else |
 | The one-liner or controlling idea is in the body text | the one line the page exists to say being edited away |
 | The plan is one container of three or four non-empty steps (a list, or a card grid via `planStep`) | the plan growing into a process, or being restyled into prose |
 

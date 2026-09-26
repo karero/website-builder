@@ -129,3 +129,14 @@ the report went to the owner.
   an assertion checks nothing is copied from the example, and two single-reply assertions
   describe only what one reply can show. Note for reruns: the aggregation script reads
   token counts from `timing.json` only when `grading.json` has no `timing` block.
+- r4 (2026-09-26): confirmation run on the new bike-repair fixture: with skill 11/12, without
+  5/12, nothing copied from the worked example (the one miss: an empathy line adding a fact
+  not in the positioning; §3 now says empathy adds no new fact). Code review of the branch
+  (10 findings, all confirmed and fixed): the spec's CTA check now counts only visible
+  links and buttons, matches the whole label, and can check the target; the home page map
+  no longer asks for more stakes, outcomes or benefits than STORY.md holds; the §2a answer
+  is recorded yes or no when the README exists; STORY.md goes next to POSITIONING.md; the
+  template's source map covers every element; the worked example claims only its proof;
+  the getting-started guide places the question after positioning. The spec change was
+  re-verified against the apreet.com build (label and target pass; wrong target and a
+  partial label fail).

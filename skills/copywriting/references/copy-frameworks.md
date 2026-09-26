@@ -249,10 +249,10 @@ This tells a story and addresses objections.
 ### Story-led Homepage (opt-in, `website-story`)
 
 ```
-1. Header: h1 + the one-liner as first paragraph, direct CTA, three outcomes, customer image
-2. Stakes: three or four pains the visitor recognises, then the pivot to the guide
+1. Header: h1 + the one-liner as first paragraph, direct CTA, up to three outcomes, customer image
+2. Stakes: the one to three lines in STORY.md §6 (what the visitor keeps missing), then the pivot
 3. Plan: titled three-step <ol>, direct CTA
-4. Value stack: three benefits, life after
+4. Value stack: the success lines in STORY.md §7 (up to three), life after
 5. Explanatory paragraph: the guide (empathy, then authority), top objections, "read more"
 6. Lead generator: the transitional CTA (omit if STORY.md leaves it blank)
 7. Junk drawer: FAQ, everything else, final direct CTA

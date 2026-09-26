@@ -1,7 +1,7 @@
 <!--
   STORY.md — the home page told as the customer's story. OPTIONAL layer, used only
-  when the owner opted in (new-website §2a) or asked for it later. Copy into the
-  project root and fill every [BRACKET].
+  when the owner opted in (new-website §2a) or asked for it later. Copy next to
+  POSITIONING.md (repo root or docs/) and fill every [BRACKET].
   Derived from POSITIONING.md, which is the source of truth for WHAT is claimed
   (target customer, competitive alternatives, unique attributes + proof, value,
   market category). This file decides only HOW the home page narrates it. On any
@@ -15,12 +15,18 @@
 
 ## Source map (every line below cites POSITIONING.md)
 
+The full rules per row are in the website-story skill, §2.
+
 | Story element | From POSITIONING.md |
 |---|---|
 | Character + want | §4 Target customer, "why they care most" |
-| Problem / villain | §1 Competitive alternatives (the status quo) |
-| Guide authority | §2 Unique attributes + §3 Proof |
+| Problem / villain | §1 Competitive alternatives + §4 "why they care most" |
+| Guide: empathy / authority | §4 (situation) / §2 Unique attributes + §3 Proof |
+| Plan | §2 how the attributes are delivered |
+| Calls to action | the owner's decision (not in positioning); name it here |
+| Stakes | §1, the cost of staying with the alternatives |
 | Success | §3 Value |
+| Market category | §5, unchanged |
 | One-liner, controlling idea | Positioning statement + core positioning term |
 
 ## 1. Character (the hero is the visitor)

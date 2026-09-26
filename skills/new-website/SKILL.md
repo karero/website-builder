@@ -214,10 +214,13 @@ before asking. Once `POSITIONING.md` is filled (step 2) and before the content g
    **`AskUserQuestion`**), otherwise in chat — with two options: **Yes, build the home
    page as a story** / **No, standard home page (default)**.
 3. **Yes** → run `website-story` now, before step 3, so `CONTENT_GUIDE.md`'s home row
-   and `copywriting` read `STORY.md`; record the choice in the project README next to
-   the interview answers.
+   and `copywriting` read `STORY.md`.
 4. **No, or no answer** → say nothing more about it. The skill still travels with the
    repo (§3 step 3), so it can be run later whenever the owner asks.
+5. **Record the answer either way** ("home page: story-led, see STORY.md" or "home page:
+   standard, story layer declined") with the decision-interview answers when §3 writes
+   the project README, so a later session knows the offer was made and does not ask
+   again.
 
 Ask exactly once per build. Never run it unasked.
 
