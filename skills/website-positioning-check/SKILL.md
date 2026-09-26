@@ -41,7 +41,7 @@ Inspect, in this order:
    repo, an app store, a booking tool): the offer is wherever the CTA goes. If
    the target is missing or unreachable, the visitor has no next step — make
    that the Primary blur and carry on with the pages you have.
-3. **`POSITIONING.md` and `CONTENT_GUIDE.md`**, when present — last, so the site
+3. **`POSITIONING.md`, `CONTENT_GUIDE.md` and `STORY.md`**, when present — last, so the site
    is judged by what a visitor sees and only then compared with what it meant
    to say.
 
@@ -64,7 +64,9 @@ After the hero and first offer section, can the visitor it is for answer:
 5. **What happens next?** The offer and CTA continue the same promise.
 
 Then check consistency: title, description, H1, hero, offer names, and CTA should
-sell the same category and outcome. Offer options should map to distinct visitor
+sell the same category and outcome. On a site with a `STORY.md`, also judge the header
+by its grunt test (what you do, how it makes life better, how to get it, in five
+seconds) and check that the direct CTA repeats with the same label. Offer options should map to distinct visitor
 starting situations, not read like an overlapping capability list. Where the
 promise is a change in how the visitor's own team, practice, or life works
 (training, enablement, a habit, a community), the site should show what that
@@ -94,8 +96,8 @@ not what its strategy document intended to say.
 
 **Three fixes:** Three ranked, specific changes. For each, name the page and
 section; add the file path when you know it. If a fix contradicts
-`POSITIONING.md` or `CONTENT_GUIDE.md`, say so in the fix — the document changes
-first, then the page.
+`POSITIONING.md`, `CONTENT_GUIDE.md` or `STORY.md`, say so in the fix — the document
+changes first, then the page (and `STORY.md` yields to `POSITIONING.md`).
 
 **Core line:** One replacement positioning line only when the existing line is
 part of the problem. Keep it faithful to available evidence.

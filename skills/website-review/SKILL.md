@@ -134,7 +134,8 @@ recommendation, never to pick unasked.
   `*.pages.dev` preview-noindex middleware in place.
 - **Secrets:** no `.env`/token committed; `.gitignore` covers them.
 - **Docs match code:** README test list + "how to add a page / run tests / deploy" current;
-  `CONTENT_GUIDE.md` + `BRAND.md` filled; decision-interview answers recorded; the handoff
+  `CONTENT_GUIDE.md` + `BRAND.md` filled (+ `STORY.md`, consistent with `POSITIONING.md`,
+  if the site opted into `website-story`); decision-interview answers recorded; the handoff
   skill set present in `.claude/skills/`.
 - **Language/i18n (non-English or multi-locale sites):** every page's CONTENT language
   matches its `<html lang>` (the tone gate's density check covers German; eyeball other

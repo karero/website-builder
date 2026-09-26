@@ -1,0 +1,49 @@
+{
+  "skill_name": "website-story",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "POSITIONING.md is filled: target customer = owners of small independent bakeries who want more pre-orders; competitive alternatives = a generic web agency or building it themselves; unique attribute = a fixed-price site delivered in ten days with the QA suite; proof = 14 bakery sites shipped; value = a site that brings in pre-orders; market category = small-business website studio. Yes, build the home page as a customer story.",
+      "expected_output": "Reads POSITIONING.md before writing anything. Produces STORY.md from the template with every element filled and each traceable to a POSITIONING.md section: character = bakery owner wanting pre-orders; villain = the generic-agency or do-it-yourself status quo, with external, internal and philosophical layers; a guide empathy sentence plus an authority sentence using only the '14 bakery sites' proof; a titled three-step verb-first plan; one direct CTA label stated as repeated, and a transitional CTA or an explicit blank (not an invented lead magnet); proportionate stakes; concrete success; a one-liner of 30 words or fewer and a controlling idea of ten words or fewer that agrees with the core positioning term; the seven-section home page map. The market category is unchanged. Does not edit POSITIONING.md, tests/positioning.spec.ts, SITE.tagline or BRAND.md. Mentions copying story.spec.ts into tests/ and filling its CONFIG.",
+      "assertions": [
+        "Reads POSITIONING.md first and invents no claims",
+        "Every story element cites the POSITIONING.md section it comes from",
+        "The villain is the status quo or situation, not a competitor by name",
+        "Guide authority reuses the existing proof only",
+        "The plan has exactly three verb-first steps and a title",
+        "One direct CTA label, stated as repeated; the transitional CTA is present or explicitly left blank",
+        "The one-liner is 30 words or fewer; the controlling idea is ten words or fewer",
+        "The seven-section home page map is produced in order",
+        "POSITIONING.md, positioning.spec.ts, SITE.tagline and BRAND.md are left untouched",
+        "Mentions copying story.spec.ts into tests/ and filling CONFIG"
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "While drafting the story for our consultancy I think the real villain is that clients cannot get senior attention at the big firms, but POSITIONING.md says the competitive alternative is 'an in-house hire'. Which do we go with?",
+      "expected_output": "Applies the governing rule: POSITIONING.md is the source of truth for what is claimed; STORY.md only narrates it. Either derives the villain from the in-house-hire alternative (the status quo the customer actually has), or, if the owner believes the positioning itself is wrong, stops and routes them to website-positioning to change POSITIONING.md first, then corrects STORY.md. Does not quietly write a villain that contradicts the positioning, and does not name the big firms as the villain.",
+      "assertions": [
+        "States that POSITIONING.md wins on conflict",
+        "Does not write a STORY.md villain that contradicts the competitive alternative",
+        "Routes a change of positioning to website-positioning, then corrects STORY.md",
+        "Does not edit POSITIONING.md itself",
+        "Does not turn a named competitor into the villain"
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "We are at pipeline step 3 of new-website, the content guide. Nobody mentioned a story. Should the home page be a customer story?",
+      "expected_output": "Does not run website-story unasked. Explains, in the owner's language and in plain words, what the optional story layer is (the visitor as the hero, the brand as the guide, a one-liner, a three-step plan, one repeated call to action, positioning unchanged), using the offer text from the skill, and asks once with a yes/no choice. On no or no answer it continues with the standard home page and does not mention it again. On yes it runs website-story before writing the content guide's home page copy template.",
+      "assertions": [
+        "Does not produce STORY.md without an explicit yes",
+        "Explains the methodology in plain language before asking",
+        "Offers the opt-in once, with a yes/no choice",
+        "The default path on decline is the standard home page, with no further mention",
+        "On yes, runs before the content guide's home page copy template"
+      ],
+      "files": []
+    }
+  ]
+}

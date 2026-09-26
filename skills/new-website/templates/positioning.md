@@ -6,6 +6,7 @@
   H1, and the schema description. Built on April Dunford's framework (Obviously
   Awesome). Enforced by tests/positioning.spec.ts (the positioning spine).
   Owned by the website-positioning skill — do not restate positioning in CONTENT_GUIDE.md.
+  Further reading: https://www.aprildunford.com/books
 -->
 # [Site name] — positioning
 

@@ -51,6 +51,9 @@ repo's permission allowlist (fewer prompts, same guardrails); `search-console-se
 polish layer (stat count-up + section-heading reveal) for sites with a long scrolling
 homepage, plus the reduced-motion contract and the a11y-gate change that keep motion
 from silently hiding content. `website-motion` is never run by default: ask for it.
+`website-story` is an OPTIONAL story layer (the home page told as the customer's story:
+`STORY.md` + a seven-section home page map); it is offered once at §2a, right after
+positioning, and never runs unasked.
 
 ## 1. Decision interview (answer before any code)
 
@@ -163,6 +166,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 |---|---|---|
 | 1 | Insights: ICP, voice-of-customer, competitor scan | `customer-research` |
 | 2 | Positioning: what you offer, for whom, market category → `POSITIONING.md` (Dunford) | **`website-positioning`** |
+| 2a | Optional: the home page as the customer's story → `STORY.md` (offered once, §2a; positioning stays the source of truth) | `website-story` |
 | 3 | Tone of Voice, EEAT, page inventory → `CONTENT_GUIDE.md` + `BRAND.md` | **`website-content-guide`** |
 | 4 | Pages, clean URLs, nav, internal links | `site-architecture` |
 | 5 | Decision interview + scaffold the repo | **this skill** §1, §3 |
@@ -187,6 +191,27 @@ The build is **test-driven, not test-after**: the suite is green from commit 1,
 and steps 6–7 run as a loop per page (red → green → commit, see §3 step 5 and
 `website-qa` §1b). Step 7 in the table is the *final full-suite gate*, not the
 first time tests run.
+
+## 2a. Story layer — offer once, right after positioning
+
+`website-story` is optional and the owner has usually never heard of it, so explain
+before asking. Once `POSITIONING.md` is filled (step 2) and before the content guide
+(step 3):
+
+1. Read **"The offer"** in `website-story/SKILL.md` and say it in the language the
+   owner writes in (it explains the idea in plain words: the visitor as the hero, the
+   brand as the guide, a one-liner, a three-step plan, one repeated call to action,
+   positioning unchanged). Do not paraphrase it into jargon.
+2. Ask once — a structured user-input tool if the platform offers one (Claude Code's
+   **`AskUserQuestion`**), otherwise in chat — with two options: **Yes, build the home
+   page as a story** / **No, standard home page (default)**.
+3. **Yes** → run `website-story` now, before step 3, so `CONTENT_GUIDE.md`'s home row
+   and `copywriting` read `STORY.md`; record the choice in the project README next to
+   the interview answers.
+4. **No, or no answer** → say nothing more about it. The skill still travels with the
+   repo (§3 step 3), so it can be run later whenever the owner asks.
+
+Ask exactly once per build. Never run it unasked.
 
 ## 3. Scaffold the project (handoff-ready)
 
@@ -255,7 +280,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the twenty-two always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-three always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -270,8 +295,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `website-permissions` (allowlist),
    `search-console-setup` (post-launch GSC/Bing/IndexNow),
    `business-listings-setup` (post-launch Business Profile/Bing Places/
-   `sameAs` — gated per §4a), and `website-motion` (optional polish — copied so
-   the recipient can opt in later; it never runs on its own):
+   `sameAs` — gated per §4a), `website-motion` (optional polish — copied so
+   the recipient can opt in later; it never runs on its own), and `website-story`
+   (optional story layer — same rule: copied, never runs unasked; offered once at §2a):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
    them, not `cp -R`, or the copy ships broken symlinks pointing back at the
@@ -300,6 +326,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/search-console-setup \
          "$SKILLS_ROOT"/business-listings-setup \
          "$SKILLS_ROOT"/website-motion \
+         "$SKILLS_ROOT"/website-story \
          "$PROJECT_SKILLS_DIR"/
    ```
    The global copies stay the updateable source of truth; the project copies are
@@ -355,7 +382,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
 4. **Docs** — copy `templates/positioning.md` → `POSITIONING.md`,
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
-   `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.
+   `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3. `STORY.md` exists
+   only if the owner opted in at §2a; `website-story` copies it from its own
+   `templates/story.md`.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
@@ -476,7 +505,7 @@ hold Search Console Request Indexing until then.
       relevant directory found" and "not eligible" are valid, non-blocking
       outcomes — distinct from "skipped by owner choice".
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
-      `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
+      `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md` (+ `STORY.md` if opted in), `tests/`, `SETUP.md`,
       `PUBLISHING.md` (with its "For AI assistants" guardrails section intact), and a
       `README.md` with the decision answers + "how to add a page / run tests / deploy".
 
