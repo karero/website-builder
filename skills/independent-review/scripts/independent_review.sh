@@ -413,8 +413,8 @@ looks_like_review() {
 # throwaway dir, because seeing the working tree is what lets it check a diff's claims.
 # -c project_doc_max_bytes=0: codex loads the AGENTS.md of the project it runs in into its
 # instructions, and does so in a non-git dir too once the flag lets it start there (seen
-# live: it obeyed a planted one). Such a file would outrank the review prompt, so project
-# AGENTS.md loading is off — for a stray one in a scratch dir, and for one a PR under
+# live: it obeyed a planted one). Such a file would sit beside the review prompt as
+# instructions — which of the two wins was not tested — so project AGENTS.md loading is off — for a stray one in a scratch dir, and for one a PR under
 # review edits. With the setting, the same probe ignored it. It does not cover the user's
 # own global ~/.codex/AGENTS.md, nor stop the model opening a project AGENTS.md itself and
 # choosing to follow it. (Owner decision, 2026-09-26.)

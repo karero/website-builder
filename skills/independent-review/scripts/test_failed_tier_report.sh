@@ -44,7 +44,8 @@ for a; do
   case "$a" in *'--- BEGIN '*) a='<prompt>' ;; esac
   argv="$argv[$a]"
 done
-printf 'argv=%s cwd=%s\n' "$argv" "$(pwd -P)" >"$STUB_MARKS/codex-args"
+printf 'argv=%s cwd=%s git=%s\n' "$argv" "$(pwd -P)" \
+  "$(git rev-parse --is-inside-work-tree 2>/dev/null || echo no)" >"$STUB_MARKS/codex-args"
 if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   printf '%s\n' 'Reading additional input from stdin...' \
     'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
@@ -270,11 +271,11 @@ for m in "" stub-override; do
   name="nogit${m:+-model}"
   run "$name" CODEX_MODEL="$m" GIT_CEILING_DIRECTORIES="$CEILING" \
     sh -c 'cd "$1" && shift && exec bash "$@"' _ "$NOGIT" "$SCRIPT" "$T/plan.md"
-  check "$name: the stub really is outside a git repo" env -u GIT_DIR -u GIT_WORK_TREE \
-    sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$CEILING"
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
-  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT"
-  check "$name: exact argv (read-only, nothing looser) in the caller's cwd" \
+  # git=no is what git said from inside the stub itself, so the case cannot pass from
+  # inside a repo (round 4, fresh-eyes).
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0]${m:+[-c][model=\"$m\"]}[<prompt>] cwd=$NOGIT git=no"
+  check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
 
