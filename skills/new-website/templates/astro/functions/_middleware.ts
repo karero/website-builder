@@ -8,13 +8,16 @@
 //    dashboard → the project → Settings → Variables and Secrets → Production, e.g.
 //    https://example.com, then redeploy). Why: noindex alone did not keep the alias out
 //    of AI answers — AI search engines were seen citing <project>.pages.dev instead of
-//    the real domain (2026-09). Why a variable instead of SITE.url: SITE.url is set
-//    before launch, when the domain may not serve this site yet (not attached, or still
-//    the old site), and a redirect then would send visitors nowhere useful. Unset, the
-//    alias is noindexed like any preview, exactly as before.
+//    the real domain (2026-09). A 301 at least sends every visitor who follows such a
+//    link to the real domain, and tells crawlers which host is canonical.
+//    Why a variable instead of SITE.url: SITE.url is set before launch, when the domain
+//    may not serve this site yet (not attached, or still the old site), and a redirect
+//    then would send visitors nowhere useful. Unset, the alias is noindexed like any
+//    preview, exactly as before.
 //
 // Project names cannot contain dots, so the production alias is the only three-label
-// *.pages.dev host; every preview has four.
+// *.pages.dev host; every preview has four. (If that ever changed, a dotted alias would
+// simply stay noindexed — the safe side.)
 //
 // Typed with a minimal local interface so it compiles under the project's strict
 // tsconfig WITHOUT depending on @cloudflare/workers-types. (Cloudflare provides
@@ -26,26 +29,39 @@ interface MiddlewareContext {
   next: () => Promise<Response>;
 }
 
+// Hostnames may carry a trailing dot (example.com.) and still be the same host.
+function bareHost(url: URL): string {
+  return url.hostname.replace(/\.$/, '');
+}
+
+function isPagesDev(host: string): boolean {
+  return host === 'pages.dev' || host.endsWith('.pages.dev');
+}
+
 // The live origin from CANONICAL_URL, or null when unset or unusable. A pages.dev value
 // would redirect the alias to itself or to a preview, so it counts as unusable too.
 function liveOrigin(value: string | undefined): string | null {
   if (!value) return null;
+  let url: URL | null = null;
   try {
-    const url = new URL(value);
-    if (url.protocol !== 'https:' || url.hostname.endsWith('.pages.dev')) throw new Error();
-    return url.origin;
+    url = new URL(value);
   } catch {
+    // not a URL at all — reported below with the other unusable values
+  }
+  if (!url || url.protocol !== 'https:' || isPagesDev(bareHost(url))) {
     console.error(`CANONICAL_URL is not an https live-domain URL, not redirecting: ${value}`);
     return null;
   }
+  return url.origin;
 }
 
 export const onRequest = async (context: MiddlewareContext): Promise<Response> => {
   const url = new URL(context.request.url);
-  if (!url.hostname.endsWith('.pages.dev')) return context.next();
+  const host = bareHost(url);
+  if (!isPagesDev(host)) return context.next();
 
   const live = liveOrigin(context.env.CANONICAL_URL);
-  if (live && url.hostname.split('.').length === 3) {
+  if (live && host.split('.').length === 3) {
     return Response.redirect(live + url.pathname + url.search, 301);
   }
 

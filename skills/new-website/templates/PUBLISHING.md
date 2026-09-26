@@ -85,7 +85,8 @@ straight online. Simple, but there's no safety net, so check locally first (`npm
 > `*.pages.dev` URL is **noindexed by design** (so stray preview URLs never get indexed).
 > Until you attach your real domain in Cloudflare, the live site works but search engines
 > ignore it. Once your real domain shows the new site, your assistant switches the
-> `pages.dev` address to forward visitors there, so AI tools quote your real domain.
+> `pages.dev` address to forward visitors there, so a link to it in an AI answer still
+> brings people to your real domain.
 
 **Every time you change the site:**
 

@@ -132,9 +132,10 @@ recommendation, never to pick unasked.
 - **Email:** every address rendered via `<EmailLink>`; `email.spec.ts` green.
 - **Headers/redirects:** `_headers` CSP present; legacy URLs 301 in `_redirects`; the
   `*.pages.dev` middleware in place (previews noindexed); on a launched site,
-  `https://<project>.pages.dev/` answers 301 to the live domain — if it answers 200, the
-  Production variable `CANONICAL_URL` is missing or the site hasn't been redeployed since
-  (`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").
+  `https://<project>.pages.dev/` answers 301 to the live domain — if it answers 200, see
+  the causes listed in `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
+  go-live", step 3 (variable missing or rejected, no redeploy since, or a middleware that
+  predates the redirect).
 - **Secrets:** no `.env`/token committed; `.gitignore` covers them.
 - **Docs match code:** README test list + "how to add a page / run tests / deploy" current;
   `CONTENT_GUIDE.md` + `BRAND.md` filled; decision-interview answers recorded; the handoff

@@ -35,13 +35,36 @@ test('before launch (CANONICAL_URL unset) the production alias still serves the 
 
 test('after launch the production alias 301s to the live domain, keeping path and query', async () => {
   // noindex did not stop AI search engines citing <project>.pages.dev; a permanent
-  // redirect moves both visitors and citations to the real domain.
+  // redirect sends anyone following such a link to the real domain.
   const { res, served } = await serve(`https://${PROJECT}.pages.dev/about?ref=ai`, {
     CANONICAL_URL: SITE.url,
   });
   expect(served).toBe(false);
   expect(res.status).toBe(301);
   expect(res.headers.get('location')).toBe(`${new URL(SITE.url).origin}/about?ref=ai`);
+});
+
+test('CANONICAL_URL with a trailing slash or path still redirects to the bare live origin', async () => {
+  // The docs ask for the origin only, but a pasted https://example.com/ must not
+  // produce https://example.com//about.
+  for (const value of [`${SITE.url}/`, `${SITE.url}/some/path`]) {
+    const { res } = await serve(`https://${PROJECT}.pages.dev/about`, { CANONICAL_URL: value });
+    expect(res.status).toBe(301);
+    expect(res.headers.get('location')).toBe(`${new URL(SITE.url).origin}/about`);
+  }
+});
+
+test('the production alias written with a trailing dot is redirected too', async () => {
+  // my-site.pages.dev. is the same host; it must not slip past both the redirect and
+  // the noindex.
+  const { res } = await serve(`https://${PROJECT}.pages.dev./about`, { CANONICAL_URL: SITE.url });
+  expect(res.status).toBe(301);
+});
+
+test('before launch a preview is served, noindexed, as it always was', async () => {
+  const { res, served } = await serve(`https://main.${PROJECT}.pages.dev/`);
+  expect(served).toBe(true);
+  expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow');
 });
 
 for (const preview of [`main.${PROJECT}.pages.dev`, `3f9a1c2e.${PROJECT}.pages.dev`]) {
@@ -62,7 +85,13 @@ test('the live domain is served unchanged — no redirect, no noindex', async ()
   expect(res.headers.get('x-robots-tag')).toBeNull();
 });
 
-for (const bad of [`https://${PROJECT}.pages.dev`, 'http://example.com', 'example.com']) {
+for (const bad of [
+  `https://${PROJECT}.pages.dev`,
+  `https://${PROJECT}.pages.dev.`,
+  'https://pages.dev',
+  'http://example.com',
+  'example.com',
+]) {
   test(`a CANONICAL_URL of "${bad}" is ignored, never a redirect loop or downgrade`, async () => {
     // A pages.dev value would redirect the alias to itself; plain http or a bare host is
     // a typo. Failing safe keeps the pre-launch behaviour instead of breaking the site.

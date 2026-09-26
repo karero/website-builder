@@ -200,7 +200,10 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 Every Pages project also serves production at its own alias, `<project>.pages.dev`. The
 kit's `functions/_middleware.ts` noindexes it, but that does not keep it out of AI
 answers: AI search engines have been seen citing the alias instead of the real domain. So
-once the site is live, the alias should 301-redirect to the live domain.
+once the site is live, the alias should 301-redirect to the live domain: anyone who
+follows such a link lands on the real site, and crawlers are told which host counts. It
+won't rewrite an answer an AI engine has already given; re-check citations after a few
+weeks.
 
 The redirect is **off until you switch it on**, because before launch the alias may be the
 only address that works. Switch it on only when the live domain really serves this site —
@@ -212,19 +215,28 @@ current build:
    `https://example.com` (the live origin, same as `SITE.url`; no path, no trailing slash).
    Production only: previews must keep working, and the middleware never redirects a
    preview host anyway.
-2. **Redeploy.** A variable only reaches deployments made after it was set: run
-   `npm run ship` (two-stage), push to `main` (single-stage), or use **Retry deployment**
-   on the latest production deployment.
+2. **Redeploy with a new commit.** A variable only reaches deployments made after it was
+   set. `npm run ship` or a push with nothing new to publish does **not** redeploy — git
+   says "Everything up-to-date", Cloudflare builds nothing, and ship's "✓ LIVE" check still
+   passes on the old build. So make an empty commit first:
+   `git commit --allow-empty -m "Apply CANONICAL_URL"`, then push `main` and run
+   `npm run ship` (two-stage), or just push `main` (single-stage). Direct-upload sites
+   (§A): re-run `npx wrangler pages deploy dist --project-name <project>`.
 3. Check: `curl -sI https://<project>.pages.dev/about` answers `301` with
-   `location: https://example.com/about`, and `curl -sI https://main.<project>.pages.dev/`
-   still answers `200` with `x-robots-tag: noindex, nofollow`.
+   `location: https://example.com/about`, and a preview host still answers `200` with
+   `x-robots-tag: noindex, nofollow` — two-stage: `main.<project>.pages.dev`; single-stage:
+   any `<hash>.<project>.pages.dev` from `npx wrangler pages deployment list`. Still `200`
+   on the alias? The deployment predates the variable (step 2), the value was rejected
+   (not `https://`, or a `pages.dev` host — the Functions log says so), or the site's
+   `functions/_middleware.ts` predates the redirect (below).
 
 A value the middleware can't use (not `https://`, or itself a `pages.dev` host) is ignored
 and logged, so the alias stays noindexed rather than breaking.
 
 **Sites scaffolded before this redirect existed** need the new `functions/_middleware.ts`
-first: copy it from `templates/astro/functions/_middleware.ts` (`make whats-new` lists it
-when it changed), commit, then do steps 1–3. Nothing changes on a live site until that
+first: copy it from `templates/astro/functions/_middleware.ts`
+(`make whats-new PROJECT=<site-dir>` lists it when it changed), commit, then do steps 1–3
+(that commit is the new commit step 2 needs). Nothing changes on a live site until that
 redeploy.
 
 After the switch, the alias no longer shows the latest production build. To check a build

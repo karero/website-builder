@@ -116,8 +116,8 @@ project settings set the **production branch to `production`** (must equal
 `PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every preview
 `*.pages.dev` host is noindexed by the function). Once the live domain serves the
 site, set the Production variable `CANONICAL_URL` (e.g. `https://example.com`) and
-redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so AI
-answers cite the real domain instead of the alias. Until then the alias is noindexed
+redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so
+people following an AI answer that cites the alias land on the real domain. Until then the alias is noindexed
 like a preview. Steps, and how a site built before this change picks it up (new
 middleware + redeploy): `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
 go-live". AI assistant deploying or announcing a
