@@ -40,8 +40,11 @@
 # (e.g. "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: …)").
 #
 # SECURITY. The preferred reviewer runs as `codex exec -s read-only`, which ASKS
-# the CLI for a read-only sandbox; whether it blocks writes is not tested here
-# (R-SANDBOX in docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
+# the CLI for a read-only sandbox (plus --skip-git-repo-check, which only lets it start
+# outside a git repo or trusted project, and -c project_doc_max_bytes=0, which keeps a
+# project AGENTS.md out of its instructions; see the notes above codex_bin); whether it
+# blocks writes is not tested here (R-SANDBOX in
+# docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
 # only sends text. So: treat any external reviewer as untrusted, keep reviews off
 # anything you could not afford a stray write to, and never pass a write/danger
 # sandbox flag for a review.
@@ -208,7 +211,8 @@ unset PROMPT 2>/dev/null || true
 # PROMPT is built per TIER. The tiers do not have the same capabilities, and a single prompt
 # written to the weakest one silently caps the strongest.
 #
-#   codex     `exec -s read-only` in the CALLER'S cwd  -> read-only sandbox, sees the working tree
+#   codex     `exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0`
+#             in the CALLER'S cwd                      -> read-only sandbox, sees the working tree
 #   agy       `cd "$sbox"` into an empty mktemp dir    -> UNKNOWN, and deliberately not guessed.
 #                                                         It is sandboxed and its cwd is empty, but
 #                                                         neither fact establishes what it can read
@@ -411,6 +415,21 @@ looks_like_review() {
 # CODEX_MODEL overrides the model for this run only (e.g. a stronger tier for a hard
 # case or a long plan) via `-c model=...`; config.toml's reasoning-effort setting still
 # applies on top of it, since that's a separate key the override doesn't touch.
+# --skip-git-repo-check: without it, codex refuses to start in a directory that is not a
+# git repo or a trusted project ("Not inside a trusted directory ...", exit 1), so a PLAN
+# gate run from a scratch dir came back with codex FAILED and one reviewer (2026-09-26). The
+# flag only lifts that start-up check; codex 0.157.0 still reported "sandbox: read-only" with
+# it, and refused `touch` and a shell redirect there ("Operation not permitted") — one probe,
+# not a test of R-SANDBOX. Nor was the check a read boundary: started inside a repo, the same
+# codex read a file outside it. Codex keeps the caller's cwd rather than the agy tier's
+# throwaway dir, because seeing the working tree is what lets it check a diff's claims.
+# -c project_doc_max_bytes=0: codex loads the AGENTS.md of the project it runs in into its
+# instructions, and does so in a non-git dir too once the flag lets it start there (seen
+# live: it obeyed a planted one). Such a file would sit beside the review prompt as
+# instructions — which of the two wins was not tested — so project AGENTS.md loading is off — for a stray one in a scratch dir, and for one a PR under
+# review edits. With the setting, the same probe ignored it. It does not cover the user's
+# own global ~/.codex/AGENTS.md, nor stop the model opening a project AGENTS.md itself and
+# choosing to follow it. (Owner decision, 2026-09-26.)
 codex_bin() {
   command -v codex 2>/dev/null && return 0
   ls -1 "$HOME"/.vscode/extensions/openai.chatgpt-*/bin/*/codex 2>/dev/null | sort -V | tail -1
@@ -433,9 +452,9 @@ run_codex() {
       *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; WHY="CODEX_MODEL rejected: contains a newline"; return 1 ;;
       *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; WHY="CODEX_MODEL rejected: contains a backslash"; return 1 ;;
     esac
-    "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+    "$bin" exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   else
-    "$bin" exec -s read-only "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+    "$bin" exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   fi
   local rc=$?
   # An explicit CODEX_MODEL request failing must not fail silently — with
