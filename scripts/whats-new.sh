@@ -162,7 +162,10 @@ PROJECT="${TARGET%/}"
 [ -d "$PROJECT" ] || { echo "error: no such directory: $PROJECT" >&2; exit 1; }
 # Absolute physical path: `git -C` re-anchors relative pathspecs to the repo dir,
 # which would silently defeat the dirty guards below for a relative <project_dir>.
-PROJECT="$(cd "$PROJECT" && pwd -P)"
+# CDPATH= because a relative <project_dir> would otherwise resolve through CDPATH to a
+# same-named directory elsewhere — the -d test above passes on the real one, and the
+# refresh path then writes into the other.
+PROJECT="$(CDPATH= cd -- "$PROJECT" && pwd -P)"
 
 process_dir() {  # $1 = path to a SUITE-VERSION stamp
   local stamp="$1" skills_dir base short_base copied changed stale s missing keep
