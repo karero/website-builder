@@ -4,11 +4,14 @@ Website of [SITE_NAME]. Astro, static, GitHub → Cloudflare Pages.
 Live: [LIVE_URL] · Preview: [PREVIEW_URL]
 
 <!-- Scaffold note (delete after filling): new-website fills the [BRACKET] slots at
-     scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL, TITLE_SUFFIX + TITLE_MAX in §6,
-     and keeps ONE publish-model block in §2. website-team-setup later fills §5
-     (collaborators, rights level, who publishes). Owner writes in another language?
-     Translate this file in-session, keep every rule, keep the commands verbatim.
-     CLAUDE.md imports this file, so Codex and Claude Code follow the same rules. -->
+     scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL (two-stage: main.<project>.pages.dev;
+     single-stage: "pull-request previews only, <branch>.<project>.pages.dev"),
+     TITLE_SUFFIX + SUFFIX_LENGTH + TITLE_MAX in §6, and keeps ONE publish-model block
+     in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
+     (collaborators, rights level, merge rule, who publishes). Owner writes in another
+     language? Translate this file in-session, keep every rule, keep the commands
+     verbatim. CLAUDE.md imports this file, so Codex and Claude Code follow the same
+     rules. -->
 
 Several people and several AI assistants may work on this site, sometimes at the same
 time. The rules below stop anyone from working on a stale state or overwriting someone
@@ -32,7 +35,8 @@ Before you change any file:
    new: say so.
 4. Then, depending on the task. If it is unclear which case applies: ask.
    - **New task:** own branch straight from the newest GitHub state. Do not use the
-     local `main` branch.
+     local `main` branch. Any short branch name works; `content/` is the convention
+     for content work, `setup/` for settings.
      ```bash
      git switch --no-track -c content/<short-name> origin/main
      ```
@@ -71,12 +75,13 @@ applies there; instead of steps 2 to 4, only this:
     button (see the cloud case in §1).
   - If `"[MISSING: …]"` placeholders are still in it: open the pull request as a
     **draft** and list the places in the description.
-- **Merging on GitHub:** a collaborator may merge their **own** pull request themselves,
-  with the "Merge pull request" button on GitHub, only when
+- **Merging on GitHub:** a pull request may be merged, with the "Merge pull request"
+  button on GitHub, only when
   - the automatic checks on GitHub are green (green tick on the pull request; while
     they run: wait; red: do not merge, report it instead),
   - no `"[MISSING: …]"` placeholder is left and the pull request is not a draft,
-  - and it is their own pull request. Other people's pull requests only after asking.
+  - and the person pressing the button may do so per the merge rule in §5 (default:
+    the author merges their own pull request; other people's only after asking).
 
   The assistant never merges; the person does that on GitHub.
 - **Preview before merging:** every pull request gets its own preview address from
@@ -127,7 +132,8 @@ applies there; instead of steps 2 to 4, only this:
   concrete. No marketing filler.
 - **Invent nothing.** Use only facts the person gives or that are already on the site.
   If something is missing (a number, a year, a material, a name), write a placeholder
-  and ask, **always in quotes**, or the build breaks: `value: "[MISSING: year built]"`.
+  and ask, **always in quotes** (in frontmatter an unquoted `[…]` breaks the build):
+  `value: "[MISSING: year built]"`.
   Placeholders must not go live; see the draft rule in §2.
 - Forbidden (the test `tests/tone.spec.ts` rejects it): the long dash (—), buzzwords
   and typical AI filler phrases, plus language-specific rules (English: no
@@ -139,20 +145,24 @@ applies there; instead of steps 2 to 4, only this:
 
 ## 5. Who may change what
 
-<!-- website-team-setup fills this section. Until then the default below applies. -->
+<!-- website-team-setup rewrites the four lines below (collaborators, rights level,
+     merge rule, who publishes). Until a team forms, these single-owner defaults apply
+     unchanged — they are not placeholders. -->
 
-Collaborators on GitHub: [none yet — the owner works alone]
+Collaborators on GitHub: none yet; the owner works alone.
 
-Rights level of collaborators: [RIGHTS_LEVEL]
+Rights level of collaborators: everything (the owner's own level; see the table).
+
+Merge rule: the author merges their own pull request once §2's conditions hold; other
+people's pull requests only after asking.
+
+Publishing live (`npm run ship`, two-stage sites only): the owner.
 
 | Level | Collaborators may change |
 |---|---|
-| **content** | texts, images, entries in content collections, `public/llms.txt`, `CONTENT_GUIDE.md` |
+| **content** | texts, images, entries in content collections, `public/llms.txt`, `CONTENT_GUIDE.md`, plus the §6 edits an entry needs (`PAGES` in `tests/_helpers.ts`, the share-card list, `llms.txt`) |
 | **content + design** | additionally navigation, components, layouts, styles, existing pages, `src/config.ts`, `BRAND.md` |
 | **everything** | everything the owner may change: also new pages, tests, scripts, CI, settings |
-
-Publishing live (`npm run ship`, two-stage sites only): [SHIP_RIGHTS: owner only |
-every collaborator]
 
 For everyone, the owner included:
 - Only change what was asked for; do not "tidy up".

@@ -266,13 +266,15 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
    **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
-   preview URL (`main.<project>.pages.dev` — update it if Cloudflare later forces another
-   project name), `[TITLE_SUFFIX]` = the ` | {SITE.name}` string `Base.astro` appends,
-   its length, and `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in
-   its §2 (the interview's Q6 answer) and delete the other. §5 (collaborators, rights
-   level, who publishes) stays at its single-owner default until `website-team-setup`
-   runs. Non-English owner: translate `AGENTS.md` in-session like `PUBLISHING.md` — rules
-   and commands intact.
+   preview URL (two-stage: `main.<project>.pages.dev`; single-stage: "pull-request
+   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; update the
+   project name if Cloudflare later forces another one), `[TITLE_SUFFIX]` = the
+   ` | {SITE.name}` string `Base.astro` appends, `[SUFFIX_LENGTH]` = its length, and
+   `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
+   interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
+   rule, who publishes) ships with single-owner defaults, not slots; `website-team-setup`
+   rewrites it when a team forms. Non-English owner: translate `AGENTS.md` in-session
+   like `PUBLISHING.md` — rules and commands intact.
 3. **Skills travel with the repo** — copy the twenty-three always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
@@ -499,8 +501,8 @@ hold Search Console Request Indexing until then.
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
       `PUBLISHING.md` (with its "For AI assistants" guardrails section intact),
-      `AGENTS.md` + `CLAUDE.md` (every `[BRACKET]` slot in §§1–4 and §6 filled, one
-      publish-model block kept in §2), and a
+      `AGENTS.md` + `CLAUDE.md` (no `[BRACKET]` slot left, the scaffold note removed,
+      one publish-model block kept in §2), and a
       `README.md` with the decision answers + "how to add a page / run tests / deploy".
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity

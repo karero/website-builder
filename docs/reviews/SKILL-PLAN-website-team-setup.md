@@ -65,8 +65,9 @@ Claude Code following `AGENTS.md`.
   stops and says so. Never `--force`, never `reset --hard`, never deletes anything to get
   past an error.
 - **A8 — Direct push to `main`.** The assistant is asked to "just push it to main". →
-  It refuses that route and opens a pull request instead; the hook installed by
-  building block 2 rejects the push anyway.
+  It refuses that route and opens a pull request instead. After building block 2, the
+  push is also rejected: by GitHub where a ruleset exists, otherwise by the pre-push hook
+  in every clone that ran `npm install`.
 - **A9 — Merge conditions.** A collaborator's pull request is green, has no
   placeholders, and is not a draft. → They may merge it themselves on GitHub. Red or
   still running: wait, and report red instead of merging. Someone else's pull request:
@@ -127,14 +128,17 @@ Claude Code following `AGENTS.md`.
   the Workers form the dashboard now leads to first; warns that a Worker created by
   mistake leaves a "Workers Builds" check on every pull request until its build
   connection is removed, and gives the check to prove it is gone (a throwaway pull
-  request shows only the CI check); warns that a Pages project name is global across
+  request opened after connecting shows only the CI check and the Cloudflare Pages
+  preview check); warns that a Pages project name is global across
   all Cloudflare accounts, so the obvious name may be taken and a shorter one still
   works; sets the production branch to match the publish model; and notes that each
   pull request gets its own preview address in its checks.
-- **B8 — Rights and publish rights.** → The skill asks two questions and writes the
-  answers into `AGENTS.md`: the rights level for collaborators (content only; content
-  and design; everything the owner may change) and, on a two-stage site, who may run
-  `npm run ship` (owner only, offered as the default; or every collaborator).
+- **B8 — Rights, merge rule and publish rights.** → The skill asks and writes the
+  answers into `AGENTS.md` §5: the rights level for collaborators (content only; content
+  and design; everything the owner may change), the merge rule (default: the author
+  merges their own green pull request; alternative: the owner merges everything) and,
+  on a two-stage site, who may run `npm run ship` (owner only, offered as the default;
+  or every collaborator).
 - **B9 — Collaborator guide.** → A short `TEAM-GUIDE.md` is added: what to install for
   local Codex or Claude Code, or how to start a Codex cloud task from the repo; the four
   moves per task (start, branch, pull request, merge); who to ask. Translated in-session
@@ -143,8 +147,10 @@ Claude Code following `AGENTS.md`.
   branch is behind `main`; GitHub shows "Update branch" (B3). They press it, CI runs
   again, then they merge. If both touched the same lines, GitHub shows a conflict and
   the rules say ask, do not guess.
-- **B11 — Nothing pur-specific leaks.** → `make check` (the clean scan) passes; the
-  skill and templates contain no personal names, accounts, emails or client URLs.
+- **B11 — Nothing client-specific leaks.** → `make check` (the clean scan) passes
+  **with the maintainer's local name denylist present** (a fresh clone or CI skips that
+  part and only runs the generic checks); the skill and templates contain no personal
+  names, accounts, emails or client URLs.
 - **B12 — Re-run is safe.** The skill runs a second time. → Every step is idempotent:
   existing collaborators are reported, settings already on stay on, a ruleset that
   exists is not duplicated, the hook block is not enabled twice.
@@ -160,8 +166,27 @@ Claude Code following `AGENTS.md`.
 
 ## Review trail
 
-- Fresh-eyes review (Claude sub-agent, no shared context): see the section appended
-  after the build below.
-- A cross-model Codex seat (`independent-review` DIFF gate) was **not** run in the
-  environment that built this — no Codex CLI available there. Run it before merging;
-  the pull request says so.
+**Round 1 — fresh-eyes seat** (Claude sub-agent, no shared context, same model family;
+2026-09-26, on the first commit of the branch). It verified the template claims first
+(job id, hook block, exemption names, tone rules, REST shapes, `gh` flags — all held),
+then returned **3 BUG / 8 RISK / 7 NIT**. All fixed in the second commit:
+
+| Sev | Finding | Fix |
+|---|---|---|
+| BUG | The push-block verification (`git push origin main` on a no-op) can never fail: git hands the hook nothing and sends GitHub nothing | Hook: `git push --dry-run origin HEAD:main` from a scratch commit. Ruleset: read `rules/branches/main` back |
+| BUG | `gh run watch` without a run id fails non-interactively; the dispatched run does not exist for a few seconds | Resolve the run id from `gh run list` after a short wait, then watch it |
+| BUG | The client's name appeared in scenario B11 of this plan | Reworded; note that the clean scan's name denylist is local-only |
+| RISK | `[RIGHTS_LEVEL]` and `[SHIP_RIGHTS]` slots survived in every single-owner repo, contradicting A1 | §5 ships real single-owner defaults; slot names live only in the comment |
+| RISK | A "content" collaborator could not finish the §6 checklist (needs `tests/_helpers.ts`, the share-card list) | Content row names those edits explicitly |
+| RISK | The Workers-check proof (§6.2) pointed at a throwaway pull request opened *before* Cloudflare was connected | §6.2 opens a second one after connecting; B7 says so |
+| RISK | `main.<project>.pages.dev` stated as the preview for both publish models; on single-stage `main` is live | Scaffold note and new-website step distinguish the models |
+| RISK | Bypass list omitted `ALLOW_MAIN_PUSH=1`; "replace the OPTIONAL comment" would delete two load-bearing comment lines | Named; only the first sentence is replaced |
+| RISK | Q3 "owner merges everything" had nowhere to land (§2 and the guide hard-coded the own-PR rule) | Merge rule is a §5 line; §2 and the guide point at it |
+| RISK | Re-running §5-A would POST a second ruleset | Count existing "protect main" rulesets before creating |
+| RISK | Single-stage sites keep `PROD_BRANCH = 'production'`; "must equal" invites setting Cloudflare to `production` | §6.5 says: set `PROD_BRANCH = 'main'` in the setup pull request |
+| NIT ×7 | Dangling "step 4" in the guide once option A is deleted; incomplete slot list in §8; "Create PR" on the local path; `[SUFFIX_LENGTH]` missing from the scaffold note; "or the build breaks" only true in frontmatter; branch-name convention mismatch; description 5 chars under the hard limit; A8 overstated the hook | All fixed |
+
+**Not run:** a cross-model Codex seat (`independent-review` DIFF gate) — no Codex CLI
+in the environment that built this. Run it before merging; the pull request says so.
+The round-1 fixes are self-verified only (`make check` green, text re-read against each
+finding), not re-reviewed.

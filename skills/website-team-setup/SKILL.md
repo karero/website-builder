@@ -1,19 +1,19 @@
 ---
 name: website-team-setup
 description: >
-  Turn a one-person new-website repo into one several people and several AI
-  assistants (Codex in the browser or locally, Claude Code) can work on at once
-  without overwriting each other: invite collaborators on GitHub, set the repo
-  settings ("Update branch" + auto-delete merged branches), PROVE the CI workflow
-  really starts on its own (it can sit silent for weeks; the fix is bundled), block
-  direct pushes to `main` (ruleset, or the shipped pre-push hook on a private
-  free-plan repo), connect Cloudflare Pages to GitHub without the known traps (Workers
-  form instead of Pages, a leftover Workers Builds check, global project names), set
-  the collaborators' rights level and who may publish live in `AGENTS.md`, and hand
+  Turn a one-person new-website repo into one several people and AI assistants
+  (Codex in the browser or locally, Claude Code) can work on at once without
+  overwriting each other: invite collaborators on GitHub, set the repo settings
+  ("Update branch" + auto-delete merged branches), PROVE the CI workflow really
+  starts on its own (it can sit silent for weeks; the fix is bundled), block direct
+  pushes to `main` (ruleset, or the shipped pre-push hook on a private free-plan
+  repo), connect Cloudflare Pages to GitHub without the known traps (Workers form
+  instead of Pages, a leftover Workers Builds check, global project names), set the
+  collaborators' rights, merge rule and who publishes live in `AGENTS.md`, and hand
   the team a one-page guide. Run once, when a second person joins. Trigger phrases:
   "set up the team", "my colleague will work on the site", "invite a collaborator",
-  "several people on the repo", "block pushes to main", "CI is not running on pull
-  requests", "connect Cloudflare to GitHub", "team setup".
+  "block pushes to main", "CI is not running on pull requests", "connect Cloudflare
+  to GitHub", "team setup".
 ---
 
 # Website team setup — from one owner to a team, once
@@ -56,7 +56,9 @@ Ask, one at a time, offer the options, record the answers — they feed §§2, 5
    pick what fits now, it is one line to change later.
 3. **Merge rule.** Default and recommended: a collaborator merges their **own** pull
    request when the checks are green, no placeholders remain and it is not a draft;
-   other people's pull requests only after asking. Alternative: owner merges everything.
+   other people's pull requests only after asking. Alternative: the owner merges
+   everything. Lands in `AGENTS.md` §5 (the "Merge rule" line) and in the guide's
+   Merge row.
 4. **Who publishes live** — two-stage sites only (`main` = preview, `production` =
    live, `npm run ship`). Offer **owner only** as the default, or **every
    collaborator**. Single-stage sites skip this: a merge is live there, and the merge
@@ -123,7 +125,11 @@ gh run list --workflow ci.yml --limit 5
   workflow stays disabled until enabled.
 - (c) empty, or only `workflow_dispatch` runs → do the two-step fix:
   ```bash
-  gh workflow run ci.yml --ref main && gh run watch        # 1. one manual start
+  gh workflow run ci.yml --ref main                        # 1. one manual start
+  sleep 15   # the run takes a few seconds to appear; `gh run watch` needs its id
+  id=$(gh run list --workflow ci.yml --event workflow_dispatch --limit 1 \
+       --json databaseId --jq '.[0].databaseId')
+  gh run watch "$id" --exit-status
   git switch --no-track -c ci/trigger-test origin/main      # 2. throwaway pull request
   git commit --allow-empty -m "CI trigger test (will be closed)"
   git push -u origin ci/trigger-test
@@ -139,8 +145,9 @@ gh run list --workflow ci.yml --limit 5
 - Still nothing after both steps → stop and report; do not declare CI working. A team
   merging on "green" that never runs is worse than no rule.
 
-While the throwaway pull request is open, look at its check list: it also proves §6's
-"no leftover Workers Builds check" — see there.
+While the throwaway pull request is open, look at its check list: if Cloudflare is
+already connected (§6), it also proves "no leftover Workers Builds check" — see §6.2.
+If Cloudflare is connected later, §6.2 opens a second one.
 
 ## 5. Block direct pushes to `main`
 
@@ -152,6 +159,9 @@ the CI job required to pass on an up-to-date branch, no force push, no deletion.
 `test` is the job id in the kit's `ci.yml`; use the job's `name:` instead if one is set.
 
 ```bash
+# Re-run safe: create only if no ruleset of that name exists yet.
+gh api "repos/$OWNER/$REPO/rulesets" --jq 'map(select(.name=="protect main")) | length'
+# 0 → create:
 gh api -X POST "repos/$OWNER/$REPO/rulesets" --input - <<'JSON'
 {
   "name": "protect main",
@@ -174,8 +184,7 @@ JSON
 gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | "\(.name) \(.enforcement)"'
 ```
 No bypass list: the rule applies to the owner too, which is the point. Dashboard
-path: **Settings → Rules → Rulesets → New branch ruleset**. Re-run safe: list first;
-a ruleset named "protect main" that exists is left alone. An approving review count of
+path: **Settings → Rules → Rulesets → New branch ruleset**. An approving review count of
 0 keeps the gate "green CI + a human pressed merge", matching §1's merge rule; raise it
 only if the owner wants a second pair of eyes on every change.
 
@@ -184,17 +193,30 @@ only if the owner wants a second pair of eyes on every change.
 there. Say so plainly, then enable the local guard the kit already ships:
 `scripts/hooks/pre-push` contains a commented-out **PR-only main** block (the six
 lines from `while read` to `done`, marked OPTIONAL). Remove the leading `# ` from
-those lines, replace the OPTIONAL comment with the date and why it is on, and commit
-that in the setup pull request. Then tell the owner, and write into `AGENTS.md` §2,
-what it is: a **local convention**, active only in a clone that ran `npm install`
-or `npm ci` (the `prepare` script wires the hook), bypassed by `git push
---no-verify`, by unsetting `core.hooksPath`, and by a clone that never installed. It
-does not touch `npm run ship` (which pushes `main:production`), nor GitHub's own
-merges, nor Codex in the cloud (which only ever creates pull requests). It is the
-best a free private repo gets, and it is enough when everyone follows `AGENTS.md`.
+those six lines and replace only the first sentence of the comment above them
+("OPTIONAL: PR-only main flow …") with the date and why it is on — keep the rest of
+that comment, it documents the override and why the block must stay above the build
+steps. Commit that in the setup pull request. Then tell the owner, and write into
+`AGENTS.md` §2, what it is: a **local convention**, active only in a clone that ran
+`npm install` or `npm ci` (the `prepare` script wires the hook), bypassed by
+`ALLOW_MAIN_PUSH=1` (the deliberate override), by `git push --no-verify`, by
+unsetting `core.hooksPath`, and by a clone that never installed. It does not touch
+`npm run ship` (which pushes `main:production`), nor GitHub's own merges, nor Codex
+in the cloud (which only ever creates pull requests). It is the best a free private
+repo gets, and it is enough when everyone follows `AGENTS.md`.
 
-Either way, verify from a clone: `git push origin main` on a no-op must be rejected
-(by GitHub, or by the hook with "Direct push to 'main' blocked").
+**Verify — and not with a no-op push.** `git push origin main` with nothing to push
+hands the hook nothing and sends GitHub nothing ("Everything up-to-date"), so it
+"passes" both mechanisms without testing either. Instead:
+```bash
+# Ruleset: read it back — must list pull_request and required_status_checks.
+gh api "repos/$OWNER/$REPO/rules/branches/main" --jq '.[].type'
+# Hook: a dry run of a real ref update — the hook runs, nothing is transferred.
+git switch --no-track -c setup/push-check origin/main
+git commit --allow-empty -m "push-block check (never pushed)"
+git push --dry-run origin HEAD:main     # expect: "Direct push to 'main' blocked"
+git switch - && git branch -D setup/push-check
+```
 
 ## 6. Cloudflare: connect the repo to GitHub — with the traps
 
@@ -212,8 +234,9 @@ pull request). Walk the owner through it with these warnings ahead of each click
    deleting the Worker is not enough: its build connection keeps posting a **"Workers
    Builds"** check on every pull request (pending or failing forever). Remove the
    connection on the Worker (**Settings → Builds → disconnect**, or delete the Worker
-   after disconnecting), then prove it is gone: the throwaway pull request from §4
-   must show only the **CI** check and the **Cloudflare Pages** preview check. If the
+   after disconnecting), then prove it is gone: open a throwaway pull request **after**
+   connecting (the §4 recipe: empty commit, close and delete afterwards) — it must
+   show only the **CI** check and the **Cloudflare Pages** preview check. If the
    Workers check is still there, the GitHub App installation still carries the
    trigger: GitHub → **Settings → Applications → Cloudflare Workers and Pages →
    Configure** → check which repos it may access, and remove and re-add the repo if
@@ -228,9 +251,11 @@ pull request). Walk the owner through it with these warnings ahead of each click
    output directory `dist`. Node version comes from the repo's `.nvmrc`.
 5. **Production branch = the publish model.** Two-stage: **`production`** (create the
    branch first if it does not exist yet, see `new-website` §4), so `main` stays the
-   noindexed preview. Single-stage: `main`. It must equal `PROD_BRANCH` in
-   `src/config.ts`, or analytics never fires; and `AGENTS.md` §2 must keep the block
-   that matches (the other one is deleted at scaffold time — check it was).
+   noindexed preview. Single-stage: `main` — and then set `PROD_BRANCH = 'main'` in
+   `src/config.ts` in the setup pull request (the kit ships `'production'`), because
+   analytics fires only when the two agree, silently never otherwise. `AGENTS.md` §2
+   must keep the block that matches (the other one is deleted at scaffold time —
+   check it was).
 6. **Pull request previews.** Once connected, every pull request gets its own preview
    address in its checks ("Cloudflare Pages" → *View deployment*), plus the stable
    alias `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look
@@ -247,24 +272,28 @@ commit id (the kit's build marker). Say which address is the **preview** and whi
 
 ## 7. Rights and publish rights in `AGENTS.md`
 
-Fill §5 from the §1 answers: the collaborators line (usernames only, no emails), the
-`[RIGHTS_LEVEL]` line, the merge rule if it differs from the default, and
-`[SHIP_RIGHTS]` (two-stage) — or delete the ship line on a single-stage site. If §5-B
-enabled the hook, add one sentence to §2 saying the block is local and what bypasses
-it. Read the whole file once more: no `[BRACKET]` slot may remain, and the publish
+Rewrite the four lines at the top of §5 from the §1 answers: collaborators (GitHub
+usernames only, no emails), rights level, merge rule, and who publishes live
+(two-stage) — or delete the publish line on a single-stage site. If §5-B enabled the
+hook, add one sentence to §2 saying the block is local and what bypasses it
+(`ALLOW_MAIN_PUSH=1`, `--no-verify`, a clone without `npm install`). Read the whole
+file once more: no `[BRACKET]` slot and no scaffold note may remain, and the publish
 model block must match Cloudflare's production branch (§6.5).
 
 ## 8. The collaborators' guide
 
 Copy `templates/TEAM-GUIDE.md` from this skill into the repo root as `TEAM-GUIDE.md`,
-keep the part(s) that match §1's answer 5 (browser / local / both), fill the
-`[BRACKET]` slots (site name, repo, owner's name for "who to ask" — a name, never an
-email), and translate if the team's language is not English. It is deliberately one
-page: where to start, the four moves per task, when to ask.
+keep the part(s) that match §1's answer 5 (browser / local / both), fill every
+`[BRACKET]` slot — site name, owner/repo, the owner's name for "who to ask" (a name,
+never an email), the Merge row (`[MERGE_RULE]`, from §1 answer 3), and the "what merge
+does" line (`[MERGE_MEANS]` with `[PREVIEW_URL]`, `[LIVE_URL]`, `[SHIP_RIGHTS]` from
+answer 4; single-stage sites keep the "goes live" half) — and translate if the team's
+language is not English. It is deliberately one page: where to start, the four moves
+per task, when to ask.
 
 ## 9. Hand over
 
-- Open the setup pull request (branch `team/setup`), describe in plain words: who was
+- Open the setup pull request (branch `setup/team`), describe in plain words: who was
   invited, which settings are on, how CI was proven, which push block is active and
   what it covers, the Cloudflare project and its addresses, the rights level, the
   publish rule. Note the `scripts/` and `AGENTS.md` changes explicitly (`AGENTS.md` §5).

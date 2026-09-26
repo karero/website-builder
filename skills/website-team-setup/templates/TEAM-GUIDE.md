@@ -33,7 +33,9 @@ npm ci && npx playwright install chromium
 ```
 Per change: open the assistant in that folder and describe the change. It fetches
 the latest state first, works on its own branch, runs the checks, and uploads a pull
-request. Then step 4 from option A: green tick → preview → **Merge pull request**.
+request. Then, on GitHub, open the pull request: wait for the **green tick**, open
+the **preview link** under the checks and look at your change, then press **Merge
+pull request**.
 
 ## The four moves, whichever option
 
@@ -41,8 +43,8 @@ request. Then step 4 from option A: green tick → preview → **Merge pull requ
 |---|---|---|
 | **Start** | Get the newest state of the site before changing anything | the assistant |
 | **Branch** | Work on a copy, never on the shared line | the assistant |
-| **Pull request** | Upload the change as a proposal; checks and a preview run automatically | the assistant (Create PR) |
-| **Merge** | Take the proposal into the site — only when green, previewed, and it is your own | **you**, on GitHub |
+| **Pull request** | Upload the change as a proposal; checks and a preview run automatically | the assistant (in the browser: you press "Create PR") |
+| **Merge** | Take the proposal into the site — only when green and previewed | [MERGE_RULE: **you**, on GitHub, for your own pull requests \| the owner] |
 
 What "merge" does on this site: [MERGE_MEANS: updates the preview at [PREVIEW_URL];
 live needs `npm run ship` by [SHIP_RIGHTS] | goes live at [LIVE_URL] within minutes].
@@ -54,4 +56,5 @@ live needs `npm run ship` by [SHIP_RIGHTS] | goes live at [LIVE_URL] within minu
   supply the fact, or leave the pull request as a draft until it is filled.
 - The assistant says it cannot fetch, cannot push, or something "already exists":
   stop and ask. Never force anything.
-- Someone else's pull request: only merge after asking them.
+- Someone else's pull request: only merge after asking them (if merging is yours to do
+  at all, see the Merge row above).
