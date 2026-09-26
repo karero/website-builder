@@ -1,0 +1,276 @@
+---
+name: website-team-setup
+description: >
+  Turn a one-person new-website repo into one several people and several AI
+  assistants (Codex in the browser or locally, Claude Code) can work on at once
+  without overwriting each other: invite collaborators on GitHub, set the repo
+  settings ("Update branch" + auto-delete merged branches), PROVE the CI workflow
+  really starts on its own (it can sit silent for weeks; the fix is bundled), block
+  direct pushes to `main` (ruleset, or the shipped pre-push hook on a private
+  free-plan repo), connect Cloudflare Pages to GitHub without the known traps (Workers
+  form instead of Pages, a leftover Workers Builds check, global project names), set
+  the collaborators' rights level and who may publish live in `AGENTS.md`, and hand
+  the team a one-page guide. Run once, when a second person joins. Trigger phrases:
+  "set up the team", "my colleague will work on the site", "invite a collaborator",
+  "several people on the repo", "block pushes to main", "CI is not running on pull
+  requests", "connect Cloudflare to GitHub", "team setup".
+---
+
+# Website team setup — from one owner to a team, once
+
+`new-website` scaffolds every site with an `AGENTS.md` (the working rules: fetch the
+latest state first, pull request instead of a direct push, when a merge is allowed,
+never invent facts, the new-page checklist) and a `CLAUDE.md` that imports it. Those
+rules already work for one person. This skill does the part that only a **team** needs,
+in the order we had to do it on a real site, with the traps we hit written in.
+
+> **Human-in-the-loop.** Inviting people, accepting invitations, the Cloudflare
+> dashboard, and any plan-dependent GitHub setting are the owner's clicks. You draft
+> every value and run every command that `gh` can run; you never handle the owner's
+> credentials or 2FA, and never drive a dashboard through blind screen control.
+
+> **Language.** Talk to the owner in their language. The files stay English unless the
+> owner's language is another one; then translate `AGENTS.md` and `TEAM-GUIDE.md`
+> in-session (rules and commands intact), as `new-website` does for `PUBLISHING.md`.
+
+Prerequisites: the site is on GitHub with `.github/workflows/ci.yml` from the kit, and
+`AGENTS.md` exists. If it does not (a site scaffolded before the template existed),
+copy `new-website/templates/AGENTS.md` + `templates/CLAUDE.md` in first and fill the
+`[BRACKET]` slots per the note at its top, then continue here.
+
+Work on a branch and finish with a pull request — the rule the setup installs applies
+to the setup itself. Say in the pull request that it touches `scripts/` (the hook) and
+`AGENTS.md`.
+
+## 1. Decide with the owner first (five questions)
+
+Ask, one at a time, offer the options, record the answers — they feed §§2, 5, 7, 8:
+
+1. **Who joins?** GitHub usernames of the collaborators (they need accounts first; a
+   free account is enough).
+2. **Rights level** for collaborators, written into `AGENTS.md` §5:
+   **content** (texts, images, collection entries) · **content + design** (also
+   navigation, components, layouts, styles, existing pages, `src/config.ts`) ·
+   **everything** the owner may change (also new pages, tests, scripts, CI, settings).
+   The reference site started at "content" and widened to "everything" within a day;
+   pick what fits now, it is one line to change later.
+3. **Merge rule.** Default and recommended: a collaborator merges their **own** pull
+   request when the checks are green, no placeholders remain and it is not a draft;
+   other people's pull requests only after asking. Alternative: owner merges everything.
+4. **Who publishes live** — two-stage sites only (`main` = preview, `production` =
+   live, `npm run ship`). Offer **owner only** as the default, or **every
+   collaborator**. Single-stage sites skip this: a merge is live there, and the merge
+   rule is the whole gate.
+5. **How will they work?** Codex in the browser (nothing to install; GitHub connection
+   in Codex), Codex or Claude Code locally (needs `SETUP.md`'s tools), or both. Decides
+   what `TEAM-GUIDE.md` (§8) says.
+
+## 2. Invite the collaborators
+
+```bash
+OWNER=<github-owner>; REPO=<repo>
+# write access = can push branches and open/merge pull requests; not admin
+gh api -X PUT "repos/$OWNER/$REPO/collaborators/<username>" -f permission=push
+gh api "repos/$OWNER/$REPO/invitations" --jq '.[] | "\(.invitee.login) \(.permissions) pending"'
+```
+Dashboard path: repo → **Settings → Collaborators → Add people**. The invitee gets an
+email and must **accept** it; until then `collaborators` does not list them. Tell the
+owner to ask for the acceptance and re-check before assuming anyone can push:
+`gh api "repos/$OWNER/$REPO/collaborators" --jq '.[].login'`.
+
+Re-run safe: an existing collaborator is a no-op; a pending invitation is listed, not
+duplicated.
+
+## 3. Repository settings (one command)
+
+```bash
+gh repo edit "$OWNER/$REPO" --allow-update-branch --delete-branch-on-merge
+gh api "repos/$OWNER/$REPO" --jq '{allow_update_branch, delete_branch_on_merge}'
+```
+- **`allow_update_branch`** shows the **"Update branch"** button on every pull request
+  that is behind `main`. This is what makes "a second person opens a pull request while
+  the first one merges" a one-click situation instead of a git lesson: press it, CI
+  runs again on the merged state, then merge. Required: with a ruleset that demands
+  up-to-date branches (§5) GitHub refuses to merge a stale one otherwise.
+- **`delete_branch_on_merge`** removes the head branch after a merge, so the branch
+  list stays readable for people who never learned to prune. GitHub never deletes a
+  *base* branch, so `production` is safe. Pair it with `git config --global
+  fetch.prune true` on each machine (`SETUP.md` §3 says so).
+
+Dashboard path: **Settings → General → Pull Requests** → tick both.
+
+## 4. Prove that CI starts on its own (do not skip)
+
+On the reference site the kit's workflow file had been on `main` for three weeks and
+**had never run**: pushes to `main` produced no run at all, so "green checks before
+merging" was an empty rule. What got it going was one manual start followed by a
+throwaway pull request; afterwards every push and pull request ran normally. The root
+cause was not pinned down (Actions permissions looked normal), so this skill does not
+claim to prevent it — it **checks**, and if the check fails it does what worked:
+
+```bash
+# a) Are Actions allowed at all?
+gh api "repos/$OWNER/$REPO/actions/permissions" --jq '{enabled, allowed_actions}'
+# b) Is the workflow listed, and active (not disabled_manually / disabled_inactivity)?
+gh workflow list --all
+gh workflow enable ci.yml           # only if it shows as disabled
+# c) Has it EVER run on a push or pull_request event?
+gh run list --workflow ci.yml --limit 5
+```
+- (a) `enabled: false` → the owner turns it on: **Settings → Actions → General → Allow
+  all actions**. GitHub also disables scheduled workflows after 60 days without repo
+  activity; that does not apply to push/pull_request triggers, but a manually disabled
+  workflow stays disabled until enabled.
+- (c) empty, or only `workflow_dispatch` runs → do the two-step fix:
+  ```bash
+  gh workflow run ci.yml --ref main && gh run watch        # 1. one manual start
+  git switch --no-track -c ci/trigger-test origin/main      # 2. throwaway pull request
+  git commit --allow-empty -m "CI trigger test (will be closed)"
+  git push -u origin ci/trigger-test
+  gh pr create --title "CI trigger test (will be closed)" \
+     --body "Empty commit; only checks whether pull_request triggers CI."
+  gh pr checks --watch
+  ```
+  A run with `event: pull_request` must appear (`gh run list --workflow ci.yml`).
+  Then close the pull request and delete the branch (`gh pr close --delete-branch`).
+  The first manual run may be **red** for a real reason (a type error nobody had seen
+  because the suite never ran in CI) — that is a finding, not a trigger problem; fix it
+  in its own pull request.
+- Still nothing after both steps → stop and report; do not declare CI working. A team
+  merging on "green" that never runs is worse than no rule.
+
+While the throwaway pull request is open, look at its check list: it also proves §6's
+"no leftover Workers Builds check" — see there.
+
+## 5. Block direct pushes to `main`
+
+Two mechanisms, chosen by what the plan allows. Try the server-side one first: it is
+the only one nobody can bypass.
+
+**A. Ruleset (public repo, or private repo on a paid plan).** Pull request required,
+the CI job required to pass on an up-to-date branch, no force push, no deletion.
+`test` is the job id in the kit's `ci.yml`; use the job's `name:` instead if one is set.
+
+```bash
+gh api -X POST "repos/$OWNER/$REPO/rulesets" --input - <<'JSON'
+{
+  "name": "protect main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "pull_request",
+      "parameters": { "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false, "require_code_owner_review": false,
+        "require_last_push_approval": false, "required_review_thread_resolution": false } },
+    { "type": "required_status_checks",
+      "parameters": { "strict_required_status_checks_policy": true,
+        "required_status_checks": [ { "context": "test" } ] } }
+  ]
+}
+JSON
+gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | "\(.name) \(.enforcement)"'
+```
+No bypass list: the rule applies to the owner too, which is the point. Dashboard
+path: **Settings → Rules → Rulesets → New branch ruleset**. Re-run safe: list first;
+a ruleset named "protect main" that exists is left alone. An approving review count of
+0 keeps the gate "green CI + a human pressed merge", matching §1's merge rule; raise it
+only if the owner wants a second pair of eyes on every change.
+
+**B. The refusal.** On a **private repo on a free plan** the request comes back
+`403` with an "upgrade" message: GitHub offers no server-side branch protection
+there. Say so plainly, then enable the local guard the kit already ships:
+`scripts/hooks/pre-push` contains a commented-out **PR-only main** block (the six
+lines from `while read` to `done`, marked OPTIONAL). Remove the leading `# ` from
+those lines, replace the OPTIONAL comment with the date and why it is on, and commit
+that in the setup pull request. Then tell the owner, and write into `AGENTS.md` §2,
+what it is: a **local convention**, active only in a clone that ran `npm install`
+or `npm ci` (the `prepare` script wires the hook), bypassed by `git push
+--no-verify`, by unsetting `core.hooksPath`, and by a clone that never installed. It
+does not touch `npm run ship` (which pushes `main:production`), nor GitHub's own
+merges, nor Codex in the cloud (which only ever creates pull requests). It is the
+best a free private repo gets, and it is enough when everyone follows `AGENTS.md`.
+
+Either way, verify from a clone: `git push origin main` on a no-op must be rejected
+(by GitHub, or by the hook with "Direct push to 'main' blocked").
+
+## 6. Cloudflare: connect the repo to GitHub — with the traps
+
+`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md` has the three bootstrap paths;
+a team wants **B, git integration** (push-to-deploy, no token, one preview address per
+pull request). Walk the owner through it with these warnings ahead of each click:
+
+1. **Pages, not Workers.** In the Cloudflare dashboard, **Workers & Pages → Create**
+   opens on the **Workers** tab, and its "Import a repository" creates a **Worker**
+   with *Workers Builds* — the wrong project type for this kit. Switch to the **Pages**
+   tab first, then **Connect to Git**. (Same failure class as the `wrangler deploy` vs
+   `wrangler pages deploy` mix-up in the deploy reference: if the result has a
+   `*.workers.dev` address, it is the wrong type.)
+2. **A Worker made by mistake leaves a check behind.** If step 1 went wrong once,
+   deleting the Worker is not enough: its build connection keeps posting a **"Workers
+   Builds"** check on every pull request (pending or failing forever). Remove the
+   connection on the Worker (**Settings → Builds → disconnect**, or delete the Worker
+   after disconnecting), then prove it is gone: the throwaway pull request from §4
+   must show only the **CI** check and the **Cloudflare Pages** preview check. If the
+   Workers check is still there, the GitHub App installation still carries the
+   trigger: GitHub → **Settings → Applications → Cloudflare Workers and Pages →
+   Configure** → check which repos it may access, and remove and re-add the repo if
+   needed.
+3. **The project name is global.** `<name>.pages.dev` is one namespace across all
+   Cloudflare accounts, so the obvious name may be taken with no explanation beyond a
+   validation error. Pick a short alternative; it only changes the preview address.
+   Whatever it ends up being, write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
+   and the README's deploy section, so nobody quotes a preview address that does not
+   exist.
+4. **Build settings.** Framework preset **Astro**, build command `npm run build`,
+   output directory `dist`. Node version comes from the repo's `.nvmrc`.
+5. **Production branch = the publish model.** Two-stage: **`production`** (create the
+   branch first if it does not exist yet, see `new-website` §4), so `main` stays the
+   noindexed preview. Single-stage: `main`. It must equal `PROD_BRANCH` in
+   `src/config.ts`, or analytics never fires; and `AGENTS.md` §2 must keep the block
+   that matches (the other one is deleted at scaffold time — check it was).
+6. **Pull request previews.** Once connected, every pull request gets its own preview
+   address in its checks ("Cloudflare Pages" → *View deployment*), plus the stable
+   alias `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look
+   there before merging. Previews are noindexed by the kit's `functions/_middleware.ts`
+   but public-by-URL (see `PUBLISHING.md`).
+7. **Single-stage sites: a merge publishes.** Anything that used to run only in
+   `npm run ship` must now run in CI, or it never runs. Concretely: if the site has a
+   ship-time gate (`playwright.ship.config.ts`, a placeholder check), add its command
+   as the last step of `ci.yml` in the setup pull request.
+
+Verify: after the first merge, `<live-or-preview-url>/build.txt` shows the merge
+commit id (the kit's build marker). Say which address is the **preview** and which is
+**live** every time you quote one (`PUBLISHING.md` § "For AI assistants").
+
+## 7. Rights and publish rights in `AGENTS.md`
+
+Fill §5 from the §1 answers: the collaborators line (usernames only, no emails), the
+`[RIGHTS_LEVEL]` line, the merge rule if it differs from the default, and
+`[SHIP_RIGHTS]` (two-stage) — or delete the ship line on a single-stage site. If §5-B
+enabled the hook, add one sentence to §2 saying the block is local and what bypasses
+it. Read the whole file once more: no `[BRACKET]` slot may remain, and the publish
+model block must match Cloudflare's production branch (§6.5).
+
+## 8. The collaborators' guide
+
+Copy `templates/TEAM-GUIDE.md` from this skill into the repo root as `TEAM-GUIDE.md`,
+keep the part(s) that match §1's answer 5 (browser / local / both), fill the
+`[BRACKET]` slots (site name, repo, owner's name for "who to ask" — a name, never an
+email), and translate if the team's language is not English. It is deliberately one
+page: where to start, the four moves per task, when to ask.
+
+## 9. Hand over
+
+- Open the setup pull request (branch `team/setup`), describe in plain words: who was
+  invited, which settings are on, how CI was proven, which push block is active and
+  what it covers, the Cloudflare project and its addresses, the rights level, the
+  publish rule. Note the `scripts/` and `AGENTS.md` changes explicitly (`AGENTS.md` §5).
+- Merge per the new rule, then tell the collaborators to accept the invitation and read
+  `TEAM-GUIDE.md`. Their first task: something small, so the whole loop (fetch, branch,
+  pull request, green checks, preview, merge) is exercised once with the owner around.
+
+Re-running the skill is safe: every step reports the current state before changing
+anything, and none of §§2–6 creates a second copy of what exists.

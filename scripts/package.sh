@@ -60,6 +60,10 @@ REQUIRED=(
   skills/new-website/SKILL.md
   skills/new-website/references/WEBSITE_ARCHITECTURE.md
   skills/new-website/templates/PUBLISHING.md
+  skills/new-website/templates/AGENTS.md
+  skills/new-website/templates/CLAUDE.md
+  skills/website-team-setup/SKILL.md
+  skills/website-team-setup/templates/TEAM-GUIDE.md
 )
 zipfiles="$(unzip -Z1 "$OUT/website-builder.zip")"
 missing=0

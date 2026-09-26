@@ -30,6 +30,10 @@ Everything needed is bundled here:
 - `templates/PUBLISHING.md` — plain-English "how to publish" for the owner
   (`commit`/`push`/`branch` explained + step-by-step per publish model), plus the
   assistant-facing **deploy-time guardrails** (§4).
+- `templates/AGENTS.md` + `templates/CLAUDE.md` — the working rules every assistant
+  (Codex, Claude Code) follows in the repo: fetch the latest state first, pull request
+  instead of a direct push, when a merge is allowed, never invent facts, the new-page
+  checklist. `CLAUDE.md` is one line (`@AGENTS.md`), so both tools read the same rules.
 - `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
   permission allowlist to copy into the repo.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
@@ -51,6 +55,10 @@ repo's permission allowlist (fewer prompts, same guardrails); `search-console-se
 polish layer (stat count-up + section-heading reveal) for sites with a long scrolling
 homepage, plus the reduced-motion contract and the a11y-gate change that keep motion
 from silently hiding content. `website-motion` is never run by default: ask for it.
+`website-team-setup` is the other on-demand skill — run it once when a **second person**
+joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
+pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
+in `AGENTS.md`); a single owner never needs it.
 
 ## 1. Decision interview (answer before any code)
 
@@ -247,6 +255,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```bash
    cp "$SKILLS_ROOT"/new-website/templates/SETUP.md .          # all tools — receiving party can set up too
    cp "$SKILLS_ROOT"/new-website/templates/PUBLISHING.md .     # owner "how to publish" + assistant deploy guardrails
+   cp "$SKILLS_ROOT"/new-website/templates/AGENTS.md .         # working rules for every assistant (Codex + Claude)
+   cp "$SKILLS_ROOT"/new-website/templates/CLAUDE.md .         # one line: @AGENTS.md
    # Claude Code only:
    mkdir -p .claude
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
@@ -255,7 +265,15 @@ Assemble the project at `<site>/` so it travels without any global setup:
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
-3. **Skills travel with the repo** — copy the twenty-two always-on skills in, plus any
+   **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
+   preview URL (`main.<project>.pages.dev` — update it if Cloudflare later forces another
+   project name), `[TITLE_SUFFIX]` = the ` | {SITE.name}` string `Base.astro` appends,
+   its length, and `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in
+   its §2 (the interview's Q6 answer) and delete the other. §5 (collaborators, rights
+   level, who publishes) stays at its single-owner default until `website-team-setup`
+   runs. Non-English owner: translate `AGENTS.md` in-session like `PUBLISHING.md` — rules
+   and commands intact.
+3. **Skills travel with the repo** — copy the twenty-three always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -270,8 +288,10 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `website-permissions` (allowlist),
    `search-console-setup` (post-launch GSC/Bing/IndexNow),
    `business-listings-setup` (post-launch Business Profile/Bing Places/
-   `sameAs` — gated per §4a), and `website-motion` (optional polish — copied so
-   the recipient can opt in later; it never runs on its own):
+   `sameAs` — gated per §4a), `website-motion` (optional polish — copied so
+   the recipient can opt in later; it never runs on its own), and `website-team-setup`
+   (copied so the day a second person joins, the session that sets up the team finds
+   it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
    them, not `cp -R`, or the copy ships broken symlinks pointing back at the
@@ -300,6 +320,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/search-console-setup \
          "$SKILLS_ROOT"/business-listings-setup \
          "$SKILLS_ROOT"/website-motion \
+         "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    ```
    The global copies stay the updateable source of truth; the project copies are
@@ -477,7 +498,9 @@ hold Search Console Request Indexing until then.
       outcomes — distinct from "skipped by owner choice".
 - [ ] Repo self-contained for the receiving party: `.gitignore`, `.claude/`,
       `POSITIONING.md`, `CONTENT_GUIDE.md`, `BRAND.md`, `tests/`, `SETUP.md`,
-      `PUBLISHING.md` (with its "For AI assistants" guardrails section intact), and a
+      `PUBLISHING.md` (with its "For AI assistants" guardrails section intact),
+      `AGENTS.md` + `CLAUDE.md` (every `[BRACKET]` slot in §§1–4 and §6 filled, one
+      publish-model block kept in §2), and a
       `README.md` with the decision answers + "how to add a page / run tests / deploy".
 
 ## 4a. Business listings — ask, but only if the site is a claimable entity

@@ -133,7 +133,8 @@ is what makes that true on a direct-push workflow). It needs `npx playwright ins
 (above). Relax for one push with `git push --no-verify`; disable with
 `git config --unset core.hooksPath`. See `website-qa` §1c — offer this choice, don't impose it.
 
-The hook also contains a commented-out **PR-only-main guard**: enable it when several people
+The hook also contains a commented-out **PR-only-main guard** (the `website-team-setup`
+skill enables it when a team forms and the plan offers no server-side ruleset): enable it when several people
 or parallel AI agents share the checkout and new commits should reach `main` only via reviewed
 PRs (server-side branch protection needs a paid plan on private repos). It's a **local,
 advisory convention, not an enforced one** — `git push --no-verify`, unsetting
@@ -152,8 +153,9 @@ commands (npm/astro/playwright/git read+commit, image tools) run without a promp
 mkdir -p .claude && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 ```
 > **Codex / Antigravity:** skip this — `.claude/settings.json` is Claude Code-specific. On
-> Codex, put durable project instructions in `AGENTS.md` and control command approval via
-> Codex's own rules/config. Antigravity uses its own sandbox/approval model.
+> Codex, durable project instructions live in `AGENTS.md` (the scaffold ships one; `CLAUDE.md`
+> imports it) and command approval in Codex's own rules/config. Antigravity uses its own
+> sandbox/approval model.
 It deliberately does **not** auto-allow destructive/irreversible commands (`rm -rf`,
 `git push --force`, `git reset --hard`, `wrangler … delete`, `gh repo delete`) — those still
 ask. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
