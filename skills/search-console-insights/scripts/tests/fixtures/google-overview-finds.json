@@ -1,0 +1,174 @@
+{
+ "ai_overview": {
+  "text_blocks": [
+   {
+    "type": "paragraph",
+    "snippet": "To make a simple artisan sourdough bread, mix 100 grams of active starter, 330 grams of water, 450 grams of flour, and 10 grams of salt.",
+    "snippet_highlighted_words": [
+     "mix 100 grams of active starter, 330 grams of water, 450 grams of flour, and 10 grams of salt"
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Ingredients and Tools"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Active sourdough starter: Bubbly and fed."
+     },
+     {
+      "snippet": "Flour: 450g bread flour or all-purpose flour."
+     },
+     {
+      "snippet": "Water: 330g lukewarm water."
+     },
+     {
+      "snippet": "Salt: 10g fine sea salt or baking salt."
+     },
+     {
+      "snippet": "Equipment: A large bowl and a cast-iron Dutch oven.",
+      "snippet_links": [
+       {
+        "text": "Dutch oven",
+        "link": "https://www.theclevercarrot.com/2014/01/sourdough-bread-a-beginners-guide/"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Mix the Dough"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Pour the lukewarm water into your bowl."
+     },
+     {
+      "snippet": "Add the active sourdough starter and salt, then stir."
+     },
+     {
+      "snippet": "Add the flour and mix with your hands until no dry flour remains."
+     },
+     {
+      "snippet": "Let the dough rest for 30 minutes."
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Bulk Fermentation and Folds"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Perform 3 to 4 sets of stretch-and-folds every 30 minutes to build gluten strength."
+     },
+     {
+      "snippet": "Cover the bowl and let the dough rise at room temperature until it increases significantly in volume (about 4 to 6 hours total)."
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Shape and Cold Proof"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Shape the dough into a tight round ball or log."
+     },
+     {
+      "snippet": "Place the shaped dough upside down into a floured proofing basket (banneton)."
+     },
+     {
+      "snippet": "Cover and refrigerate overnight (8 to 24 hours) for slow fermentation."
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Bake"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Preheat your oven and a heavy Dutch oven to 500°F (260°C) for 30 minutes."
+     },
+     {
+      "snippet": "Turn the dough out of the basket, score the top with a sharp blade or knife, and place it into the hot Dutch oven."
+     },
+     {
+      "snippet": "Bake covered at 450°F (230°C) for 20 minutes."
+     },
+     {
+      "snippet": "Remove the lid and bake uncovered for another 15 to 20 minutes until the crust is deep golden brown."
+     },
+     {
+      "snippet": "Cool completely on a wire rack before slicing."
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "snippet": "Watch this step-by-step video guide for a visual demonstration of mixing, shaping, and baking your first loaf:"
+   },
+   {
+    "type": "paragraph",
+    "snippet": "If you want to get started, tell me:"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Do you already have an active sourdough starter, or do you need help making one from scratch?"
+     },
+     {
+      "snippet": "Do you have a Dutch oven or heavy cast-iron pot with a lid for baking?"
+     }
+    ]
+   }
+  ],
+  "references": [
+   {
+    "link": "https://www.youtube.com/watch?v=s8dQ2hnYqp0",
+    "index": 0
+   },
+   {
+    "link": "https://www.youtube.com/watch?v=4gEoh3sk2AE",
+    "index": 1
+   },
+   {
+    "link": "https://www.youtube.com/shorts/Uhzg74AwTls",
+    "index": 2
+   },
+   {
+    "link": "https://www.youtube.com/shorts/kcrH18fQhDs",
+    "index": 3
+   },
+   {
+    "link": "https://www.youtube.com/watch?v=s8dQ2hnYqp0&t=117",
+    "index": 4
+   },
+   {
+    "link": "https://www.youtube.com/watch?v=4gEoh3sk2AE",
+    "index": 5
+   },
+   {
+    "link": "https://www.youtube.com/shorts/Uhzg74AwTls",
+    "index": 6
+   },
+   {
+    "link": "https://www.youtube.com/shorts/kcrH18fQhDs",
+    "index": 7
+   }
+  ]
+ }
+}

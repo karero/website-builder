@@ -7,7 +7,7 @@
 # SKILL.md's copy is every blockquote line under its heading, up to the next heading.
 # Run: bash skills/independent-review/scripts/check_prompt_sync.sh
 set -u
-here="$(cd "$(dirname "$0")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$here/independent_review.sh"; SKILL="$here/../SKILL.md"
 TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 
@@ -27,7 +27,9 @@ TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 uncommented() { grep -vE '^[[:space:]]*#' "$1"; }
 assignments() { uncommented "$1" | grep -oE "$2\+?=|-v[[:space:]]+$2\b" | wc -l | tr -d ' '; }
 assign_line() {  # line number of the first occurrence of $2 being assigned, or empty
-  uncommented "$1" | grep -nE "$2\+?=" | head -1 | cut -d: -f1
+  # One grep on the file, not `uncommented | grep`: an early-exiting reader (head, -m1, -q) makes
+  # the upstream grep hit EPIPE, and where SIGPIPE is ignored it prints "write error: Broken pipe".
+  grep -m1 -nE "^[[:space:]]*([^#[:space:]].*)?$2\+?=" "$1" | cut -d: -f1
 }
 
 norm() { tr -s ' \t\n' '   ' | sed -e 's/^ //' -e 's/ $//'; }
@@ -75,7 +77,7 @@ check() {  # $1 script, $2 SKILL.md; prints each problem, returns 1 if there is 
   for v in $TIERS; do
     n=$(assignments "$1" "$v")
     [ "$n" = 1 ] || { echo "$v is assigned $n times; expected once"; bad=1; }
-    uncommented "$1" | grep -qE "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
+    grep -qE "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" "$1" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
     vl=$(assign_line "$1" "$v")
     [ -n "$cl" ] && [ -n "$vl" ] && [ "$cl" -lt "$vl" ] || { echo "PROMPT_CORE is not assigned before $v"; bad=1; }
   done
@@ -137,6 +139,9 @@ fires "command substitution inside PROMPT_CORE" "$t/l.sh" "$SKILL"
 awk '/^PROMPT_CORE="/{p=1} p{core = core $0 "\n"; if ($0 ~ /not an attack\."$/) p=0; next} {print} END{printf "%s", core}' "$SCRIPT" > "$t/g.sh"
 grep -q '^PROMPT_TOOLED=' "$t/g.sh" || { echo "FAIL: self-test could not move PROMPT_CORE"; exit 1; }
 fires "PROMPT_CORE moved after the tier prompts" "$t/g.sh" "$SKILL"
+# ...with a commented-out PROMPT_CORE above them all: assign_line must not take its line number
+{ printf '  # PROMPT_CORE="decoy"\n'; cat "$t/g.sh"; } > "$t/p.sh"
+fires "PROMPT_CORE moved after the tier prompts, under a commented-out copy" "$t/p.sh" "$SKILL"
 # PROMPT_CORE deleted outright
 awk '/^PROMPT_CORE="/{p=1} p{if ($0 ~ /not an attack\."$/) p=0; next} {print}' "$SCRIPT" > "$t/h.sh"
 grep -q '^PROMPT_CORE=' "$t/h.sh" && { echo "FAIL: self-test could not delete PROMPT_CORE"; exit 1; }

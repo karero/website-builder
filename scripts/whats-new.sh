@@ -36,7 +36,7 @@
 # Needs the git clone of the suite (a zip has no history to compare against).
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)"
 
 # The suite must be a git clone, and REPO_DIR must be that repo's own toplevel —
 # not a zip extraction sitting inside some unrelated enclosing repository, whose
@@ -63,7 +63,7 @@ write_stamp() {  # $1 = skills dir
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/.nvmrc'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/.nvmrc'
 
 # Upstream template files that scaffolded sites are EXPECTED to hand-edit — deliberately NOT
 # drift-tracked, for two different reasons:
@@ -162,11 +162,14 @@ PROJECT="${TARGET%/}"
 [ -d "$PROJECT" ] || { echo "error: no such directory: $PROJECT" >&2; exit 1; }
 # Absolute physical path: `git -C` re-anchors relative pathspecs to the repo dir,
 # which would silently defeat the dirty guards below for a relative <project_dir>.
-PROJECT="$(cd "$PROJECT" && pwd -P)"
+# CDPATH= because a relative <project_dir> would otherwise resolve through CDPATH to a
+# same-named directory elsewhere — the -d test above passes on the real one, and the
+# refresh path then writes into the other.
+PROJECT="$(CDPATH= cd -- "$PROJECT" && pwd -P)"
 
 process_dir() {  # $1 = path to a SUITE-VERSION stamp
   local stamp="$1" skills_dir base short_base copied changed stale s missing keep
-  skills_dir="$(dirname "$stamp")"
+  skills_dir="$(dirname -- "$stamp")"
   base="$(sed -n 's/^suite_commit: //p' "$stamp")"
   copied="$(sed -n 's/^copied: //p' "$stamp")"
 
@@ -202,6 +205,12 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   # pinned change is reported until the next refresh, not forever.
   keep=""
   [ -f "$skills_dir/REFRESH-KEEP" ] && keep="$(sed 's/#.*//' "$skills_dir/REFRESH-KEEP")"
+  # One name per line, split once: on words, so spaces around a name don't matter, and with
+  # globbing off, so an entry like seo-* stays literal instead of matching files in the cwd.
+  keep="$(set -f; printf '%s\n' $keep)"
+  # Matched below via herestrings, not `printf | grep -q`: under pipefail, grep -q exiting
+  # on its match can fail the printf once the list passes the pipe buffer, and a pinned
+  # skill would then read as unpinned and be overwritten.
 
   if [ -z "$stale" ]; then
     echo "Up to date — none of this dir's bundled skills changed upstream since then."
@@ -211,7 +220,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
-    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
+    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
     else
       echo "  $s"
@@ -249,7 +258,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   missing=0
   for s in $stale; do
-    if [ -n "$keep" ] && printf '%s\n' $keep | grep -Fxq -- "$s"; then
+    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
@@ -309,6 +318,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  ${f#skills/new-website/templates/astro/} (site copy: tests/$(basename "$f"))" ;;
       skills/new-website/templates/content-guide.md)
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
+      skills/new-website/templates/AGENTS.md)
+        echo "  templates/AGENTS.md (site copy: AGENTS.md — rules the assistants execute; merge by hand, the site's copy carries filled slots and §5)" ;;
       skills/new-website/templates/astro/playwright.config.ts)
         echo "  templates/astro/playwright.config.ts (site copy: playwright.config.ts)" ;;
       skills/new-website/templates/astro/functions/_middleware.ts)
@@ -347,7 +358,7 @@ CHANGED
   echo
   echo "Review + merge each by hand, e.g.:"
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(printf '%s\n' "$changed" | head -1)"
-  if printf '%s\n' "$changed" | grep -q '_helpers\.ts$'; then
+  if grep -q '_helpers\.ts$' <<<"$changed"; then
     echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, and i18n.spec.ts"
     echo "on multilingual sites), so merge the helpers together with any spec that uses the"
     echo "new exports, or the import breaks loudly."

@@ -6,7 +6,7 @@
 # owner's real setup (this script's pre-2026-08-29 ancestor, check_model_defaults.sh,
 # managed that drift; this version prevents the class).
 set -uo pipefail
-cd "$(dirname "$0")/.."
+CDPATH= cd -- "$(dirname -- "$0")/.."
 
 SKILL_DIR="skills/independent-review"
 
@@ -37,16 +37,17 @@ PATTERN='[a-z0-9][a-z0-9._-]*:(cloud|[0-9]+b)\b|\bglm-[0-9]|\bgpt-[0-9]|\bgemini
 
 # Self-test, both directions. A guard that cannot fire is worse than none — and one
 # that over-fires on the generic phrasing the header comment explicitly allows is
-# its mirror image.
+# its mirror image. Herestrings, not `printf | grep -q`: under pipefail a large enough
+# input lets grep -q's early exit fail the printf and flip the result.
 for bad in 'glm-9.9-flash:cloud' 'somemodel:120b' 'GPT-5' 'gpt-5.6-sol' \
            'Gemini 3.1 Pro' 'Claude Opus 4.6' 'claude-3' 'a Sonnet 4 pass'; do
-  printf '%s\n' "$bad" | grep -qiE "$PATTERN" || {
+  grep -qiE "$PATTERN" <<<"$bad" || {
     echo "FAIL — self-test: PATTERN misses '$bad'. Fix the pattern before trusting the scan."
     exit 1
   }
 done
 for good in 'Gemini' 'gpt-class' "a ':cloud' mention" 'claude family' 'ollama-cloud'; do
-  if printf '%s\n' "$good" | grep -qiE "$PATTERN"; then
+  if grep -qiE "$PATTERN" <<<"$good"; then
     echo "FAIL — self-test: PATTERN over-matches the allowed phrase '$good'."
     exit 1
   fi

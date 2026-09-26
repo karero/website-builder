@@ -12,14 +12,14 @@
 # Added 2026-08-29 after the skill-debloat review (finding D15): one description
 # had silently grown ~60% past the hard limit with nothing in place to catch it.
 set -uo pipefail
-cd "$(dirname "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."; exit 1; }
+CDPATH= cd -- "$(dirname -- "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."; exit 1; }
 
 DESC_HARD=1024
 DESC_WARN=900
 LINES_SOFT=500
 # Breakage tripwire, not an inventory ledger: it catches a broken glob/path
 # (0 files) or catastrophic loss, while tolerating routine removals. The suite
-# holds 30 skills as of 2026-09-26.
+# holds 31 skills as of 2026-09-26.
 MIN_SKILLS=20
 
 # Descriptions over DESC_HARD that are tolerated for now, pinned so they can
@@ -53,7 +53,7 @@ for loc in C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8; do
   if grep -qixF "$loc" <<<"$LOCALES"; then UTF8_LOCALE="$loc"; break; fi
 done
 if [ -z "$UTF8_LOCALE" ]; then
-  UTF8_LOCALE=$(grep -iE '\.utf-?8$' <<<"$LOCALES" | head -1 || true)
+  UTF8_LOCALE=$(grep -m1 -iE '\.utf-?8$' <<<"$LOCALES" || true)
 fi
 if [ -z "$UTF8_LOCALE" ]; then
   echo "FAIL — no UTF-8 locale on this system; wc -m would count bytes, not characters,"

@@ -1,21 +1,22 @@
 ---
 name: search-console-insights
 description: >
-  Pull and act on Google Search Console DATA for a verified site — the
-  monitor-and-optimize step downstream of search-console-setup. Free GSC Search
+  Pull and act on Google Search Console DATA for a verified site. Free GSC Search
   Analytics API (OAuth, read-only): where target keywords rank, striking-distance
   queries (pos ~8-20), and high-impression/low-CTR pages flagged for snippet/SERP
   investigation (title/meta rewrite only if the live-SERP check shows a snippet
-  problem you control). Optional free add-ons: the live competitor Top-10 via a
-  SERP API, and Bing Webmaster Tools as a Copilot/ChatGPT-visibility proxy. First
-  use runs a guided onboarding for non-technical owners. Trigger phrases: "GSC
-  insights", "Search Console data", "connect GSC", "onboard Search Console",
-  "where do I rank", "top queries", "striking distance keywords", "quick SEO
-  wins", "why is my CTR low", "which pages to optimize", "who ranks for",
-  "competitor Top 10", "how do I rank on Bing", "Copilot visibility", "ChatGPT
-  search visibility", "track my rankings over time", "weekly SEO report".
+  problem you control). Optional add-ons: the live competitor Top-10 via a SERP
+  API, Bing Webmaster Tools as a Copilot/ChatGPT proxy, and a weekly check of
+  whether AI engines name the business (GEO). First use runs a guided onboarding
+  for non-technical owners. Trigger phrases: "GSC insights", "Search Console
+  data", "connect GSC", "where do I rank", "top queries", "striking distance
+  keywords", "quick SEO wins", "why is my CTR low", "which pages to optimize",
+  "competitor Top 10", "how do I rank on Bing", "Copilot
+  visibility", "ChatGPT search visibility", "track my rankings over time", "weekly
+  SEO report", "does AI name my business", "weekly AI check", "show me my AI
+  report".
 metadata:
-  version: 1.6.0
+  version: 1.7.0
 ---
 
 # Search Console insights
@@ -34,12 +35,17 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats — a Copilot/ChatGPT-visibility proxy; ~6-month aggregate |
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
 | **Weekly auto-tracking** | `schedule_tracking.sh` | — | Opt-in launchd job (per site) that runs the tracker weekly so history builds unattended |
+| **Does AI name you? (GEO)** | `geo_check.py` | Owner's own AI keys (Gemini free outside the EU; others paid; Google via the SerpApi key; all optional) | Asks up to four AI engines plus Google's AI Mode and AI Overview the owner's buyer questions, with and without web search; counts how often the business is named and cited; weekly trend. See `references/geo-check.md` |
 
-All external calls (GSC, Bing, Serper) are **read-only** and on **free tiers** (GSC + Bing
-free; Serper 2,500 searches free) — nothing is ever written back to Google/Bing/Serper. Local
+The GSC, Bing and Serper calls are **read-only** and on **free tiers** (GSC + Bing
+free; Serper 2,500 searches free) — nothing is ever written back to Google/Bing/Serper. The
+optional AI check is different: it sends the owner's questions to the AI engines the owner
+added keys for, on the owner's own account, and some of those cost money (see
+`references/geo-check.md` → Costs). Local
 writes are all under `~/.config/gsc-insights/`: the history CSV (plus a `.lock` sidecar) on
 by default whenever `--keywords` is given (`--no-csv` opts a single run out), the cached OAuth
-token from onboarding, `--out` if you ask for a saved report, and — only if you explicitly
+token from onboarding, `--out` if you ask for a saved report, the AI check's `geo/` folder
+(its settings, history and saved answers) once it is set up, and — only if you explicitly
 schedule it — a per-site launchd plist/log. Built for a **low-volume** site — see the
 "Low-volume playbook" below. On first use the agent runs a guided **onboarding** (next
 section), so a non-technical owner never touches the terminal.
@@ -387,16 +393,46 @@ bash scripts/schedule_tracking.sh list                  # everything scheduled (
 bash scripts/schedule_tracking.sh remove example.com
 ```
 
-Each job runs `track.sh` weekly (GSC + Bing → the history CSV → trend), logging to
+Each job runs `track.sh` weekly (GSC + Bing + the AI check if set up → the history CSVs →
+both trends), logging to
 `~/.config/gsc-insights/logs/<domain>.log` (dots become dashes: `example-com.log`). A month
 later, *"is my ranking improving?"*
 answers from real data instead of a single snapshot.
+
+Every step runs even if an earlier one failed (an expired Google sign-in no longer costs the
+week's Bing and AI data), and the log ends with a **"This run needs attention"** list naming
+each problem. Exit code: 0 when that list is empty; otherwise GSC's own code if GSC failed
+(2 = the sign-in needs renewing — the job never waits for a browser), else 4 if a GSC or Bing
+history write failed, else 1. Bing API errors are on the list too (they used to be swallowed). An AI check that isn't set up is not a problem; homepage warnings from
+the AI check aren't either (see `references/geo-check.md`).
 
 - **macOS** uses **launchd** — one LaunchAgent per site, *never* cron. Per-site means each is
   enabled/removed independently; removal is one command.
 - **Linux:** run the same `track.sh` from a **systemd user timer** (or cron) — identical effect.
 - The job only *records* data. A natural future extension: alert on a big move (diff the latest
   two CSV rows and surface large position deltas) — not built yet.
+
+## Does AI name you? — the weekly GEO check (opt-in)
+
+Buyers ask ChatGPT and friends instead of Google. `geo_check.py` asks up to four AI engines
+(Gemini, OpenAI, Anthropic, Perplexity), plus Google's AI Mode and AI Overview via SerpApi, the owner's own buyer questions — without naming the
+business — twice: **"knows you"** (no web search: what the model learned) and **"finds you"**
+(web search on: what a buyer gets today, plus which sites were cited). Code counts the
+mentions; every answer is saved verbatim; `track.sh` runs it weekly after Bing and prints its
+trend under the keyword trend.
+
+**Read `references/geo-check.md` before setting it up or reading its results.** Three rules
+from it that apply every time:
+
+- **At the start of any session that looks at this site's AI results, run
+  `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --check-drift` first.** If the homepage changed since
+  the questions were confirmed, read the homepage (and POSITIONING.md if present), propose
+  updated questions, and **ask the owner** before changing anything. First check that the new
+  homepage text is the real page: a cookie or bot page also shows up as "changed".
+- **Show results as the report page** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`), not raw files.
+  Owners ask for it in their own words: *"show me my AI report"*, *"how is my business doing with AI?"*.
+- **You draft the questions; you never answer them.** The whole point is a buyer's
+  un-primed question to an engine that knows nothing about this conversation.
 
 ## Acting on the report — hand off to existing skills
 
@@ -442,7 +478,8 @@ Compare a 28-day window to the prior 28 days to see genuine movement.
 
 - **Read-only** GSC scope (`webmasters.readonly`); never writes to the property.
 - This is data + analysis, **not** registration (`search-console-setup`), not the
-  on-page metadata contract (`website-seo-geo`), not AI-answer optimisation (`ai-seo`).
+  on-page metadata contract (`website-seo-geo`), not AI-answer optimisation (`ai-seo`) —
+  the GEO check *measures* whether AI names you; `ai-seo` is how to change that.
 - **Not index coverage.** These scripts read Search Analytics only. Never claim a
   page "isn't indexed" from its absence in a list, table, or report — verify with
   GSC's URL Inspection (tool or API) first; absence of impressions is not absence

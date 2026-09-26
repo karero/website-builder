@@ -40,8 +40,14 @@
 # (e.g. "reviewers: codex OK, ollama-cloud FAILED (quota/rate limit: …)").
 #
 # SECURITY. The preferred reviewer runs as `codex exec -s read-only`, which ASKS
-# the CLI for a read-only sandbox; whether it blocks writes is not tested here
-# (R-SANDBOX in docs/reviews/OPEN-FINDINGS-independent-review.md). The ollama tier
+# the CLI for a read-only sandbox. Three more settings: --skip-git-repo-check only lets it
+# start outside a git repo or trusted project; -c project_doc_max_bytes=0 and
+# -c skills.include_instructions=false keep a project's AGENTS.md out of its instructions
+# and stop it listing skills there (one live probe each, not tested; see the notes above
+# codex_bin). Whether
+# the sandbox blocks writes is not tested here (R-SANDBOX), and project content can still
+# reach codex other ways (R-PROJCTX), both in
+# docs/reviews/OPEN-FINDINGS-independent-review.md. The ollama tier
 # only sends text. So: treat any external reviewer as untrusted, keep reviews off
 # anything you could not afford a stray write to, and never pass a write/danger
 # sandbox flag for a review.
@@ -208,14 +214,25 @@ unset PROMPT 2>/dev/null || true
 # PROMPT is built per TIER. The tiers do not have the same capabilities, and a single prompt
 # written to the weakest one silently caps the strongest.
 #
-#   codex     `exec -s read-only` in the CALLER'S cwd  -> read-only sandbox, sees the working tree
-#   agy       `cd "$sbox"` into an empty mktemp dir    -> UNKNOWN, and deliberately not guessed.
-#                                                         It is sandboxed and its cwd is empty, but
-#                                                         neither fact establishes what it can read
-#                                                         or run: an empty cwd is not an access
-#                                                         boundary, and absolute paths are not ruled
-#                                                         out. Gets the capability-agnostic prompt,
-#                                                         which asks it to declare its own mode.
+#   codex     `exec -s read-only` + the settings above codex_bin,
+#             in the CALLER'S cwd                      -> read-only sandbox, sees the working tree
+#   agy       `--sandbox --mode plan`, `cd "$sbox"`   -> HAS tools, sent the text-only prompt anyway.
+#             into an empty mktemp dir                    agy applies the user's own settings
+#                                                         allow-list, which needs no prompt: on the
+#                                                         maintainer's machine read_file(*), pwd, ls,
+#                                                         find, cat and git diff/status/show/log (agy's
+#                                                         own log, 2026-09-26). Its tools do not run in
+#                                                         the empty cwd (on 1.2.9 its commands ran in
+#                                                         agy's own scratch dir), and it read a file by
+#                                                         absolute path, so the cwd is no boundary. A
+#                                                         command the allow-list does not match needs a
+#                                                         permission prompt, which headless mode
+#                                                         auto-denies; both runs that hit this returned
+#                                                         no output. The text-only prompt is sent to
+#                                                         steer it away from tools, NOT because it has
+#                                                         none: its "You have NO tools" is untrue for
+#                                                         agy, and a reply may rest on a read it does
+#                                                         not admit to.
 #   ollama    a prompt string, no tool plumbing        -> no tool access
 #   fallback  printed for a human to paste anywhere    -> UNKNOWN; could be a browsing web model
 #
@@ -371,8 +388,11 @@ looks_like_review() {
   #    PROMPT_CORE no longer asks for that shape — an evidence gap is an UNVERIFIABLE
   #    entry, not a finding, phrased about the claim rather than the reviewer's access
   #    — but nothing stops a reviewer producing it. Cases: test_looks_like_review.sh.
+  #    Every match below reads the reply from a herestring, never `printf | grep -q`: under
+  #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
+  #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
   if [ "$finding_count" -le 1 ]; then
-    printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
+    grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1" && return 1
   fi
   # 2. structured findings (list/heading-anchored severity)
   [ "$finding_count" -gt 0 ] && return 0
@@ -385,7 +405,19 @@ looks_like_review() {
   #    BUG, RISK, or NIT..." (findings appears before, not after, the "no"). Order- and
   #    phrasing-tolerant now: matches no+findings in EITHER order, "findings: none",
   #    bare "none" as a sentence, or "no bug/risk/nit" directly.
-  printf '%s\n' "$1" | grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno (bug|risk|nit)s?\b'
+  #    Up to five qualifiers may sit between "no" and the severity word: a genuine clean
+  #    Codex review was discarded on 2026-09-20 because its verdict read "No confirmed BUG
+  #    or RISK in the supplied diff." The qualifiers are a LITERAL list on purpose — "any
+  #    word" would also accept "There is no way to find bugs in this". A comma, "or" or
+  #    "and" may stand only BETWEEN two qualifiers, never first or last, so neither "yes or
+  #    no and risk being wrong" nor "I received no material and risk guessing" matches. The
+  #    list is therefore written out twice (no regex is built from a variable here); keep
+  #    the copies identical — test_looks_like_review.sh checks. The bound of five is
+  #    arbitrary. A refusal carrying this wording is rejected only when check 1, which runs
+  #    first, knows its phrase; what check 1 misses ("couldn't access", ...) it already
+  #    missed after a plain "No BUG or RISK." — B-REFUSAL-TEXT,
+  #    docs/reviews/OPEN-FINDINGS-independent-review.md.
+  grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno ((confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely)(,? ((or|and) )?(confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely)){0,4} )?(bug|risk|nit)s?\b' <<<"$1"
 }
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
@@ -399,6 +431,33 @@ looks_like_review() {
 # CODEX_MODEL overrides the model for this run only (e.g. a stronger tier for a hard
 # case or a long plan) via `-c model=...`; config.toml's reasoning-effort setting still
 # applies on top of it, since that's a separate key the override doesn't touch.
+# --skip-git-repo-check: without it, codex refuses to start in a directory that is not a
+# git repo or a trusted project ("Not inside a trusted directory ...", exit 1), so a PLAN
+# gate run from a scratch dir came back with codex FAILED and one reviewer (2026-09-26). The
+# flag only lifts that start-up check; codex 0.157.0 still reported "sandbox: read-only" with
+# it, and refused `touch` and a shell redirect there ("Operation not permitted") — one probe,
+# not a test of R-SANDBOX. Nor was the check a read boundary: started inside a repo, the same
+# codex read a file outside it. Codex keeps the caller's cwd rather than the agy tier's
+# throwaway dir, because seeing the working tree is what lets it check a diff's claims.
+# -c project_doc_max_bytes=0: codex loads the AGENTS.md of the project it runs in into its
+# instructions, and does so in a non-git dir too once the flag lets it start there (seen
+# live: it obeyed a planted one). Such a file would sit beside the review prompt as
+# instructions; which of the two wins was not tested. So project AGENTS.md loading is off,
+# both for a stray one in a scratch dir and for one a PR under review edits. With the
+# setting, the same probe ignored it. It does not cover the user's own global
+# ~/.codex/AGENTS.md, nor stop the model opening a project AGENTS.md itself and choosing to
+# follow it. Nor is codex pointed at AGENTS.md: judging a change by that file would let a PR
+# that edits it choose its own rules. It can still open it like any other file. (Owner
+# decisions, 2026-09-26.)
+# -c skills.include_instructions=false: the same for the skills listing. Codex lists skills
+# in its instructions, and a repo skill planted in a scratch dir steered the reply (seen
+# live on 0.157.0); with the setting, the same probe ignored it. It drops the listing of
+# every skill, the user's own included — fine, since skills are helpers a reviewer does not
+# need. It does NOT stop an explicit `$name` mention loading a skill: with the setting on,
+# "$greeting" in the prompt still loaded the planted one, and the reviewed text sits in
+# the prompt (R-PROJCTX). Not adopted:
+# --ignore-rules, which by its help text also drops the user's own .rules, forbidden
+# commands included — those are guards (R-PROJCTX).
 codex_bin() {
   command -v codex 2>/dev/null && return 0
   ls -1 "$HOME"/.vscode/extensions/openai.chatgpt-*/bin/*/codex 2>/dev/null | sort -V | tail -1
@@ -421,9 +480,9 @@ run_codex() {
       *$'\n'*) echo "codex: CODEX_MODEL contains a newline — cannot safely pass it to codex's -c model=... config value." >&2; WHY="CODEX_MODEL rejected: contains a newline"; return 1 ;;
       *'\'*) echo "codex: CODEX_MODEL=\"$CODEX_MODEL\" contains a literal backslash — could escape the closing TOML quote in codex's -c model=... value. Remove it." >&2; WHY="CODEX_MODEL rejected: contains a backslash"; return 1 ;;
     esac
-    "$bin" exec -s read-only -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+    "$bin" exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false -c "model=\"$CODEX_MODEL\"" "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   else
-    "$bin" exec -s read-only "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
+    "$bin" exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false "$PROMPT_TOOLED" </dev/null >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   fi
   local rc=$?
   # An explicit CODEX_MODEL request failing must not fail silently — with
@@ -458,10 +517,23 @@ run_codex() {
 # headless 2026-07-02.
 # (The old @google/gemini-cli path is DEPRECATED: Google discontinued its free
 # "Login with Google" tier on 2026-06-18 — IneligibleTierError; API-key only. Dropped.)
-# --sandbox asks for terminal restrictions and -p print mode is meant not to auto-approve tool
-# calls (we do NOT pass --dangerously-skip-permissions). Both describe what is REQUESTED;
-# neither is tested here, the same gap as codex's (R-SANDBOX in OPEN-FINDINGS). The throwaway
-# cwd limits what a write would reach only if the CLI stays in it. Treat output as untrusted.
+# --sandbox asks for terminal restrictions, --mode plan for the CLI's planning mode, and -p print
+# mode is meant not to auto-approve tool calls (we do NOT pass --dangerously-skip-permissions, and
+# add no allow-rules; the user's own allow-list still applies -- see the tier table). All three describe what is REQUESTED; none is tested here, the same gap as
+# codex's (R-SANDBOX in OPEN-FINDINGS). The throwaway cwd limits what a write would reach only if
+# the CLI stays in it. Treat output as untrusted.
+# Why --mode plan and the text-only prompt: with `--sandbox -p` and the capability-agnostic
+# prompt, agy reached for a command outside the allow-list, headless mode auto-denied it, and the
+# run exited 0 with no stdout -- once on 1.2.9 and once on 1.2.11 (2026-09-26, agy's own logs; one
+# run's stderr is kept in
+# docs/reviews/RAW-diff-2026-09-26-r3-fix-independent-review-clean-verdict-8375234.md). So the
+# same-day CLI upgrade alone did not fix it. Run by hand on 1.2.11 as
+# `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir, agy logged plan mode applied,
+# no denial, and returned a full review; a second such run at 14:18 did too. Both still called
+# tools (a file read by absolute path; git status) and got through only because those were
+# allow-listed. So this makes an empty run less likely, not impossible: one that reaches for an
+# unlisted command still comes back empty, and attempt() reports it FAILED. Flag and prompt
+# changed together in those runs: which of the two is load-bearing was not isolated.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"
@@ -471,24 +543,15 @@ run_agy() {
   # --model passed only when AGY_MODEL is set — otherwise the CLI's own default
   # model runs; this script prescribes none.
   if [ -n "$model" ]; then
-    ( cd "$sbox" && agy --sandbox --model "$model" -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+    ( cd "$sbox" && agy --sandbox --mode plan --model "$model" -p "$PROMPT_TEXTONLY" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
   else
-    ( cd "$sbox" && agy --sandbox -p "$PROMPT_PORTABLE" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
+    ( cd "$sbox" && agy --sandbox --mode plan -p "$PROMPT_TEXTONLY" </dev/null ) >"$RAW_DIR/agy.out" 2>"$RAW_DIR/agy.err"; rc=$?
   fi
   rm -rf "$sbox"
   { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || { why_cli $rc; return 1; }
   out="$(cat "$RAW_DIR/agy.out")"
   looks_like_review "$out" || { WHY="$NOT_A_REVIEW"; return 1; }
-  # PROMPT_PORTABLE asks this tier to open with a MODE line declaring whether it could actually
-  # inspect files. That is a PROMPT-level contract with no enforcement, so check it here: a missing
-  # MODE line means the tier ignored the contract and its verification claims are unattributable.
-  # Warned rather than rejected — the review may still be useful, but silence about it would let a
-  # self-declaration the prompt paid for quietly stop meaning anything.
-  case "$out" in
-    MODE:*|*"MODE: INSPECTED"*|*"MODE: TEXT-ONLY"*) : ;;
-    *) echo "agy tier: no MODE line — cannot tell whether it inspected files or reviewed text only; treat its verified/wrong verdicts as unattributed." >&2 ;;
-  esac
-  printf '## Independent review — antigravity/agy (%s, sandbox)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
+  printf '## Independent review — antigravity/agy (%s, sandbox, plan mode, text-only prompt)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
@@ -622,7 +685,7 @@ readable_tail() {
 # in SUMMARY. A tier that ran and failed prints a FAILED section quoting its error.
 SUMMARY="" ; WHY="" ; TIER_PRINTED=0
 attempt() {
-  local label="$1" stem="$2" rc err="" out="" model="" outcome reason
+  local label="$1" stem="$2" rc err="" out="" error_lines="" model="" outcome reason
   WHY="" ; TIER_PRINTED=0
   "$3"; rc=$?
   if [ $rc -eq 0 ]; then
@@ -645,12 +708,15 @@ attempt() {
     # provenance — a plan line echoed into codex's stderr can take it — so an indented
     # line (a diff's context lines start with a space) never counts, and the exit status
     # stays in the summary beside the quota label (round 2, Codex).
+    # The error-shaped lines are captured, then matched via a herestring: piped straight
+    # into grep -q, the filter can be killed mid-write once they pass the pipe buffer
+    # (~64 KiB), and pipefail would then report a quota failure as a generic one.
     if [ "$WHY" = "$NOT_A_REVIEW" ]; then
       outcome="FAILED ($NOT_A_REVIEW)"
       reason="the reviewer answered, but its answer did not pass the review check (a refusal-shaped or finding-less reply). Not a quota or setup problem: read the quoted stdout, and if it is a real review, count it by hand from the raw file."
-    elif printf '%s\n%s\n' "$err" "$out" \
-        | grep -iE '^(\[[^]]*\][[:space:]]*)*([^[:space:]]+[[:space:]]+)?(error|fatal)\b' \
-        | grep -qiE "$QUOTA_RE"; then
+    elif error_lines="$(printf '%s\n%s\n' "$err" "$out" \
+        | grep -iE '^(\[[^]]*\][[:space:]]*)*([^[:space:]]+[[:space:]]+)?(error|fatal)\b')" \
+        && grep -qiE "$QUOTA_RE" <<<"$error_lines"; then
       outcome="FAILED (${WHY:-exit $rc}; quota/rate limit: wait or add credits)"
       reason="${WHY:-exit $rc}; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead."
     else

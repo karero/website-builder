@@ -28,7 +28,7 @@
 # "not scheduled" rather than trusting file-existence alone.
 set -euo pipefail
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
+DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 LA_DIR="$HOME/Library/LaunchAgents"
 LOG_DIR="$HOME/.config/gsc-insights/logs"
 PREFIX="com.gsc-insights"

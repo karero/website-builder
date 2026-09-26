@@ -85,9 +85,10 @@ live fast with zero dashboard time.
 # 1. Create the Pages project (direct-upload).
 npx wrangler pages project create <project> --production-branch <main|production>
 
-# 2. Build, then deploy the static output.
+# 2. Build, then deploy the static output. --branch = the production branch from step 1;
+#    without it wrangler uses the local git branch and may make a preview deployment.
 npm run build
-npx wrangler pages deploy dist --project-name <project>
+npx wrangler pages deploy dist --project-name <project> --branch <main|production>
 
 # 3. Custom domain: NO Wrangler command exists for Pages custom domains.
 #    Attach it in the dashboard (Workers & Pages -> your project -> Custom domains ->
@@ -104,7 +105,8 @@ npx wrangler pages deploy dist --project-name <project>
 > the accidental Worker (not a pre-existing one with a similar name), then delete it and
 > re-run `wrangler pages deploy`.
 
-Ongoing deploys under (A): re-run `wrangler pages deploy dist --project-name <project>`
+Ongoing deploys under (A): re-run
+`wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
 Then continue with `search-console-setup` for GSC/Bing + Crawler Hints.
@@ -194,3 +196,62 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 
 > Drive these changes *with* the owner, not through blind screen control — same guardrail as
 > the bootstrap token steps above.
+
+## After go-live: send `<project>.pages.dev` to the live domain
+
+Every Pages project also serves production at its own alias, `<project>.pages.dev`. The
+kit's `functions/_middleware.ts` noindexes it, but that does not keep it out of AI
+answers: AI search engines have been seen citing the alias instead of the real domain. So
+once the site is live, the alias should 301-redirect to the live domain: anyone who
+follows such a link lands on the real site, and crawlers are told which host counts. It
+won't rewrite an answer an AI engine has already given; re-check citations after a few
+weeks.
+
+The redirect is **off until you switch it on**, because before launch the alias may be the
+only address that works. Switch it on only when the live domain really serves this site —
+custom domain **Active**, DNS flipped, and `https://<live-domain>/build.txt?cb=<something new>`
+showing the current build:
+
+1. Cloudflare dashboard → **Workers & Pages** → the project → **Settings → Variables and
+   Secrets** → **Production** → add a plain-text variable `CANONICAL_URL` =
+   `https://example.com` (the live origin, same as `SITE.url`; no path, no trailing slash).
+   Production only: previews must keep working, and the middleware never redirects a
+   preview host anyway. Open `<that value>/build.txt?cb=<something new>` (e.g.
+   `https://example.com/build.txt?cb=2609261430`) before saving and confirm it
+   shows the current build: browsers remember a 301, so a typo'd domain keeps sending
+   visitors to the wrong place even after you correct the variable.
+2. **Redeploy with a new commit.** A variable only reaches deployments made after it was
+   set, so the redirect starts with the site's next ordinary publish. To switch it on now,
+   note that `npm run ship` or a push with nothing new to publish does **not** redeploy —
+   git says "Everything up-to-date", Cloudflare builds nothing, and ship's "✓ LIVE" check
+   still passes on the old build. Make an empty commit
+   (`git commit --allow-empty -m "Apply CANONICAL_URL"`) and bring it onto `main` the way
+   this site takes changes (`AGENTS.md` §2: an assistant opens a pull request; the owner
+   may push directly unless the site is pull-request-only), then run `npm run ship`
+   (two-stage); on a single-stage site reaching `main` is the publish. Direct-upload sites
+   (§A): re-run `npx wrangler pages deploy dist --project-name <project> --branch
+   <production-branch>` — without `--branch`, wrangler may take the local git branch
+   (`main`) and make a preview deployment instead.
+3. Check: `curl -sI https://<project>.pages.dev/about` answers `301` with
+   `location: https://example.com/about`, and a preview host still answers `200` with
+   `x-robots-tag: noindex, nofollow` — two-stage: `main.<project>.pages.dev`; single-stage:
+   any `<hash>.<project>.pages.dev` from `npx wrangler pages deployment list`. Still `200`
+   on the alias? The variable isn't under **Production** (missing, misnamed, or added to
+   Preview), the deployment predates it (step 2), the value was rejected (not `https://`,
+   a `pages.dev` host, or a malformed host such as `example..com` — check it by eye), or
+   the site's `functions/_middleware.ts` predates the redirect (below).
+
+A value the middleware can't use (not `https://`, a `pages.dev` host, or a malformed host)
+is ignored and logged, so the alias stays noindexed rather than breaking. A well-formed but
+wrong domain is not caught: it redirects there, which is why step 1 checks the value first.
+
+**Sites scaffolded before this redirect existed** need the new `functions/_middleware.ts`
+first: copy it from `templates/astro/functions/_middleware.ts`
+(`make whats-new PROJECT=<site-dir>` lists it when it changed) and commit it, but don't
+push until step 1 is saved: on a single-stage site that push is the production deploy.
+Then do steps 1–3; that commit is the new commit step 2 needs. Nothing changes on a live site until that
+redeploy.
+
+After the switch, the alias no longer shows the latest production build. To check a build
+went Active, use `wrangler pages deployment list` or the deployment's hash URL
+(`<hash>.<project>.pages.dev`), never the live domain (see `PUBLISHING.md`).
