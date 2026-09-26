@@ -43,6 +43,7 @@ NOT_RUN=(
   scripts/install-codex.sh                                      # writes symlinks into ~/.agents/skills
   scripts/package.sh                                            # builds dist/, and runs check itself
   scripts/test_install_pin.sh                                   # builds throwaway repos; needs git
+  scripts/test_package_leak.sh                                  # runs package.sh in a throwaway dir with stub zip/unzip
   scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money

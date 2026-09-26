@@ -388,8 +388,11 @@ looks_like_review() {
   #    PROMPT_CORE no longer asks for that shape — an evidence gap is an UNVERIFIABLE
   #    entry, not a finding, phrased about the claim rather than the reviewer's access
   #    — but nothing stops a reviewer producing it. Cases: test_looks_like_review.sh.
+  #    Every match below reads the reply from a herestring, never `printf | grep -q`: under
+  #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
+  #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
   if [ "$finding_count" -le 1 ]; then
-    printf '%s\n' "$1" | grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" && return 1
+    grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1" && return 1
   fi
   # 2. structured findings (list/heading-anchored severity)
   [ "$finding_count" -gt 0 ] && return 0
@@ -414,7 +417,7 @@ looks_like_review() {
   #    first, knows its phrase; what check 1 misses ("couldn't access", ...) it already
   #    missed after a plain "No BUG or RISK." — B-REFUSAL-TEXT,
   #    docs/reviews/OPEN-FINDINGS-independent-review.md.
-  printf '%s\n' "$1" | grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno ((confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely)(,? ((or|and) )?(confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely)){0,4} )?(bug|risk|nit)s?\b'
+  grep -qiE '\bno\b.*\bfindings\b|\bfindings\b.*\bnone\b|\bnone\.?[[:space:]]*$|\bcame back clean\b|\ball clean\b|\bno ((confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely)(,? ((or|and) )?(confirmed|definite|definitive|real|actual|genuine|new|clear|obvious|concrete|verified|blocking|remaining|outstanding|further|additional|significant|material|likely)){0,4} )?(bug|risk|nit)s?\b' <<<"$1"
 }
 
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
@@ -682,7 +685,7 @@ readable_tail() {
 # in SUMMARY. A tier that ran and failed prints a FAILED section quoting its error.
 SUMMARY="" ; WHY="" ; TIER_PRINTED=0
 attempt() {
-  local label="$1" stem="$2" rc err="" out="" model="" outcome reason
+  local label="$1" stem="$2" rc err="" out="" error_lines="" model="" outcome reason
   WHY="" ; TIER_PRINTED=0
   "$3"; rc=$?
   if [ $rc -eq 0 ]; then
@@ -705,12 +708,15 @@ attempt() {
     # provenance — a plan line echoed into codex's stderr can take it — so an indented
     # line (a diff's context lines start with a space) never counts, and the exit status
     # stays in the summary beside the quota label (round 2, Codex).
+    # The error-shaped lines are captured, then matched via a herestring: piped straight
+    # into grep -q, the filter can be killed mid-write once they pass the pipe buffer
+    # (~64 KiB), and pipefail would then report a quota failure as a generic one.
     if [ "$WHY" = "$NOT_A_REVIEW" ]; then
       outcome="FAILED ($NOT_A_REVIEW)"
       reason="the reviewer answered, but its answer did not pass the review check (a refusal-shaped or finding-less reply). Not a quota or setup problem: read the quoted stdout, and if it is a real review, count it by hand from the raw file."
-    elif printf '%s\n%s\n' "$err" "$out" \
-        | grep -iE '^(\[[^]]*\][[:space:]]*)*([^[:space:]]+[[:space:]]+)?(error|fatal)\b' \
-        | grep -qiE "$QUOTA_RE"; then
+    elif error_lines="$(printf '%s\n%s\n' "$err" "$out" \
+        | grep -iE '^(\[[^]]*\][[:space:]]*)*([^[:space:]]+[[:space:]]+)?(error|fatal)\b')" \
+        && grep -qiE "$QUOTA_RE" <<<"$error_lines"; then
       outcome="FAILED (${WHY:-exit $rc}; quota/rate limit: wait or add credits)"
       reason="${WHY:-exit $rc}; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead."
     else
