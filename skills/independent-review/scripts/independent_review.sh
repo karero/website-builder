@@ -42,8 +42,9 @@
 # SECURITY. The preferred reviewer runs as `codex exec -s read-only`, which ASKS
 # the CLI for a read-only sandbox. Three more settings: --skip-git-repo-check only lets it
 # start outside a git repo or trusted project; -c project_doc_max_bytes=0 and
-# -c skills.include_instructions=false keep a project's AGENTS.md, and all skills, out of
-# its instructions (one live probe each, not tested; see the notes above codex_bin). Whether
+# -c skills.include_instructions=false keep a project's AGENTS.md out of its instructions
+# and stop it listing skills there (one live probe each, not tested; see the notes above
+# codex_bin). Whether
 # the sandbox blocks writes is not tested here (R-SANDBOX), and project content can still
 # reach codex other ways (R-PROJCTX), both in
 # docs/reviews/OPEN-FINDINGS-independent-review.md. The ollama tier
@@ -435,10 +436,13 @@ looks_like_review() {
 # follow it. Nor is codex pointed at AGENTS.md: judging a change by that file would let a PR
 # that edits it choose its own rules. It can still open it like any other file. (Owner
 # decisions, 2026-09-26.)
-# -c skills.include_instructions=false: the same for skills. Codex lists them in its
-# instructions, and a repo skill planted in a scratch dir steered the reply (seen live on
-# 0.157.0); with the setting, the same probe ignored it. It drops every skill, the user's
-# own included — fine, since skills are helpers a reviewer does not need. Not adopted:
+# -c skills.include_instructions=false: the same for the skills listing. Codex lists skills
+# in its instructions, and a repo skill planted in a scratch dir steered the reply (seen
+# live on 0.157.0); with the setting, the same probe ignored it. It drops the listing of
+# every skill, the user's own included — fine, since skills are helpers a reviewer does not
+# need. It does NOT stop an explicit `$name` mention loading a skill: with the setting on,
+# "$greeting" in the prompt still loaded the planted one, and the reviewed text sits in
+# the prompt (R-PROJCTX). Not adopted:
 # --ignore-rules, which by its help text also drops the user's own .rules, forbidden
 # commands included — those are guards (R-PROJCTX).
 codex_bin() {

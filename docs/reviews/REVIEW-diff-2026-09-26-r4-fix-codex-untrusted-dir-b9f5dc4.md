@@ -148,4 +148,6 @@ PR #110 merged into main between round 4 and the merge and touched the same two 
 
 **Owner waivers (2026-09-26):** an older codex rejecting `--skip-git-repo-check` (F8); no automated test against the real codex binary, since CI has no codex sign-in (J6/F7).
 
-**Follow-up:** `fix/codex-project-context` — repo skills closed, the AGENTS.md-as-data prompt line, the re-gate NITs, and this addendum.
+**Follow-up:** `fix/codex-project-context` — the skills listing kept out, the re-gate NITs, and this addendum.
+
+**Reversed the same day on that branch:** the AGENTS.md prompt line in the table above was added, reviewed and then dropped by owner decision. Judging a change by the project's AGENTS.md would let a PR that edits that file choose its own rules. So the fresh-eyes RISK about site AGENTS.md is closed by the owner accepting that codex is not pointed at AGENTS.md; see R-PROJCTX.
