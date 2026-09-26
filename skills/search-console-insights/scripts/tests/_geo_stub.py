@@ -5,6 +5,7 @@ to decide what the homepage says and how each engine answers; every request is
 recorded in `STATE["hits"]` so a test can prove the real code path reached it.
 """
 import json
+from urllib.parse import parse_qs, urlparse
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -20,6 +21,8 @@ def reset():
         "homepage_status": 200,
         # engine -> {"status": int, "text": str, "model": str, "sources": [url], "body": str}
         "engines": {},
+        # SerpApi engine name -> (status, JSON body), e.g. "google_ai_mode", "google"
+        "serp": {},
         "hits": [],
     })
 
@@ -72,6 +75,11 @@ class _H(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if self.path.startswith("/search"):
+            params = {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+            STATE["hits"].append(("GET", "/search", dict(self.headers), params))
+            status, body = STATE["serp"].get(params.get("engine"), (500, {"error": "no stub"}))
+            return self._send(status, json.dumps(body))
         STATE["hits"].append(("GET", self.path, dict(self.headers), None))
         self._send(STATE["homepage_status"], STATE["homepage"], "text/html; charset=utf-8")
 
@@ -99,4 +107,5 @@ def env_for(base_url):
     """The environment that points geo_check at this stub — test mode only."""
     return {"GEO_TEST_MODE": "1", "GEO_HOMEPAGE_URL": base_url + "/",
             "GEO_GEMINI_BASE_URL": base_url, "GEO_OPENAI_BASE_URL": base_url,
-            "GEO_ANTHROPIC_BASE_URL": base_url, "GEO_PERPLEXITY_BASE_URL": base_url}
+            "GEO_ANTHROPIC_BASE_URL": base_url, "GEO_PERPLEXITY_BASE_URL": base_url,
+            "GEO_SERPAPI_BASE_URL": base_url}

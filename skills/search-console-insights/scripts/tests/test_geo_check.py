@@ -143,7 +143,7 @@ class WeeklyRun(GeoTestCase):
         rc, out = self.cli()
         self.assertEqual(rc, 0, out)
         self.assertIn("skipped — no GEO_OPENAI_API_KEY", out)
-        self.assertIn("engines: 1 checked, 0 failed, 3 not set up", out)
+        self.assertIn("engines: 1 checked, 0 failed, 5 not set up", out)
         rows = self.history()
         # Gemini answers only without search: its terms forbid analysing grounded answers.
         self.assertEqual({(r["engine"], r["mode"]) for r in rows}, {("gemini", "knows")})
@@ -215,7 +215,7 @@ class WeeklyRun(GeoTestCase):
         self.assertEqual(rc, 1)
         self.assertIn("gemini FAILED", out)
         self.assertNotIn(GKEY, out)
-        self.assertIn("engines: 1 checked, 1 failed, 2 not set up", out)
+        self.assertIn("engines: 1 checked, 1 failed, 4 not set up", out)
         g = [r for r in self.history() if r["engine"] == "gemini"]
         self.assertTrue(g and all(r["ok"] == "0" and r["named"] == "0" for r in g))
         self.assertTrue(all(r["ok"] == "3" for r in self.history() if r["engine"] == "openai"))
@@ -295,6 +295,75 @@ class WeeklyRun(GeoTestCase):
         self.assertEqual(finds["searched"], "0")
         rc, out = self.cli("--trend")
         self.assertIn("searched only 0/3", out)
+
+
+class GoogleViaSerpApi(GeoTestCase):
+    """Google's own AI answers (AI Mode, AI Overview) through the owner's SerpApi key."""
+
+    def setUp(self):
+        super().setUp()
+        self.setup_site()
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+
+    def rows(self, engine):
+        return [r for r in self.history() if r["engine"] == engine]
+
+    def test_ai_mode_named_and_cited(self):
+        stub.STATE["serp"]["google_ai_mode"] = (200, {
+            "reconstructed_markdown": "Try **Bäckerei Example** in Schwabing.",
+            "references": [{"link": "https://www.example-bakery.de/brot", "title": "t"}]})
+        rc, out = self.cli()
+        self.assertEqual(rc, 1, out)  # google-overview has no stub → it fails, AI Mode still counts
+        r = next(r for r in self.rows("google-ai-mode") if r["slot"] == "broad")
+        self.assertEqual((r["mode"], r["ok"], r["named"], r["cited_own"]), ("finds", "1", "1", "1"))
+        call = next(h[3] for h in stub.STATE["hits"] if h[1] == "/search")
+        self.assertEqual((call["engine"], call["gl"], call["hl"], call["no_cache"]),
+                         ("google_ai_mode", "de", "de", "true"))
+        self.assertEqual(call["q"], BROAD)
+
+    def test_overview_inline_and_via_follow_up(self):
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"text_blocks": [{"type": "paragraph", "snippet": "x"}]})
+        stub.STATE["serp"]["google"] = (200, {"ai_overview": {"page_token": "tok123"}})
+        stub.STATE["serp"]["google_ai_overview"] = (200, {"text_blocks": [
+            {"type": "list", "list": [{"title": "Bäckerei Example", "snippet": "sourdough"}]}],
+            "references": [{"link": "https://example-bakery.de"}]})
+        rc, out = self.cli()
+        self.assertEqual(rc, 0, out)
+        r = next(r for r in self.rows("google-overview") if r["slot"] == "broad")
+        self.assertEqual((r["named"], r["cited_own"]), ("1", "1"))
+        follow = [h[3] for h in stub.STATE["hits"] if h[1] == "/search" and h[3]["engine"] == "google_ai_overview"]
+        self.assertTrue(follow and follow[0]["page_token"] == "tok123")
+
+    def test_no_overview_is_its_own_state(self):
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"text_blocks": []})
+        stub.STATE["serp"]["google"] = (200, {"organic_results": []})
+        self.cli()
+        r = next(r for r in self.rows("google-overview") if r["slot"] == "broad")
+        self.assertEqual((r["ok"], r["named"], r["status"]), ("1", "0", "no AI Overview shown"))
+        rc, out = self.cli("--trend")
+        self.assertIn("Google showed no AI Overview", out)
+
+    def test_engines_option_asks_only_those(self):
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"reconstructed_markdown": "Bäckerei Example"})
+        rc, out = self.cli("--engines", "google-ai-mode")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual({r["engine"] for r in self.history()}, {"google-ai-mode"})
+        self.assertFalse([h for h in stub.STATE["hits"] if h[0] == "POST"])
+        with self.assertRaises(SystemExit):
+            self.cli("--engines", "bing-chat")
+
+    def test_invalid_key_stops_and_never_prints_the_key(self):
+        stub.STATE["serp"]["google_ai_mode"] = (401, {"error": "Invalid API key. Your API key should be here: https://serpapi.com/manage-api-key"})
+        stub.STATE["serp"]["google"] = (200, {"error": "Invalid API key for test-serpapi-placeholder"})
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        self.assertIn("google-ai-mode FAILED", out)
+        self.assertIn("google-overview FAILED: SerpApi: Invalid API key", out)
+        self.assertNotIn("test-serpapi-placeholder", out)
+        ai_mode_calls = [h for h in stub.STATE["hits"] if h[1] == "/search" and h[3]["engine"] == "google_ai_mode"]
+        self.assertEqual(len(ai_mode_calls), 1)
 
 
 class Homepage(GeoTestCase):

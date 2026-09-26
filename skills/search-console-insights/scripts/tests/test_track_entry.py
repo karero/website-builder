@@ -98,7 +98,7 @@ class TrackEntry(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertReachedGeo(calls)
         self.assertIn("--no-browser", calls)
-        self.assertIn("engines: 1 checked, 0 failed, 3 not set up", out)
+        self.assertIn("engines: 1 checked, 0 failed, 5 not set up", out)
         self.assertIn("Does AI name you?", out)  # the GEO trend printed after the keyword trend
         self.assertEqual(self.geo_rows(), 1)
 

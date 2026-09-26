@@ -56,8 +56,11 @@ except ImportError:  # pragma: no cover — the venv from SKILL.md setup has it
 # marks the first comparison across the change instead of showing it as a real move.
 DETECTOR_VERSION = "1"
 
-ENGINES = ["gemini", "openai", "anthropic", "perplexity"]
-KEY_VARS = {e: f"GEO_{e.upper()}_API_KEY" for e in ENGINES}
+ENGINES = ["gemini", "openai", "anthropic", "perplexity", "google-ai-mode", "google-overview"]
+# Google's two AI surfaces come through SerpApi and share the key the skill's Top-10 check
+# (serp_check.py) already uses; the chat engines get GEO_* names of their own.
+SERP_ENGINES = {"google-ai-mode", "google-overview"}
+KEY_VARS = {e: ("SERPAPI_KEY" if e in SERP_ENGINES else f"GEO_{e.upper()}_API_KEY") for e in ENGINES}
 SAMPLES = {"broad": 3, "narrow": 3, "branded": 1}
 SLOTS = list(SAMPLES)
 MODES = ["knows", "finds"]
@@ -100,7 +103,7 @@ def load_keys() -> dict:
     env = base_dir() / ".env"
     if env.exists() and not all(keys.values()):
         for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
-            m = re.match(r"\s*(?:export\s+)?(GEO_[A-Z]+_API_KEY)\s*=\s*(.*)$", line)
+            m = re.match(r"\s*(?:export\s+)?(GEO_[A-Z]+_API_KEY|SERPAPI_KEY)\s*=\s*(.*)$", line)
             if not m:
                 continue
             val = m.group(2).strip().strip('"').strip("'")
@@ -296,11 +299,16 @@ DEFAULT_MODELS = {
     "openai": "gpt-6-luna",
     "anthropic": "claude-sonnet-5",
     "perplexity": "perplexity/sonar",
+    "google-ai-mode": "serpapi:google_ai_mode",    # Google's own AI; no model to choose
+    "google-overview": "serpapi:google",
 }
 # Gemini's terms forbid analysing or storing search-grounded answers ("You will not ...
 # cache, frame, syndicate, resell, analyze, train on, or otherwise learn from Grounded
 # Results"), and counting mentions is analysis — so Gemini answers only without search.
-FINDS_SUPPORTED = {"gemini": False, "openai": True, "anthropic": True, "perplexity": True}
+FINDS_SUPPORTED = {"gemini": False, "openai": True, "anthropic": True, "perplexity": True,
+                   "google-ai-mode": True, "google-overview": True}
+# Google's AI answers are search by nature: there is no "knows you" for them.
+KNOWS_SUPPORTED = {e: e not in SERP_ENGINES for e in ENGINES}
 
 
 def model_for(engine: str) -> str:
@@ -308,7 +316,13 @@ def model_for(engine: str) -> str:
 
 
 def modes_for(engine: str):
-    return [m for m in MODES if m == "knows" or FINDS_SUPPORTED[engine]]
+    return [m for m in MODES if (KNOWS_SUPPORTED if m == "knows" else FINDS_SUPPORTED)[engine]]
+
+
+def samples_for(engine: str, slot: str) -> int:
+    """Chat engines vary answer to answer, so unbranded questions get 3 samples. Google's
+    answers are far steadier, and every SerpApi call spends a paid search: 1 each."""
+    return 1 if engine in SERP_ENGINES else SAMPLES[slot]
 
 
 def build_request(engine, mode, question, cfg, key):
@@ -320,7 +334,7 @@ def build_request(engine, mode, question, cfg, key):
             raise ValueError("Gemini is never asked with search (its terms; see FINDS_SUPPORTED)")
         base = override("GEO_GEMINI_BASE_URL", "https://generativelanguage.googleapis.com")
         body = {"contents": [{"role": "user", "parts": [{"text": question}]}]}
-        return (f"{base}/v1beta/models/{model}:generateContent",
+        return ("POST", f"{base}/v1beta/models/{model}:generateContent",
                 {"x-goog-api-key": key, "Content-Type": "application/json"}, body)
     if engine == "openai":
         base = override("GEO_OPENAI_BASE_URL", "https://api.openai.com")
@@ -330,7 +344,7 @@ def build_request(engine, mode, question, cfg, key):
             loc = {"type": "approximate"} | ({"country": country} if country else {})
             body["tools"] = [{"type": "web_search", "user_location": loc}]
             body["tool_choice"] = "required"
-        return (f"{base}/v1/responses",
+        return ("POST", f"{base}/v1/responses",
                 {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, body)
     if engine == "anthropic":
         base = override("GEO_ANTHROPIC_BASE_URL", "https://api.anthropic.com")
@@ -341,7 +355,7 @@ def build_request(engine, mode, question, cfg, key):
             if country:
                 tool["user_location"] = {"type": "approximate", "country": country}
             body["tools"] = [tool]
-        return (f"{base}/v1/messages",
+        return ("POST", f"{base}/v1/messages",
                 {"x-api-key": key, "anthropic-version": "2023-06-01",
                  "Content-Type": "application/json"}, body)
     if engine == "perplexity":
@@ -353,9 +367,32 @@ def build_request(engine, mode, question, cfg, key):
             if country:
                 tool["user_location"] = {"country": country}
             body["tools"] = [tool]
-        return (f"{base}/v1/agent",
+        return ("POST", f"{base}/v1/agent",
                 {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, body)
+    if engine in SERP_ENGINES:
+        base = override("GEO_SERPAPI_BASE_URL", "https://serpapi.com")
+        # SerpApi takes its key as a query parameter, so errors are redacted in call_engine.
+        # no_cache: a cached answer is free but could be days old.
+        params = {"engine": "google_ai_mode" if engine == "google-ai-mode" else "google",
+                  "q": question, "api_key": key, "hl": cfg.get("lang", "en"), "no_cache": "true"}
+        if country:
+            params["gl"] = country.lower()
+        return ("GET", f"{base}/search", {}, params)
     raise ValueError(engine)
+
+
+def _flatten_blocks(blocks) -> list:
+    """Text of SerpApi's AI text_blocks: paragraphs, headings, lists, nested blocks."""
+    out = []
+    for b in blocks or []:
+        if not isinstance(b, dict):
+            continue
+        for k in ("title", "snippet"):
+            if b.get(k):
+                out.append(b[k])
+        out += _flatten_blocks(b.get("list"))
+        out += _flatten_blocks(b.get("text_blocks"))
+    return out
 
 
 def _output_texts(data):
@@ -394,7 +431,21 @@ def parse_response(engine, data):
                  .get("search_web") or {}).get("invocation", 0)
         # Its citations are inline [n] markers into these results, so the results stand in.
         return "\n".join(_output_texts(data)), data.get("model", ""), results, bool(results or calls)
+    if engine == "google-ai-mode":
+        text = data.get("reconstructed_markdown") or "\n".join(_flatten_blocks(data.get("text_blocks")))
+        refs = [r.get("link", "") for r in data.get("references", []) or [] if r.get("link")]
+        return text, "google-ai-mode", refs, True
+    if engine == "google-overview":
+        ov = data.get("ai_overview") or data   # the follow-up call returns the block at the top
+        text = "\n".join(_flatten_blocks(ov.get("text_blocks")))
+        refs = [r.get("link", "") for r in ov.get("references", []) or [] if r.get("link")]
+        if not text:
+            text = NO_OVERVIEW
+        return text, "google-overview", refs, True
     raise ValueError(engine)
+
+
+NO_OVERVIEW = "(Google showed no AI Overview for this question.)"
 
 
 class EngineError(Exception):
@@ -419,17 +470,19 @@ def _error_line(r) -> str:
     return f"HTTP {r.status_code}: {msg[:240]}"
 
 
-def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
-    url, headers, body = build_request(engine, mode, question, cfg, key)
+def _send(method, url, headers, payload, all_keys, deadline):
+    """One HTTP call with bounded 429 backoff. Returns the parsed JSON body."""
     delay = 0 if os.environ.get("GEO_TEST_MODE") == "1" else 5
     for attempt in range(3):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise EngineError("time budget used up before this call")
+        kw = {"json": payload} if method == "POST" else {"params": payload}
         try:
-            r = requests.post(url, headers=headers, json=body,
-                              timeout=min(CALL_TIMEOUT, max(1, remaining)))
+            r = requests.request(method, url, headers=headers,
+                                 timeout=min(CALL_TIMEOUT, max(1, remaining)), **kw)
         except requests.RequestException as e:
+            # SerpApi's key is a query parameter, so a transport error's URL carries it.
             raise EngineError(redact(f"{type(e).__name__}: {e}", all_keys)) from None
         if r.status_code == 429 and _NO_CREDIT.search(r.text):
             # "No credit" arrives as a 429 too (OpenAI), but waiting won't fix it.
@@ -441,10 +494,38 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
             fatal = 400 <= r.status_code < 500 and r.status_code != 429
             raise EngineError(redact(_error_line(r), all_keys), fatal=fatal)
         try:
-            return parse_response(engine, r.json())
-        except (ValueError, AttributeError, TypeError) as e:
-            raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
+            return r.json()
+        except ValueError:
+            raise EngineError("unexpected response: not JSON") from None
     raise EngineError("HTTP 429: rate limited after retries")
+
+
+_SERP_NO_RESULT = re.compile(r"hasn't returned any results|no results", re.IGNORECASE)
+_SERP_FATAL = re.compile(r"api key|run out of searches|plan|account", re.IGNORECASE)
+
+
+def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
+    method, url, headers, payload = build_request(engine, mode, question, cfg, key)
+    data = _send(method, url, headers, payload, all_keys, deadline)
+    if engine in SERP_ENGINES and isinstance(data, dict) and data.get("error"):
+        # SerpApi reports some failures inside a 200, and "Google showed nothing" as one too.
+        msg = redact(str(data["error"]), all_keys)
+        if not _SERP_NO_RESULT.search(msg):
+            raise EngineError(f"SerpApi: {msg[:240]}", fatal=bool(_SERP_FATAL.search(msg)))
+        data = {}
+    if engine == "google-overview":
+        ov = (data or {}).get("ai_overview") or {}
+        if ov.get("page_token") and not ov.get("text_blocks"):
+            # Google sometimes serves the overview through a second request; its token
+            # expires within minutes, so fetch it right away.
+            base = override("GEO_SERPAPI_BASE_URL", "https://serpapi.com")
+            data = _send("GET", f"{base}/search", {},
+                         {"engine": "google_ai_overview", "page_token": ov["page_token"],
+                          "api_key": key}, all_keys, deadline)
+    try:
+        return parse_response(engine, data or {})
+    except (ValueError, AttributeError, TypeError) as e:
+        raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
 
 
 # ─── history ──────────────────────────────────────────────────────────────────
@@ -500,7 +581,7 @@ def new_run_id() -> str:
             + f"-{os.getpid()}-{random.getrandbits(16):04x}")
 
 
-def run(domain: str) -> int:
+def run(domain: str, only=None) -> int:
     cfg = load_config(domain)
     if cfg is None:
         print("AI check: not set up (ask Claude: 'set up the weekly AI check')")
@@ -536,6 +617,8 @@ def run(domain: str) -> int:
     rows, checked, failed, not_set_up = [], [], [], []
 
     for engine in ENGINES:
+        if only and engine not in only:
+            continue
         key = keys[engine]
         if not key:
             print(f"  {engine}: skipped — no {KEY_VARS[engine]} (add it to {base_dir() / '.env'})")
@@ -548,8 +631,8 @@ def run(domain: str) -> int:
         dead = None  # set by a fatal error: the rest of this engine's calls are skipped
         for mode in modes_for(engine):
             for q in queries:
-                slot, n = q["slot"], SAMPLES[q["slot"]]
-                ok = named = cited = searched = 0
+                slot, n = q["slot"], samples_for(engine, q["slot"])
+                ok = named = cited = searched = no_overview = 0
                 models, domains, errors = set(), set(), []
                 for i in range(1, n + 1):
                     if dead:
@@ -567,6 +650,7 @@ def run(domain: str) -> int:
                         time.sleep(pause)
                     ok += 1
                     searched += did_search
+                    no_overview += text == NO_OVERVIEW
                     models.add(model or "?")
                     hosts = [norm_host(s) for s in sources if s]
                     domains.update(h for h in hosts if h)
@@ -595,7 +679,8 @@ def run(domain: str) -> int:
                     "cited_domains": "|".join(sorted(domains)) if mode == "finds" else "",
                     # Engines may answer from memory even with search on; this shows how often.
                     "searched": searched if mode == "finds" else "",
-                    "status": "ok" if not errors else f"{len(errors)} of {n} failed",
+                    "status": (f"{len(errors)} of {n} failed" if errors else
+                               "no AI Overview shown" if no_overview and no_overview == ok else "ok"),
                 })
         if engine_err:
             failed.append(engine)
@@ -650,7 +735,7 @@ def trend(domain: str) -> int:
     for (engine, mode, slot), rs in sorted(groups.items(),
                                            key=lambda kv: (ENGINES.index(kv[0][0]) if kv[0][0] in ENGINES else 9,
                                                            kv[0][1], SLOTS.index(kv[0][2]) if kv[0][2] in SLOTS else 9)):
-        head = f"  {engine:<10} {label.get(mode, mode):<9} {slot:<7}"
+        head = f"  {engine:<15} {label.get(mode, mode):<9} {slot:<7}"
         latest = rs[-1]
         good = [r for r in rs if _ok(r)]
         note = "" if _ok(latest) else f"  (latest attempt {latest['date']} failed: {latest['status']})"
@@ -662,6 +747,9 @@ def trend(domain: str) -> int:
             print(f"{head} no successful answer yet{note}")
             continue
         now = good[-1]
+        if now.get("status") == "no AI Overview shown":
+            print(f"{head} Google showed no AI Overview ({now['date']}){note}")
+            continue
         cite = f", cited {now['cited_own']}/{_ok(now)}" if now.get("cited_own") not in ("", None) else ""
         if now.get("searched") not in ("", None) and int(now["searched"]) < _ok(now):
             cite += f", searched only {now['searched']}/{_ok(now)}"
@@ -691,6 +779,8 @@ ENV_HINTS = {
     "openai": "platform.openai.com → add credit under Billing → API keys → Create",
     "anthropic": "console.anthropic.com → add credit under Billing → API Keys → Create Key",
     "perplexity": "perplexity.ai → Settings → API → add credit → Generate API key",
+    "google-ai-mode": "serpapi.com → Dashboard → Your Private API Key (shared with the Top-10 check)",
+    "google-overview": "the same SERPAPI_KEY as google-ai-mode",
 }
 
 
@@ -710,7 +800,8 @@ def prepare_env() -> int:
     env = base_dir() / ".env"
     env.parent.mkdir(parents=True, exist_ok=True)
     text = env.read_text(encoding="utf-8") if env.exists() else ""
-    missing = [v for v in KEY_VARS.values()
+    names = list(dict.fromkeys(KEY_VARS.values()))  # both Google engines share one key
+    missing = [v for v in names
                if not re.search(r"(?m)^\s*(?:export\s+)?" + v + r"\s*=", text)]
     if missing:
         block = ("\n# Weekly AI check (does AI name you?) — paste each key after the = sign,\n"
@@ -721,7 +812,7 @@ def prepare_env() -> int:
         os.chmod(env, 0o600)
     print(f"Key file: {env}")
     print("  (the folder .config is hidden in Finder: Go → Go to Folder… → ~/.config/gsc-insights)")
-    print(f"  {'added' if missing else 'already has'} the lines: {', '.join(KEY_VARS.values())}")
+    print(f"  {'added' if missing else 'already has'} the lines: {', '.join(names)}")
     return 0
 
 
@@ -740,6 +831,8 @@ def main(argv=None) -> int:
     ap.add_argument("--country")
     ap.add_argument("--slot", choices=SLOTS)
     ap.add_argument("--text-file")
+    ap.add_argument("--engines", help="comma-separated: ask only these engines this run "
+                    f"(of {', '.join(ENGINES)})")
     args = ap.parse_args(argv)
     if args.keys:
         return show_keys()
@@ -825,7 +918,13 @@ def main(argv=None) -> int:
         print("✓ Confirmed — these questions now match this homepage.")
         return 0
 
-    return run(domain)
+    only = None
+    if args.engines:
+        only = {e.strip() for e in args.engines.split(",") if e.strip()}
+        unknown = only - set(ENGINES)
+        if unknown:
+            ap.error(f"unknown engine(s): {', '.join(sorted(unknown))} — choose from {', '.join(ENGINES)}")
+    return run(domain, only)
 
 
 if __name__ == "__main__":

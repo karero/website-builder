@@ -34,11 +34,24 @@ correctly.
 | OpenAI | ✓ | ✓ | `GEO_OPENAI_API_KEY` | paid, prepaid credit |
 | Anthropic | ✓ | ✓ | `GEO_ANTHROPIC_API_KEY` | paid, prepaid credit |
 | Perplexity | ✓ | ✓ | `GEO_PERPLEXITY_API_KEY` | paid, prepaid credit |
+| Google AI Mode | — | ✓ | `SERPAPI_KEY` (the same key as the Top-10 check) | SerpApi searches |
+| Google AI Overview | — | ✓ | `SERPAPI_KEY` | SerpApi searches |
 
 Every engine is optional. Without its key an engine is skipped with a one-line hint; the
-report says e.g. "1 checked, 0 failed, 3 not set up". The script reads **only** these
-`GEO_*` names, never a generic `OPENAI_API_KEY`, so a key someone exported for other work is
-never billed by accident.
+report says e.g. "1 checked, 0 failed, 5 not set up". The script reads **only** these names
+(the `GEO_*` ones and the skill's own `SERPAPI_KEY`), never a generic `OPENAI_API_KEY`, so a key
+someone exported for other work is never billed by accident. `--engines google-ai-mode,gemini`
+asks only the listed engines for one run.
+
+**Google's own AI answers** come through SerpApi: **AI Mode** (Google's chat-style answer) and
+the **AI Overview** (the box above the normal results). Both are live Google search by nature,
+so they only have "finds you", and each question is asked **once** per run rather than three
+times: Google's answers are much steadier than a chatbot's, and every call spends a paid
+SerpApi search. Google doesn't show an AI Overview for every question; when it shows none, the
+line says "Google showed no AI Overview". That is useful to know in itself, and it isn't the
+same as "not named". SerpApi collects Google's results automatically, and the risk under
+Google's terms is SerpApi's business model (this skill already relies on it for the Top-10
+check); the Gemini clause above covers only the Gemini API.
 
 **Why Gemini has no "Finds you".** Google's terms for search-grounded Gemini answers say:
 "You will not, and will not allow your end user or any third party to, cache, frame,
@@ -65,6 +78,7 @@ Per site per week: 3 broad + 3 narrow + 1 branded = 7 calls per mode per engine.
 | OpenAI | `gpt-6-luna` | ~$0.10: web search is $10 per 1,000 calls, tokens are tiny |
 | Anthropic | `claude-sonnet-5` | ~$0.20–0.50: $10 per 1,000 searches, more per token |
 | Perplexity | `perplexity/sonar` | ~$0.05: $2.50 per 1,000 searches |
+| Google AI Mode + AI Overview | — | 6–9 SerpApi searches per site (an overview sometimes needs a second call); check the plan's monthly allowance on the SerpApi dashboard |
 
 Override any model with `GEO_<ENGINE>_MODEL=...` in `.env`. **Providers retire models**
 (Claude Haiku 4.5 retires around 15 Oct 2026), and a retired model shows up as a weekly
@@ -121,6 +135,10 @@ free to start with; the others cost a few cents a week if you want them."*
    2. **Settings → Billing**: buy a small credit. **Settings → Limits**: set a monthly spend limit.
       Optionally create a workspace called "AI check" first, so its use shows separately.
    3. **API Keys → Create Key**. Copy it right away and paste it after `GEO_ANTHROPIC_API_KEY=`.
+
+   **SerpApi (Google's AI answers)**: if the owner already set up the Top-10 check,
+   `SERPAPI_KEY` is there and nothing is needed. Otherwise: serpapi.com → sign up → Dashboard →
+   copy "Your Private API Key" → paste it after `SERPAPI_KEY=`.
 
    **Perplexity (paid)**
    1. perplexity.ai → sign in → **Settings → API** → add a small credit → **Generate API key**.
@@ -212,6 +230,12 @@ Checked against the providers' docs on 2026-09-26:
 - **Gemini:** `POST …/v1beta/models/{model}:generateContent`, key in the `x-goog-api-key` header; the answer is in `candidates[0].content.parts[].text` and the model in `modelVersion`. No tools (see the terms above).
 - **OpenAI:** Responses API `POST /v1/responses`, `store: false`. For "finds": the `web_search` tool with `user_location: {type: "approximate", country}` (omitting it silently means United States) and `tool_choice: "required"`. Citations are `url_citation` annotations; a `web_search_call` output item means a search ran.
 - **Anthropic:** `POST /v1/messages`, `anthropic-version: 2023-06-01`. For "finds": the `web_search_20250305` tool (works on every current model) with `user_location`. Citations are on the text blocks, and `usage.server_tool_use.web_search_requests` counts searches. An org admin can disable web search, which makes these calls fail with a 400.
+- **Google AI Mode / AI Overview (SerpApi):** `GET https://serpapi.com/search` with
+  `engine=google_ai_mode` (answer in `reconstructed_markdown` or `text_blocks[]`, sources in
+  `references[].link`) or `engine=google` (the `ai_overview` block, whose `page_token` sometimes
+  requires a second call with `engine=google_ai_overview` within ~4 minutes). `no_cache=true`,
+  `gl` = country, `hl` = language. The key is a query parameter, so errors are redacted. SerpApi
+  also reports failures inside an HTTP 200 `{"error": ...}`.
 - **Perplexity:** the Agent API `POST /v1/agent`, which replaced Sonar chat completions (retired 2026-09-27). The model is named directly (a preset keeps search on regardless). "Finds" adds the `web_search` tool with `user_location: {country}`. Sources are in `output[type=search_results].results[]`.
 
 Tests: `scripts/tests/test_geo_check.py` (the pieces) and `test_track_entry.py` (the weekly
