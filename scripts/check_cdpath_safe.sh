@@ -61,12 +61,25 @@ rc=0
 # deliberate choice instead of being silently uncovered. Discovery is by SHEBANG, not a *.sh
 # glob — templates/astro/scripts/hooks/pre-push is a tracked, shipped, extensionless #!/bin/sh
 # script, and self-location is most idiomatic in exactly that file class.
+# Prefer git's own file list where there is one: it excludes NESTED CHECKOUTS for free, and a
+# primary checkout routinely has them — .claude/worktrees/<name>/ per parallel session, each a
+# full copy of this tree. A plain find walks straight into those and demands every script in
+# every one of them be listed, which is how this guard broke `make check` in the primary
+# checkout while passing in CI and in a linked worktree, neither of which has any. The find
+# branch is not dead code: the handoff zip has no git at all, and it is the zip recipients that
+# `make check` most needs to work for.
 discover() {
-  find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
-       ! -path './docs/reviews/*' -print 2>/dev/null |
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null | head -n1)" ]; then
+    git ls-files -z 2>/dev/null | tr '\0' '\n'
+  else
+    find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
+         ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
+      sed 's|^\./||'
+  fi |
   while IFS= read -r f; do
+    [ -f "$f" ] || continue
     case "$(head -n 1 -- "$f" 2>/dev/null)" in
-      '#!'*sh|'#!'*sh' '*) printf '%s\n' "${f#./}" ;;
+      '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
 }
@@ -114,6 +127,15 @@ done
 # --- regression case for the original bug -----------------------------------------------------
 # The loop above cannot catch it: <project_dir> comes from the CALLER, so it needs a real
 # project and a same-named decoy to resolve away to.
+# whats-new.sh compares git history, so it cannot run in an unpacked handoff zip. Skip loudly
+# rather than fail: a zip recipient should not get a red `make check` over a regression test
+# that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
+# SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
+if ! command -v git >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "SKIP — the whats-new.sh regression case needs git (it compares suite history)."
+  exit $rc
+fi
+
 mkdir -p "$proj/real/myproj/.claude/skills" "$proj/decoy/myproj/.claude/skills"
 printf 'suite_commit: %s\n' "$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
   > "$proj/real/myproj/.claude/skills/SUITE-VERSION"
