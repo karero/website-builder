@@ -194,3 +194,39 @@ Treat it as a checklist *with* the owner, never a fire-and-forget edit:
 
 > Drive these changes *with* the owner, not through blind screen control — same guardrail as
 > the bootstrap token steps above.
+
+## After go-live: send `<project>.pages.dev` to the live domain
+
+Every Pages project also serves production at its own alias, `<project>.pages.dev`. The
+kit's `functions/_middleware.ts` noindexes it, but that does not keep it out of AI
+answers: AI search engines have been seen citing the alias instead of the real domain. So
+once the site is live, the alias should 301-redirect to the live domain.
+
+The redirect is **off until you switch it on**, because before launch the alias may be the
+only address that works. Switch it on only when the live domain really serves this site —
+custom domain **Active**, DNS flipped, and `https://<live-domain>/build.txt` showing the
+current build:
+
+1. Cloudflare dashboard → **Workers & Pages** → the project → **Settings → Variables and
+   Secrets** → **Production** → add a plain-text variable `CANONICAL_URL` =
+   `https://example.com` (the live origin, same as `SITE.url`; no path, no trailing slash).
+   Production only: previews must keep working, and the middleware never redirects a
+   preview host anyway.
+2. **Redeploy.** A variable only reaches deployments made after it was set: run
+   `npm run ship` (two-stage), push to `main` (single-stage), or use **Retry deployment**
+   on the latest production deployment.
+3. Check: `curl -sI https://<project>.pages.dev/about` answers `301` with
+   `location: https://example.com/about`, and `curl -sI https://main.<project>.pages.dev/`
+   still answers `200` with `x-robots-tag: noindex, nofollow`.
+
+A value the middleware can't use (not `https://`, or itself a `pages.dev` host) is ignored
+and logged, so the alias stays noindexed rather than breaking.
+
+**Sites scaffolded before this redirect existed** need the new `functions/_middleware.ts`
+first: copy it from `templates/astro/functions/_middleware.ts` (`make whats-new` lists it
+when it changed), commit, then do steps 1–3. Nothing changes on a live site until that
+redeploy.
+
+After the switch, the alias no longer shows the latest production build. To check a build
+went Active, use `wrangler pages deployment list` or the deployment's hash URL
+(`<hash>.<project>.pages.dev`), never the live domain (see `PUBLISHING.md`).

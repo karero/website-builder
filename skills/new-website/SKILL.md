@@ -380,7 +380,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `templates/content-guide.md` → `CONTENT_GUIDE.md` and `templates/brand.md` →
    `BRAND.md`; fill the `[BRACKET]` slots in pipeline steps 2–3.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage suite out of the box). Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
@@ -486,6 +486,9 @@ hold Search Console Request Indexing until then.
       translation or replacement MUST keep the "For AI assistants — deploy-time
       guardrails" section (translated is fine, dropped is not — it is the post-handoff
       agent's only copy of those rules).
+- [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
+      this build, Production variable `CANONICAL_URL` set and redeployed; `curl -sI` on the
+      alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
