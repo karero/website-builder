@@ -9,11 +9,47 @@ on:
   pull_request:
   workflow_dispatch:
 
+# One run per branch at a time: a newer push to the same branch cancels the run it
+# supersedes. Saves Actions minutes (a private repo has 2 000 free per month; each run
+# here is ~5 min) and means the green tick always belongs to the latest commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # The job id `test` is the check name a branch ruleset requires (website-team-setup
+  # §5-A: required_status_checks context "test"). Renaming or splitting this job
+  # without updating the ruleset blocks every merge — a check that never reports
+  # never passes.
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Content placeholders must never merge (AGENTS.md §2/§4): a missing fact is
+      # written as "[MISSING: …]" so it can be found, and this is where it is found.
+      # Runs before the build so it fails in ~1s. Template [BRACKET] slots (privacy
+      # page, manifest) are a scaffold-time convention checked by the launch
+      # checklist, not here.
+      # Translated site (AGENTS.md uses e.g. "[FEHLT: …]")? Put that token in the
+      # pattern below, or the gate greps for a word nobody writes.
+      # Two guards, two jobs: the folder loop names a missing folder in plain words;
+      # the `case` reads grep's tri-state exit (0 found, 1 nothing, >=2 error such as
+      # an unreadable file) so an error cannot pass as "nothing found" — grep may have
+      # printed matches before erroring. `-I` skips binaries (a PDF or font in public/
+      # that happens to contain the bytes would otherwise fail the gate with nothing
+      # to fill). The run step is `bash -e`, hence `|| rc=$?`.
+      - name: No unfilled "[MISSING:" placeholders
+        run: |
+          for d in src public; do
+            [ -d "$d" ] || { echo "::error::$d/ not found — the placeholder gate cannot run"; exit 1; }
+          done
+          rc=0
+          grep -rnI '\[MISSING:' src public || rc=$?
+          case "$rc" in
+            1) echo "no placeholders" ;;
+            0) echo '::error::unfilled "[MISSING: …]" placeholder(s) listed above — fill them before merging'; exit 1 ;;
+            *) echo "::error::grep failed (exit $rc) — the placeholder gate did not run"; exit 1 ;;
+          esac
       # Needs no build, no browser and no network, so it runs first and fails in ~1s.
       # The pre-push hook runs it too, but a hook is bypassable with --no-verify and
       # is absent in a clone that has not run `npm install` yet.

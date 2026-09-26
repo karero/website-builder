@@ -109,7 +109,7 @@ runs themselves), which is the live check that codex accepts `-c project_doc_max
 
 ## Tests
 
-`test_failed_tier_report.sh` case 19 runs the script from a directory outside any git repo, on
+`test_failed_tier_report.sh` case 21 (numbered 19 before main was merged in) runs the script from a directory outside any git repo, on
 both codex command lines (default and `CODEX_MODEL`). The codex stub refuses to start there without
 `--skip-git-repo-check`, as the real CLI does. It records the whole argv with each argument
 bracketed and the prompt found by content, plus cwd and what git says. The test matches that line

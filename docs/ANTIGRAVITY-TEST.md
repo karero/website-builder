@@ -57,7 +57,8 @@ In a **fresh, empty** folder, say `new website` (or "I want to build a new websi
 ### 5. Scaffold copies resolve
 Let the orchestrator run the scaffold (steps 0–3). Watch the `cp "$SKILLS_ROOT"/…`
 commands.
-**Expected:** `.gitignore`, `SETUP.md`, and the bundled sibling skills copy into the new
+**Expected:** `.gitignore`, `SETUP.md`, `PUBLISHING.md`, `AGENTS.md`, `CLAUDE.md`, and the
+bundled sibling skills copy into the new
 project with **no "No such file or directory"** errors. `.claude/settings.json` is Claude
 Code-only and is skipped under Antigravity (it uses its own sandbox approval model). The
 bundled skills land in `$PROJECT_SKILLS_DIR` — `.agents/skills` for an Antigravity install

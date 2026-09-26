@@ -114,8 +114,8 @@ The template `.gitignore` excludes `node_modules/`, `dist/`, `.astro/`, Playwrig
 Cloudflare/analytics secrets live in the Cloudflare dashboard's env vars, not the repo.
 
 When you create the GitHub repo (`gh repo create … --private`), also turn on auto-delete of
-merged PR head branches — a no-op on the default direct-push workflow, and it prevents stale
-branches from piling up the day the project graduates to a PR flow (GitHub never deletes a
+merged PR head branches — the assistant always works through pull requests (`AGENTS.md`
+§2), so this keeps stale branches from piling up from day one (GitHub never deletes a
 PR's *base* branch, so long-lived staging/production branches are safe). Pair it with
 fetch-time pruning so the deleted branches also disappear from local `origin/…` references
 (prune only cleans tracking refs, never local branches):
@@ -133,10 +133,11 @@ is what makes that true on a direct-push workflow). It needs `npx playwright ins
 (above). Relax for one push with `git push --no-verify`; disable with
 `git config --unset core.hooksPath`. See `website-qa` §1c — offer this choice, don't impose it.
 
-The hook also contains a commented-out **PR-only-main guard**: enable it when several people
+The hook also contains a commented-out **PR-only-main guard** (the `website-team-setup`
+skill enables it when a team forms and the plan offers no server-side ruleset): enable it when several people
 or parallel AI agents share the checkout and new commits should reach `main` only via reviewed
 PRs (server-side branch protection needs a paid plan on private repos). It's a **local,
-advisory convention, not an enforced one** — `git push --no-verify`, unsetting
+advisory convention, not an enforced one** — `ALLOW_MAIN_PUSH=1`, `git push --no-verify`, unsetting
 `core.hooksPath`, or pushing from a different clone all bypass it — so it only helps when
 everyone sharing the checkout has it enabled and respects it; it rejects direct pushes to
 `main` (`ALLOW_MAIN_PUSH=1` overrides) from a checkout that has it on, while ship flows
@@ -152,8 +153,9 @@ commands (npm/astro/playwright/git read+commit, image tools) run without a promp
 mkdir -p .claude && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
 ```
 > **Codex / Antigravity:** skip this — `.claude/settings.json` is Claude Code-specific. On
-> Codex, put durable project instructions in `AGENTS.md` and control command approval via
-> Codex's own rules/config. Antigravity uses its own sandbox/approval model.
+> Codex, durable project instructions live in `AGENTS.md` (the scaffold ships one; `CLAUDE.md`
+> imports it) and command approval in Codex's own rules/config. Antigravity uses its own
+> sandbox/approval model.
 It deliberately does **not** auto-allow destructive/irreversible commands (`rm -rf`,
 `git push --force`, `git reset --hard`, `wrangler … delete`, `gh repo delete`) — those still
 ask. `git push` and `gh repo create` *are* allowed (own private repos, smooth workflow);
