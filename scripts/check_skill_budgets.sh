@@ -12,7 +12,7 @@
 # Added 2026-08-29 after the skill-debloat review (finding D15): one description
 # had silently grown ~60% past the hard limit with nothing in place to catch it.
 set -uo pipefail
-cd "$(dirname "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."; exit 1; }
+CDPATH= cd -- "$(dirname -- "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."; exit 1; }
 
 DESC_HARD=1024
 DESC_WARN=900

@@ -7,7 +7,7 @@
 # SKILL.md's copy is every blockquote line under its heading, up to the next heading.
 # Run: bash skills/independent-review/scripts/check_prompt_sync.sh
 set -u
-here="$(cd "$(dirname "$0")" && pwd)"
+here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$here/independent_review.sh"; SKILL="$here/../SKILL.md"
 TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 

@@ -17,7 +17,7 @@ case "${1:-}" in
 esac
 [ "$#" -le 1 ] || { echo "usage: install.sh [--force]" >&2; exit 2; }
 
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 DEST="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 mkdir -p "$DEST"
 
