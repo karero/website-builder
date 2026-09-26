@@ -154,7 +154,7 @@ Fill the map in `STORY.md`; `copywriting` writes the page from it in this order:
 | 2 | **Stakes** | Three or four "are you worried about…" pains the visitor recognises. Agitate briefly, then pivot: "if so, we are here to help." |
 | 3 | **Plan** | The titled three-step plan as an `<ol>`. Direct CTA again. |
 | 4 | **Value stack** | Three benefits, each a headline plus one sentence, describing life after. |
-| 5 | **Explanatory paragraph** | The guide: empathy, then authority. Answer the top objections. Give the visitor room for due diligence with a "read more" to the about or offer page. |
+| 5 | **Explanatory paragraph** | The guide: empathy, then authority. Answer the top objections, using only facts already in `POSITIONING.md`; an objection the positioning cannot answer is listed for the owner, not answered with an invented promise. Give the visitor room for due diligence with a "read more" to the about or offer page. |
 | 6 | **Lead generator** | The transitional CTA with its specific title. Omit the section if the slot is blank. |
 | 7 | **Junk drawer** | FAQ, careers, everything else. Final direct CTA. |
 
@@ -210,6 +210,8 @@ the site's `npm test`.
   truth drift.
 - No lead magnet is better than a fabricated one.
 - A plan with five or more steps is a process page, not a plan.
+- Answer the question that was asked. "Which villain?" wants a decision and its
+  reason, not a whole `STORY.md`; the draft comes when the owner asks for the build.
 
 ## Boundaries (do not duplicate)
 

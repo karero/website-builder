@@ -84,6 +84,35 @@ it as drift in `whats-new`), `website-positioning-check`, `website-qa` §1b,
 `website-review`, README (layout, opt-in note, credits), `docs/GETTING-STARTED.md`,
 `check_skill_budgets.sh` count comment.
 
+## Skill Creator audit (2026-09-26)
+
+Audited against the skill-creator guidelines: frontmatter and description (853 chars, nine
+trigger phrases), `quick_validate.py` valid, 220 lines, imperative style without all-caps
+rules, resources referenced from the body. Two gaps fixed: a worked example (own words)
+and a real `POSITIONING.md` fixture for the evals. One deviation kept: resources live in
+`templates/` (the suite's convention, as in `website-motion`), not `assets/`.
+
+Eval iteration 1 (three evals, each run with and without the skill, graded by a separate
+agent on the same assertions): with skill 19/20 assertions, baseline 9/20 (97% vs 50%).
+Findings acted on: eval 1's assertions did not discriminate (a generalist reasons to
+"positioning wins" from the prompt alone), so they now test the skill's rules
+(villain-is-a-situation, route through `website-positioning`, answer the question asked);
+the one with-skill miss was an invented objection answer in the home page map, so §4
+section 5 now restricts objection answers to positioning facts; eval 2's baseline read
+"customer story" as a case-study page and decided for the owner, which the skill's offer
+text prevents. The workspace (outputs, grading, benchmark, review page) is kept outside
+the repo.
+
+## Real-site run: apreet.com (2026-09-26)
+
+Run against `karero/apreet-site` at `344d20a`, built locally (the live host is blocked
+from the sandbox). The site had no `POSITIONING.md` and a StoryBrand pass from two days
+earlier. Positioning draft from the site's own docs (every line cited), story draft with
+three one-liner and three controlling-idea candidates, positioning check verdict Clear
+(primary blur: repetition below the fold), `story.spec.ts` 3/3 after the `planStep`
+generalisation (the plan is a card grid, not a list). Nothing committed to that site;
+the report went to the owner.
+
 ## Review trail
 
 - r1 (2026-09-26): initial build on `claude/keen-bardeen-8g68az`; `make check` and `make package`
@@ -92,3 +121,5 @@ it as drift in `whats-new`), `website-positioning-check`, `website-qa` §1b,
   → 3 skipped with reasons; CTA once / plan selector missing → the two expected failures with
   their messages; a story-shaped page (CTA twice, `#plan ol` with 3 steps, key line) → 3 passed.
   The Astro overlay itself is unchanged.
+- r2 (2026-09-26): Skill Creator audit fixes, eval iteration 1, apreet.com run; `planStep`
+  selector and the existing-site note in §0 came out of the real-site run.
