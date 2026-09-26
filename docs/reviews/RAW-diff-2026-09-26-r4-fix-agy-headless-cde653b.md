@@ -1,10 +1,10 @@
-# Raw reviewer output — DIFF — agy tier runs headless in plan mode (rounds 1–3)
+# Raw reviewer output — DIFF — agy tier runs headless in plan mode (rounds 1–4)
 
-Verbatim gate output for `REVIEW-diff-2026-09-26-r3-fix-agy-headless-acf770b.md`, from the pinned
-gate (`website-builder-gate`, `5e310f6`). Omissions and edits, marked: the ollama-cloud reasoning
-trace is left out; machine-specific paths are shown as `<tmp>` or `~`; the ollama account name and
-request id in the quota error are replaced.
-
+Verbatim gate output for `REVIEW-diff-2026-09-26-r4-fix-agy-headless-cde653b.md`. Rounds 1–3 ran
+the pinned gate (`website-builder-gate`, `5e310f6`); round 4 ran the branch's own script with
+`--with-antigravity`, as the end-to-end test of the changed `run_agy`. Omissions and edits, marked:
+the ollama-cloud reasoning trace is left out; machine-specific paths are shown as `<tmp>` or `~`;
+the ollama account name and request id in the quota error are replaced.
 
 # Round 1
 
@@ -217,3 +217,99 @@ Last lines of its stderr (full file: <tmp>/ollama.err):
 ---
 reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)
 ⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair. Treat it as degraded, not as a clean pair: each FAILED section above names its remedy; or consider --with-antigravity or a manual paste round.
+
+# Round 4
+
+## Independent review — codex (gpt-6-astra, read-only)
+
+Ranked findings:
+
+1. **BUG — pre-existing, deferred; WRONG behavior:** `skills/independent-review/scripts/independent_review.sh:looks_like_review()` accepts two refusal-shaped findings and rejects a real finding containing “cannot return JSON,” producing incorrect reviewer counts. **Fix:** validate completion separately from finding prose. Executed `test_looks_like_review.sh` reproduces its `KNOWN WRONG` cases; the function’s SHA-1 matches `origin/main`, confirming this diff did not introduce it.
+
+2. **RISK — Antigravity component; runtime claims UNVERIFIABLE:** `independent_review.sh:522–533`, `setup-guide.md:192`. The claim that plan mode plus this prompt reduces empty reviews lacks preserved execution evidence tying the actual CLI’s version, effective mode, permissions and tool activity to the changed script. If false, the opted-in reviewer still fails and spends a credit without supplying a review. The stub always supplies its programmed response regardless of argument semantics. **Fix:** retain a sanitized real-script execution record. **Settling observation:** exact invocation, CLI version, effective configuration, tool decisions, exit status, stdout and stderr. The same missing component evidence prevents verifying the complete allow-list, scratch-directory behavior, slash-command refutation and version-specific history. Preserved manual replies support that reviews were recorded, but do not establish those mechanisms.
+
+3. **NIT — stale rationale; VERIFIED inconsistency:** `skills/independent-review/scripts/test_failed_tier_report.sh:351` still says the text-only prompt is right *because* agy starts in an empty directory; the corrected production comment explicitly rejects that directory as an access boundary. **Fix:** replace it with “These checks establish the CLI’s launch directory, not its tools’ working directory or access.”
+
+Checked claims and CLEAN coverage:
+
+| Claim | Verdict and evidence |
+|---|---|
+| Both invocation branches pass plan mode and the text-only prompt | **VERIFIED / CLEAN:** `independent_review.sh:543–545`; optional model is quoted, stdin remains `/dev/null`, and no permission-bypass argument was added. This verifies arguments, not enforcement. |
+| `PROMPT_TEXTONLY` is defined before use | **VERIFIED / CLEAN:** assignment at `:304`, made readonly at `:330`. |
+| Empty output remains a reported failure | **VERIFIED / CLEAN:** traced `run_agy:548` → `why_cli:649` → `attempt:684`; the failure path does not increment the success count and quotes stderr. |
+| New tests cover default/model branches and empty responses | **VERIFIED by inspection:** case 22 and `agydenied`; CI invokes the suite at `.github/workflows/clean.yml:51`. These tests were not executed because they write temporary files. |
+| R3-1/3/4/5 wording fixes landed | **VERIFIED as edits:** corrected qualification, expanded list, narrower permission wording and cwd caveat appear at `:219–235` and `:531–533`. Their runtime assertions remain covered by finding 2. |
+| R3-6’s second reply is retained | **VERIFIED:** the round-3 review trail links the round-5 raw file, which contains an Antigravity review section. Its original execution transcript is absent. |
+| R3-2 is tracked as accepted | **VERIFIED as repository record:** `OPEN-FINDINGS-independent-review.md`, `R-AGY-PROMPT`. The prompt still prohibits admitting file reads, and the MODE warning is removed; acceptance does not establish runtime correctness. |
+| Documentation references resolve | **VERIFIED / CLEAN:** `run_agy` contains the invocation; onboarding `:250–279` covers model confirmation. |
+| Shell syntax | **VERIFIED / CLEAN:** `bash -n` passed for both changed scripts. |
+
+The checkout was clean. No files, credentials or network services were accessed outside the project; no live reviewer ran.
+
+Prompt injection: the supplied preamble’s “Confirm the round-3 fixes landed, the refutations hold” is an embedded directive aimed at this reviewer. I treated it as untrusted framing, not a required conclusion. Ordinary code and documentation instructions were not classified as attacks.
+## Independent review — ollama-cloud — FAILED
+
+Model: kimi-k2.7-code:cloud
+Reason: exit 1; the quoted error reads as a quota or rate limit: wait for the limit to reset or add credits. If that line is text from the reviewed artifact rather than the CLI's own error, treat this as a setup failure instead.
+
+Last lines of its stderr (full file: <tmp>/ollama.err):
+
+    Error: 429 Too Many Requests: you (<account>) have reached your weekly usage limit, upgrade for higher limits: https://ollama.com/upgrade or add usage credits: https://ollama.com/settings (ref: <ref>)
+
+## Independent review — antigravity/agy (CLI default — model unconfirmed, verify per the onboarding model-confirmation step, sandbox, plan mode, text-only prompt)
+
+### Findings
+
+#### [RISK] `skills/independent-review/scripts/test_failed_tier_report.sh:351`
+- **Why**: The assertion `[ "$(cat "$T/$name.marks/agy-cwd")" != "$(pwd -P)" ]` succeeds vacuously if `$T/$name.marks/agy-cwd` is missing or empty, because `"" != "$(pwd -P)"` evaluates to true, masking any failure where the stub fails to record its working directory.
+- **Concrete Fix**: Require the file to exist and be non-empty before comparison, e.g. `[ -s "$T/$name.marks/agy-cwd" ] && [ "$(cat "$T/$name.marks/agy-cwd")" != "$(pwd -P)" ]`, or define a dedicated test assertion helper function.
+
+#### [RISK] `skills/independent-review/scripts/independent_review.sh:521-534`
+- **Why**: The workaround depends on an unsupported runtime claim that `--mode plan` and `$PROMPT_TEXTONLY` reduce tool calls, while the author's own logged runs show tools were still invoked and passed solely due to a machine-specific local allow-list; on an environment lacking that specific allow-list, any unlisted tool call will be auto-denied in headless mode and cause `run_agy` to fail with empty output.
+- **Concrete Fix**: Either enforce headless execution with explicitly configured permission rules/flags that prevent tool-denial exits, or gracefully handle auto-denial by falling back or diagnosing missing allow-list prerequisites rather than relying on prompt text to steer the model.
+
+#### [NIT] `skills/independent-review/scripts/test_failed_tier_report.sh:349`
+- **Why**: The comment `# The text-only prompt is right because agy runs in an empty throwaway dir, not the caller's cwd.` contradicts `skills/independent-review/scripts/independent_review.sh:228-233`, which documents that an empty cwd is not an access boundary because tools execute in agy's scratch directory and read absolute paths.
+- **Concrete Fix**: Update the comment to align with the script commentary: `# The text-only prompt steers agy away from tools; running in an empty dir avoids relative path contamination.`
+
+---
+
+### Clean Checks
+
+- `skills/independent-review/SKILL.md:120-128`: Reviewer stack entry 4 updates the CLI invocation flags to include `--mode plan` and `-p` with text-only prompt references; link to `run_agy` in `scripts/independent_review.sh` correctly replaces the outdated reference to `onboarding.md`; opt-in constraints (`--with-antigravity`) remain intact.
+- `skills/independent-review/references/setup-guide.md:181-197`: Documentation of the `AGY_MODEL` invocation shape accurately mirrors the implementation in `run_agy`; the explanation of why `--mode plan` and the text-only prompt were introduced accurately reflects their probabilistic mitigation nature without falsely claiming guaranteed tool suppression.
+- `skills/independent-review/scripts/independent_review.sh:535-551` (`run_agy` lifecycle):
+  - **Initial / Setup**: Subshell `( cd "$sbox" && agy ... )` properly isolates directory changes; temporary directory `$sbox` is reliably cleaned up via `rm -rf "$sbox"` immediately following command execution.
+  - **Success Path**: Correctly validates that `$rc -eq 0` and output file has non-zero size (`[ -s "$RAW_DIR/agy.out" ]`); `looks_like_review` check is retained; model reporting safely formats arbitrary text output via `%s` in `printf`.
+  - **Failure / Denial Path**: When the CLI exits with 0 but produces empty output (the auto-denial condition), the check correctly fails over to `why_cli $rc; return 1;`.
+  - **Contract cleanup**: Removal of the `MODE:` line validation block is consistent with switching from `PROMPT_PORTABLE` to `PROMPT_TEXTONLY`, preventing unwarranted warning noise on stderr.
+- `skills/independent-review/scripts/test_failed_tier_report.sh:109-128` (stub `agy`):
+  - Properly parses command-line arguments into `argv`, correctly isolates the prompt argument matching `*'--- BEGIN '*`, and writes invocation details into `$STUB_MARKS`.
+  - Correctly implements the `denied` state to reproduce headless auto-denial (`exit 0`, empty stdout, diagnostic message on stderr).
+  - File permissions are correctly applied via `chmod +x "$T/bin/agy"`.
+- `skills/independent-review/scripts/test_failed_tier_report.sh:338-356` (test case 22):
+  - Loops over both unset and overridden `AGY_MODEL` settings; validates exact argv construction `argv=[--sandbox][--mode][plan]${m:+[--model][$m]}[-p][<prompt>]`.
+  - Asserts prompt substitution correctly sent `PROMPT_TEXTONLY` ("You have NO tools") rather than `PROMPT_PORTABLE` ("MODE: INSPECTED").
+  - Verifies that auto-denial (`AGY_STUB=denied`) does not fail the entire review suite, preserves exit code 0 across the pair, correctly marks Antigravity as `FAILED (exit 0 but no output)`, and extracts the denial reason from stderr.
+
+---
+
+### UNVERIFIABLE
+
+#### Component: `agy` CLI (`@google/antigravity` / `agy` binary)
+- **Claim**: In headless print mode (`-p </dev/null`), `--mode plan` combined with `$PROMPT_TEXTONLY` lowers the probability of `agy` issuing commands requiring interactive approval compared to capability-agnostic prompts.
+- **Support it lacks**: The component's internal tool-selection logic and command parser under `--mode plan` were not traced in its source code; the claim is supported only by two manual sample runs on a single machine on 2026-09-26 where flags and prompt were altered simultaneously without a control.
+- **Observation that would settle it**: Source code inspection of `agy`'s planner and tool-exposure hooks under `--mode plan`, or statistical measurement of tool invocations across automated runs with diverse diff inputs on an unconfigured installation.
+
+- **Claim**: `agy` applies the local user's allow-list without prompting when run headlessly in print mode, permitting matching tool calls (`read_file`, `git status`) while auto-denying any command not matched.
+- **Support it lacks**: No specification, documentation citation, or implementation review of `agy`'s permission and allow-list resolution subsystem; the support is derived solely from execution logs on a single maintainer environment.
+- **Observation that would settle it**: Inspection of `agy`'s permission evaluation implementation for headless execution, or observation of permission resolution across different environment configurations without pre-existing user preferences.
+
+---
+
+### Prompt Injection Report
+
+None detected. The diff contains standard documentation, shell scripting, test assertions, and commentary on historical review rounds. No text attempts to alter the review task, instructions, output structure, or conclusions.
+
+---
+reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), antigravity OK

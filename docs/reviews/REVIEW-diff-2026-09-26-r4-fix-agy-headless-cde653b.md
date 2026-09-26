@@ -1,22 +1,24 @@
-# Independent review — DIFF — agy tier runs headless in plan mode (rounds 1–3)
+# Independent review — DIFF — agy tier runs headless in plan mode (rounds 1–4)
 
-Branch `fix/agy-headless`, head `acf770b` (merge of `origin/main` `0ae0525`), branched from
-`4cc0f10`. Rounds 1–3 reviewed `9e24d25`, `9660da4` and `7ff644d`.
+Branch `fix/agy-headless`, head `cde653b` (merge of `origin/main` `6f960b4`), branched from
+`4cc0f10`. Rounds 1–4 reviewed `9e24d25`, `9660da4`, `7ff644d` and `09b456b`.
 
 **The change.** `run_agy()` ran `agy --sandbox [--model M] -p "$PROMPT_PORTABLE"` in an empty temp
 dir. Headless, agy reached for a command outside its allow-list, print mode auto-denied it, and the
 tier came back empty. It now runs `agy --sandbox --mode plan [--model M] -p "$PROMPT_TEXTONLY"`. The
 MODE-line check goes, because only `PROMPT_PORTABLE` asked for that line; `PROMPT_PORTABLE` stays for
 the paste fallback. Permissions are not loosened: no `--dangerously-skip-permissions`, no
-allow-rules. Test case 22 drives the script with a stub `agy` and pins the exact argv on both
+allow-rules. Test case 23 (22 until main's B-TAGCLASS pins took that number) drives the script with a stub `agy` and pins the exact argv on both
 command lines, the prompt sent, and the empty throwaway cwd; case `agydenied` pins that an empty run
 is reported FAILED with its stderr quoted.
 
-**Verdict.** No open BUG in this change. Two RISKs stay open for an owner decision (R1-2, R3-2,
-below): the stub tests prove what the script asks agy for, not that real agy answers, and the
-evidence shows plan mode makes an empty run **less likely, not impossible**. Round 3's fixes
-(`b1201e6`, comments only) and the merge of main are `locally_verified` — `make check` green — and
-were not sent to a fourth round.
+**Verdict.** No open BUG in this change. R1-2 is closed: in round 4 the changed script, run end
+to end with `--with-antigravity`, got a real review from agy (owner spent the credit,
+2026-09-26). R3-2 is accepted by the owner and tracked as R-AGY-PROMPT in
+`OPEN-FINDINGS-independent-review.md`. The evidence still says plan mode makes an empty run **less
+likely, not impossible**. Round 4's fixes (a test assertion, wording, and the merge of main,
+`cde653b`) are `locally_verified` — `make check` green, the assertion mutation-tested — and were
+not sent to a fifth round.
 
 ## Rounds
 
@@ -25,11 +27,13 @@ were not sent to a fourth round.
 | 1 | `9e24d25` | Codex CLI 0.157.0, `gpt-6-astra`, `exec -s read-only`; ollama 0.34.4, `kimi-k2.7-code:cloud`, text only; fresh-eyes (Claude family, host's own, read-only subagent with repo access — not cross-model) | 1 / 6 / 6 |
 | 2 | `9660da4` | Codex as above; **ollama FAILED (weekly quota, HTTP 429)**; fresh-eyes | 1 / 2 / 0 |
 | 3 | `7ff644d` | Codex as above; **ollama FAILED (weekly quota)**; fresh-eyes | 0 (+1 pre-existing) / 3 / 4 |
+| 4 | `09b456b` | Codex as above; **ollama FAILED (weekly quota)**; Antigravity: agy 1.2.11, "Gemini 3.8 Flash (High)" (the model agy's own log names for the run; the script header says unconfirmed), `--sandbox --mode plan`, text-only prompt; fresh-eyes | 0 (+1 pre-existing) / 4 / 3 |
 
 Rounds 2 and 3 are **degraded**: one cross-model reviewer (Codex) plus the same-family fresh-eyes
-seat. Each round's artifact was `git diff origin/main...HEAD -- . ':(exclude)docs/reviews/'`,
+seat. Round 4 had two cross-model seats (Codex, Antigravity). Each round's artifact was `git diff origin/main...HEAD -- . ':(exclude)docs/reviews/'`,
 prefixed from round 2 on by the prior rounds' findings and dispositions. The gate script was the
-pinned copy at `website-builder-gate` (`5e310f6`), not the changed script.
+pinned copy at `website-builder-gate` (`5e310f6`), not the changed script, in rounds 1–3. Round 4
+ran the branch's own script on purpose: it was the end-to-end test of the changed `run_agy`.
 
 ## Evidence (agy's own logs and transcripts, maintainer's machine, 2026-09-26)
 
@@ -41,6 +45,7 @@ The logs are not in the repo; read by the author and by the fresh-eyes seat. Non
 | 14:01 | 1.2.11 | same | `find / …` soft-denied at step 4; no output |
 | 14:02 | 1.2.11 | `--sandbox --mode plan -p`, text-only prompt | plan mode applied (`expanded slash command "plan"`), no denial, full review; still read one file by absolute path (`view_file`, allow-listed) |
 | 14:18 | 1.2.11 | same | no denial, review; still ran `git status` (allow-listed) |
+| 15:14 | 1.2.11 | the changed script, `--with-antigravity` (round 4) | plan mode applied, no denial, review in about 2 minutes, empty stderr; transcript holds the prompt and one reply, **no tool calls** |
 
 The two plan-mode runs were rounds 4 and 5 of the BUG-deferral review, run by hand by that
 session; their transcripts carry that artifact, and their replies are kept in
@@ -93,15 +98,27 @@ Case 22 on `origin/main`'s script failed 8 of its checks; on `9e24d25` all passe
 | R3-6 | NIT | fresh-eyes | Second plan-mode success uncited | Fixed `b1201e6` |
 | R3-7 | RISK | Codex | Re-raise of R1-2; the logs are not in the repo | R1-2; the two successful replies are in the repo (see Evidence) |
 
-BUG/RISK per round: 7 → 3 → 3, but round 3's are one pre-existing BUG, one re-raise, and two
-findings from a new evidence source (agy's transcripts). R1-2 has been open for three rounds, which
-is the cap: it closes only by owner waiver or a live agy run.
+## Round 4 (on `09b456b`)
+
+| id | Sev | Source | Finding | Disposition |
+|---|---|---|---|---|
+| R4-0 | BUG | Codex | `looks_like_review()` misclassifies refusals and findings | Pre-existing: `B-REFUSAL-TEXT`, as R3-0 |
+| R4-1 | RISK | Codex | Re-raise of R1-2: no sanitised record ties a real run to the changed script | Closed by this round's Antigravity seat: the 15:14 row above, and its reply in the RAW file |
+| R4-2 | RISK | Antigravity | The case-23 cwd check passed vacuously if the stub recorded nothing (`"" != "$(pwd -P)"`) | Fixed `cde653b`: requires a non-empty record; mutation dropping the record fails both checks |
+| R4-3 | RISK | Antigravity | The fix leans on one machine's allow-list; elsewhere any tool call is auto-denied | Accepted: allow-rules are excluded by owner decision, a failed run is reported FAILED, and the round-4 run used no tools at all. Tracked with R-AGY-PROMPT |
+| R4-4 | RISK | fresh-eyes | `origin/main` moved to `6f960b4`; the next merge conflicts on test scenario 22 and the tracker line | Fixed `cde653b`: merged; main keeps 22 (B-TAGCLASS cites it), agy case is 23 |
+| R4-5 | NIT | Codex, Antigravity, fresh-eyes | Test comment still called the empty launch dir the reason for the text-only prompt | Fixed `cde653b` |
+| R4-6 | NIT | fresh-eyes | R-AGY-PROMPT overstated what the old MODE warning caught | Fixed `cde653b` |
+| R4-7 | NIT | fresh-eyes | SKILL.md described `PROMPT_TEXTONLY` as for tool-less reviewers only | Fixed `cde653b`, same line count |
+
+BUG/RISK per round, this change only: 7 → 3 → 3 → 4. Round 3's were one re-raise and two findings
+from a new evidence source (agy's transcripts); round 4's one re-raise, now closed, one test hole,
+one accepted, and one merge conflict from main moving. R1-2 reached the three-round cap and was
+closed by the live run the owner approved, not waived.
 
 ## Not done
 
-- No live `--with-antigravity` run of the changed script. It would test R1-2 directly, and spends
-  one credit.
-- Round 3's fixes and the merge of `origin/main` were not externally re-verified.
+- Round 4's fixes and the second merge of `origin/main` were not externally re-verified.
 - No PR yet, so nothing is posted; this trail and its RAW file are the only record so far.
-- Raw output: `RAW-diff-2026-09-26-r3-fix-agy-headless-acf770b.md` (gate output, all three rounds).
+- Raw output: `RAW-diff-2026-09-26-r4-fix-agy-headless-cde653b.md` (gate output, all four rounds).
   The fresh-eyes reports are summarised in the tables above, not kept verbatim.
