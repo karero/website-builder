@@ -91,23 +91,37 @@ the codex and ollama CLIs must re-gate the current pair with every seat.
   part of that review.
 - **Marker stamp** (GATED-THIS-DIFF): not taken; see above.
 
-## CI flake folded in, at the owner's request
+## CI flake: fixed on `main` first, so this PR carries `main`'s fix
 
-`cdpath-safe` failed at random, on this PR and on `main` (3 of the last 5 `main` runs). The cause
-was `skills/independent-review/scripts/check_prompt_sync.sh`: two pipelines whose last stage
-stops reading early (`| head -1` at line 30, `| grep -q` at line 78). The upstream `grep` then
-writes into a closed pipe. GitHub's runners ignore SIGPIPE, so grep prints
-`write error: Broken pipe` instead of dying silently, and `check_cdpath_safe.sh` diffs that
-stderr line as a behaviour change. That is also why it never showed locally.
+`cdpath-safe` failed at random, on this PR and on `main`. The cause was two pipelines in
+`skills/independent-review/scripts/check_prompt_sync.sh` whose last stage stops reading early
+(`| head -1`, `| grep -q`). GitHub's runners start jobs with SIGPIPE ignored, so the upstream
+`grep` printed `write error: Broken pipe`, and `check_cdpath_safe.sh` compared stderr.
 
-The first patch proposed on the PR, `grep -m1`, was wrong. It only moves the early exit one
-stage up, and measured worse: 6/100 runs against 3/100. The fix makes no consumer stop early.
-`sed -n '1s/:.*//p'` replaces `head -1 | cut`, and line 78 matches against `<<<"$(uncommented …)"`
-with no pipe.
+At the owner's request this PR first carried its own fix (`a346e67`, and a SIGPIPE reset in the
+harness). The first patch proposed on the PR, `grep -m1`, was wrong: it moves the early exit one
+stage up, and measured 6/100 against 3/100.
 
-`locally_verified`:
-- With SIGPIPE ignored, as on the runners, the broken pipe went from 3/100 runs to 0/300.
-- Output is byte-identical to before, and all 17 built-in mutation self-tests still fire.
-- `make check` passes, and `check_cdpath_safe.sh` passed 20 in a row with SIGPIPE ignored.
+Meanwhile `main` fixed the same thing at the root: #123 and #127 compare stdout and exit status
+instead of stderr, and remove the race. Merging `main` (conflicts in both files) took **`main`'s
+version of both files unchanged**. The only line this PR adds to `check_cdpath_safe.sh` is the
+NOT_RUN entry for `scripts/test_pre_push_hook.sh`. None of this PR's own flake code remains.
 
-This code is part of the pair the next cross-model round must see.
+## Round 4 — `/code-review` (fresh eyes, same family), pair `8cfed4f` → `a346e67`
+
+7 findings, each checked against the code before acting:
+
+| # | finding | disposition |
+|---|---|---|
+| 1–2 | `make check` in the handoff zip calls `test_pre_push_hook.sh`, which `package.sh` neither ships nor requires | **FIXED**: shipped and in `REQUIRED`. `make check` inside the unpacked zip passes. (It then also failed on the `whats-new` CDPATH case, because the branch was behind `main`'s #123 zip fix; the merge fixed that.) |
+| 3 | the harness, not one subject, should stop a stray SIGPIPE message failing the check | **FIXED by `main`** (#123 compares stdout and status, not stderr), which superseded this PR's own harness change in the merge |
+| 4 | the `exec <<` replay changes stdin for later steps on a hand-run from a tty | **REFUTED**, the R1-O1 re-raise. git always runs the hook with a pipe, and the tty case was already accepted in round 1. Keeping fd 0 for a tty would make an enabled block wait on the terminal. |
+| 5 | README's exhaustive scripts list misses the new test | **FIXED** |
+| 6 | the deletion test checks both `(delete)` and the all-zero sha, which is redundant | **REFUTED**: both must hold to skip, so a mismatch in either falls back to running the gate. The redundancy fails safe on purpose. |
+| 7 | real-git cases ran only with the block on | **FIXED**: the same four pushes also run as shipped (block off). |
+
+All `locally_verified`. `make check` passes in the checkout, and in the unpacked zip after the
+`main` merge.
+
+**The cross-model re-gate still owed** (Consolidated marker, above) now covers the pair
+`<merge-base with main>` → the head after this merge.

@@ -33,6 +33,7 @@ SUBJECTS=(
   scripts/check_skill_budgets.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
+  skills/independent-review/scripts/sweep_claims.sh
 )
 # Not run here, each for a reason — not because nobody got to them. The completeness check
 # below forces a new script into one list or the other, the same way check_template_coverage.sh
@@ -47,6 +48,7 @@ NOT_RUN=(
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/test_failed_tier_report.sh  # slow; stubs a whole CLI
   skills/independent-review/scripts/test_looks_like_review.sh   # slow; stubs a whole CLI
+  skills/independent-review/scripts/test_sweep_claims.sh        # builds throwaway repos; needs git and python3
   skills/new-website/templates/astro/tests/check_ship_push.sh   # template test; needs a built site
   skills/new-website/templates/astro/scripts/hooks/pre-push     # git hook; expects a push context
   skills/new-website/templates/astro/scripts/ship.sh            # template: pushes a site live
@@ -62,12 +64,28 @@ rc=0
 # deliberate choice instead of being silently uncovered. Discovery is by SHEBANG, not a *.sh
 # glob — templates/astro/scripts/hooks/pre-push is a tracked, shipped, extensionless #!/bin/sh
 # script, and self-location is most idiomatic in exactly that file class.
+# Prefer git's own file list where there is one: it excludes NESTED CHECKOUTS for free, and a
+# primary checkout routinely has them — .claude/worktrees/<name>/ per parallel session, each a
+# full copy of this tree. A plain find walks straight into those and demands every script in
+# every one of them be listed, which is how this guard broke `make check` in the primary
+# checkout while passing in CI and in a linked worktree, neither of which has any. The find
+# branch is not dead code: the handoff zip has no git at all, and it is the zip recipients that
+# `make check` most needs to work for.
 discover() {
-  find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
-       ! -path './docs/reviews/*' -print 2>/dev/null |
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null | head -n1)" ]; then
+    git ls-files 2>/dev/null
+  else
+    find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
+         ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
+      sed 's|^\./||'
+  fi |
   while IFS= read -r f; do
-    case "$(head -n 1 -- "$f" 2>/dev/null)" in
-      '#!'*sh|'#!'*sh' '*) printf '%s\n' "${f#./}" ;;
+    [ -f "$f" ] || continue
+    # tr: a tracked binary file's first "line" can hold NUL bytes. bash drops them from a command
+    # substitution anyway, and >= 4.4 warns on stderr as it does; dropping them first is silent
+    # and leaves the same string to match.
+    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
+      '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
 }
@@ -99,26 +117,23 @@ trap 'rm -rf "$decoy" "$proj"' EXIT
 # The decoy must contain the first path segment of each subject, or cd never resolves into it.
 mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"
 
-# GitHub's runners start jobs with SIGPIPE ignored, and a shell cannot un-ignore a signal it
-# inherited that way. A `producer | head` in a subject then prints "write error: Broken pipe"
-# at random, and the two runs differ for a reason unrelated to CDPATH (PR #125). Run each
-# subject with SIGPIPE at its default, as on a laptop, when perl is there to reset it.
-default_sigpipe() {
-  if command -v perl >/dev/null 2>&1; then
-    perl -e '$SIG{PIPE} = "DEFAULT"; exec @ARGV or die "exec $ARGV[0]: $!\n"' -- "$@"
-  else
-    "$@"
-  fi
-}
-
 diffs=0
 for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
-  a_out="$(default_sigpipe bash "$s" 2>&1)"; a_rc=$?
-  b_out="$(CDPATH="$decoy" default_sigpipe bash "$s" 2>&1)"; b_rc=$?
+  # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
+  # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
+  # stdout+status is the whole signal. stderr is not deterministic: GitHub's runner starts jobs
+  # with SIGPIPE ignored, so a pipeline whose consumer exits early makes the upstream grep print
+  # "write error: Broken pipe" at random. The racer was check_prompt_sync.sh's tier check, a
+  # `grep -v | grep -q` (its `| head -1` raced far less). That raced zero times in 15 local runs,
+  # where SIGPIPE is not ignored, and ten times in one CI run, failing this guard with the tell
+  # "(exit 0 vs 0)" — identical status, noise-only diff. Both pipelines are gone (it now greps
+  # the file directly), but any subject can grow another one.
+  a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
+  b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
-    echo "FAIL — $s behaves differently under an exported CDPATH (exit $a_rc vs $b_rc):"
-    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'
+    echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
+    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | sed -n '1,20s/^/    /p'
     diffs=$((diffs + 1)); rc=1
   fi
 done
@@ -127,6 +142,15 @@ done
 # --- regression case for the original bug -----------------------------------------------------
 # The loop above cannot catch it: <project_dir> comes from the CALLER, so it needs a real
 # project and a same-named decoy to resolve away to.
+# whats-new.sh compares git history, so it cannot run in an unpacked handoff zip. Skip loudly
+# rather than fail: a zip recipient should not get a red `make check` over a regression test
+# that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
+# SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
+if ! command -v git >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1; then
+  echo "SKIP — the whats-new.sh regression case needs git (it compares suite history)."
+  exit $rc
+fi
+
 mkdir -p "$proj/real/myproj/.claude/skills" "$proj/decoy/myproj/.claude/skills"
 printf 'suite_commit: %s\n' "$(git rev-parse HEAD 2>/dev/null || echo unknown)" \
   > "$proj/real/myproj/.claude/skills/SUITE-VERSION"
