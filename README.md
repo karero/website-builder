@@ -271,6 +271,7 @@ scripts/
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
+  check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes (make check)
