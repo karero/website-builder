@@ -1,0 +1,225 @@
+{
+ "background": false,
+ "completed_at": 1790428815,
+ "created_at": 1790428815,
+ "error": null,
+ "frequency_penalty": 0,
+ "id": "resp_59cf162d-feeb-4bdd-aae2-b70a88ff9a4f",
+ "incomplete_details": null,
+ "instructions": null,
+ "max_output_tokens": null,
+ "max_tool_calls": null,
+ "metadata": {},
+ "model": "perplexity/sonar",
+ "object": "response",
+ "output": [
+  {
+   "queries": [
+    "Munich bakery sourdough bread Sauerteig official",
+    "München Bäckerei Sauerteigbrot",
+    "Munich sourdough bakery"
+   ],
+   "results": [
+    {
+     "id": 1,
+     "last_updated": "2026-03-26",
+     "snippet": "Wir backen Brot & Knoten - und das verdammt gerne.\nDabei verwenden wir Sauerteig zur Lockerung und Bio-Mehl aus Bayern.\n...\nAngefangen haben wir mit einem sehr kleinen, ausgewählten Sortiment aus skandinavischen Klassikern wie Kardamom- und Zimtknoten, Sauerteigbrot und Sesambrötchen mit Bergkäse.",
+     "source": "web",
+     "title": "Bageri Munich | Skandinavisch inspirierte Bäckerei in München",
+     "url": "https://bageri.de/"
+    },
+    {
+     "date": "2026-09-08",
+     "id": 2,
+     "last_updated": "2026-09-11",
+     "snippet": "Sourdough bread, rolls and pastries – made with care in our bakery at the heart of Munich.",
+     "source": "web",
+     "title": "Suuapinga - Specialty Coffee & Bakery in Munich",
+     "url": "https://suuapinga.com/"
+    },
+    {
+     "id": 3,
+     "last_updated": "2026-09-17",
+     "snippet": "Hofpfisterei\nBakery\nS-Bahn Transfer Level (U1 beneath Arnulfstraße)\nopen till 20:00\nMonday to Friday\nMon –\nFri\n06:30\n20:00\nFrom 6 30 to 20\nSaturday\nSat\n07:30\n20:00\nFrom 7 30 to 20\nSunday\nSun\n08:30\n18:00\nFrom 8 30 to 18\nPublic holiday\nPublic holiday\nclosed\nAccepted payment methods\n...\nLudwig Stocker Hofpfisterei GmbH is a medium-sized company based in Munich.\nOur bakery at Munich Central Station specializes in baking organic sourdough breads.\n...\nMüller\nBakery\nopen till 22:00\nRischart\n2 locations\nBakery\nopen till 20:00\nYORMA'S\n...\nHöflinger\nBakery\nopen till 21:00",
+     "source": "web",
+     "title": "Hofpfisterei – München Hbf",
+     "url": "https://www.bahnhof.de/en/muenchen-hbf/shopping-and-eating/hofpfisterei"
+    },
+    {
+     "date": "2026-03-30",
+     "id": 4,
+     "last_updated": "2026-03-15",
+     "snippet": "Here a few've checked out so far:\n- Julius Brantner\n- Brotatelier\n- Brotraum\n- Zeit für Brot\n- Neulinger\n- Cumpanum\n- Bageri\n- Hofpfisterei\n...\nJulius Brantner's Brothandwerk 25 is undoubtedly my top choice for sourdough bread in Munich.\n...\nAdditionally, I recommend the organic bakery Backhaus Cramer, located in Gauting, just south of Munich, which also offers their products on Knuspr.de.\n...\nBageri offers outstanding sourdough bread.",
+     "source": "web",
+     "title": "Best sourdough bakeries in Munich",
+     "url": "https://www.reddit.com/r/Munich/comments/1rptmpy/best_sourdough_bakeries_in_munich/"
+    },
+    {
+     "id": 5,
+     "last_updated": "2025-11-03",
+     "snippet": "Im Bahnwärter Thiel hat Anfang September die Sauerteig-Bäckerei “Bageri” eröffnet.\n...\nAuf kleinstem Raum werden in der “Bageri” Brote aus Weizen- und Roggensauerteig gebacken.\n...\n**Preis: **Für Kuchen und Zimtknoten zahlt man 3,50€.\nDie frisch gebackenen Sauerteigbrote kosten zwischen 6,50€ und 6,90€.\n**Bageri, **Tumblingerstraße 45, 80337 München\nÖffnungszeiten: Donnerstag bis Freitag, 11-18 Uhr & Samstag, 8.30-18 Uhr, www.instagram.com/bageri_muc\n**Janina gibt auf ihrem Blog www.jaegerundsammlerblog.de Tipps für schöne Cafés, Restaurants und Ausflugsziele in München und Umgebung.**",
+     "source": "web",
+     "title": "Bageri: Die neue Sauerteig-Bäckerei im Schlachthof-Viertel München",
+     "url": "https://www.in-muenchen.de/gastro/bageri-die-neue-sauerteig-baeckerei-im-schlachthof-viertel-muenchen-92521663.html"
+    },
+    {
+     "date": "2026-09-19",
+     "id": 6,
+     "last_updated": "2026-09-19",
+     "snippet": "Julius\nBrantner\nBrothandwerk\nOur Organic Bakeries in Munich\nBakery Schwabing Nordendstrasse 23\nBakery Altstadt Kreuzstraße 1\nBakery Haidhausen Pariser Straße 38\n#### Opening Hours\nTU–FR: 8:00am – 6:30pm\nSA: 8:00am – 5:00pm\n(Until the last bread)",
+     "source": "web",
+     "title": "Julius Brantner Brothandwerk",
+     "url": "https://julius-brantner.de/en/teigmacherei"
+    },
+    {
+     "id": 7,
+     "last_updated": "2026-05-25",
+     "snippet": "Bäckerei Familienbäckerei Kistenpfennig\nGertrud-Grunow-Straße 4\n80807 München\nZurueck zur Uebersicht\n...\n## Gertrud-Grunow-Straße 4 · 80807 München\nOeffnungszeiten\n|Montag|06:30|bis|18:00|\n|--|--|--|--|\n|Dienstag|06:30|bis|18:00|\n|Mittwoch|06:30|bis|18:00|\n|Donnerstag|06:30|bis|18:00|\n|Freitag|06:30|bis|18:00|\n|Samstag|07:30|bis|17:00|\n|Sonntag|07:30|bis|17:00|\nKontakt\nGertrud-Grunow-Straße 4\n80807 München\n## Getestete Produkte\n...\n- Sauerteigbrot\ngut (geprueft am 30.07.2025)",
+     "source": "web",
+     "title": "Bäckerei Familienbäckerei Kistenpfennig - Deutsches Brotinstitut e.V.",
+     "url": "https://www.brotinstitut.de/baeckerfinder/baecker/17507-baeckerei-familienbaeckerei-kistenpfennig"
+    },
+    {
+     "date": "2026-09-17",
+     "id": 8,
+     "last_updated": "2026-09-25",
+     "snippet": "|Bakery|Hofpfisterei, Rischart, Café Frischhut|Sourdough, pretzels, Auszogne|\n...\n- **Hofpfisterei** — Munich’s most respected sourdough bakery.\nMultiple locations.\n- **Rischart** — Marienplatz institution since 1883.\nExcellent pretzels and cakes.\n- **Café Frischhut** — Famous for the Auszogne (Bavarian doughnut).\n- **Bäckerei Riedmair** — Schwabing artisan with strong Bavarian breads.\n- **Schmid’s (multiple locations)** — Reliable everyday bakery chain.\n- **Wimmer Bakery (Marienplatz)** — Traditional pretzels and Bavarian breads.",
+     "source": "web",
+     "title": "Munich Food Shopping: Delis & Specialty Markets",
+     "url": "https://www.munichtourism.org/munich-food-shopping/"
+    },
+    {
+     "id": 9,
+     "last_updated": "2026-08-26",
+     "snippet": "**Der Dreistufen-Sauerteig wird nach alten handwerklichen Gesetzen hergestellt und mit langer Reifezeit geführt.** Es dauert 24 Stunden bis der Teig fertig ist.",
+     "source": "web",
+     "title": "Brot aus Natursauerteig - Hofpfisterei München - Unser Brot",
+     "url": "https://www.hofpfisterei.de/hpf_unser_brot.php"
+    },
+    {
+     "date": "2026-08-30",
+     "id": 10,
+     "last_updated": "2026-09-24",
+     "snippet": "22 x in München\nBäckerei | Altstadt, Zentrum do geöffnet 06:30 - 20:00\n34 Bewertungen\nMarienplatz 18\n80331 München\nTel: 089 2317000\ninfo@rischart.de www.rischart.de Webseite besuchen\n...\nHandwerklich und von Meisterhand gebackenes Natursauerteigbrot, feine süße Teilchen und herzhafte Snacks werden Ihnen hier von fachkompetenten Verkäuferinnen und Verkäufern mit einem Lächeln eingepackt.\n...\n- Café am Marienplatz: (mit Blick auf den Marienplatz und das Rathaus): Marienplatz 18, 80331 München - Cafe & Tagesbar\n- Café am Markt: (große Terrasse mit Blick auf den Viktualienmarkt): Viktualienmarkt 2, 80331 München\n- Café Backhaus Erlebnis: Theresienhöhe 40, 80339 München\n- Café zur Mauth: Neuhauserstraße 2, 80331 München\n- Café Rialto: Leopoldstr.\n62, 80802 München\n- Café im OEZ: Hanauerstr.\n68, 80993 München\n- Café Rotkreuzplatz: Rotkreuzplatz 2, 80634 München\n...\n**Rischart am Hauptbahnhof:**\n- Hauptbahnhof Gleishalle: Bahnhofplatz 2, 80335 München\n- Hauptbahnhof Untergeschoss: Bahnhofplatz 2, 80335 München ** **\n- Hauptbahnof U-Bahnhof: Bahnhofplatz 2, 80335 München\n**Weitere Filialen:**\n- Rischart im Marienplatz U-Bahnhof: Marienplatz, 80331 München\n- Rischart in den Stachus Passagen (2. UG): Karlsplatz, 80335 München\n- Rischart am Ostbahnhof: Orleanspl.\n10, 81667 München\n- Rischart am Pasinger Bahnhof: Pasinger Bahnhofsplatz 2, 81241 München-Pasing\n- Rischart Café an der Fraunhofer Straße: Fraunhoferstr.\n44, 80469 München\n- Brot & Bar: Tal 48, 80331 München\n- Rischart - Gutes von Gestern: Baaderstr.\n78, 80469 München\n- Rischart - Gutes von Gestern: S-Bahnhof Trudering Sperrengeschoss 81825 München\n- Rischart in den Riem Arcaden: Willy-Brandt-Platz 5, 81829 München\n- Sendlinger Tor U-Bahnhof, SperrengeschossSendlinger-Tor-Platz 1, 80336 München\n- Rosenheimer Platz, S-Bahnhof, Im Sperrengeschoss im S-Bahnzugang am Rosenheimerplatz 81669 München\n...\n## Öffnungszeiten\nMo\n06:30 - 20:00\nDi\n06:30 - 20:00\nMi\n06:30 - 20:00\nDo\n06:30 - 20:00\nFr\n06:30 - 20:00\nSa\n07:00 - 20:00\nSo\n08:00 - 19:00\n## 34 Bewertungen zu Rischart`s Backhaus",
+     "source": "web",
+     "title": "Rischart`s Backhaus",
+     "url": "https://branchenbuch.portal.muenchen.de/mhp/1663/"
+    },
+    {
+     "id": 11,
+     "last_updated": "2026-09-13",
+     "snippet": "Today, Suuapinga unites a family of **5 cafés across Munich**, an **independent coffee roastery** and our **bakery** in Glockenbach.\nAt the *Suuapinga Bakery*, we shape sourdough bread, pastries and seasonal creations – for our cafés and for guests at our store in Glockenbach.",
+     "source": "web",
+     "title": "About Suuapinga Munich | Specialty Coffee Roastery & Artisan Bakery",
+     "url": "https://suuapinga.com/pages/about-suuapinga"
+    },
+    {
+     "id": 12,
+     "last_updated": "2026-08-14",
+     "snippet": "### Brot & Gebäck\nSauerteigbrote, Semmeln und Laugengebäck — täglich frisch aus dem Ofen.\n...\nSeit dem 2. Juni 2026 finden Sie uns am Marktplatz 7 in Grünwald — mit dem vollen REIS-Sortiment, Dienstag bis Samstag.\n## Vier Standorte im Münchner Süden\n### Stammhaus & Produktion Solln\nFestingstraße 4, 81479 München\nTel. 089/794764\n**Öffnungszeiten Stammhaus & Produktion Solln**\n|Mo – Fr|6:15 – 18:00 Uhr|\n|--|--|\n|Samstag|6:15 – 12:30 Uhr|\n|Sonn- & Feiertag|geschlossen|\n|Café Mo – Fr|8:15 – 17:00 Uhr|\n|Café Sa/So/Feiertag|geschlossen|\nStammhaus mit Backstube und Café.\n...\n### Filiale Forstenried\nForstenrieder Allee 164, 81476 München\nTel. 089/7459480\n**Öffnungszeiten Filiale Forstenried**\n|Mo – Fr|6:15 – 18:00 Uhr|\n|--|--|\n|Samstag|6:15 – 12:00 Uhr|\n|Sonn- & Feiertag|geschlossen|\nUnsere Filiale an der Forstenrieder Allee.\n...\n### Pavillon Wolfratshauser Straße\nWolfratshauser Straße 224, 81479 München\nTel. 089/99751415\n**Öffnungszeiten Pavillon Wolfratshauser Straße**\n|Mo – Fr|7:00 – 18:00 Uhr|\n|--|--|\n|Samstag|7:00 – 13:00 Uhr|\n|Sonn- & Feiertag|geschlossen|\nSchnell versorgt an der Wolfratshauser Straße.\n...\n### Filiale Grünwald\nMarktplatz 7, 82031 Grünwald\nTel. 089/6413428\n**Öffnungszeiten Filiale Grünwald**\n|Di – Fr|6:45 – 18:00 Uhr|\n|--|--|\n|Samstag|6:45 – 12:00 Uhr|\n|So, Mo & Feiertag|geschlossen|\nNeu seit Juni 2026 am Grünwalder Marktplatz.",
+     "source": "web",
+     "title": "Bäckerei REIS München – Bio-Backwaren aus Solln",
+     "url": "https://plasma.cafe/"
+    },
+    {
+     "id": 13,
+     "last_updated": "2025-03-04",
+     "snippet": "Kreittmayrstr.\n5, Munich, Germany, 80335\nToday: 06:45 AM - 06:30 PM Open Now\nView Full Hours\n|Jan to Dec - Monday to Friday|06:45 AM to 06:30 PM|\n|--|--|\n|Jan to Dec - Saturday|07:30 AM to 12:30 PM|\n...\n0,10 7323 1465 0 1039730 Hofpfisterei [[\"Hofpfisterei\",\"48.15050123\",\"11.55702907\",\"https:\\/\\/cityseeker.com\\/assets\\/images\\/google_markers\\/dark_blue_circle.png\",\"1039730\",\"\",\"Kreittmayrstr.\n5, Munich, Germany, 80335\",\"\"],[\"Hofpfisterei\",\"48.15050900\",\"11.55704400\",\"https:\\/\\/cityseeker.com\\/assets\\/images\\/google_markers\\/sky_blue_circle_small.png\",\"\",\"\",\"perky.exams.motivate\",\"\"],[\"Hofpfisterei\",\"48.15050900\",\"11.55704400\",\"https:\\/\\/cityseeker.com\\/assets\\/images\\/google_markers\\/sky_blue_circle_small.png\",\"\",\"\",\"perky.exams.motivate\",\"\"]]",
+     "source": "web",
+     "title": "Hofpfisterei",
+     "url": "https://cityseeker.com/munich/1039730-hofpfisterei"
+    },
+    {
+     "date": "2025-07-30",
+     "id": 14,
+     "last_updated": "2025-08-20",
+     "snippet": "Öffnungszeiten\n|Montag|06:00|bis|19:00|\n...\n|Dienstag|06:00|bis|19:00|\n|Mittwoch|06:00|bis|19:00|\n|Donnerstag|06:00|bis|19:00|\n|Freitag|06:00|bis|19:00|\n|Samstag|07:00|bis|17:30|\n|Samstag|07:00|bis|17:30|\n|Sonntag|07:00|bis|17:30|\n|Sonntag|07:00|bis|17:30|\nKontakt\nKnorrstraße 91\n80807 München\nRoggenkruste",
+     "source": "web",
+     "title": "Bäckerei Familienbäckerei Kistenpfennig",
+     "url": "https://www.brotinstitut.de/baeckerfinder/baecker/896aed66-1f9d-4627-b2c4-e1e102ddebbb"
+    },
+    {
+     "date": "2026-05-22",
+     "id": 15,
+     "last_updated": "2026-08-17",
+     "snippet": "Taste the signature Brothandwerk 25 sourdough, or try the honey and mustard bread created exclusively for Brasserie Cuvilliés at Rosewood Munich.",
+     "source": "web",
+     "title": "Munich's Most Respected Baker: Julius Brantner Brothandwerk",
+     "url": "https://www.rosewoodhotels.com/en/munich/experiences/munichs-most-respected-baker-julius-brantner-brothandwerk"
+    }
+   ],
+   "type": "search_results"
+  },
+  {
+   "content": [
+    {
+     "annotations": [],
+     "text": "Several Munich bakeries sell sourdough bread (*Sauerteigbrot*), including:\n\n- **Hofpfisterei** — A Munich institution specializing in organic sourdough breads made with a traditional three-stage sourdough process. Multiple locations across the city.\n- **Julius Brantner Brothandwerk** — Artisan bakery with locations in Schwabing, Altstadt, and Haidhausen; known for its signature **Brothandwerk 25** sourdough.\n- **Bageri** — Scandinavian-inspired bakery at **Tumblingerstraße 45, 80337 München**, offering wheat- and rye-sourdough breads.\n- **Suuapinga Bakery** — Bakery in Glockenbach making sourdough loaves, rolls, and pastries.\n- **Rischart** — Large Munich bakery chain with numerous branches; sells naturally leavened sourdough bread.\n- **Familienbäckerei Kistenpfennig** — Several Munich locations; tested products include sourdough bread and rye-crust loaves.\n- **Bäckerei REIS** — Organic bakery in southern Munich, including Solln and Forstenried, offering fresh sourdough breads.\n- **Brotatelier, Brotraum, Zeit für Brot, Neulinger, and Cumpanum** — Also frequently recommended locally for sourdough, though availability can vary by day.\n\nFor the most specialist sourdough selection, start with **Julius Brantner, Bageri, Suuapinga, or Hofpfisterei**. Bread availability and opening hours can change, so it’s worth checking the bakery’s website or social media before visiting.",
+     "type": "output_text"
+    }
+   ],
+   "id": "msg_bf78e692-5ecc-49ea-afd7-473c7c23f42c",
+   "role": "assistant",
+   "status": "completed",
+   "type": "message"
+  }
+ ],
+ "parallel_tool_calls": true,
+ "presence_penalty": 0,
+ "previous_response_id": null,
+ "prompt_cache_key": null,
+ "reasoning": null,
+ "safety_identifier": null,
+ "service_tier": "default",
+ "status": "completed",
+ "store": false,
+ "temperature": 1,
+ "text": {
+  "format": {
+   "type": "text"
+  }
+ },
+ "tool_choice": "auto",
+ "tools": [
+  {
+   "type": "web_search",
+   "user_location": {
+    "country": "DE"
+   }
+  }
+ ],
+ "top_logprobs": 0,
+ "top_p": 1,
+ "truncation": "",
+ "usage": {
+  "cost": {
+   "cache_creation_cost": 0.00101,
+   "currency": "USD",
+   "input_cost": 0.00014,
+   "output_cost": 0.00105,
+   "tool_calls_cost": 0.0025,
+   "tool_calls_cost_details": {
+    "search_web": 0.0025
+   },
+   "total_cost": 0.0047
+  },
+  "input_tokens": 4594,
+  "input_tokens_details": {
+   "cache_creation_input_tokens": 4044,
+   "cache_read_input_tokens": 0,
+   "cached_tokens": 0
+  },
+  "output_tokens": 421,
+  "output_tokens_details": {
+   "reasoning_tokens": 0
+  },
+  "tool_calls_details": {
+   "search_web": {
+    "cost_usd": 0.0025,
+    "invocation": 1
+   }
+  },
+  "total_tokens": 5015
+ },
+ "user": null
+}

@@ -1,0 +1,32 @@
+{
+ "model": "claude-sonnet-5",
+ "id": "msg_011CfS7qLwofqHxyagnWErfq",
+ "type": "message",
+ "role": "assistant",
+ "content": [
+  {
+   "type": "text",
+   "text": "I don't have access to real-time or location-specific business data, so I can't give you a current, reliable list of specific bakeries in Munich selling sourdough bread. Since I don't have verified information on this, I don't want to guess and risk giving you outdated or made-up names.\n\nHere's how I'd suggest finding this out:\n\n**Good ways to search:**\n- **Google Maps**: Search \"Sauerteigbrot Bäckerei München\" (sourdough bread bakery Munich) — this will show current locations, reviews, and photos\n- **Google/Yelp reviews**: Look for bakeries with high ratings that specifically mention \"Sauerteig\" (German for sourdough)\n\n**General tips for Munich:**\n- Many traditional German bakeries (Bäckerei) sell sourdough as it's a staple of German bread culture — look for \"Sauerteigbrot\" or \"Roggenbrot\" (rye sourdough) on menus\n- Farmers markets like **Viktualienmarkt** often have stalls with artisanal sourdough\n- Craft/artisan bakeries have become popular in recent years — searching for \"Bio Bäckerei\" (organic bakery) or \"handwerkliche Bäckerei\" (artisanal bakery) often turns up sourdough specialists\n- Neighborhoods like Glockenbachviertel, Schwabing, and Haidhausen tend to have more artisanal food shops\n\nWould you like tips on German bread terminology to help with your search, or suggestions for other ways to research this?"
+  }
+ ],
+ "container": null,
+ "stop_reason": "end_turn",
+ "stop_sequence": null,
+ "stop_details": null,
+ "usage": {
+  "input_tokens": 25,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "cache_creation": {
+   "ephemeral_5m_input_tokens": 0,
+   "ephemeral_1h_input_tokens": 0
+  },
+  "output_tokens": 494,
+  "output_tokens_details": {
+   "thinking_tokens": 0
+  },
+  "service_tier": "standard",
+  "inference_geo": "global"
+ },
+ "diagnostics": null
+}

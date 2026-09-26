@@ -120,8 +120,11 @@ def setting(name: str) -> str:
         if not m or m.group(1) != name:
             continue
         raw = m.group(2).strip()
-        if raw and raw[0] in "\"'" and raw[0] in raw[1:]:
-            val = raw[1:raw.index(raw[0], 1)]          # quoted: up to the closing quote
+        if raw and raw[0] in "\"'":
+            q = raw[0]                                  # quoted: up to the closing quote (if any)
+            val = raw[1:raw.index(q, 1)] if q in raw[1:] else raw[1:].strip()
+        elif raw.startswith("#"):
+            val = ""                                    # "KEY= # add later" is empty, as in bash
         else:
             val = re.split(r"\s+#", raw, maxsplit=1)[0].strip()  # unquoted: an inline "# note" ends it, as in bash
     return val
@@ -209,33 +212,59 @@ def host_matches(host: str, domains) -> bool:
 
 # ─── homepage fingerprint (a warning, never a failure) ────────────────────────
 
+_VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
+         "track", "wbr"}
+
+
+def _is_hidden(tag, a) -> bool:
+    style = (a.get("style") or "").replace(" ", "").lower()
+    return (tag in ("script", "style", "noscript", "template") or "hidden" in a
+            or (a.get("aria-hidden") or "").lower() == "true"
+            or "display:none" in style or "visibility:hidden" in style)
+
+
 class _Extract(html.parser.HTMLParser):
+    """Title, meta description, first H1 — and the body text a visitor actually sees: not
+    <head>, scripts or styles, nor anything hidden (hidden, aria-hidden, display:none)."""
+
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.title, self.desc, self.h1 = "", "", ""
-        self.visible = []     # body text a visitor would read (no scripts, styles or tags)
+        self.visible = []
         self._in = None
-        self._skip = 0
+        self._in_head = False
+        self._hidden = []      # [tag, nesting] of the hidden subtree we're inside, outermost first
 
     def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript", "template"):
-            self._skip += 1
         a = dict(attrs)
+        if tag == "head":
+            self._in_head = True
+        elif tag == "body":
+            self._in_head = False
+        if tag not in _VOID:
+            if self._hidden and self._hidden[-1][0] == tag:
+                self._hidden[-1][1] += 1
+            elif _is_hidden(tag, a):
+                self._hidden.append([tag, 1])
         if tag == "title" and not self.title:
             self._in = "title"
-        elif tag == "h1" and not self.h1:
+        elif tag == "h1" and not self.h1 and not self._hidden:
             self._in = "h1"
         elif tag == "meta" and (a.get("name") or "").lower() == "description" and not self.desc:
             self.desc = a.get("content") or ""
 
     def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "template") and self._skip:
-            self._skip -= 1
+        if tag == "head":
+            self._in_head = False
+        if self._hidden and self._hidden[-1][0] == tag:
+            self._hidden[-1][1] -= 1
+            if not self._hidden[-1][1]:
+                self._hidden.pop()
         if tag == self._in:
             self._in = None
 
     def handle_data(self, data):
-        if not self._skip:
+        if not self._hidden and not self._in_head and self._in != "title":
             self.visible.append(data)
         if self._in == "title":
             self.title += data
@@ -248,9 +277,11 @@ def _norm_text(s: str) -> str:
 
 
 def read_homepage(domain: str, cfg: dict):
-    """(text, None) with the normalized title/description/H1, or (None, reason) when
-    the page can't be read or isn't the business's own page (a bot wall or consent
-    screen that names neither the business nor its domain)."""
+    """(text, None) with the normalized title/description/H1, or (None, reason) when the
+    page can't be read, or its visible text names neither the business nor its domain.
+    Deliberately no guessing at bot walls from their wording (tried over five review rounds:
+    it rejected real pages and missed localized walls). A strange page instead shows up as
+    "changed", and --confirm prints what it read so a person decides before it is saved."""
     url = override("GEO_HOMEPAGE_URL", f"https://{normalize_site(domain)}/")
     try:
         r = requests.get(url, timeout=30, headers={"User-Agent": UA,
@@ -262,17 +293,10 @@ def read_homepage(domain: str, cfg: dict):
     p = _Extract()
     p.feed(r.text)
     text = "\n".join(_norm_text(x) for x in (p.title, p.desc, p.h1))
-    if _CHALLENGE.search(f"{p.title} {p.h1}"):
-        return None, f"a bot check or consent page ({_norm_text(p.title or p.h1)[:60]})"
     visible = _norm_text(" ".join(p.visible))
     if not (is_named(visible, cfg["names"]) or any(norm_host(d) in visible.lower() for d in cfg["domains"])):
         return None, "the page names neither the business nor its domain (bot wall or consent page?)"
     return text, None
-
-
-_CHALLENGE = re.compile(r"just a moment|checking (your|the) browser|attention required|verify (that )?"
-                        r"you are (a )?human|are you a robot|captcha|access denied|enable javascript "
-                        r"and cookies|ddos protection|security check", re.IGNORECASE)
 
 
 def fingerprint(text: str) -> str:
@@ -285,9 +309,14 @@ def drift(domain: str, cfg: dict):
     if text is None:
         return "unreadable", reason
     fp = cfg.get("fingerprint")
-    if not fp or cfg.get("confirmed_questions") != _question_set(cfg):
+    if not fp:
         return "unconfirmed", text
-    return ("same" if fp == fingerprint(text) else "changed"), text
+    if fp != fingerprint(text):
+        return "changed", text
+    confirmed = cfg.get("confirmed_questions")
+    if confirmed is not None and confirmed != _question_set(cfg):
+        return "unconfirmed", text
+    return "same", text
 
 
 def _question_set(cfg) -> dict:
@@ -470,6 +499,8 @@ def parse_response(engine, data):
         uses = ((data.get("usage") or {}).get("server_tool_use") or {}).get("web_search_requests", 0)
         return "".join(texts), data.get("model", ""), sources, bool(uses)
     if engine == "perplexity":
+        if data.get("status") == "incomplete":
+            raise EngineError(f"incomplete answer ({(data.get('incomplete_details') or {}).get('reason', '?')})")
         results = [r.get("url", "") for item in data.get("output", []) or []
                    if item.get("type") == "search_results"
                    for r in item.get("results", []) or [] if r.get("url")]
@@ -480,7 +511,7 @@ def parse_response(engine, data):
     if engine == "google-ai-mode":
         text = data.get("reconstructed_markdown") or "\n".join(_flatten_blocks(data.get("text_blocks")))
         refs = [r.get("link", "") for r in data.get("references", []) or [] if r.get("link")]
-        return text, "google-ai-mode", refs, True
+        return text or NO_AI_MODE, "google-ai-mode", refs, True
     if engine == "google-overview":
         ov = data.get("ai_overview") or data   # the follow-up call returns the block at the top
         text = "\n".join(_flatten_blocks(ov.get("text_blocks")))
@@ -492,6 +523,10 @@ def parse_response(engine, data):
 
 
 NO_OVERVIEW = "(Google showed no AI Overview for this question.)"
+NO_AI_MODE = "(Google's AI Mode gave no answer for this question.)"
+NO_GOOGLE_ANSWER = {NO_OVERVIEW: "no AI Overview shown", NO_AI_MODE: "no AI Mode answer"}
+NO_ANSWER_SAYS = {"no AI Overview shown": "Google showed no AI Overview",
+                  "no AI Mode answer": "Google's AI Mode gave no answer"}
 
 
 class EngineError(Exception):
@@ -508,6 +543,8 @@ def _error_obj(r):
     except ValueError:
         return {}
     err = j.get("error", j) if isinstance(j, dict) else {}
+    if err is None:
+        return {}
     return err if isinstance(err, dict) else {"message": str(err)}
 
 
@@ -584,10 +621,15 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
         text, model, sources, searched = parse_response(engine, data or {})
     except (ValueError, AttributeError, TypeError) as e:
         raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
+    # Provider JSON is outside input: only strings go on to be counted, so a malformed
+    # citation (an object where a URL should be) can't crash the run after the call.
+    if not isinstance(text, str):
+        raise EngineError("unexpected response shape: answer is not text")
     if not text.strip():
         # An answer we couldn't read is a failed call, not "the business wasn't named".
         raise EngineError("empty answer (nothing to read in the response)")
-    return text, model, sources, searched
+    sources = [x for x in (sources if isinstance(sources, list) else []) if isinstance(x, str) and x]
+    return text, (model if isinstance(model, str) else str(model or "")), sources, bool(searched)
 
 
 def _serp_checked(engine, data, all_keys):
@@ -671,13 +713,17 @@ def run(domain: str, only=None) -> int:
     elif state == "unreadable":
         print(f"⚠ Couldn't read your homepage ({detail}) — the questions still ran.")
     elif state == "unconfirmed":
-        print("⚠ The questions were never confirmed against the homepage — ask Claude to run --confirm.")
+        print("⚠ The questions changed (or were never confirmed) since they were last checked against "
+              "the homepage — ask Claude to review and run --confirm.")
 
     keys = load_keys()
     all_keys = [k for k in keys.values() if k]
     usable = [e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))]
     queries = [q for q in cfg.get("queries", []) if q.get("text")]
-    if not usable:
+    if not usable and keys.get("google-ai-mode") and not cfg.get("google"):
+        problems.append(f"the AI check has no engine it may ask: SERPAPI_KEY is set but Google is off "
+                        f"for this site (turn on with --google on, or add e.g. {KEY_VARS['gemini']})")
+    elif not usable:
         problems.append("the AI check is set up but has no engine key "
                         f"(add e.g. {KEY_VARS['gemini']}=... to {base_dir() / '.env'})")
     if not queries:
@@ -713,6 +759,7 @@ def run(domain: str, only=None) -> int:
             for q in queries:
                 slot, n = q["slot"], samples_for(engine, q["slot"])
                 ok = named = cited = searched = no_overview = 0
+                no_answer_status = ""
                 models, domains, errors = set(), set(), []
                 for i in range(1, n + 1):
                     if dead:
@@ -733,7 +780,8 @@ def run(domain: str, only=None) -> int:
                         time.sleep(pause)
                     ok += 1
                     searched += did_search
-                    no_overview += text == NO_OVERVIEW
+                    no_overview += text in NO_GOOGLE_ANSWER
+                    no_answer_status = NO_GOOGLE_ANSWER.get(text, "")
                     models.add(model or "?")
                     hosts = [norm_host(s) for s in sources if s]
                     domains.update(h for h in hosts if h)
@@ -749,7 +797,7 @@ def run(domain: str, only=None) -> int:
                             f"# question: {q['text']}\n\n{text}\n\n# sources:\n"
                             + "".join(f"{s}\n" for s in sources), encoding="utf-8")
                     except OSError as e:
-                        write_errors.add(f"couldn't save an answer file ({e})")
+                        write_errors.add(f"couldn't save answer files in {answers} ({e.strerror or e})")
                 engine_ok += ok
                 if errors:
                     engine_err = errors[-1]
@@ -766,7 +814,7 @@ def run(domain: str, only=None) -> int:
                     # Engines may answer from memory even with search on; this shows how often.
                     "searched": searched if mode == "finds" else "",
                     "status": (f"{len(errors)} of {n} failed" if errors else
-                               "no AI Overview shown" if no_overview and no_overview == ok else "ok"),
+                               no_answer_status if no_overview and no_overview == ok else "ok"),
                 })
         if engine_err:
             failed.append(engine)
@@ -813,17 +861,20 @@ def trend(domain: str) -> int:
         print("AI check: no history for this site yet.")
         return 0
     rows.sort(key=lambda r: r["run_id"])
-    # Each engine's most recent run — the same counting as the run summary, and a run
-    # limited with --engines doesn't make the others look "not set up".
+    # Each engine's most recent run, so a run limited with --engines doesn't hide the others;
+    # the header counts only engines that are on now (key set; Google switched on).
     last_run = {}
     for r in rows:
         last_run[r["engine"]] = r["run_id"]
     last = [r for r in rows if last_run[r["engine"]] == r["run_id"]]
-    eng_ok = {r["engine"] for r in last if _ok(r)}
-    eng_failed = {r["engine"] for r in last if "failed" in r.get("status", "")}
+    cfg = load_config(domain) or {}
+    keys = load_keys()
+    on = {e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))}
+    eng_ok = {r["engine"] for r in last if _ok(r)} & on
+    eng_failed = {r["engine"] for r in last if "failed" in r.get("status", "")} & on
     print(f"═══ Does AI name you? — named / answers; ▲ = named more often ═══")
-    print(f"  latest answers: engines {len(eng_ok)} checked, {len(eng_failed)} with failures, "
-          f"{len(ENGINES) - len(last_run)} never set up")
+    print(f"  engines on now: {len(on)} of {len(ENGINES)}; in their latest run {len(eng_ok)} answered, "
+          f"{len(eng_failed)} had failures")
 
     groups = {}
     for r in rows:
@@ -844,8 +895,8 @@ def trend(domain: str) -> int:
             print(f"{head} no successful answer yet{note}")
             continue
         now = good[-1]
-        if now.get("status") == "no AI Overview shown":
-            print(f"{head} Google showed no AI Overview ({now['date']}){note}")
+        if now.get("status") in NO_GOOGLE_ANSWER.values():
+            print(f"{head} {NO_ANSWER_SAYS[now['status']]} ({now['date']}){note}")
             continue
         cite = f", cited {now['cited_own']}/{_ok(now)}" if now.get("cited_own") not in ("", None) else ""
         if now.get("searched") not in ("", None) and int(now["searched"]) < _ok(now):
@@ -853,7 +904,7 @@ def trend(domain: str) -> int:
         if len(good) == 1:
             print(f"{head} named {now['named']}/{_ok(now)}{cite} ({now['date']}, first){note}")
             continue
-        comparable = [r for r in good[:-1] if r.get("status") != "no AI Overview shown"]
+        comparable = [r for r in good[:-1] if r.get("status") not in NO_GOOGLE_ANSWER.values()]
         if not comparable:
             print(f"{head} named {now['named']}/{_ok(now)}{cite} ({now['date']}, first){note}")
             continue
@@ -977,9 +1028,11 @@ def build_report(domain: str, run_id=None):
             return "—"
         if not _ok(r):
             return "failed"
-        if r.get("status") == "no AI Overview shown":
-            return "no overview"
-        return f"{r['named']}/{_ok(r)}"
+        if r.get("status") in NO_ANSWER_SAYS:
+            return "no answer"
+        cur = next((q for q in cfg.get("queries", []) if q["slot"] == r["slot"]), None)
+        stale = cur is not None and (str(r.get("rev")) != str(cur["rev"]) or r.get("query") != cur["text"])
+        return f"{r['named']}/{_ok(r)}" + (" *" if stale else "")
 
     # Summary grid: one line per engine x mode, a column per scored question.
     lines = []
@@ -1000,8 +1053,8 @@ def build_report(domain: str, run_id=None):
             if q["slot"] != "branded":
                 if not _ok(r):
                     badges.append(f'<span class="badge no">failed: {h(r["status"])}</span>')
-                elif r.get("status") == "no AI Overview shown":
-                    badges.append('<span class="badge info">Google showed no AI Overview</span>')
+                elif r.get("status") in NO_ANSWER_SAYS:
+                    badges.append(f'<span class="badge info">{h(NO_ANSWER_SAYS[r["status"]])}</span>')
                 else:
                     n = int(r["named"] or 0)
                     badges.append(f'<span class="badge {"yes" if n else "no"}">named in {n} of {_ok(r)}</span>')
@@ -1035,6 +1088,7 @@ def build_report(domain: str, run_id=None):
 <p class="muted">{h(site)} · latest answers, {h(when)} · the engines were asked each question without the business name,
 the way a new customer would ask. “Knows you” = the AI answered from memory; “Finds you” = it searched the web first.</p>
 <table><tr><th>Engine</th><th>Mode</th><th>Broad question</th><th>Narrow question</th></tr>{''.join(lines)}</table>
+<p class="muted">* = that engine's latest answer was to an earlier version of the question.</p>
 {''.join(sections)}
 <p class="muted">Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
 </main></body></html>"""
@@ -1104,7 +1158,7 @@ def main(argv=None) -> int:
     ap.add_argument("--country")
     ap.add_argument("--slot", choices=SLOTS)
     ap.add_argument("--text-file")
-    ap.add_argument("--google", choices=["on", "off"],
+    cmd.add_argument("--google", choices=["on", "off"],
                     help="ask Google's AI Mode + AI Overview for this site (spends SerpApi searches)")
     ap.add_argument("--engines", help="comma-separated: ask only these engines this run "
                     f"(of {', '.join(ENGINES)})")
@@ -1139,7 +1193,7 @@ def main(argv=None) -> int:
         cfg = {"names": [n for n in [args.name, args.legal_name, *(args.alias or [])] if n],
                "domains": sorted({norm_host(d) for d in (args.domains or [domain])}),
                "lang": args.lang, "country": _country(args.country), "queries": [],
-               "google": args.google == "on"}
+               "google": False}   # Google's paid checks start off; --google on after asking
         save_config(domain, cfg)
         print(f"✓ AI check set up for {normalize_site(domain)}: {config_path(domain)}")
         print("  Next: add the questions with --set-question, then --confirm.")

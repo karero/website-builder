@@ -380,7 +380,7 @@ class ReviewFindings(GeoTestCase):
         os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
         rc, out = self.cli()
         self.assertEqual(rc, 1)
-        self.assertIn("has no engine key", out)
+        self.assertIn("SERPAPI_KEY is set but Google is off for this site", out)
         self.assertIn("off for this site", out)
         self.assertFalse([h for h in stub.STATE["hits"] if h[1] == "/search"])
 
@@ -440,13 +440,19 @@ class ReviewFindings(GeoTestCase):
         self.assertEqual(geo_check.load_keys()["openai"], "quoted-key # not a comment")
 
     def test_detector_version_bump_marks_the_trend(self):
+        # End to end: a run under the old detector, a run under a bumped one, and the trend
+        # must refuse to compare them as like with like.
         self.setup_site()
         os.environ["GEO_GEMINI_API_KEY"] = GKEY
         stub.engine_reply("gemini", "Bäckerei Example.")
         self.cli()
+        Trend.age_history(self)
         with mock.patch.object(geo_check, "DETECTOR_VERSION", "99"):
-            before = self.history()[0]["config_rev"]
-            self.assertNotEqual(geo_check.config_rev(geo_check.load_config(DOMAIN)), before)
+            self.cli()
+            rc, out = self.cli("--trend")
+        revs = {r["config_rev"] for r in self.history()}
+        self.assertEqual(len(revs), 2)
+        self.assertIn("settings changed", out)
 
     def test_set_names_alias_adds_and_name_replaces(self):
         self.setup_site()
@@ -455,15 +461,22 @@ class ReviewFindings(GeoTestCase):
         self.cli("--set-names", "--name", "Neue Bäckerei")
         self.assertEqual(geo_check.load_config(DOMAIN)["names"], ["Neue Bäckerei"])
 
-    def test_bot_wall_that_mentions_the_domain_is_unreadable(self):
+    def test_strange_page_is_shown_for_review_not_guessed(self):
+        # No keyword guessing at bot walls (it rejected real pages and missed localized walls).
+        # A page that names the business is read, and --confirm prints it for a person to judge.
         self.setup_site()
-        before = geo_check.load_config(DOMAIN)["fingerprint"]
-        stub.STATE["homepage"] = ("<html><head><title>Just a moment...</title>"
-                                  "<link rel=canonical href='https://example-bakery.de/'></head>"
-                                  "<body><h1>Checking your browser</h1>example-bakery.de</body></html>")
+        stub.STATE["homepage"] = ("<html><head><title>Einen Moment bitte...</title></head>"
+                                  "<body><h1>www.example-bakery.de</h1></body></html>")
+        rc, out = self.cli("--check-drift")
+        self.assertIn("State: changed", out)
+        self.assertIn("Einen Moment bitte", out)
+
+    def test_ordinary_page_with_security_check_headline_is_read(self):
+        self.setup_site()
+        stub.STATE["homepage"] = ("<html><head><title>IT-Security Check für KMU</title></head><body>"
+                                  "<h1>Free security check</h1><p>Bäckerei Example IT</p></body></html>")
         rc, out = self.cli("--confirm")
-        self.assertEqual(rc, 1)
-        self.assertEqual(geo_check.load_config(DOMAIN)["fingerprint"], before)
+        self.assertEqual(rc, 0, out)
 
     def test_domain_only_in_markup_is_not_enough(self):
         self.setup_site()
@@ -497,6 +510,7 @@ class ReviewFindings(GeoTestCase):
         rc, out = self.cli("--report")
         page = Path(out.split("Report: ")[1].strip()).read_text()
         self.assertIn("an earlier version of the question", page)
+        self.assertIn("3/3 *</td>", page)
         self.assertIn(html.escape(BROAD), page)
 
     def test_follow_up_overview_error_is_a_failure(self):
@@ -510,6 +524,99 @@ class ReviewFindings(GeoTestCase):
         self.assertIn("google-overview FAILED: SerpApi: Invalid API key", out)
         r = next(r for r in self.history() if r["engine"] == "google-overview" and r["slot"] == "broad")
         self.assertNotEqual(r["status"], "no AI Overview shown")
+
+
+class ReviewRound2(GeoTestCase):
+    """Regression tests for DIFF-gate round-2 findings."""
+
+    def test_malformed_citation_does_not_lose_the_run(self):
+        self.setup_site()
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        os.environ["GEO_ANTHROPIC_API_KEY"] = "test-anthropic-placeholder"
+        stub.engine_reply("openai", "Bäckerei Example.", sources=[{"not": "a url"}])
+        stub.engine_reply("anthropic", "Bäckerei Example.")
+        rc, out = self.cli()
+        self.assertEqual({r["engine"] for r in self.history()}, {"openai", "anthropic"})
+        self.assertTrue(all(r["ok"] == "3" for r in self.history() if r["engine"] == "openai"))
+
+    def test_consent_page_with_the_name_in_title_or_hidden_is_unreadable(self):
+        self.setup_site()
+        before = geo_check.load_config(DOMAIN)["fingerprint"]
+        for page in ("<html><head><title>Bäckerei Example</title></head>"
+                     "<body><h1>Your privacy matters</h1><p>Accept all</p></body></html>",
+                     "<html><head><title>Welcome</title></head><body><h1>We value your privacy</h1>"
+                     "<div hidden>Bäckerei Example</div></body></html>",
+                     "<html><head><title>Welcome</title></head><body><h1>Please wait</h1>"
+                     "<div style='display: none'><p>Bäckerei Example</p></div></body></html>"):
+            with self.subTest(page=page[:60]):
+                stub.STATE["homepage"] = page
+                rc, out = self.cli("--confirm")
+                self.assertEqual(rc, 1, out)
+                self.assertEqual(geo_check.load_config(DOMAIN)["fingerprint"], before)
+
+    def test_real_homepage_still_reads(self):
+        # The stricter check must not reject an ordinary page that names the business in its body.
+        self.setup_site()
+        stub.STATE["homepage"] = ("<html><head><title>Sourdough | Bäckerei Example</title><script>var x='hidden'</script>"
+                                  "</head><body><nav hidden>menu</nav><h1>Fresh bread daily</h1>"
+                                  "<p>Bäckerei Example bakes in Schwabing. <img src=a.jpg> Cookies welcome.</p></body></html>")
+        rc, out = self.cli("--confirm")
+        self.assertEqual(rc, 0, out)
+
+    def test_ai_mode_no_results_is_not_a_failure(self):
+        self.setup_site()
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        self.cli("--google", "on")
+        for eng in ("google_ai_mode", "google"):
+            stub.STATE["serp"][eng] = (200, {"error": "Google hasn't returned any results for this query."})
+        rc, out = self.cli()
+        self.assertEqual(rc, 0, out)
+        statuses = {r["engine"]: r["status"] for r in self.history() if r["slot"] == "broad"}
+        self.assertEqual(statuses, {"google-ai-mode": "no AI Mode answer",
+                                    "google-overview": "no AI Overview shown"})
+        rc, out = self.cli("--trend")
+        self.assertIn("Google's AI Mode gave no answer", out)
+
+    def test_trend_header_counts_only_engines_on_now(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        os.environ["SERPAPI_KEY"] = "test-serpapi-placeholder"
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        stub.STATE["serp"]["google_ai_mode"] = (200, {"reconstructed_markdown": "x"})
+        stub.STATE["serp"]["google"] = (200, {})
+        self.cli("--google", "on")
+        self.cli()
+        self.cli("--google", "off")
+        rc, out = self.cli("--trend")
+        self.assertIn("engines on now: 1 of 6; in their latest run 1 answered", out)
+
+    def test_legacy_config_still_reports_homepage_changes(self):
+        self.setup_site()
+        cfg = geo_check.load_config(DOMAIN)
+        del cfg["confirmed_questions"]                     # confirmed before that field existed
+        geo_check.save_config(DOMAIN, cfg)
+        stub.STATE["homepage"] = stub.STATE["homepage"].replace("Sourdough", "Cakes")
+        rc, out = self.cli("--check-drift")
+        self.assertIn("State: changed", out)
+
+    def test_slow_engine_does_not_starve_the_next(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        stub.engine_reply("openai", "Bäckerei Example.")
+        stub.STATE["delay"] = {"gemini": 1.5}
+        with mock.patch.object(geo_check, "ENGINE_BUDGET", 1):
+            rc, out = self.cli()
+        self.assertIn("gemini FAILED", out)
+        self.assertTrue(all(r["ok"] == "3" for r in self.history() if r["engine"] == "openai"))
+
+    def test_commented_empty_key_is_empty(self):
+        env = self.home / ".config/gsc-insights/.env"
+        env.parent.mkdir(parents=True, exist_ok=True)
+        env.write_text("GEO_OPENAI_API_KEY= # add key later\nGEO_GEMINI_MODEL=   # none yet\n")
+        self.assertEqual(geo_check.load_keys()["openai"], "")
+        self.assertEqual(geo_check.model_for("gemini"), geo_check.DEFAULT_MODELS["gemini"])
 
 
 class Homepage(GeoTestCase):

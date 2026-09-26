@@ -1,0 +1,288 @@
+{
+ "model": "claude-sonnet-5",
+ "id": "msg_011CfS7qpRoDwFrNGQTWg26k",
+ "type": "message",
+ "role": "assistant",
+ "content": [
+  {
+   "type": "thinking",
+   "thinking": "",
+   "signature": "EtgCCpABCBIYAipAbnsBhC5yBbEzZvtkaSUtKz3K7HazOpoNuIpk0HWb1MpqonCExv4/vKGOer8ErRJoqwr6vGXsu7sjYF6hIUoI2TIPY2xhdWRlLXNvbm5ldC01OABCCHRoaW5raW5nWiRiZDc2ZGFhNC1mZWMyLTRkYjEtOWU5Mi1jZDI3MjMxYWY4ZWOoAYGN39UGEgwmQa+jEnRNiGPOGP0aDF4u9iHsteRMLCLJVyIwsgbJKYDeJCuFWGoZdTssoAP/YC7TyuQVDQF4lbzP4ek4SywPf9rGYL2BMxdrfLu6KnV2NyH/9VZaZV24fFV/IfqvT7JpTPQzIcUMFDYhcTT7E6j5ufv5UoolQSgNEQr9mvJRsmsQqePT/yYHZzLdf5xpWA0MgWKwypnJ/AgfY1+cblYQEyYwwfwuhmKSHQzI8agW1kYAriaT/MUjqTLAl1cIUIYalzgYAQ=="
+  },
+  {
+   "type": "server_tool_use",
+   "id": "srvtoolu_01EP3SupQZmhSCHb1AQ5yCYE",
+   "name": "web_search",
+   "input": {
+    "query": "bakeries in Munich selling sourdough bread"
+   }
+  },
+  {
+   "type": "web_search_tool_result",
+   "tool_use_id": "srvtoolu_01EP3SupQZmhSCHb1AQ5yCYE",
+   "content": [
+    {
+     "type": "web_search_result",
+     "title": "Enjoy Krapfen in Munich | simply Munich",
+     "url": "https://www.munich.travel/en/topics/eat-drink/krapfen-munich",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "Bread report: our daily bread | simply Munich",
+     "url": "https://www.munich.travel/en/topics/eat-drink/traditional-bakers-munich",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "The 39 best bread shops in Munich",
+     "url": "https://wanderlog.com/list/geoCategory/8197/best-bread-bakeries-in-munich",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "Good bakeries in Munich: 9 recommendations - Rausgegangen - Rausgegangen",
+     "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "Bakeries in Munich | simply Munich",
+     "url": "https://www.munich.travel/en/topics/eat-drink/bakeries-munich",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "The Organic Traveller: ﻿Organic Munich: Artisanal bakeries and butcher shops",
+     "url": "https://www.organictraveller.de/organictraveller-munich-bakeries-butchers",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "Top 3 Munich Bakeries",
+     "url": "https://clarascrumbs.substack.com/p/top-3-munich-bakeries",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "wanderlog.com",
+     "url": "https://wanderlog.com/place/details/6118104",
+     "page_age": null
+    },
+    {
+     "type": "web_search_result",
+     "title": "wanderlog.com",
+     "url": "https://wanderlog.com/place/details/3428474",
+     "page_age": null
+    }
+   ],
+   "caller": {
+    "type": "direct"
+   }
+  },
+  {
+   "type": "text",
+   "text": "Based on my search, here are several bakeries in Munich known for selling sourdough bread:\n\n**Hofpfisterei** – This is Munich's most famous sourdough bakery with a huge network of branches. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "No one markets their natural sourdough more than Hofpfisterei.\n\n",
+     "url": "https://www.munich.travel/en/topics/eat-drink/traditional-bakers-munich",
+     "title": "Bread report: our daily bread | simply Munich"
+    }
+   ],
+   "type": "text",
+   "text": "No one markets their natural sourdough more than Hofpfisterei."
+  },
+  {
+   "type": "text",
+   "text": " "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "The easiest way to tasty organic German (sourdough) bread and rolls is to find one of the numerous branches of Hofpfisterei (\"Baker with appointment t...",
+     "url": "https://www.organictraveller.de/organictraveller-munich-bakeries-butchers",
+     "title": "The Organic Traveller: ﻿Organic Munich: Artisanal bakeries and butcher shops"
+    }
+   ],
+   "type": "text",
+   "text": "It's the easiest way to find tasty organic German sourdough bread and rolls, with a history dating back almost 700 years and about 150 branches."
+  },
+  {
+   "type": "text",
+   "text": "\n\n**Julius Brantner** – A modern artisan bakery highly regarded for its bread craftsmanship. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "All infos for the location ... Julius Brantner is undisputedly one of the great masters when it comes to artisan bread in Munich.\n\nThe focus here is o...",
+     "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+     "title": "Good bakeries in Munich: 9 recommendations - Rausgegangen - Rausgegangen"
+    }
+   ],
+   "type": "text",
+   "text": "Julius Brantner is undisputedly one of the great masters when it comes to artisan bread in Munich, with a focus on hand-shaped farmhouse breads."
+  },
+  {
+   "type": "text",
+   "text": " "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "Reviewers rave about the buttery, crispy croissants and exceptional sourdough bread. ",
+     "url": "https://wanderlog.com/place/details/6118104",
+     "title": "wanderlog.com"
+    }
+   ],
+   "type": "text",
+   "text": "Reviewers rave about the buttery, crispy croissants and exceptional sourdough bread"
+  },
+  {
+   "type": "text",
+   "text": " there. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "But queuing is worth it – the bread dough ferments for 24 hours and is made from regional organic ingredients. Freshly baked until late afternoon – an...",
+     "url": "https://www.munich.travel/en/topics/eat-drink/bakeries-munich",
+     "title": "Bakeries in Munich | simply Munich"
+    }
+   ],
+   "type": "text",
+   "text": "The bread dough ferments for 24 hours and is made from regional organic ingredients, and is freshly baked until late afternoon."
+  },
+  {
+   "type": "text",
+   "text": "\n\n**Riedmair** – A family-run bakery dedicated to sourdough tradition. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "The family bakery Riedmair keep three starters going for its bread. ",
+     "url": "https://www.munich.travel/en/topics/eat-drink/traditional-bakers-munich",
+     "title": "Bread report: our daily bread | simply Munich"
+    }
+   ],
+   "type": "text",
+   "text": "The family bakery Riedmair keep three starters going for its bread."
+  },
+  {
+   "type": "text",
+   "text": "\n\n**Brotraum (Schwabing)** – A newer artisan spot. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "In recent years, small artisan bakeries have been popping up in Munich alongside the big chain – like Brotraum in Schwabing. Known for its homemade so...",
+     "url": "https://www.munich.travel/en/topics/eat-drink/krapfen-munich",
+     "title": "Enjoy Krapfen in Munich | simply Munich"
+    }
+   ],
+   "type": "text",
+   "text": "This small artisan bakery in Schwabing is known for its homemade sourdough bread, pretzels and cinnamon buns, alongside seasonal specialities."
+  },
+  {
+   "type": "text",
+   "text": "\n\n**Lokalbäckerei Brotzeit (Grünwald)** – Praised for the longevity of its sourdough flavor. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "These guys also run a small sales counter inside the zero waste shop Ohne in Maxvorstadt, and frankly: No other bread in town keeps the taste of fresh...",
+     "url": "https://www.organictraveller.de/organictraveller-munich-bakeries-butchers",
+     "title": "The Organic Traveller: ﻿Organic Munich: Artisanal bakeries and butcher shops"
+    }
+   ],
+   "type": "text",
+   "text": "No other bread in town keeps the taste of fresh sourdough bread as long as theirs"
+  },
+  {
+   "type": "text",
+   "text": ", and they also run a small counter inside the zero-waste shop Ohne in Maxvorstadt.\n\n**Cumpanum** – Specializes in alternative-grain sourdough. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "Since 20.01.2022, Regerstraße 80 has been serving baked goods made without wheat flour and with real homemade sourdough. Instead of wheat, they use sp...",
+     "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+     "title": "Good bakeries in Munich: 9 recommendations - Rausgegangen - Rausgegangen"
+    }
+   ],
+   "type": "text",
+   "text": "Since January 2022, their Nockherberg branch has served baked goods made without wheat flour and with real homemade sourdough, using spelt, rye, emmer and einkorn instead."
+  },
+  {
+   "type": "text",
+   "text": "\n\n**Echt Jetzt** – For gluten-free sourdough options. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "If you want to see for yourself, you can watch how the homemade rice flour-based sourdough is prepared in the open bakery. For good flavors and long f...",
+     "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+     "title": "Good bakeries in Munich: 9 recommendations - Rausgegangen - Rausgegangen"
+    }
+   ],
+   "type": "text",
+   "text": "You can watch how their homemade rice flour-based sourdough is prepared in the open bakery, relying on time-honored artisan traditions with long resting times, pre-doughs, and homemade fermentation water instead of yeast."
+  },
+  {
+   "type": "text",
+   "text": "\n\n**Neulinger** – Another well-regarded traditional bakery. "
+  },
+  {
+   "citations": [
+    {
+     "type": "web_search_result_location",
+     "cited_text": "About\nBrot- und Feinbäckerei Neulinger is a popular bakery in Munich known for its organic, traditionally baked bread. ",
+     "url": "https://wanderlog.com/place/details/3428474",
+     "title": "wanderlog.com"
+    }
+   ],
+   "type": "text",
+   "text": "Brot- und Feinbäckerei Neulinger is a popular bakery in Munich known for its organic, traditionally baked bread"
+  },
+  {
+   "type": "text",
+   "text": ", with branches in Sendling, Haidhausen, Neuhausen, and Schlachthofviertel.\n\nIf you'd like directions, hours, or reviews for any specific one of these, just let me know!"
+  }
+ ],
+ "container": null,
+ "stop_reason": "end_turn",
+ "stop_sequence": null,
+ "stop_details": null,
+ "usage": {
+  "input_tokens": 13608,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "cache_creation": {
+   "ephemeral_5m_input_tokens": 0,
+   "ephemeral_1h_input_tokens": 0
+  },
+  "output_tokens": 1165,
+  "output_tokens_details": {
+   "thinking_tokens": 28
+  },
+  "service_tier": "standard",
+  "inference_geo": "global",
+  "server_tool_use": {
+   "web_search_requests": 1,
+   "web_fetch_requests": 0
+  }
+ },
+ "diagnostics": null
+}

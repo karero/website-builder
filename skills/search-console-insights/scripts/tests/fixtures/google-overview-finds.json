@@ -1,0 +1,198 @@
+{
+ "ai_overview": {
+  "text_blocks": [
+   {
+    "type": "paragraph",
+    "snippet": "To make a simple artisan sourdough bread, mix 100 grams of active starter, 330 grams of water, 450 grams of flour, and 10 grams of salt.",
+    "snippet_highlighted_words": [
+     "mix 100 grams of active starter, 330 grams of water, 450 grams of flour, and 10 grams of salt"
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Ingredients and Tools"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Active sourdough starter: Bubbly and fed."
+     },
+     {
+      "snippet": "Flour: 450g bread flour or all-purpose flour."
+     },
+     {
+      "snippet": "Water: 330g lukewarm water."
+     },
+     {
+      "snippet": "Salt: 10g fine sea salt or baking salt."
+     },
+     {
+      "snippet": "Equipment: A large bowl and a cast-iron Dutch oven.",
+      "snippet_links": [
+       {
+        "text": "Dutch oven",
+        "link": "https://www.theclevercarrot.com/2014/01/sourdough-bread-a-beginners-guide/"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Mix the Dough"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Pour the lukewarm water into your bowl."
+     },
+     {
+      "snippet": "Add the active sourdough starter and salt, then stir."
+     },
+     {
+      "snippet": "Add the flour and mix with your hands until no dry flour remains."
+     },
+     {
+      "snippet": "Let the dough rest for 30 minutes."
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Bulk Fermentation and Folds"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Perform 3 to 4 sets of stretch-and-folds every 30 minutes to build gluten strength."
+     },
+     {
+      "snippet": "Cover the bowl and let the dough rise at room temperature until it increases significantly in volume (about 4 to 6 hours total)."
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Shape and Cold Proof"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Shape the dough into a tight round ball or log."
+     },
+     {
+      "snippet": "Place the shaped dough upside down into a floured proofing basket (banneton)."
+     },
+     {
+      "snippet": "Cover and refrigerate overnight (8 to 24 hours) for slow fermentation."
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "snippet": "Bake"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Preheat your oven and a heavy Dutch oven to 500°F (260°C) for 30 minutes."
+     },
+     {
+      "snippet": "Turn the dough out of the basket, score the top with a sharp blade or knife, and place it into the hot Dutch oven."
+     },
+     {
+      "snippet": "Bake covered at 450°F (230°C) for 20 minutes."
+     },
+     {
+      "snippet": "Remove the lid and bake uncovered for another 15 to 20 minutes until the crust is deep golden brown."
+     },
+     {
+      "snippet": "Cool completely on a wire rack before slicing."
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "snippet": "Watch this step-by-step video guide for a visual demonstration of mixing, shaping, and baking your first loaf:"
+   },
+   {
+    "type": "paragraph",
+    "snippet": "If you want to get started, tell me:"
+   },
+   {
+    "type": "list",
+    "list": [
+     {
+      "snippet": "Do you already have an active sourdough starter, or do you need help making one from scratch?"
+     },
+     {
+      "snippet": "Do you have a Dutch oven or heavy cast-iron pot with a lid for baking?"
+     }
+    ]
+   }
+  ],
+  "references": [
+   {
+    "link": "https://www.youtube.com/watch?v=s8dQ2hnYqp0",
+    "source": "youtube.com",
+    "index": 0
+   },
+   {
+    "link": "https://www.youtube.com/watch?v=4gEoh3sk2AE",
+    "source": "youtube.com",
+    "index": 1
+   },
+   {
+    "link": "https://www.youtube.com/shorts/Uhzg74AwTls",
+    "source": "youtube.com",
+    "index": 2
+   },
+   {
+    "link": "https://www.youtube.com/shorts/kcrH18fQhDs",
+    "source": "youtube.com",
+    "index": 3
+   },
+   {
+    "title": "STEP-BY-STEP SOURDOUGH FOR BEGINNERS: How to Make ...",
+    "link": "https://www.youtube.com/watch?v=s8dQ2hnYqp0&t=117",
+    "snippet": "STEP-BY-STEP SOURDOUGH FOR BEGINNERS: How to Make Sourdough Starter & Sourdough Bread so we're going to do 53 g of flour. and now ...",
+    "source": "YouTube",
+    "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTXBqz1LCJv7Pk9EnCdzEoTIDBXe9O8rspAd0xAJa7UkatWr1LhcpRjTDShpWWkRs9RsFODWaFBNG9f-wo1EdvbpNLWwjgmZvSIzSpkPA",
+    "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.youtube.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+    "index": 4
+   },
+   {
+    "title": "Bake the Perfect Sourdough Bread: A Step-by-Step Guide",
+    "link": "https://www.youtube.com/watch?v=4gEoh3sk2AE",
+    "snippet": "Bake the Perfect Sourdough Bread: A Step-by-Step Guide today I'm going to show you how to make sourdough bread here's everything y...",
+    "source": "YouTube",
+    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcStHB5rVT1zURlPo5WRhUVc-nTHOQ3cTJWapgSvZ8khI2vetGwz0UwwwHCCogLKKH0X8wBVVP9IyuRYVLNjZmtSgzBauQjiUaq9oROBXg",
+    "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.youtube.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+    "index": 5
+   },
+   {
+    "title": "How To Make Sourdough Bread | FULL GUIDE",
+    "link": "https://www.youtube.com/shorts/Uhzg74AwTls",
+    "snippet": "How To Make Sourdough Bread | FULL GUIDE 🍞 let me teach you how to make sourdough. all you need is flour water salt and starter e...",
+    "source": "YouTube",
+    "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcQrPpfPgnLUTocw22dTD6bDc-2_r0PJAdTt8P37KYYu-y33wAX9Hy2Z-w9YCeJZ-epuSzALG0Te6gstknfMLK5dJJ2eDgUX_KkHQwb6kw",
+    "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.youtube.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+    "index": 6
+   },
+   {
+    "title": "Back to the basics: Easiest Beginner Sourdough Recipe",
+    "link": "https://www.youtube.com/shorts/kcrH18fQhDs",
+    "snippet": "Back to the basics: Easiest Beginner Sourdough Recipe this is episode two of Back to the Basics. a series where I show you how to ...",
+    "source": "YouTube",
+    "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcSqWFPLSTfCrjdUu_8QCytixgvIqLNe75CljLZLSKOLDAaPkueeBumti-XtvHnpgBKpUYRpiSh9A4cjFSgG90qczjzx0cagCtj96xpI0A",
+    "source_icon": "https://encrypted-tbn2.gstatic.com/faviconV2?url=https://www.youtube.com&client=AIM&size=128&type=FAVICON&fallback_opts=TYPE,SIZE,URL",
+    "index": 7
+   }
+  ]
+ }
+}

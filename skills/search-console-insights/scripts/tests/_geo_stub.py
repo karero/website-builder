@@ -5,6 +5,7 @@ to decide what the homepage says and how each engine answers; every request is
 recorded in `STATE["hits"]` so a test can prove the real code path reached it.
 """
 import json
+import time
 from urllib.parse import parse_qs, urlparse
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -87,6 +88,8 @@ class _H(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         STATE["hits"].append(("POST", self.path, dict(self.headers), body))
         engine = _engine_of(self.path)
+        if STATE.get("delay", {}).get(engine):
+            time.sleep(STATE["delay"][engine])
         spec = STATE["engines"].get(engine)
         if not spec:
             return self._send(500, '{"error": "no stub for this engine"}')

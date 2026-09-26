@@ -1,0 +1,68 @@
+{
+ "background": false,
+ "completed_at": 1790428813,
+ "created_at": 1790428813,
+ "error": null,
+ "frequency_penalty": 0,
+ "id": "resp_a7d5e8a5-8029-4069-9873-3ae5a86d4d9a",
+ "incomplete_details": null,
+ "instructions": null,
+ "max_output_tokens": null,
+ "max_tool_calls": null,
+ "metadata": {},
+ "model": "perplexity/sonar",
+ "object": "response",
+ "output": [
+  {
+   "content": [
+    {
+     "annotations": [],
+     "text": "Here are some well-known bakeries in Munich that are known to sell sourdough bread, or artisanal breads often made with sourdough:\n\n- **Rischart** – A major Munich bakery chain; they commonly offer sourdough loaves and dark rye breads.\n- **Hofpfisterei** – One of Munich’s best-known bakeries for traditional breads, especially rye and sourdough-style loaves.\n- **Julius Brantner Brothandwerk** – Artisan bakery with a strong reputation for naturally leavened breads.\n- **Bäckerei Wimmer** – Local bakery chain that typically carries a variety of breads including sourdough breads.\n- **Cumpanum** – Artisan bakery/café with handmade breads, often including sourdough options.\n- **Zeit für Brot** – Popular bakery chain known for organic, artisan breads, including sourdough.\n\nIf you want, I can also give you:\n1. **the best bakeries specifically in central Munich**, or  \n2. **a map-friendly list with neighborhoods and opening hours**.",
+     "type": "output_text"
+    }
+   ],
+   "id": "msg_7c0b941d-281b-4b4e-97de-6fa9c738ae25",
+   "role": "assistant",
+   "status": "completed",
+   "type": "message"
+  }
+ ],
+ "parallel_tool_calls": true,
+ "presence_penalty": 0,
+ "previous_response_id": null,
+ "prompt_cache_key": null,
+ "reasoning": null,
+ "safety_identifier": null,
+ "service_tier": "default",
+ "status": "completed",
+ "store": false,
+ "temperature": 1,
+ "text": {
+  "format": {
+   "type": "text"
+  }
+ },
+ "tool_choice": "auto",
+ "tools": [],
+ "top_logprobs": 0,
+ "top_p": 1,
+ "truncation": "",
+ "usage": {
+  "cost": {
+   "currency": "USD",
+   "input_cost": 1e-05,
+   "output_cost": 0.00056,
+   "total_cost": 0.00057
+  },
+  "input_tokens": 36,
+  "input_tokens_details": {
+   "cached_tokens": 0
+  },
+  "output_tokens": 225,
+  "output_tokens_details": {
+   "reasoning_tokens": 0
+  },
+  "total_tokens": 261
+ },
+ "user": null
+}

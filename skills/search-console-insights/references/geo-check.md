@@ -12,7 +12,7 @@ The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website
 
 | Column | How it asks | What it tells the owner |
 |---|---|---|
-| **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Expect it to move slowly: what a model learned changes mostly with new model versions, so week-to-week wiggles here are usually sampling noise. |
+| **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Judge it over several weeks, not from one week to the next: a single run is only 3 answers per question. |
 | **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited. Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
 
 Each engine gets up to three questions:
@@ -140,7 +140,7 @@ free to start with; the others cost a few cents a week if you want them."*
    `SERPAPI_KEY` is already there. Otherwise: serpapi.com → sign up → Dashboard →
    copy "Your Private API Key" → paste it after `SERPAPI_KEY=`.
    Either way, Google is **off until the owner switches it on for the site**, because it spends
-   paid searches: ask first, then run `geo_check.py <domain> --google on`. Having the key
+   paid searches: ask first, then run `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --google on`. Having the key
    for the Top-10 check never turns it on by itself.
 
    **Perplexity (paid)**
@@ -185,6 +185,12 @@ description and main heading, and says whether they changed since the questions 
   - **Keep:** `--confirm` only.
   - A changed question gets a new revision. Its next trend line is marked "question changed", because the old and new numbers aren't comparable.
 - **Couldn't read the homepage.** Tell the owner, and don't `--confirm`.
+- **State: unconfirmed.** A question was changed (or never checked) since the last `--confirm`.
+  Review the questions against the homepage with the owner, then `--confirm`.
+- **Before any `--confirm`, read the text it prints.** If it isn't the business's real homepage
+  (a cookie banner, "checking your browser", a login wall), don't save it: tell the owner and try
+  again later. The code rejects only pages that fail to load or name neither the business nor its
+  domain in their visible text; everything else is your judgment.
 
 The unattended weekly job never changes questions. On a changed homepage it runs the old
 ones, keeps the week's data and logs a warning. Asking is this session's job.
