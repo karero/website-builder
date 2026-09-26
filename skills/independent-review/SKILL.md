@@ -401,8 +401,9 @@ teach the plain-language trigger phrases.
    cap never fired — the 5–13-round gates.)
    - **After round 3 with no BUG open** (a DEFERRED BUG is not open): stop. RISKs and NITs
      still open go to the owner as ONE decision — fix locally (`locally_verified`, marked "not
-     externally re-verified" in the trail, as (c)), waive, or record as follow-up. They never
-     earn another round on their own.
+     externally re-verified" in the trail, as (c)) or waive (reason and sign-off, as point 5).
+     Follow-up stays reserved for point 4's out-of-scope findings. They never earn another round
+     on their own.
    - **After round 3 with a BUG open** (one the round raised or re-opened counts even once fixed
      locally: its fix is not externally verified) **— the BUG-trend extension:** if BUGs are coming down but not
      yet to zero, run another round, up to **round 5**. "Coming down" means the round's confirmed

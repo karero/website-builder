@@ -851,7 +851,18 @@ else
   # All attempted tiers at once: they share nothing but RAW_DIR, where each writes its own files.
   # A Ctrl-C or kill must not leave reviewers running (and billing) after the script is gone;
   # background jobs of a non-interactive shell ignore SIGINT, so stop them and their CLIs here.
-  trap 'for p in $(jobs -p); do pkill -TERM -P "$p" 2>/dev/null; kill "$p" 2>/dev/null; done; exit 130' INT TERM
+  # The CLIs' pids are collected BEFORE their subshells die (they are reparented after), asked
+  # to stop, and killed outright if still alive 2s later: a CLI mid-request may ignore TERM.
+  stop_tiers() {
+    local p pids=""
+    for p in $(jobs -p); do pids="$pids $p $(pgrep -P "$p" 2>/dev/null | tr '\n' ' ')"; done
+    [ -n "${pids// /}" ] || return 0
+    kill -TERM $pids 2>/dev/null
+    sleep 2
+    kill -KILL $pids 2>/dev/null
+    return 0
+  }
+  trap 'stop_tiers; exit 130' INT TERM
   run_tier codex run_codex &                                                     # 1. OpenAI Codex CLI
   run_tier ollama run_ollama &                                                   # 2. ollama cloud/local
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then

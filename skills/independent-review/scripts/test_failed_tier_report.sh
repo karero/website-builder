@@ -73,6 +73,8 @@ case "${CODEX_STUB:-ok}" in
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
   slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
+        trap '' TERM; echo $$ >"$STUB_MARKS/codex-pid"; sleep 30 ;;
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -394,10 +396,25 @@ check "parallel: a failed tier still gets its FAILED section" has incident.out "
 # --first-success stays one tier at a time: the second never starts once the first counts.
 run firstsucc CODEX_STUB=ok bash "$SCRIPT" "$T/change.diff" --first-success
 check "first-success: ollama never ran" [ ! -e "$T/firstsucc.marks/ollama-ran" ]
-check "first-success: timings name codex alone" grep -qxF -- "timings: codex 0s" "$T/firstsucc.out"
+check "first-success: timings name codex alone" grep -qE '^timings: codex [0-9]+s$' "$T/firstsucc.out"
 # A skipped tier (not installed) has no time to report.
 run notimeskip CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
 check "skipped tier: not in the timings line" grep -qE '^timings: codex [0-9]+s$' "$T/notimeskip.out"
+
+# 24b. Stopping the script stops its reviewers, even one that ignores SIGTERM: none keeps
+#      running (and billing) after the script is gone (round 1, fresh-eyes).
+mkdir -p "$T/stop.marks"
+env -u CODEX_MODEL -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
+  WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stop.raw" STUB_MARKS="$T/stop.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=stubborn OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stop.out" 2>"$T/stop.err" &
+spid=$!
+i=0; while [ ! -s "$T/stop.marks/codex-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/stop.rc"
+check "stop: the script exits 130" rc_is stop 130
+# Gone or a zombie: once its parent subshell is killed the CLI is reparented, and a container's
+# PID 1 may never reap it, so it can linger as <defunct> -- dead, not running.
+check "stop: the TERM-ignoring reviewer is gone" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/stop.marks/codex-pid"
 
 # 25. --verify: a verification round sends the prior findings in their own block, with the
 #     round's scope, to every tier; without the flag the prompt carries neither.
