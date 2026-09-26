@@ -50,6 +50,7 @@ case "${CODEX_STUB:-ok}" in
           'tokens used' '0' 'session end' 'bye' >&2; exit 1 ;;
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
+  reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -81,6 +82,7 @@ case "${OLLAMA_STUB:-ok}" in
   notreview) # a reply the refusal check rejects, carrying a decoy error-shaped 429 line
           printf '%s\n' 'No findings.' 'I could not read the retry code.' \
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
+  reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
 esac
 EOF
 chmod +x "$T/bin/codex" "$T/bin/ollama"
@@ -237,6 +239,35 @@ check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: co
 # 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, kimi).
 run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
 check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
+
+# 19. A clean verdict with a qualifier between "no" and the severity word counts. On 2026-09-20
+#     a genuine clean codex review reading "No confirmed BUG or RISK in the supplied diff." was
+#     reported FAILED (output is not a review), and the seat was lost. Both seats share the check.
+n=0
+for reply in "No confirmed BUG or RISK in the supplied diff." "No definite BUG." \
+             "I found no confirmed bugs in this change." "No new or confirmed RISK."; do
+  n=$((n+1))
+  run "verdict$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
+  check "verdict$n: codex counted — $reply" has "verdict$n.out" "reviewers: codex OK, ollama-cloud OK"
+  check "verdict$n: printed as codex's review, not quoted in a FAILED section" lacks "verdict$n.out" "— FAILED"
+done
+run verdictollama OLLAMA_STUB=reply STUB_REPLY="No confirmed BUG or RISK in the supplied diff." bash "$SCRIPT" "$T/change.diff"
+check "verdictollama: the ollama seat counts the same verdict" has verdictollama.out "reviewers: codex OK, ollama-cloud OK"
+check "verdictollama: no FAILED section" lacks verdictollama.out "FAILED"
+
+# 20. ...and what must still be rejected is: a plain refusal (a baseline: rejected before the
+#     fix too), a refusal carrying the qualified verdict in a phrase the refusal check knows (it
+#     runs first; the phrases it misses are pinned KNOWN WRONG in test_looks_like_review.sh), and
+#     "no way to find bugs" (the qualifiers are a literal list, not any word).
+n=0
+for reply in "I'm sorry, but I am unable to review this diff because the repository is not available to me." \
+             "No confirmed BUG or RISK, because I cannot access the diff you supplied." \
+             "There is no way to find bugs in this without more context."; do
+  n=$((n+1))
+  run "refusal$n" CODEX_STUB=reply STUB_REPLY="$reply" bash "$SCRIPT" "$T/change.diff"
+  check "refusal$n: exit 0 (ollama-cloud counted)" rc_is "refusal$n" 0
+  check "refusal$n: codex rejected — $reply" has "refusal$n.out" "reviewers: codex FAILED (output is not a review), ollama-cloud OK"
+done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
