@@ -83,26 +83,27 @@ if [ "$missing" -ne 0 ]; then
   exit 1
 fi
 
-# Internal artifacts must never ship: fail loud if any slip past the exclusions.
-# The matches are captured and tested, never piped through `head` and tested by pipeline
-# status: once a leak's listing passes the pipe buffer (~64 KiB), head's early exit kills
-# grep, pipefail reports that, and the guard missed exactly the large leak it exists for.
-# grep exit 1 is the clean case; anything above it is an error, and fails closed.
-leaked="$(grep -E '^docs/reviews/|^REVIEW-|^SKILL-PLAN-' <<<"$zipfiles")" || [ $? -eq 1 ] \
-  || { echo "FAIL — grep errored scanning the zip listing for internal artifacts."; exit 1; }
-if [ -n "$leaked" ]; then
-  sed -n '1,5p' <<<"$leaked"
-  echo "FAIL — $(grep -c . <<<"$leaked") internal review/plan artifact(s) leaked into the handoff zip (first 5 above)."
+# leak_check <ERE> <what> [hint] — fail if any zip entry matches: print the first five, then
+# the count. awk reads the whole listing and exits 0 whether or not anything matched. This was
+# `grep … | head -5 | grep .`, tested by pipeline status: once a leak's listing passed the pipe
+# buffer (~64 KiB), head's early exit killed grep, pipefail reported that, and the guard missed
+# exactly the large leak it exists for. A non-zero status now can only be an error (the
+# herestring's temp file not created, say), so it fails closed rather than reading as clean.
+# The patterns carry no backslashes: awk -v would unescape them.
+leak_check() {
+  local out n
+  out="$(awk -v re="$1" '$0 ~ re { if (++n <= 5) print } END { print n + 0 }' <<<"$zipfiles")" \
+    || { echo "FAIL — could not scan the zip listing for $2."; exit 1; }
+  n="${out##*$'\n'}"
+  [ "$n" = 0 ] && return 0
+  printf '%s\n' "${out%$'\n'*}"
+  echo "FAIL — $n $2 leaked into the handoff zip (first 5 above).${3:+ $3}"
   exit 1
-fi
+}
+# Internal artifacts must never ship: fail loud if any slip past the exclusions.
+leak_check '^docs/reviews/|^REVIEW-|^SKILL-PLAN-' "internal review/plan artifact(s)"
 # Belt-and-suspenders on the node_modules exclusion above: catch it here too rather than
 # trusting the -x glob alone (the docs/reviews/local exclusions get this same double-check).
-leaked="$(grep -E '/node_modules/' <<<"$zipfiles")" || [ $? -eq 1 ] \
-  || { echo "FAIL — grep errored scanning the zip listing for node_modules."; exit 1; }
-if [ -n "$leaked" ]; then
-  sed -n '1,5p' <<<"$leaked"
-  echo "FAIL — $(grep -c . <<<"$leaked") node_modules path(s) leaked into the handoff zip (first 5 above)"
-  echo "— was it installed locally before building this release?"
-  exit 1
-fi
+leak_check '/node_modules/' "node_modules path(s)" \
+  "Was it installed locally before building this release?"
 echo "zip integrity OK — all critical files present, no internal artifacts"

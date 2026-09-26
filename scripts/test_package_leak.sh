@@ -81,6 +81,14 @@ for m in $modes; do
   check "20,000 docs/reviews paths: counted$sfx" has "$r" "FAIL — 20000 internal review/plan artifact(s) leaked"
 done
 
+# A scan that errors must fail, not read as "nothing leaked": awk stubbed to fail, on a clean listing.
+mkdir -p "$T/badawk"
+printf '#!/bin/sh\nexit 2\n' >"$T/badawk/awk"; chmod +x "$T/badawk/awk"
+PATH="$T/badawk:$T/bin:$PATH" LISTING="$T/clean.list" bash "$T/repo/scripts/package.sh" >"$T/badawk.out" 2>&1
+echo $? >"$T/badawk.rc"
+check "a scan that errors fails closed: exit 1" rc_is badawk 1
+check "a scan that errors fails closed: says so" has badawk "FAIL — could not scan the zip listing"
+
 listing missing 0 x
 grep -vFx LICENSE "$T/missing.list" >"$T/missing.tmp" && mv "$T/missing.tmp" "$T/missing.list"
 run missing

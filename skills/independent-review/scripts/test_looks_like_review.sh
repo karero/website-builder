@@ -11,6 +11,7 @@ fn="$(awk '/^looks_like_review\(\) \{/{p=1} p{print} p && /^\}$/{exit}' "$here/i
   && [ "$(printf '%s\n' "$fn" | grep -cE '^[A-Za-z_][A-Za-z0-9_]*\(\) *\{')" = 1 ] \
   || { echo "FAIL: extraction did not stop at looks_like_review's own closing brace"; exit 1; }
 eval "$fn"
+set -o pipefail   # as independent_review.sh runs looks_like_review
 fail=0
 check() {  # $1 = expected (accept|reject), $2 = label, $3 = reviewer output
   if looks_like_review "$3"; then got=accept; else got=reject; fi
@@ -30,7 +31,7 @@ $pad"
 $pad
 No findings."
 }
-if [ "${1:-}" = --big-cases ]; then set -o pipefail; big_cases "${2:-}"; exit $fail; fi
+if [ "${1:-}" = --big-cases ]; then big_cases "${2:-}"; exit $fail; fi
 # The clean-verdict regex spells its qualifier list out twice; the copies must not drift. A
 # qualifier list is any group of eleven or more alternated words; no other group comes close.
 lists="$(printf '%s\n' "$fn" | grep -oE '\([a-z-]+(\|[a-z-]+){10,}\)')"
@@ -118,7 +119,6 @@ check accept "KNOWN WRONG (B-VERDICT-TEXT): 'no further risk analysis possible'"
 check accept "KNOWN WRONG (B-VERDICT-TEXT): 'No further bug reports can be generated'" "No further bug reports can be generated: usage limit reached."
 # Why the passive voice cannot simply be rejected: a genuine verdict takes the same shape.
 check accept "clean verdict: passive 'could be found'" "No confirmed bugs could be found in this diff."
-set -o pipefail
 big_cases ""
 if command -v perl >/dev/null 2>&1; then
   perl -e '$SIG{PIPE}="IGNORE"; exec @ARGV' bash "$0" --big-cases " (SIGPIPE ignored)" || fail=1

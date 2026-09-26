@@ -205,6 +205,9 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   # pinned change is reported until the next refresh, not forever.
   keep=""
   [ -f "$skills_dir/REFRESH-KEEP" ] && keep="$(sed 's/#.*//' "$skills_dir/REFRESH-KEEP")"
+  # One name per line, split once: on words, so spaces around a name don't matter, and with
+  # globbing off, so an entry like seo-* stays literal instead of matching files in the cwd.
+  keep="$(set -f; printf '%s\n' $keep)"
   # Matched below via herestrings, not `printf | grep -q`: under pipefail, grep -q exiting
   # on its match can fail the printf once the list passes the pipe buffer, and a pinned
   # skill would then read as unpinned and be overwritten.
@@ -217,7 +220,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
-    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$(printf '%s\n' $keep)"; then
+    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
     else
       echo "  $s"
@@ -255,7 +258,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   missing=0
   for s in $stale; do
-    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$(printf '%s\n' $keep)"; then
+    if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
