@@ -56,7 +56,7 @@ skip silently. With a config diff, send the code that reads the config too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
-4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity`, or the owner asks ("antigravity
+4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity` or `--seat agy`, each only when the owner asks ("antigravity
    review", "agy review"). The owner's credits are scarce; a default run never touches it.
    `AGY_MODEL` overrides; `run_agy` in the script has the call.
 5. **ollama local** — a sanity pass; never satisfies the gate alone.
@@ -169,9 +169,10 @@ Codex's effort for any run.
    - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
      After a merge of the base or a rebase, the **merge link** instead, not a full round: what
      changed in the change's own files since the last review, merge effects included —
-     `git diff <last-reviewed-head> HEAD -- $(git diff --name-only <new-merge-base>...HEAD)
-     ':(exclude)docs/reviews/'` — plus any file the merge changed that the change's code calls
-     directly, when known. PLAN: the whole plan, with the changed sections named in the
+     `git diff -z --name-only <new-merge-base>...HEAD | xargs -0 git diff <last-reviewed-head>
+     HEAD -- ':(exclude)docs/reviews/'` (NUL-separated: an unquoted `$(git diff --name-only …)`
+     splits a path with a space and silently drops it) — plus any file the merge changed that the
+     change's code calls directly, when known. PLAN: the whole plan, with the changed sections named in the
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
@@ -205,7 +206,7 @@ Codex's effort for any run.
    by the previous round finding a substantive BUG** — however many, rising or falling: a chain of
    fixes that each expose the next real defect is the gate working. A round without one ends the
    rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
-   externally re-verified" — or waive), and the remaining wording goes to the wording pass (6(e)).
+   externally re-verified" — or waive), and the remaining wording goes to the wording pass.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
    hold the change — an open BUG is never waived. Name each round past 3 and the BUG that earned it
@@ -213,7 +214,7 @@ Codex's effort for any run.
    each round belongs to. Re-gates forced by a moved diff (closeout, clerk item 2), the final full
    read and the wording pass don't count as rounds.
 
-   **The final full read (6(d))** — before closing a PLAN gate, a change that is mostly a spec or
+   **The final full read** — before closing a PLAN gate, a change that is mostly a spec or
    requirements document, or any High-depth change: ONE pass over the WHOLE current artifact, not a
    delta, by a reviewer that has not yet reviewed this artifact — preferably another model: another
    ollama cloud model (`OLLAMA_MODEL=<other>:cloud` with `--seat ollama`), Antigravity with the
@@ -221,7 +222,7 @@ Codex's effort for any run.
    this pass does. Triage its findings like a round's; a substantive BUG earns a verification round
    (past round 8, with the owner's OK).
 
-   **The wording pass (6(e)).** After the last round with a substantive BUG (and the final full
+   **The wording pass.** After the last round with a substantive BUG (and the final full
    read, where one runs), whatever changed since — wording, comments, docs prose, the review
    record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex` or `--seat ollama`,
    with closeout clerk item 2's prose-only scope). Its RISK/NIT are follow-ups; a contradiction

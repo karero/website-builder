@@ -612,6 +612,13 @@ run seatollama bash "$SCRIPT" "$T/change.diff" --seat ollama
 check "seat ollama: only ollama ran" sh -c '[ -e "$1/ollama-ran" ] && [ ! -e "$1/codex-ran" ]' _ "$T/seatollama.marks"
 check "seat ollama: the summary names it alone" has seatollama.out "reviewers: ollama-cloud OK"
 check "seat ollama: the one-reviewer note says it was asked for" has seatollama.out "--seat ollama was requested"
+check "seat ollama: ...and when one reviewer is right" has seatollama.out "any other round needs the standard pair"
+run seatfirst bash "$SCRIPT" "$T/change.diff" --seat codex --first-success
+check "seat: with --first-success exits 2" rc_is seatfirst 2
+run seatwithagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --seat ollama
+check "seat: another seat with the Antigravity opt-in exits 2" rc_is seatwithagy 2
+run seatagyboth bash "$SCRIPT" "$T/change.diff" --seat agy --with-antigravity
+check "seat agy with --with-antigravity is allowed (same reviewer)" has seatagyboth.out "reviewers: antigravity OK"
 run seatcodex bash "$SCRIPT" "$T/change.diff" --seat codex
 check "seat codex: only codex ran" sh -c '[ -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/seatcodex.marks"
 run seatagy bash "$SCRIPT" "$T/change.diff" --seat agy

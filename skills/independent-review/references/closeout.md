@@ -119,7 +119,7 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      `head`, so a target-branch advance after an unmoved stamp is not encoded; closing it needs
      `base` in the marker, a change shared with a downstream CI job — left open, not claimed solved.
    - **A prose-only re-gate is scoped narrow, never skipped** — and needs only ONE cross-model
-     seat (SKILL.md 6(e), the wording pass); the stamp then relies on that seat's chain, and the
+     seat (SKILL.md step 6, the wording pass); the stamp then relies on that seat's chain, and the
      other seats' chains end at the head before it. When everything since the last seen head is
      prose, tell the seat so, and to flag ONLY a factual contradiction or misleading claim against
      the code or behaviour described — not style or phrasing; the scope is prepended to the

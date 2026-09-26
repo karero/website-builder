@@ -147,12 +147,16 @@ esac
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
 fi
-# --seat agy names Antigravity explicitly, which is the owner's opt-in; --seat with --local-only can
-# only be the local ollama seat; --seat with --first-success is one seat either way.
+# --seat names its one reviewer: `--seat agy` is itself the explicit Antigravity opt-in (SKILL.md,
+# reviewer stack), as explicit as --with-antigravity, and dispatch calls run_agy directly. It
+# combines with neither --first-success nor --with-antigravity, which pick reviewers too; with
+# --local-only it can only be the local ollama seat.
+if [ -n "$SEAT" ] && { [ "$FIRST_SUCCESS" = 1 ] || { [ "$WITH_ANTIGRAVITY" = 1 ] && [ "$SEAT" != agy ]; }; }; then
+  echo "--seat $SEAT runs one named reviewer; drop --first-success/--with-antigravity (or WITH_ANTIGRAVITY=1)." >&2; exit 2
+fi
 if [ -n "$SEAT" ] && [ "$LOCAL_ONLY" = "1" ] && [ "$SEAT" != ollama ]; then
   echo "--local-only runs local ollama only; --seat $SEAT would send content out — refusing." >&2; exit 2
 fi
-[ "$SEAT" = agy ] && WITH_ANTIGRAVITY=1
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
   # Antigravity is already structurally unreachable from the LOCAL_ONLY
@@ -974,7 +978,7 @@ report_round() {
     if [ "$LOCAL_ONLY" = "1" ]; then
       note="$note — --local-only, degraded by owner choice."
     elif [ -n "$SEAT" ]; then
-      note="$note — --seat $SEAT was requested (one reviewer by design)."
+      note="$note — --seat $SEAT was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair."
     elif [ "$FIRST_SUCCESS" = "1" ]; then
       note="$note — --first-success was requested."
     else
