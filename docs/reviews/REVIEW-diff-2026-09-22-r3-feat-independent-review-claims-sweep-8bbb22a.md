@@ -165,3 +165,33 @@ recorded here as not externally re-verified.
   trail, read by the author: 6 rounds and 83 findings, the wrapped phrase that reached round 5,
   the seat lost after about 25 minutes, and about 190 added lines are recorded there. The
   reviewers could not see that record and marked them unverifiable.
+
+## Round 4 — Double-Knuth finalization (2026-09-26, session "Claims-sweep review finalization", on `0627f4a`)
+
+Not an independent-review round: a host two-pass review (Pass 1 code-review, Pass 2 a fresh-eyes
+consistency agent) run to decide whether the branch is worth a fourth gate round. The authoring
+session had been idle since 2026-09-21. Branch still unpushed; 86 commits behind `origin/main`.
+
+**Trial merge of `origin/main`:** only `.github/workflows/clean.yml` conflicts (the top comment;
+both sides add a sentence, splice both). `Makefile` and `SKILL.md` auto-merge. On the merged tree
+`check_clean.sh`, `check_model_agnostic.sh`, `check_skill_budgets.sh` (warn: SKILL.md 549 lines,
+main is already 546) and `test_sweep_claims.sh` all pass.
+
+**Pass 1 (10 findings, 6 confirmed by reproducer):** R1-08, R2-02, R3-01, R3-02, R3-03, R3-06
+reproduce exactly as round 3 described. R1-27 (`--file` only), R2-04 residue and R3-04 plausible.
+One new: the unclosed-fence lookahead (`sweep_claims.py:104`) is quadratic per file (NIT).
+R3-08 is refuted: `run()` only ever `cd`s to an absolute path, which CDPATH does not affect.
+
+**Pass 2 (1 BUG, 2 RISK, 4 NIT):** BUG = R3-01 again. RISK: the `clean.yml` merge must splice
+both comment sentences; the CI job goes green on SKIP without python3 (same convention as
+`test_install_pin.sh`; `ubuntu-latest` has python3). NIT: `--repo` accepted without `--base`;
+the launcher's two usage lines read as exclusive though `--base` and `--file` combine; README's
+`make check` summary lists 4 of 9 guards (pre-existing); the SKILL.md soft budget. Clean: every
+other doc claim vs behaviour, all paths, orphans both ways, packaging (`package.sh` zips
+`skills/` whole), python3 is not new to the repo.
+
+**Recommendation to the owner:** R1-08 → option 1 (delete the word test; any hunk that removes a
+line marks its neighbours). It is the simplest mechanism, removes the surface three rounds kept
+finding holes in, and costs +9% noise on an advisory list. Then the deterministic fixes (R2-02,
+R1-27, R3-02, R3-03, R2-04, R3-06, R3-01 moot), merge main, one fresh gate round on the new
+artifact, PR. R1-13 (word list) needs a one-word owner sign-off either way.
