@@ -21,8 +21,10 @@ Run this **after the site is live on its production domain** (DNS on Cloudflare,
 Bing's index fresh automatically.
 
 > **Only register the live domain.** `main` and every `*.pages.dev` preview are
-> noindexed by the kit's `functions/_middleware.ts` — do not add preview hosts as
-> properties; they can't be indexed and will just report "excluded by noindex".
+> noindexed by the kit's `functions/_middleware.ts`, and after go-live the project
+> alias `<project>.pages.dev` 301s to the live domain (once `CANONICAL_URL` is set —
+> `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live"). Do not add
+> any `pages.dev` host as a property; they can't be indexed.
 >
 > **Human-in-the-loop:** creating the Google/Microsoft accounts and adding the DNS
 > record are actions only the owner can do (like the GitHub/Cloudflare accounts in

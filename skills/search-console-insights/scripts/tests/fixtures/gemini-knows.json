@@ -1,0 +1,31 @@
+{
+ "candidates": [
+  {
+   "content": {
+    "parts": [
+     {
+      "text": "Munich has experienced a major artisanal bread revival in recent years. If you are looking for authentic, long-fermented, naturally leavened sourdough bread (*Sauerteigbrot*), you have some fantastic options. \n\nHere are some of the best bakeries in Munich known for their sourdough bread:\n\n### 1. The Dedicated Artisanal Bakeries\n\n*   **Bäckerei & Café Rischart (Traditional with a modern twist):** While Rischart is a large Munich institution with many branches, they do offer good traditional sourdough breads (like their *Münchner Bauernbrot*). However, for true artisan sourdough, look to their specialty lines or the smaller independent spots below.\n*   **Hofpfisterei:** This is a Munich classic with dozens of locations across the city. They specialize in purely organic, vegetarian/vegan sourdough breads made solely with natural sourdough starter (no commercial baker's yeast), spring water, and Bavarian organic grain. \n    *   *Recommendation:* Try the **Pfister-Mühlenbrot** or the **Kornbeisser**.\n*   **Aumüller (Bäckerei Aumüller):** A well-respected regional bakery that places a high value on traditional craftsmanship and long dough resting times, resulting in great crusty sourdough loaves.\n\n### 2. The Modern & International-Style Sourdough Bakeries\n\n*   **Ehrlicher Brot & Kaffee:** This is a newer favorite for bread purists. They focus heavily on traditional baking methods, long fermentation, and high-quality organic ingredients. Their sourdough loaves have an incredible open crumb and crispy crust.\n*   **Cinnamood / Local Specialty Cafes:** While places like Cinnamood are famous for cinnamon rolls, keep an eye out for third-wave coffee shops and concept stores (like **Man Versus Machine** or various weekly markets) that often source bread from micro-bakeries.\n*   **Maker's Bread / Pop-up Micro-bakeries:** Keep an eye on Instagram for Munich-based micro-bakers (like *The Munich Baker* or similar home-baker projects that occasionally supply local cafés). \n\n### 3. Weekly Farmers' Markets (*Wochenmärkte*)\nSome of the absolute best sourdough bread in Munich isn't found in a permanent storefront, but at the weekly farmers' markets. Independent organic bakers from the surrounding Bavarian countryside set up stalls here.\n*   **Viktualienmarkt:** Look for organic stands specializing in Chiemgau or Alpine grains.\n*   **Wiener Platz Market (Haidhausen) or Elisabethmarkt (Schwabing):** Both host excellent weekend market stalls featuring regional bakers who specialize in 100% natural sourdough.\n\n### Tips for Ordering:\n*   Look for the term **\"100% Natur-Sauerteig\"** (100% natural sourdough) to ensure no commercial yeast was added.\n*   Ask for **\"Krustenbrot\"** or **\"Bauernbrot\"** if you want a traditional, thick-crusted German sourdough loaf.",
+      "thoughtSignature": "EmAKXgFpFH0TLBzHxqtdbdNrRXSGjUDEH3dXwwaQ1Z8oIuvScZPuLfV0JMyTaeO5qCpf8yAap+sxSFZ8/2af6QAEqLNANTUdftNe+cXxUk13ssV7X/n132UWzi6SgEvWWww="
+     }
+    ],
+    "role": "model"
+   },
+   "finishReason": "STOP",
+   "index": 0
+  }
+ ],
+ "usageMetadata": {
+  "promptTokenCount": 10,
+  "candidatesTokenCount": 652,
+  "totalTokenCount": 662,
+  "promptTokensDetails": [
+   {
+    "modality": "TEXT",
+    "tokenCount": 10
+   }
+  ],
+  "serviceTier": "standard"
+ },
+ "modelVersion": "gemini-3.5-flash-lite",
+ "responseId": "dca3aofOJoaY28oPrKuEgAs"
+}

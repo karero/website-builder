@@ -16,14 +16,14 @@ src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
 src/pages/index.astro         # minimal home so the suite is green from commit 1
 src/pages/privacy.astro       # GDPR privacy draft (fill [BRACKET] slots before launch)
 public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
-functions/_middleware.ts      # noindex every *.pages.dev preview (zero config)
+functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set
 .github/workflows/ci.yml      # astro check + the suite on push/PR
 scripts/check_external_links.sh  # warn-only outgoing-link liveness sweep (network; not in CI)
 scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin / deep pages (offline; not in CI)
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links,llms-coverage}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
@@ -58,7 +58,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage out of the box. Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already
@@ -113,8 +113,14 @@ wins over the auto-slug and never drifts.
 
 Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
 project settings set the **production branch to `production`** (must equal
-`PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every `*.pages.dev`
-host is noindexed by the function). AI assistant deploying or announcing a
+`PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every preview
+`*.pages.dev` host is noindexed by the function). Once the live domain serves the
+site, set the Production variable `CANONICAL_URL` (e.g. `https://example.com`) and
+redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so
+people following an AI answer that cites the alias land on the real domain. Until then the alias is noindexed
+like a preview. Steps, and how a site built before this change picks it up (new
+middleware + redeploy): `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
+go-live". AI assistant deploying or announcing a
 deploy: read `PUBLISHING.md` § "For AI assistants — deploy-time guardrails"
 first (preview-vs-live announcements + the cached-404 rule) — every time, not
 just the first.

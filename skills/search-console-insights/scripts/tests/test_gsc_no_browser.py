@@ -1,0 +1,149 @@
+"""gsc_query.py --no-browser — a scheduled run must never wait for a browser (S9).
+
+Why: track.sh runs from launchd with nobody at the screen. Without the flag, a token
+that can't refresh silently sends gsc_query into the OAuth browser flow, and the job
+hangs forever — the Bing and AI checks after it never run. With the flag it must exit 2
+with instructions, for BOTH ways a token goes bad: no usable token (RuntimeError from
+load_credentials) and a refresh Google rejects (RefreshError).
+
+The google libraries are replaced with stubs in sys.modules, so this runs in CI without
+them — and each test asserts the saved token was actually loaded, so a missing-library
+exit 2 (load_credentials' ImportError branch) can't pass for the right one.
+
+Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tests
+"""
+import contextlib
+import io
+import os
+import sys
+import tempfile
+import types
+from pathlib import Path
+import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import gsc_query  # noqa: E402
+
+
+class RefreshError(Exception):
+    pass
+
+
+def google_stubs(creds, calls):
+    """Stand-ins for the three google modules load_credentials imports."""
+    class Credentials:
+        @staticmethod
+        def from_authorized_user_file(path, scopes):
+            calls.append("loaded token")
+            return creds
+
+    class Flow:
+        @staticmethod
+        def from_client_secrets_file(*a, **k):
+            calls.append("browser flow")
+            raise AssertionError("the browser flow must never start with --no-browser")
+
+    mods = {
+        "google": types.ModuleType("google"),
+        "google.oauth2": types.ModuleType("google.oauth2"),
+        "google.oauth2.credentials": types.ModuleType("google.oauth2.credentials"),
+        "google.auth": types.ModuleType("google.auth"),
+        "google.auth.transport": types.ModuleType("google.auth.transport"),
+        "google.auth.transport.requests": types.ModuleType("google.auth.transport.requests"),
+        "google.auth.exceptions": types.ModuleType("google.auth.exceptions"),
+        "google_auth_oauthlib": types.ModuleType("google_auth_oauthlib"),
+        "google_auth_oauthlib.flow": types.ModuleType("google_auth_oauthlib.flow"),
+    }
+    mods["google.oauth2.credentials"].Credentials = Credentials
+    mods["google.auth.transport.requests"].Request = lambda: None
+    mods["google.auth.exceptions"].RefreshError = RefreshError
+    mods["google_auth_oauthlib.flow"].InstalledAppFlow = Flow
+    return mods
+
+
+class Creds:
+    def __init__(self, valid=False, expired=True, refresh_token=None, refresh_raises=None):
+        self.valid, self.expired, self.refresh_token = valid, expired, refresh_token
+        self._raises = refresh_raises
+
+    def refresh(self, request):
+        if self._raises:
+            raise self._raises
+
+
+class NoBrowser(unittest.TestCase):
+    def run_main(self, creds, *extra):
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            token = os.path.join(d, "token.json")
+            Path(token).write_text("{}")
+            secret = os.path.join(d, "client_secret.json")
+            Path(secret).write_text("{}")  # present, so only the flag decides whether a browser opens
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token", token,
+                    "--client-secret", secret, *extra]
+            err = io.StringIO()
+            with mock.patch.dict(sys.modules, google_stubs(creds, calls)), \
+                    mock.patch.object(sys, "argv", argv), \
+                    mock.patch.object(gsc_query, "build_service",
+                                      side_effect=AssertionError("must stop before the API")), \
+                    contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+        return cm.exception.code, err.getvalue(), calls
+
+    def test_no_refresh_token_exits_2_without_browser(self):
+        code, err, calls = self.run_main(Creds(refresh_token=None), "--no-browser")
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, ["loaded token"])
+        self.assertIn("sign-in needs renewing", err)
+
+    def test_rejected_refresh_exits_2(self):
+        code, err, calls = self.run_main(
+            Creds(refresh_token="r", refresh_raises=RefreshError("invalid_grant")), "--no-browser")
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, ["loaded token"])
+        self.assertIn("RefreshError", err)
+
+    def test_missing_token_file_exits_2_without_browser(self):
+        # The one case that used to hang: no token.json at all (a fresh machine, a deleted file).
+        calls = []
+        with tempfile.TemporaryDirectory() as d:
+            secret = os.path.join(d, "client_secret.json")
+            Path(secret).write_text("{}")
+            argv = ["gsc_query.py", "--site", "sc-domain:example.com", "--token",
+                    os.path.join(d, "absent.json"), "--client-secret", secret, "--no-browser"]
+            err = io.StringIO()
+            with mock.patch.dict(sys.modules, google_stubs(Creds(), calls)), \
+                    mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(err):
+                with self.assertRaises(SystemExit) as cm:
+                    gsc_query.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertEqual(calls, [])  # never reached the browser flow (or loaded a token)
+        self.assertIn("sign-in needs renewing", err.getvalue())
+
+    def test_missing_google_libraries_exit_2_with_their_own_message(self):
+        # Distinct from a dead sign-in: the owner needs to install, not to reconnect.
+        blocked = {m: None for m in ("google.oauth2.credentials", "google.auth.transport.requests",
+                                     "google_auth_oauthlib.flow", "google.auth.exceptions")}
+        err = io.StringIO()
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(sys.modules, blocked), \
+                mock.patch.object(sys, "argv", ["gsc_query.py", "--site", "sc-domain:example.com",
+                                                "--token", os.path.join(d, "t.json"), "--no-browser"]), \
+                contextlib.redirect_stderr(err):
+            with self.assertRaises(SystemExit) as cm:
+                gsc_query.main()
+        self.assertEqual(cm.exception.code, 2)
+        self.assertIn("Missing dependencies", err.getvalue())
+
+    def test_without_the_flag_the_browser_flow_still_starts(self):
+        # Interactive behaviour is unchanged: the owner at a terminal still gets the browser.
+        # (The stub raises instead of opening one; reaching it is the point.)
+        with self.assertRaises(AssertionError) as cm:
+            self.run_main(Creds(refresh_token=None))
+        self.assertIn("browser flow must never start", str(cm.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()
