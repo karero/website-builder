@@ -295,20 +295,21 @@ teach the plain-language trigger phrases.
      such as wrong wording, does not qualify: fix it.
 
    **A widening.** A change widens a BUG when, as a side effect of what the change is for, it lets
-   more inputs reach the wrong result the BUG already produces, inside the function the row names.
-   Condition 1 applies to the BUG itself: some input reproduces it at the merge-base, while the
-   new inputs, by definition, do not. The widening then needs its own dated sign-off, its own
-   KNOWN WRONG cases for the new inputs, and a line in both the row and the trail. It is not a
-   widening, and gets no deferral, when the new wrong result is the only effect of the code that
-   causes it, or when it happens outside that function (a new caller or entry point). A row whose
-   remedy would replace the whole mechanism does not make every new wrong result in that
-   mechanism a widening.
+   more inputs reach the wrong result *through the very defect the row names* — not merely the
+   same kind of wrong result. Condition 1 applies to the BUG itself: some input reproduces it at
+   the merge-base, while the new inputs, by definition, do not. The widening needs its own dated
+   sign-off, written as its own dated line in the row and in the trail, and its own KNOWN WRONG
+   cases for the new inputs. A wrong result the change reaches by any other route — new logic
+   whose only effect it is, a new caller, or a defect the row does not name — is a BUG the change
+   introduced and gets no deferral.
 
    **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
    not keep a round from being clean (6(a2)), does not count toward the three-round cap (6(b)),
    and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
    tracker it stays open, in the BUG table, until someone fixes it. The trail records it as
-   DEFERRED, never as fixed or refuted. (Codified 2026-09-26: the owner had deferred BUGs, and
+   DEFERRED, never as fixed or refuted, with the merge-base reproduction — the command and its
+   output — so condition 1 is at least `locally_verified`. A deferral made after the last round
+   is marked "deferral not externally re-verified", as (c) does for fixes. (Codified 2026-09-26: the owner had deferred BUGs, and
    widenings of them, under a rule that said "no exceptions", so the rule and the practice had
    drifted apart.)
 
@@ -337,7 +338,7 @@ teach the plain-language trigger phrases.
 6. **Iterate — fix, then re-review.** Send the updated artifact back through
    the reviewers as a *verification round*: give them the prior round's BUG
    list — and, for each BUG DEFERRED under point 5, its tracker row, its merge-base reproduction
-   and its test's name, since the tracker is not in what they see — ask them to confirm each fix landed AND that the fixes introduced
+   and its test's name, since point 2's exclusion usually keeps the tracker out of what they see — ask them to confirm each fix landed AND that the fixes introduced
    nothing new — and tell them the author expects clean **and that they must
    not oblige out of politeness** (expectation of cleanliness is exactly the
    bias that turns round 2 into a rubber stamp). Repeat until essentially
@@ -359,7 +360,7 @@ teach the plain-language trigger phrases.
    open (a DEFERRED BUG is not open here) — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
    — you may stop ITERATING once all known BUGs are *fixed, refuted, or deferred under point 5's
    one exception* AND every RISK/NIT is
-   fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
+   fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), postponing
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
    Postponing verification is legitimate. Deferring a fix is legitimate only under point 5's one

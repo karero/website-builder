@@ -69,29 +69,29 @@ check reject "trailing conjunction: 'No confirmed or BUG'" "No confirmed or BUG.
 check reject "trailing comma: 'no new material, bugs'" "I have no new material, bugs cannot be judged."
 # The price of the marker- and anchor-copying rejects above: an honest lone finding that cannot read its evidence also
 # rejects, because by its text alone it cannot be told from them.
-check reject "KNOWN WRONG: an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): an honest lone finding that cannot read its evidence is discarded" "1. **RISK — foo.rb:12** — asserts lib Y retries on timeout. I cannot read the implementation of Y, so this is UNVERIFIABLE. Settling observation: call Y against a stalled server.
 
 CLEAN: checked the caller's arguments."
 # Known wrong too, and tracked with the case above as B-REFUSAL-TEXT in
 # docs/reviews/OPEN-FINDINGS-independent-review.md. These pin today's behaviour, so a fix has to
 # change them on purpose.
-check accept "KNOWN WRONG: two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
 2. RISK — I cannot access the repository."
-check reject "KNOWN WRONG: the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
-check reject "KNOWN WRONG: a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
-check accept "KNOWN WRONG: 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
-check accept "KNOWN WRONG: 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
-check accept "KNOWN WRONG: 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
-check accept "KNOWN WRONG: 'unable to view' is not a refusal phrase" "- RISK: I was unable to view the diff."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'don't have access' is not a refusal phrase" "1. BUG — I don't have access to the file."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'can not review' is not a refusal phrase" "1. BUG — I can not review this file."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'unable to view' is not a refusal phrase" "- RISK: I was unable to view the diff."
 # The same four phrases in prose after a clean verdict (B-REFUSAL-TEXT, widened). After a plain
 # "No BUG or RISK" each was accepted before 2026-09-20 as well; the qualified verdict is what that
 # fix newly lets through.
-check accept "KNOWN WRONG: qualified verdict + 'couldn't access'" "No confirmed BUG or RISK, because I couldn't access the diff you supplied."
-check accept "KNOWN WRONG: qualified verdict + 'don't have access'" "No confirmed BUG or RISK, because I don't have access to the diff you supplied."
-check accept "KNOWN WRONG: qualified verdict + 'unable to view'" "No confirmed BUG or RISK: I was unable to view the diff."
-check accept "KNOWN WRONG: qualified verdict + 'can not review'" "No confirmed BUG or RISK - the diff was not attached, so I can not review it."
-check accept "KNOWN WRONG: the unqualified twin, accepted before the fix too" "No BUG or RISK, because I couldn't access the diff you supplied."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'couldn't access'" "No confirmed BUG or RISK, because I couldn't access the diff you supplied."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'don't have access'" "No confirmed BUG or RISK, because I don't have access to the diff you supplied."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'unable to view'" "No confirmed BUG or RISK: I was unable to view the diff."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): qualified verdict + 'can not review'" "No confirmed BUG or RISK - the diff was not attached, so I can not review it."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): the unqualified twin, accepted before the fix too" "No BUG or RISK, because I couldn't access the diff you supplied."
 # A non-answer in the passive voice or with the severity word as a noun modifier, no refusal
 # phrase at all (B-VERDICT-TEXT). The qualified forms reject on the script as it was before
 # 2026-09-20; their unqualified twins, pinned first, were accepted before too.
