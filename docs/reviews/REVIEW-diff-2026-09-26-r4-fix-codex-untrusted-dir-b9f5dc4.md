@@ -13,7 +13,7 @@ directory, a project AGENTS.md found there would be loaded into its instructions
 **Verdict.** No open BUG. All three seats returned zero BUGs in rounds 2, 3 and 4. Round 4's fixes
 (one RISK, three NITs) are `locally_verified` only — test suite plus mutation runs — and were not
 sent to a fifth round. One round-4 RISK, raised by Codex and ollama in some form every round, is
-**awaiting an owner waiver**: see "Open" below.
+waived by the owner: see "Open" below.
 
 ## Rounds
 
@@ -97,11 +97,12 @@ runs themselves), which is the live check that codex accepts `-c project_doc_max
 | J3 | NIT | fresh-eyes | "Would outrank the review prompt" unsupported: P4 showed obedience, not precedence | Fixed `b9f5dc4`, `locally_verified` |
 | J4 | NIT | fresh-eyes | R-PROJCTX could name project hooks and `.rules` files | Fixed `b9f5dc4`, `locally_verified` |
 | J5 | NIT | fresh-eyes | Commit `87f4622`'s subject still says "follows no AGENTS.md" | Not rewritable (no force-push); keep it out of the PR title and any squash message |
-| J6 | RISK | Codex, ollama | The codex behaviour the comments rely on is not tested against the real binary | Re-raise of F7 with no new evidence; see "Open" |
+| J6 | RISK | Codex, ollama | The codex behaviour the comments rely on is not tested against the real binary | Re-raise of F7 with no new evidence. **Waived by the owner** 2026-09-26; see "Open" |
 
-## Open
+## Waived
 
-- **J6 / F7 — awaiting owner waiver.** Every claim about what codex does rests on the live probes
+- **J6 / F7 — waived by the owner, 2026-09-26**, in chat, verbatim: "WaiveD: A waiver. Codex and
+  ollama kept asking for an automated test against the real codex." Every claim about what codex does rests on the live probes
   above, not on an automated test. A CI test cannot run without a codex sign-in. This is the same
   class as R-SANDBOX (deferral signed off 2026-09-11), and R-PROJCTX now records that the
   AGENTS.md setting is "seen working in one live probe, not tested".
