@@ -37,7 +37,7 @@ unzip -l "$OUT/website-builder.zip" | tail -1
 
 # Integrity check: a handoff zip missing any of these is broken (legal notices, install
 # path, the orchestrator, the architecture doc it points at, and every root file the
-# orchestrator's §3 copies into a site — a zip missing one scaffolds a broken repo — plus
+# orchestrator's §3 step 2 copies into a site — a zip missing one scaffolds a broken repo — plus
 # the on-demand team skill and its guide, which §3 also copies). Fail loud if so.
 REQUIRED=(
   README.md

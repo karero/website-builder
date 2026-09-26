@@ -57,7 +57,11 @@ copy from GitHub (the branch the person selected in Codex, normally `main`). Ste
 applies there; instead of steps 2 to 4, only this:
 
 - Run `git log -1 --format='%h %an, %ar: %s'` and say: "Current working state of this
-  task."
+  task." A cloud task normally starts from a clone GitHub made moments ago, but
+  nothing here proves that. So, if the task may use the network, also run
+  `git ls-remote origin refs/heads/main` (reads only, changes nothing) and compare the
+  two ids: if they differ, say so, and that a new task gets the newest state. If the
+  network is off, say that the comparison was not possible.
 - If an **older** cloud task is being resumed, say: "Whether GitHub has moved on since
   is not checked. For the newest state, start a new task."
 - Fetch nothing, create or switch no branch. Codex works on this state; Codex creates

@@ -144,14 +144,18 @@ gh api "repos/$OWNER/$REPO/actions/permissions" --jq '{enabled, allowed_actions}
 # b) Is the workflow listed, and active (not disabled_manually / disabled_inactivity)?
 gh workflow list --all
 gh workflow enable ci.yml           # only if it shows as disabled
-# c) Has it EVER run on a push or pull_request event?
-gh run list --workflow ci.yml --limit 5
+# c) Has it EVER run on a pull_request event? (push runs prove the file works, not the
+#    trigger the merge gate relies on — a workflow whose pull_request trigger is broken
+#    still shows green push runs on main)
+gh run list --workflow ci.yml --event pull_request --limit 5
+gh run list --workflow ci.yml --limit 5          # any run at all?
 ```
 - (a) `enabled: false` → the owner turns it on: **Settings → Actions → General → Allow
   all actions**. GitHub also disables scheduled workflows after 60 days without repo
   activity; that does not apply to push/pull_request triggers, but a manually disabled
   workflow stays disabled until enabled.
-- (c) empty, or only `workflow_dispatch` runs → do the two-step fix:
+- (c) no `pull_request` run → the throwaway pull request (step 2 below) is the
+  proof; do step 1 as well when there is no run of any kind:
   ```bash
   gh workflow run ci.yml --ref main                        # 1. one manual start
   sleep 15   # the run takes a few seconds to appear; `gh run watch` needs its id
@@ -214,6 +218,22 @@ gh api -X POST "repos/$OWNER/$REPO/rulesets" --input - <<'JSON'
 JSON
 gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | "\(.name) \(.enforcement)"'
 ```
+**A ruleset that already exists is not proof.** A "protect main" left behind by an
+earlier attempt, or edited in the dashboard since, may be looser than the one above
+(a different check name, no up-to-date requirement, a bypass actor). So when the count
+is not 0, read the whole thing back and compare it with the JSON above, rule by rule:
+```bash
+id=$(gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | select(.name=="protect main") | .id')
+gh api "repos/$OWNER/$REPO/rulesets/$id" \
+   --jq '{enforcement, bypass_actors, conditions, rules: [.rules[] | {type, parameters}]}'
+```
+Anything that differs — `enforcement` not `active`, a non-empty `bypass_actors`, a
+missing rule, `strict_required_status_checks_policy` false, a `context` that is not the
+CI job's name — is fixed with `gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
+and the same JSON body. Confirm the `context` against the job in `ci.yml` (`test`
+unless the site renamed it); a wrong name blocks every merge, because a check that
+never reports never passes.
+
 No bypass list: the rule applies to the owner too, which is the point. Dashboard
 path: **Settings → Rules → Rulesets → New branch ruleset**. An approving review count of
 0 keeps the gate "green CI + a human pressed merge", matching §1's merge rule; raise it
@@ -250,7 +270,13 @@ gh api "repos/$OWNER/$REPO/rules/branches/main" --jq '.[].type'
 # Hook: a dry run of a real ref update — the hook runs, nothing is transferred.
 git switch --no-track -c setup/push-check origin/main
 git commit --allow-empty -m "push-block check (never pushed)"
-git push --dry-run origin HEAD:main     # expect: "Direct push to 'main' blocked"
+# The push is EXPECTED to fail, so test it as a condition — in a script run under
+# `set -e` a bare failing push would abort before the cleanup line runs.
+if git push --dry-run origin HEAD:main; then
+  echo "NOT blocked — the hook is not active in this clone (npm install run? hooksPath set?)"
+else
+  echo "blocked as expected"      # git printed: Direct push to 'main' blocked
+fi
 git switch - && git branch -D setup/push-check
 ```
 
@@ -301,8 +327,29 @@ pull request). Walk the owner through it with these warnings ahead of each click
    `npm run ship` on this site must now run in CI, or it never runs. The kit's own
    `ship.sh` runs no tests (the pre-push hook and CI do), so a stock site has nothing
    to move; a site that added a ship-only gate of its own moves that command into
-   `ci.yml` in the setup pull request. The kit's CI already greps for `"[MISSING: …]"`
-   placeholders, so those cannot merge on any site.
+   `ci.yml` in the setup pull request.
+8. **Placeholder gate — check the site actually has it.** The kit's `ci.yml` greps
+   `src/` and `public/` for `"[MISSING: …]"` before the build, but only sites
+   scaffolded after that step existed carry it: `whats-new.sh` reports drift in
+   `ci.yml`, it never rewrites it. So `AGENTS.md`'s merge rule ("no placeholder is
+   left") is enforced only if the step is there. Check, add if missing, and prove it
+   fires before calling the setup done:
+   ```bash
+   grep -n 'MISSING' .github/workflows/ci.yml || echo "placeholder step MISSING — copy it from the kit's templates/astro/.github/workflows/ci.yml"
+   ```
+   Then plant one: a scratch branch with `"[MISSING: probe]"` in any page, push,
+   watch the check turn red, delete the branch. A gate that has never fired is a
+   hypothesis.
+9. **Direct-upload project already exists (deploy path A).** A git-connected Pages
+   project is a *different project type*; Cloudflare cannot convert one into the
+   other. Create the git-connected project under a new name, let it build once,
+   then move the custom domain: remove it from the old project first (a domain can
+   be attached to one Pages project at a time), attach it to the new one (Custom
+   domains → Set up a domain), wait for it to show Active, and only then delete the
+   old project. Do it in a quiet moment and check the live domain right after, with
+   a cache-bust (`PUBLISHING.md` § "For AI assistants"). This sequence follows
+   Cloudflare's documented behaviour and was not exercised on the reference site,
+   which was git-connected from the start.
 
 Verify: after the first merge, `<live-or-preview-url>/build.txt` shows the merge
 commit id (the kit's build marker). Say which address is the **preview** and which is

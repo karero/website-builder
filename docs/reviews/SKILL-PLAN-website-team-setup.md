@@ -160,8 +160,20 @@ Claude Code following `AGENTS.md`.
   names, accounts, emails or client URLs.
 - **B12 — Re-run is safe.** The skill runs a second time. → Every step is idempotent:
   existing collaborators are reported, settings already on stay on, a ruleset that
-  exists is not duplicated, the hook block is not enabled twice (the skill reads the
-  hook before editing).
+  exists is not duplicated but read back and compared rule by rule (a looser leftover
+  is tightened), the hook block is not enabled twice (the skill reads the hook before
+  editing).
+- **B14 — Site scaffolded before the placeholder gate existed.** The team skill runs
+  on an older site whose `ci.yml` has no `[MISSING:` step. → §6.8 checks the site's
+  workflow, adds the step, and proves it fires with a planted placeholder before the
+  setup counts as done.
+- **B15 — CI proof with only push runs.** The workflow has green push runs on `main`
+  but has never run on a pull request. → That is not proof: the throwaway pull request
+  is opened; only a run with `event: pull_request` counts.
+- **B16 — Site deployed by direct upload.** The site was bootstrapped with the token
+  path (`wrangler pages deploy`). → §6.9 says a git-connected project is a different
+  type: new project, first build, move the custom domain, delete the old project;
+  marked as following Cloudflare's documentation, not exercised on the reference site.
 - **B13 — The remaining settings.** The owner asks "is anything else worth setting?"
   → The skill's §3b table covers merge method, auto-merge off, collaborator
   permission level, visibility, Actions permissions, the Actions minutes budget (with
@@ -246,7 +258,30 @@ account, so the eval loop (with/without-skill runs, viewer, benchmark) needs a
 throwaway private repo and an owner at the dashboard; the description-optimization
 loop needs the `claude` CLI, absent here.
 
-**Not run:** a cross-model Codex seat (`independent-review` DIFF gate) — no Codex CLI
-in the environment that built this. Run it before merging; the pull request says so.
-The round-2 fixes are self-verified only (`make check` green, the new CI step
-negative-tested locally, text re-read against each finding), not re-reviewed.
+**Round 4 — outside review** (2026-09-26, run by the owner locally on `e422695`,
+`independent-review` DIFF gate, diff excluding `docs/reviews/`). Seats: Codex (read-only
+file access) and ollama-cloud (Kimi K2.7, diff only; its claims were checked against
+the checkout by the local session and the wrong ones dropped). `make check` passed
+there **with** the local name denylist, so B11's second half is now covered. Tally
+after checking: **2 BUG / 4 RISK / 2 NIT**, plus three claims nobody could test. All
+fixed in the sixth commit:
+
+| Sev | Finding | Fix |
+|---|---|---|
+| BUG | §6.7 claimed placeholders "cannot merge on any site"; sites scaffolded before the CI step exist, and `whats-new.sh` only reports drift in `ci.yml` | New §6.8: check the site's `ci.yml`, add the step, prove it with a planted placeholder (B14) |
+| BUG | §4(c) counted any run as proof; green push runs do not show the `pull_request` trigger works | (c) asks for a `pull_request` run; none → throwaway pull request is the proof (B15) |
+| RISK | `ci.yml` grep step: exit 2 (e.g. `public/` renamed) read as "nothing found" while matches in `src/` were already printed | Folders checked first; `rc` captured with `\|\| rc=$?` under the step's `bash -e`; exit 0 and ≥2 both fail; re-tested for found / clean / missing folder |
+| RISK | An existing "protect main" ruleset was skipped, never compared | Read back and compare rule by rule, `PUT` the intended body on any difference, confirm the `context` against the job name (B12) |
+| RISK | Renaming the CI job silently blocks every merge | Comment on the `test` job in the kit's `ci.yml` pointing at the ruleset |
+| RISK | `AGENTS.md`'s Codex-cloud rule assumed a fresh clone with nothing to detect staleness | Compare `git log -1` with `git ls-remote origin refs/heads/main` when the network is allowed; say when it is not |
+| NIT | §5-B dry-run push is expected to fail; under `set -e` the cleanup never ran | Written as a condition with both outcomes named |
+| NIT | `package.sh` comment cited "§3"; the root files are copied in §3 step 2 | Comment fixed |
+| untested | GitHub's ruleset and required-check behaviour; whether a `pull_request` run counts the way §4 assumes; Cloudflare's pull-request previews, the leftover Workers check, and moving a direct-upload project to git integration (now §6.9, B16, marked as documentation-based); whether Claude Code honours `@AGENTS.md` (it does in this suite's own sessions — the reference site's `CLAUDE.md` is that one line) | One run on a throwaway repo and Cloudflare project settles the first three, which is the same run the evals need |
+
+Rejected by the local check (Kimi, diff-only blind spots): "23 skills claimed, 8
+copied" (all 23 exist), "hook block absent" (present with the override), "nothing adds
+the title suffix" (`Base.astro:58`), "does a dry-run push run the hook" (tested: it
+does, git 2.33), `%ar` vs `%ad` (taste), `CLAUDE.md` in the frozen list (did not hold).
+
+The round-4 fixes are self-verified only (`make check` green, the `ci.yml` step
+re-tested in all three states), not re-reviewed by an outside model.
