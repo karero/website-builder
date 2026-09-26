@@ -257,8 +257,8 @@ run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
 check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
 
 # 19. Called from outside any git repo (a plan in a scratch dir): codex must still run,
-#     in the caller's cwd, with the read-only sandbox still requested — on both command
-#     lines, the default and the CODEX_MODEL one. Before the fix the PLAN round came back
+#     in the caller's cwd, with the read-only sandbox still requested and AGENTS.md
+#     loading off — on both command lines, the default and the CODEX_MODEL one. Before the fix the PLAN round came back
 #     with codex FAILED and one reviewer (2026-09-26). GIT_CEILING_DIRECTORIES keeps git
 #     from finding a repo above $T, wherever TMPDIR lives; run() drops GIT_DIR and
 #     GIT_WORK_TREE, which a git hook exports and which would otherwise override it.
@@ -272,7 +272,7 @@ for m in "" stub-override; do
   check "$name: the stub really is outside a git repo" env -u GIT_DIR -u GIT_WORK_TREE \
     sh -c 'cd "$1" && ! GIT_CEILING_DIRECTORIES="$2" git rev-parse 2>/dev/null' _ "$NOGIT" "$CEILING"
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
-  want="argv=exec -s read-only --skip-git-repo-check${m:+ -c model=\"$m\"} <prompt> cwd=$NOGIT"
+  want="argv=exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0${m:+ -c model=\"$m\"} <prompt> cwd=$NOGIT"
   check "$name: exact argv (read-only, nothing looser) in the caller's cwd" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
