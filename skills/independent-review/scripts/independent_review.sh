@@ -217,10 +217,10 @@ unset PROMPT 2>/dev/null || true
 #             into an empty mktemp dir                    empty dir, so it has nothing of the
 #                                                         project to inspect, and headless print mode
 #                                                         auto-denies any tool call that needs a
-#                                                         permission prompt -- the run then ends with
-#                                                         exit 0 and no output (seen twice on
-#                                                         2026-09-26, agy 1.2.9). So it gets the
-#                                                         text-only prompt, which tells it not to try.
+#                                                         permission prompt -- both runs that hit this
+#                                                         ended with exit 0 and no output (2026-09-26,
+#                                                         agy 1.2.9). So it gets the text-only prompt,
+#                                                         which tells it not to try.
 #                                                         What it COULD read or run is still not
 #                                                         established: an empty cwd is not an access
 #                                                         boundary.
@@ -500,9 +500,12 @@ run_codex() {
 # the CLI stays in it. Treat output as untrusted.
 # Why --mode plan and the text-only prompt: with `--sandbox -p` and the capability-agnostic
 # prompt, agy 1.2.9 twice reached for a tool needing the "command" permission, which headless
-# mode auto-denied, and exited 0 with no stdout (2026-09-26). The same CLI run by hand as
-# `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir returned a full review. That
-# is one run, with both changes at once: which of the two is load-bearing was not isolated.
+# mode auto-denied, and exited 0 with no stdout (2026-09-26; one run's stderr is kept in
+# docs/reviews/RAW-diff-2026-09-26-r3-fix-independent-review-clean-verdict-8375234.md). Run by
+# hand as `agy --sandbox --mode plan -p "$PROMPT_TEXTONLY"` in an empty dir, agy returned a full
+# review. That is one run with three things changed at once -- the flag, the prompt, and possibly
+# the CLI itself: agy was upgraded to 1.2.11 the same day, and 1.2.10's changelog says it asks to
+# bypass the sandbox less often. Which of the three is load-bearing was not isolated.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"
@@ -520,7 +523,7 @@ run_agy() {
   { [ $rc -eq 0 ] && [ -s "$RAW_DIR/agy.out" ]; } || { why_cli $rc; return 1; }
   out="$(cat "$RAW_DIR/agy.out")"
   looks_like_review "$out" || { WHY="$NOT_A_REVIEW"; return 1; }
-  printf '## Independent review — antigravity/agy (%s, sandbox, plan mode, text-only)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
+  printf '## Independent review — antigravity/agy (%s, sandbox, plan mode, text-only prompt)\n\n%s\n' "${model:-CLI default — model unconfirmed, verify per the onboarding model-confirmation step}" "$out"
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly

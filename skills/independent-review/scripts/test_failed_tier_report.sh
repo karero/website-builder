@@ -116,7 +116,13 @@ for a; do
   argv="$argv[$a]"
 done
 printf 'argv=%s\n' "$argv" >"$STUB_MARKS/agy-args"
-printf '%s\n' '- BUG: stub agy finding' '- NIT: another'
+printf '%s\n' "$(pwd -P)" >"$STUB_MARKS/agy-cwd"
+ls -A | wc -l | tr -d ' ' >"$STUB_MARKS/agy-cwd-entries"
+case "${AGY_STUB:-ok}" in
+  ok)     printf '%s\n' '- BUG: stub agy finding' '- NIT: another' ;;
+  denied) # the 2026-09-26 failure on agy 1.2.9: exit 0, nothing on stdout, the reason on stderr
+          printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
+esac
 EOF
 chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
 
@@ -335,13 +341,22 @@ for m in "" stub-agy-model; do
   run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff"
   check "$name: agy counted alongside the pair" has "$name.out" "reviewers: codex OK, ollama-cloud OK, antigravity OK"
   check "$name: header names the model" has "$name.out" "## Independent review — antigravity/agy (${m:-CLI default}"
-  check "$name: header says plan mode, text-only" has "$name.out" ", sandbox, plan mode, text-only)"
+  check "$name: header says plan mode, text-only prompt" has "$name.out" ", sandbox, plan mode, text-only prompt)"
   want="argv=[--sandbox][--mode][plan]${m:+[--model][$m]}[-p][<prompt>]"
   check "$name: exact argv (sandbox + plan mode, nothing looser)" grep -qxF -- "$want" "$T/$name.marks/agy-args"
   check "$name: sent the text-only prompt" grep -qF -- "You have NO tools" "$T/$name.marks/agy-prompt"
   check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
   check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
+  # The text-only prompt is right because agy runs in an empty throwaway dir, not the caller's cwd.
+  check "$name: ran outside the caller's cwd" [ "$(cat "$T/$name.marks/agy-cwd")" != "$(pwd -P)" ]
+  check "$name: in an empty dir" [ "$(cat "$T/$name.marks/agy-cwd-entries")" = 0 ]
 done
+# ...and if agy still comes back empty, the tier is FAILED with its stderr quoted, not dropped
+# and not counted; the pair still carries the round.
+run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
+check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
+check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
+check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

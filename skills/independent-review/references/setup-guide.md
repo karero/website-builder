@@ -181,12 +181,15 @@ Independence rule already lists cross-model options that don't require Claude at
 Codex host, ollama-cloud or Gemini both satisfy the gate alone. Claude is an *additional* option,
 not a requirement: useful when you specifically want a third, distinct model family in the mix,
 or when the other options are unavailable or rate-limited. The Antigravity CLI (`agy`) can reach one —
-`AGY_MODEL="<a Claude model from 'agy models'>" agy --sandbox --mode plan --model "$AGY_MODEL" -p` — the
-invocation shape described by onboarding's model-confirmation step (Step 5 at this writing),
-via the same free Antigravity/Gemini login used for the Gemini seat elsewhere in this guide.
+set `AGY_MODEL` to a Claude model from `agy models` and the script runs
+`agy --sandbox --mode plan --model "<that model>" -p "<review prompt>"` (`run_agy` in
+`scripts/independent_review.sh`), via the same free Antigravity/Gemini login used for the Gemini
+seat elsewhere in this guide. Onboarding's model-confirmation step (Step 5 at this writing) covers
+checking which model actually ran.
 Confirm the model family from the run's own output, per that same step's rule — the confirmed
-family, not an assumed default, is what satisfies the gate. Verified working headless as of 2026-07-02;
-re-verify before relying on it if this guide is old by then.
+family, not an assumed default, is what satisfies the gate. The older `agy --sandbox -p` form worked
+headless on 2026-07-02 but returned nothing on 2026-09-26 (a tool call auto-denied), which is why
+`--mode plan` and the text-only prompt were added; re-verify before relying on it.
 
 This is **not** a separate free lane — it's the same `agy` CLI and the same scarce-quota,
 opt-in-only rule as every other Antigravity use in this skill (see SKILL.md's reviewer stack).
