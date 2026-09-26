@@ -6,8 +6,9 @@ description: >
   scripts/independent_review.sh — the standard pair (Codex + your signed-in
   ollama-cloud model) runs automatically; Antigravity/Gemini only on explicit
   opt-in, its credits are scarce. Consolidates a ranked BUG/RISK/NIT list and
-  BLOCKS until every BUG is fixed or refuted and every RISK/NIT is fixed,
-  refuted, or owner-waived; first use runs a guided onboarding wizard. Use
+  BLOCKS until every BUG is fixed, refuted, or (only if it predates the change)
+  owner-deferred, and every RISK/NIT is fixed, refuted, or owner-waived; first
+  use runs a guided onboarding wizard. Use
   BEFORE building from any non-trivial plan, BEFORE merging any non-trivial
   PR, and whenever asked for a "codex review", "gemini review", "antigravity
   review", "agy review", "adversarial review", "cross-model review",
@@ -268,7 +269,8 @@ teach the plain-language trigger phrases.
    new signal — not repetition — regardless of whether the reviewer saw the annotation; it gets
    triaged like any other finding, never dismissed because *something* was already written nearby.
 5. **Enforce the verdict** (this is the skill's job — never the script's exit
-   code): every BUG confirmed real by verification must be fixed, no exceptions — one conclusively
+   code): every BUG confirmed real by verification must be fixed — the one exception, a BUG the
+   change did not introduce, follows this paragraph — and one conclusively
    shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
    may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
    if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
@@ -279,6 +281,20 @@ teach the plain-language trigger phrases.
    logical demonstration — quoting the actual contradiction, or its absence — for a claim about
    structure, logic, or wording, where there is no runtime to check against. Don't demand an
    empirical test a claim was never about in the first place.
+
+   **The one exception: a BUG the change did not introduce.** The owner may defer it out of the
+   change when all three hold:
+   - it reproduces on the base branch, so the change did not create it;
+   - a row in the repo's open-findings tracker describes it, with the owner's dated sign-off;
+   - a test pins today's wrong behaviour as KNOWN WRONG, so whoever fixes it changes that test on
+     purpose.
+
+   If the change widens the BUG — lets more inputs through the same hole — the widening needs its
+   own sign-off, and the trail and the row both name it. A BUG the change introduces gets no
+   deferral. A deferred BUG stays open: it keeps its row in the tracker's BUG table, and the trail
+   records it as deferred, never as fixed or refuted. (Codified 2026-09-26: the owner had deferred
+   three pre-existing BUGs under a rule that said "no exceptions", so the rule and the practice
+   had drifted apart.)
 
    **Verify checkable claims — empirically where the claim is about runtime/checkable behavior, by
    direct textual/logical demonstration where it's about structure, logic, or wording — before
@@ -322,7 +338,8 @@ teach the plain-language trigger phrases.
    BUG/RISK-per-round series, not the raw finding count — a series like 5 → 2 → 2 → 1 → 0 has
    already converged at the 0, whatever the NIT column says; (b) 3 rounds with BUG/RISK still
    open — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
-   — you may stop ITERATING once all known BUGs are *fixed or refuted* AND every RISK/NIT is
+   — you may stop ITERATING once all known BUGs are *fixed, refuted, or deferred under point 5's
+   one exception* AND every RISK/NIT is
    fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), deferring
    only the external re-verification of those fixes; record "last round not
    re-verified" in the trail and run a later round when resources allow.
@@ -413,7 +430,8 @@ teach the plain-language trigger phrases.
    hard cap and relies on these signals alone.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can defer, re-scope, or reject the release, but it cannot waive a
-   BUG that's still open (for an open BUG blocked on a missing prerequisite — see point 5's
+   BUG that's still open, and it can defer one out of the change only under point 5's one
+   exception (for an open BUG blocked on a missing prerequisite — see point 5's
    untestable-claim rule — deferral keeps the release blocked; the BUG can close only after the
    prerequisite becomes available and verification supports either a refutation or a verified fix
    — deferring is what you do while waiting, not the closure itself); point 5's rule holds
