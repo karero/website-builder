@@ -2,8 +2,8 @@
 """List the sentences a change ADDS that assert an absence or a universal.
 
 Run it through sweep_claims.sh. Advisory: it prints candidates and exits 0; it exits 2
-only for a usage error (bad arguments, an unknown ref, not a repository, an unreadable
-file). Why and how to use the list, and what it cannot see: references/claims-sweep.md.
+only for a usage error (bad arguments, an unknown ref, no common ancestor, not a repository,
+an unreadable file). Why and how to use the list, and what it cannot see: references/claims-sweep.md.
 
 Why it reads sentences, not lines: a per-line grep for "not been attempted" cannot see
 "has not" at the end of one line and "been attempted" at the start of the next. So each
@@ -364,7 +364,7 @@ def main(argv):
     try:
         for note in notes:
             print("sweep_claims: %s." % note, file=sys.stderr)
-        print("sweep_claims: %d sentence%s to check in %d file%s." % (
+        print("sweep_claims: %d sentence%s to check in %d file%s swept." % (
             len(found), "" if len(found) == 1 else "s", len(labels),
             "" if len(labels) == 1 else "s"), file=sys.stderr)
         sys.stderr.flush()

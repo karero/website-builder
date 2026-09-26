@@ -252,8 +252,8 @@ teach the plain-language trigger phrases.
    only BOUNDS it. **The trail must still be in the MR diff** — a repo CI gate may require it
    and clerk item 3 (`references/closeout.md`) commits it — this is only about what reaches the reviewers.
 
-   **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` (or `--file <plan>`)
-   lists added sentences that claim an absence or a universal. Check each as `references/claims-sweep.md` says.
+   **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` lists the sentences the change
+   adds that claim an absence or a universal; `--file <plan>` lists every such sentence in the file. Check each as `references/claims-sweep.md` says.
 3. Run tier 3 (fresh-eyes) with the same strict prompt.
 4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
    id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted,

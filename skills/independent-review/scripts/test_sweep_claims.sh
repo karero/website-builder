@@ -15,8 +15,9 @@
 # line, one file under two spellings) and inline code read as a fence. Its third found a
 # qualifier removed beside an edit that kept its words, two ``` lines indented four spaces
 # pairing up around prose, GIT_DIFF_OPTS widening hunks, a file under a relative and an
-# absolute spelling, and a crash on a closed stderr or a Latin-1 locale. Each of those is a
-# fixture here, and case H proves the wrapped one really is a miss for grep: a guard that
+# absolute spelling, and a crash on a closed stderr or a Latin-1 locale. Its NIT close-out
+# found three guards no check could fail: a fence closer's length, a "1." item after a
+# paragraph, and a Markdown "~~~" fence. Each of those is a fixture here, and case H proves the wrapped one really is a miss for grep: a guard that
 # cannot fire is worse than none.
 #
 # Usage: bash skills/independent-review/scripts/test_sweep_claims.sh
@@ -224,7 +225,7 @@ check "a path with glob characters is matched literally" lacks diff.out "Never o
 check "a file that is not prose is not swept by default" lacks diff.out "tool.sh"
 check "a deleted file is left out, not reported as skipped" lacks diff.err "skipped"
 check "nothing else is reported" count_is diff.out 20
-check "the count goes to stderr" has diff.err "20 sentences to check in 7 files"
+check "the count goes to stderr" has diff.err "20 sentences to check in 7 files swept"
 check "advisory: exit 0 although it listed sentences" rc_is diff 0
 
 # H: the per-line grep this replaces cannot see fixture A, so A really discriminates.
@@ -249,7 +250,7 @@ for k in color.diff diff.interHunkContext diff.relative diff.external diff.squee
 done
 rm "$R/.git/info/attributes"
 check "user diff settings, from a subdirectory: the same list" cmp -s "$T/diff.out" "$T/hostile.out"
-check "user diff settings, from a subdirectory: the same count" has hostile.err "20 sentences to check in 7 files"
+check "user diff settings, from a subdirectory: the same count" has hostile.err "20 sentences to check in 7 files swept"
 
 # PATH arguments replace the default set and are taken as given.
 run named "$R" --base main tool.sh
@@ -265,7 +266,7 @@ check "I: --file still skips fenced code" lacks whole.out "run this twice"
 check "I: --file reports every matching sentence" count_is whole.out 9
 run both "$R" --base main --file ./notes.md
 check "--base and --file on one file, spelled differently: each sentence once" count_is both.out 21
-check "--base and --file on one file: counted as one file" has both.err "21 sentences to check in 7 files"
+check "--base and --file on one file: counted as one file" has both.err "21 sentences to check in 7 files swept"
 run bothsub "$R/docs" --base main --file ../notes.md
 check "the same, from a subdirectory" count_is bothsub.out 21
 run twice "$R" --file ./notes.md --file notes.md
@@ -277,7 +278,7 @@ mkdir -p "$T/outside"; cp "$R/notes.md" "$T/outside/notes.md"
 run outside "$T/outside" --repo "$R" --base main --file notes.md
 check "--file outside --repo: labelled by its absolute path" \
   grep -q '^/.*/outside/notes\.md:3 \[first, never\] The first release never shipped to users\.$' "$T/outside.out"
-check "--file outside --repo: not merged with the file inside" has outside.err "29 sentences to check in 8 files"
+check "--file outside --repo: not merged with the file inside" has outside.err "29 sentences to check in 8 files swept"
 
 # "~~~" is an rst underline, not a fence; a Markdown fence that never closes, or inline code
 # that starts with backticks, does not swallow what follows.
@@ -294,8 +295,14 @@ printf '10. ```sh\n    it never builds\n    ```\n\nOnly this is prose.\n\n```\nm
 # Each rule that keeps a sentence whole, on its own: "e.g." before a capital, a stop before a
 # lowercase word, and a wrapped "2024." inside a list item; a sibling item still splits.
 printf 'All services, e.g. Python and Go, use the new runner.\n\nEvery job ran, approx. twice a day.\n\n- The runner never ran before\n  2024. It ran daily later.\n\n1. Alpha is fine\n2. beta was not run\n' >"$T/splits.md"
+# A "1." item may interrupt a paragraph, so the paragraph's last line does not run into it.
+printf 'All of these run\n1. Nothing else does.\n' >"$T/items.md"
+# A fence closes only on a marker of its own kind and at least its length: three backticks do
+# not close four. "~~~" fences a block in Markdown, although it is an underline in rst.
+printf '````md\n```\nNothing inside the long fence is swept.\n```\n````\n\nNothing after the long fence is lost.\n\n~~~\nNothing inside the tilde fence is swept.\n~~~\n\nNothing after the tilde fence is lost.\n' >"$T/fences.md"
 run files "$R" --file "$T/guide.rst" --file "$T/open.md" --file "$T/splits.md" --file "$T/inline.md" \
-  --file "$T/indented.md" --file "$T/closer.md" --file "$T/listfence.md"
+  --file "$T/indented.md" --file "$T/closer.md" --file "$T/listfence.md" --file "$T/items.md" \
+  --file "$T/fences.md"
 check "'e.g.' before a capital does not end the sentence" \
   line files.out "$T/splits.md:1 [all] All services, e.g. Python and Go, use the new runner."
 check "a stop before a lowercase word does not end the sentence" \
@@ -315,7 +322,16 @@ check 'a fence closer indented four spaces does not close a fence at the margin'
   has files.out "Nothing is stored."
 check 'a list-item fence closes at the item'"'"'s text column, so the prose after it is swept' \
   line files.out "$T/listfence.md:5 [only] Only this is prose."
-check "--file: every matching sentence, and nothing more" count_is files.out 15
+check 'a fence opened after a list marker "10." is not reported' lacks files.out "it never builds"
+check 'a "1." item does not join the paragraph above it' line files.out "$T/items.md:1 [all] All of these run"
+check 'and is its own sentence' line files.out "$T/items.md:2 [nothing] Nothing else does."
+check 'a ``` line does not close a ```` fence' lacks files.out "inside the long fence"
+check 'the prose after the ```` fence is swept' \
+  line files.out "$T/fences.md:7 [nothing] Nothing after the long fence is lost."
+check 'Markdown: a "~~~" fenced block is not reported' lacks files.out "inside the tilde fence"
+check 'Markdown: the prose after a "~~~" fence is swept' \
+  line files.out "$T/fences.md:13 [nothing] Nothing after the tilde fence is lost."
+check "--file: every matching sentence, and nothing more" count_is files.out 19
 
 # Usage errors exit 2; nothing to sweep is not one.
 run noargs "$R"

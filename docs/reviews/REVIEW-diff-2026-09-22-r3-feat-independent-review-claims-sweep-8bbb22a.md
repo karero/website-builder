@@ -252,3 +252,36 @@ removing hunk was marked, and the same harness caught two deliberately broken ru
 
 **Verdict for this round:** no open BUG or RISK after the fixes. The fixes are verified locally
 (suite, mutants, `make check`), not by a second external round; the owner can call one.
+
+## NIT close-out (2026-09-26)
+
+A cloud session finished the open NITs from the handover of the session above, on `640c99a`.
+The owner's words: "ok to : My suggestion: fix three of them now as wording, add tests for a
+fourth, and close the other three as accepted limits. then open & merge".
+
+| id | sev | source | finding | status |
+|---|---|---|---|---|
+| R3-07 | NIT | fresh-eyes | SKILL.md says `--file` lists "added" sentences; the docstring's exit-2 list omits "no common ancestor" | fixed: SKILL.md says `--base` lists what the change adds and `--file` every such sentence in the file; the docstring lists "no common ancestor" |
+| R3-09 | NIT | ollama | "Name paths after the options" is unclear | fixed: "To sweep other files, list them after the options". The 4-space fence half was fixed with R2-02 |
+| R3-04 | NIT | fresh-eyes | The count line counts files swept, not files with sentences | fixed: the message says "in M files swept"; the counting is unchanged, and the four checks that quote it now quote the new wording |
+| R3-05 | NIT | fresh-eyes | Guards that survive mutation | fixed: fixtures for a ``` line inside a ```` fence, a "1." item after a paragraph line, and a Markdown `~~~` fence, plus a check that a fence after "10." is not reported. The line after a mixed hunk was already pinned by V (F1) |
+| F4 | NIT | fresh-eyes | `--file` dedup misses a case-only spelling on a case-insensitive file system | accepted limit: the file is listed twice. Noise, never a miss |
+| F7 | NIT | fresh-eyes | A stray ``` opener pairs with a later block's closer and hides the prose between | accepted limit: GitHub renders it the same way, so the sweep matches what readers see |
+| lookahead | NIT | round 4 | Each fence opener with no closer scans the rest of the file | accepted limit: quadratic only with many unclosed openers in one long file |
+
+**Mutation check** (each mutant on a copy of `scripts/`, the copy's `test_sweep_claims.sh` run):
+
+| mutant | before the new fixtures | after |
+|---|---|---|
+| fence closer length ignored (`len(line) >= len(fence[0])` → `True`) | survived | fails "a ``` line does not close a ```` fence" and the count |
+| sibling rule: `int(...) != 1` → `True` | survived | fails "a "1." item does not join the paragraph above it" |
+| sibling rule: `cur` dropped | failed the count only | also fails "a fence opened after a list marker "10." is not reported" |
+| sibling rule: `item_col is None` → `True` | failed "a sibling list item still starts a new sentence" | same |
+| sibling rule: `item_col is None or` → `item_col is not None and` | failed O and the counts | same |
+| sibling rule: `>= item_col` → `>= 0`, `> item_col`, `< item_col` | each failed a check | same |
+| Markdown `~~~` removed from `FENCE_RE` | survived | fails "Markdown: a "~~~" fenced block is not reported" and the count |
+
+**Review gate for this step:** lighter than the rounds above. These are wording fixes and
+test-only additions with no new logic, so the gate was one fresh-eyes read of the diff since
+`640c99a` by a sub-agent with no shared context. Nothing was sent to Codex, ollama or any other
+external service: the owner's consent for those covered the local session only.
