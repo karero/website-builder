@@ -17,489 +17,215 @@ description: >
   "set up codex, ollama, or antigravity for review".
 ---
 
+
 # Independent review — the cross-model gate
 
-A blocking review gate for two artifact types. The value is *independence*: a
-model that did not write the artifact, ideally from a different model family,
-cannot share the author's blind spots. Dogfooded on its own design plan — two
-rounds caught 5 BUGs the author had shipped.
+A blocking review gate. Its value is *independence*: a model that did not write the artifact,
+ideally from another model family, does not share the author's blind spots. This file holds the
+working rules. Why they exist, the incidents behind them and the long form of each test are in
+`references/rationale.md` — read the matching section when a rule's application is contested.
 
-## The two gates
+- **PLAN gate** — a planning markdown, before any code is written.
+- **DIFF gate** — a branch/PR diff, before merge.
 
-- **PLAN gate** — reviews a planning markdown *before* any code is written.
-  Catches strategy errors, stale assumptions, internal contradictions.
-- **DIFF gate** — reviews a branch/PR diff *before* merge. Catches test blind
-  spots: a guard passing while the thing it protects regressed.
+**Gate on consequence, not size.** A docs row whose "suggested fix" someone will implement, a
+runbook headed for production, or a plan an agent will execute weighs more than a small code change
+CI will catch. Pick the depth by that (Review depth, below), name it and why in the trail; never
+skip silently. With a config diff, send the code that reads the config too.
 
-### "It's only a docs row" is the wrong test — ask what the reader will DO
+**PLAN gate preconditions — the host checks these itself before any reviewer runs**
+(`references/plan-preconditions.md` for scope and contested cases):
+1. The plan can report its own progress: each step's state is recorded, and every state claiming
+   progress cites something another person can open (commit SHA, repo-qualified PR, a retained
+   test-run link — never an ephemeral CI URL). If not: a host RISK in the trail, kept OUT of what
+   the external pair sees, prior-findings list included.
+2. The plan's own decisions are settled. Close open decisions before spending a round.
 
-(Codified 2026-08-03 after a single session sent five MRs through this gate and
-**every one came back with something real**, including two where the defect was
-in the artifact's *proposed fix* rather than its description.)
+## Reviewer stack
 
-The instinct that a BUGLOG row, a ledger row, or a runbook is "too small to
-review" is about the artifact's SIZE. The thing that matters is whether someone
-will later ACT on it without re-deriving it. A deferred-bug row's "suggested
-fix" field is a **delegated instruction**: months later, an implementer reads it,
-trusts it, and builds it. It is simultaneously the field the author reasons
-about least (the bug is already understood; the fix is an afterthought) and the
-one the reader trusts most. That asymmetry is where the defects were:
+1. **Codex CLI** — `codex exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0
+   -c skills.include_instructions=false`, in the caller's cwd so it can check claims against the
+   tree. Model and effort from `~/.codex/config.toml`; `CODEX_MODEL=<tag>` overrides the model for
+   one run. Sandbox enforcement and project-context leaks are open (R-SANDBOX, R-PROJCTX in
+   `docs/reviews/OPEN-FINDINGS-independent-review.md`).
+2. **ollama cloud** — the first `:cloud` tag in `ollama list`, auto-detected; `OLLAMA_MODEL`
+   overrides. Text only, no tools. **No ollama CLI** (e.g. a cloud session): set
+   `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
+   `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
+   allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
+3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
+   only the artifact and the strict prompt, never the authoring conversation. No sub-agent
+   primitive: a separate fresh session, or record the pass as *degraded*.
+4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity`, or the owner asks ("antigravity
+   review", "agy review"). The owner's credits are scarce; a default run never touches it.
+   `AGY_MODEL` overrides; `run_agy` in the script has the call.
+5. **ollama local** — a sanity pass; never satisfies the gate alone.
+6. **Paste** — the script prints the prompt for a human to paste into any model.
 
-- A row said "add the missing build steps to the CI job." The job was *manual*,
-  so the fix would not have closed the gap. Round 1 caught it.
-- The rewrite said "…and add a cross-project trigger." A triggered pipeline ran
-  the *automatic* job, still never the manual one. **Round 2 caught the same
-  class of error one level down** — which is the case for a verification round
-  after any BUG, not just a code one.
+The standard pair (1 + 2) is the default for both gates and runs in parallel. `--first-success`
+stops at the first reviewer that counts — a conscious choice, honored for a plan too. The script
+flags any round with fewer than 2 counted reviewers: degraded unless that was the choice; say which.
 
-Practical rule: **gate on consequence, not on diff size or file extension.** A
-row whose fix someone will implement, a runbook headed for a production session,
-a plan a stage agent will execute — all carry more downstream weight than a
-small code change that CI will catch anyway. Where a lighter gate is genuinely
-right, name the gate it got and why (Procedure step 9's trail does this), rather
-than skipping silently.
-
-**Corollary — send the code that CONSUMES the config, not just the config.**
-A compose/env/infra diff reviewed in isolation reliably draws "silent no-op?"
-and "fails indistinguishably?" findings the consuming source already answers —
-one round spent a full standard pair producing exactly those two speculations,
-both refuted from twenty lines of the code that reads the variable. Include
-the reading code in the artifact, or expect to spend the round refuting.
-
-### PLAN gate preconditions — two things to check before spending a round
-
-**The HOST agent runs these checks itself, before the external pair goes out.**
-Check 1 is structurally invisible to the reviewers (the fresh-eyes seat has no
-repo access; the external pair is never asked it). Full reasoning, scope, and
-what each check does NOT establish: `references/plan-preconditions.md` —
-consult it whenever a check's verdict is contested or unclear.
-
-1. **Can the plan report its own progress?** The plan (or a sibling document it
-   names) has a place where each step's state is recorded, and every state
-   claiming progress carries a reference another person can open — a commit
-   SHA, a repository-qualified PR, a test-run link retained per the project's
-   own policy, never an ephemeral CI console URL. ("Not started" is the one
-   state needing no reference.) If not: record it as a **RISK, not a NIT**, in
-   the host's own findings and the trail (Procedure step 9), and keep it OUT
-   of the artifact sent to the external pair — including a verification
-   round's prior-findings list. Their round still runs on the plan's content
-   exactly as usual.
-2. **Are the plan's own decisions settled?** A plan whose steps are still
-   changing needs its open decisions closed first, not another round —
-   re-reviewing a moving target is how a plan reaches round seven. This defers
-   the verification round (Procedure step 6 still applies in full); it never
-   replaces it.
-
-## Reviewer stack (default STANDARD PAIR runs automatically; Antigravity is opt-in only)
-
-1. **Codex CLI** (`codex exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0
-   -c skills.include_instructions=false`) — may start outside a git repo or trusted
-   project; a project's AGENTS.md stays out of its instructions and skills are no longer
-   listed there (one live probe each). The user's global AGENTS.md still applies, and an
-   explicit `$name` mention in the reviewed text still loads a skill — R-PROJCTX. Asks the
-   CLI for a read-only sandbox
-   (enforcement untested: R-SANDBOX in the open-findings tracker); model +
-   effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
-   `CODEX_MODEL=<model-tag>` for a harder case or a long plan — config.toml's
-   reasoning-effort setting still applies on top, since the override only touches
-   the model key.
-2. **ollama cloud** (`OLLAMA_MODEL`) — the standard second reviewer, runs
-   automatically alongside Codex with no env var needed: the script
-   auto-detects your signed-in `:cloud` model from `ollama list`. The skill
-   prescribes no specific model — set `OLLAMA_MODEL` to pick a different
-   cloud or local tag if a specific case warrants it.
-3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
-   `double-knuth` skill) with NO shared context: give it only the artifact and
-   the strict prompt below. Never reuse the authoring conversation. If the host
-   has no sub-agent primitive (some Codex installs), use a separate fresh
-   session with only the artifact — or record the pass as *degraded* in the
-   trail, not as no-shared-context. On a Claude Code host, an extra pass with
-   a stronger host-family model (the Agent tool's model option) is a good
-   candidate for this seat when the owner wants a second same-family opinion
-   on top of the host's own — it's free (no external credits, no CLI), just
-   not cross-model (see the Independence rule below). Offer it after
-   presenting results, don't run it unasked.
-4. **Antigravity — OPT-IN ONLY, never automatic.** Google Gemini via the
-   Antigravity CLI (`agy --sandbox --mode plan -p`, text-only prompt;
-   `AGY_MODEL` overrides the CLI's default model — `run_agy` in
-   `scripts/independent_review.sh` has the full call), free Antigravity login. The
-   owner's Antigravity free-tier credits are scarce and get spent only when
-   explicitly worth it: pass `--with-antigravity` to the script, or the owner
-   directly asks ("antigravity review", "agy review", "worth burning a
-   credit on this one"). The default run (no flags) never touches it — this
-   is a deliberate change from earlier drafts of this skill, which ran it
-   unconditionally on every default pass and burned credits silently.
-5. **ollama local** — sanity pass only; the script never lets it satisfy the
-   gate alone.
-6. **Any model, copy & paste** — the script emits the prompt; a human pastes it
-   into whatever is available and feeds findings back.
-
-**The standard pair (Codex + ollama-cloud) is the un-flagged default for both gates** —
-DIFF included, not only PLAN; `--first-success` reduces either to a single reviewer.
-**PLAN additionally treats fewer than 2 as worth flagging**: a plan is often high-stakes
-enough that "whichever one answered first" isn't enough independence, so the script
-notes it explicitly (see Procedure below) whenever a plan lands with fewer than 2
-reviewers. The same note fires for a DIFF round too: a tier that fails quietly is
-how a one-reviewer round once passed for a pair. This is a default expectation, not a hard
-floor: passing `--first-success` on a plan is a caller's conscious choice to accept one
-reviewer instead (the script honors this, it does not override it — see the
-credit-cost tradeoff this represents). If a
-plan lands with only one reviewer's output for any reason — an explicit
-`--first-success` or a tier failing — treat the round as degraded *only if
-that wasn't the deliberate choice*, and say so either way.
-
-**Independence rule:** *classify* every tier that actually ran — which tiers
-those are is decided by the reviewer stack above (the standard pair by default;
-Antigravity only on explicit opt-in; paste always manual; local ollama runs
-whenever `OLLAMA_MODEL` names a local tag, but never *closes the gate* on its
-own), and this rule governs how the ones that ran are scored, not how many to
-launch. The tier matching the HOST agent's model family counts as the
-fresh-eyes seat, never as cross-model independence. **The gate is satisfied only when at least one
-successful reviewer is cross-model (a different family than the host)**; if
-only same-family reviewers ran, the gate is degraded and needs an explicit
-owner waiver — codex reviewing codex-authored work shares the blind spots this
-gate exists to catch. Per host: **Claude Code** — fresh-eyes = the Claude pass
-(optionally a stronger same-family pass, see the reviewer stack above —
-doesn't count as cross-model either), cross-model = Codex + ollama-cloud
-(classified by the family of the tag actually used — the standard default
-pair) + Gemini/Antigravity (opt-in extra,
-not needed to satisfy the gate since Codex or ollama-cloud already does).
-**Codex** — fresh-eyes = Codex, cross-model = ollama-cloud + Gemini + Claude.
-**Antigravity/Gemini** — fresh-eyes = Gemini, cross-model = Codex +
-ollama-cloud + Claude. On any non-Claude host, an Anthropic seat may be
-reachable via the Antigravity CLI — see `references/setup-guide.md` for the
-current model tag, verification status, and free-tier caveat; it shares the
-same scarce-quota, opt-in-only rule as every other `agy` use in this skill,
-not a standing free lane.
+**Independence rule.** The tier of the HOST's own model family is the fresh-eyes seat, never
+cross-model. The gate needs at least one successful cross-model reviewer; same-family only is
+degraded and needs an explicit owner waiver. Cross-model per host — Claude Code: Codex,
+ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
+Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
+same opt-in rule). A human round adds findings but never counts as cross-model. A Light-depth
+gate is the one exception, by the owner's standing choice (Review depth).
 
 ## Onboarding — first use
 
-When the skill is invoked and no reviewer that is **cross-model for the
-current host** is installed and working (per the Independence rule above —
-LOCAL ollama alone, or a same-family cloud tool, never counts), read
-`references/onboarding.md` and run its wizard rather than dumping install
-commands: sell the benefit, detect what already works (never re-onboard a
-returning user), help them choose a tool, walk the human-only steps one at a
-time, confirm each tool with a real test review quoted as evidence, then
-teach the plain-language trigger phrases.
+If no reviewer that is cross-model for this host is installed and working (local ollama or a
+same-family tool never counts), run the wizard in `references/onboarding.md` — don't dump install
+commands.
+
+## Review depth — pick it before round 1
+
+Match the reviewers to what a mistake would cost. The host picks from the changed-file inventory
+(a plan: from what it would change); when unsure, the deeper one. The owner may override. The trail
+names the depth and why, and the host tells the owner the depth before round 1 runs.
+
+| Depth | For | Reviewers | Rounds |
+|---|---|---|---|
+| **Light** | copy, docs and content nobody executes; test-only changes; small fixes to tooling that touches no user data and no production path; a website-content plan | ONE seat, no script: the host's own diff review (Claude Code: `/code-review` at `medium`; no diff or no such command: `double-knuth`). `--first-success` instead when a cross-model seat is wanted | 1, plus one if it found a BUG |
+| **Normal** (default) | everything else | the standard pair + fresh-eyes on a mid-tier host-family model (Claude Code: the Agent tool's `sonnet` option) in round 1; verification rounds: the pair only, Codex at medium effort (the `--verify` default) | step 6 |
+| **High** | auth or permissions, payments or billing, personal data, deletion or migrations, secrets, security boundaries, public API or contract changes, deploy or infra, privacy or legal texts | the pair + fresh-eyes on the host's own model EVERY round; Codex at config.toml's effort every round (`CODEX_EFFORT=config`) | step 6 |
+
+**Light is same-family by design** on a Claude Code host and needs no cross-model seat — the
+owner's standing choice (2026-09-26) for low-consequence changes; the trail says "Light gate".
+**Escalate to Normal** as soon as a Light review finds a BUG in code that runs, or the change
+turns out to touch anything in the High row. `CODEX_EFFORT=<minimal|low|medium|high|xhigh>` sets
+Codex's effort for any run.
 
 ## Procedure
 
-1. **Data check before anything leaves the machine.** External reviewers are
-   third-party services: grep the artifact for secrets (keys, tokens, passwords,
-   customer data) and get the owner's OK the first time a given repo's content
-   is sent out **to each destination service, not just each named tool** —
-   Codex, ollama-cloud, and Antigravity are separate services with separate
-   consent, not one blanket "external reviewers are OK," and naming the tool
-   isn't always naming the destination: Antigravity with `AGY_MODEL` set to
-   a Claude tag routes content on to Anthropic too, a distinct destination
-   from Antigravity's own Gemini path, needing its own consent — and the
-   paste tier (tier 6) sends the same artifact to whatever service a human
-   pastes it into, chosen ad hoc, which needs the same per-destination
-   consent as any named provider, not a free pass for being manual. Record
-   the OK the way the permission table (`references/closeout.md`) records
-   an owner instruction (atom B: quoted verbatim). **Only a standing
-   instruction durably written in the repo persists across sessions** — a
-   later session can check for that and tell "owner consented for this
-   provider" from "nobody has asked yet." This session's own in-conversation
-   record is real consent for the current session, but per this file's own
-   durability standard (an in-session hand-off doesn't count as durable
-   anywhere else here either) it is invisible to a later one — that session
-   re-asks rather than assuming consent it cannot see. Adding a new provider
-   later needs its own consent, not an inherited one. If the content must stay local, run the script with
-   `--local-only` (skips codex/agy/paste entirely; local ollama only — the
-   script requires the EFFECTIVE ollama tag to be local: under `--local-only` the
-   cloud auto-detect default is never applied, and an explicitly-set cloud tag is refused outright,
-   rather than silently sending content out) plus the tier-3 host fresh-eyes
-   pass — tier 6 (paste into any model) is just as
-   external as the CLIs and is excluded. A local-only verdict is inherently
-   DEGRADED; record that in the trail.
-2. Run the external half (path relative to THIS skill's directory — after an
-   install that is `<skills-root>/independent-review/scripts/…`):
-   `scripts/independent_review.sh <artifact.md|diff-file|-> [--plan|--diff]`
-   — `--plan`/`--diff` is optional: the script auto-detects from the input —
-   a `.diff`/`.patch` filename resolves to diff, anything else to plan, and
-   **stdin (`-`) has no filename to guess from at all, so it defaults to
-   diff** — that resolved value is the `<gate>` step 9(a)'s trail filename
-   uses. Pass the flag explicitly whenever the filename wouldn't guess
-   right, and always when piping a plan through stdin (a piped plan
-   otherwise silently loses the PLAN gate's <2-reviewers flag and gets
-   mis-named as a diff trail). Default runs the standard pair (Codex + ollama-cloud) and prints one
-   section per reviewer it attempted — its review, or `## Independent review — <tier> — FAILED`
-   quoting the tier's error — then one closing line such as `reviewers: codex OK, ollama-cloud
-   FAILED (quota/rate limit: wait or add credits)`. Read that line before consolidating: exit 0
-   means at least one reviewer succeeded, not that the pair did. `--first-success` is the quick mode (for a `--plan`
-   this deliberately drops from the default 2 reviewers to 1 — a conscious
-   choice for lower-stakes plans, honored not overridden — see the reviewer
-   stack above). Add `--with-antigravity` only when it's genuinely worth
-   spending one of the owner's scarce Antigravity credits — never by default.
-   Exit 4 = no reviewer ran = gate FAIL (never treat as clean).
+1. **Data check before anything leaves the machine.** Grep the artifact for secrets (keys, tokens,
+   passwords, customer data). Get the owner's OK the first time a repo's content goes to each
+   destination SERVICE — Codex, ollama-cloud, Antigravity, Antigravity routed to a Claude tag, and
+   whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
+   instruction written in the repo carries to a later session, which otherwise asks again. Content
+   that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
+   non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
+2. **Run the external half** (Normal and High; Light runs its one seat instead). Set Codex's
+   effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
+   verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
+   [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
+   directory; depth and round only feed the cost log). Type is auto-detected
+   (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
+   on stdin. A DIFF artifact is the change without the trail:
+   `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'` (the trail still ships in the PR;
+   reviewers auditing it cost rounds). Over 117 KB: split it. Output: one section per attempted
+   reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
+   and a `timings:` line. Exit 0 means at least one reviewer counted, not the pair — read the
+   reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
+   TOP (the list is ranked); never through `tail`.
 
-   **Build that artifact from the CHANGE, not from the whole diff — exclude `docs/reviews/`.** A
-   DIFF gate on a branch that already carries a trail file will otherwise send the trail to the
-   reviewers, and they will review it: its arithmetic, its finding counts, whether it describes the
-   round currently reading it. Those findings are real — an arithmetic error in a trail IS an error
-   — but they are about the review RECORD, not the change under review, and they arrive in rounds
-   that would not otherwise have happened. Generate the artifact with the trail excluded:
+   **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` lists
+   the sentences the change adds (or edits beside) that claim an absence or a universal; `--file
+   <plan>` lists every such sentence in the file outside fenced code. Check each as
+   `references/claims-sweep.md` says.
+3. **Fresh-eyes pass** with the strict prompt below, on the model the review depth names —
+   round 1 only at Normal, every round at High, never at Light — started in the background
+   BEFORE the script so every seat runs at once.
 
-   ```
-   git diff <base>...HEAD -- . ':(exclude)docs/reviews/'
-   ```
+   **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
+   gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
+   <name> --model <m> --seconds <s> --tokens <t> --gate <plan|diff> --depth <d> --round <N>`
+   (a Claude Code sub-agent reports its duration and tokens). The log is local, never committed;
+   `scripts/review_log.sh summary` compares depths and seats across PRs.
+4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
+   source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
+   - *refuted* — shown not to be an issue, to step 5's evidence standard; no sign-off.
+   - *waived* — RISK/NIT only; a reason and the owner's sign-off.
+   - *deferred* — BUG only, under step 5's exception.
+   - *follow-up* — a RISK/NIT a verification round raised outside its scope (step 6). Doesn't
+     block, needs no sign-off; listed for the owner (step 8), who may reopen it. Never a BUG.
 
-   Audit the trail's own numbers yourself instead. Two MRs on the same internal backend repo
-   (8 and 7 rounds) each paid a late round that found nothing but the trail auditing itself —
-   excluding the file PREVENTS that loop; the "scope it by RULE, not round number" guidance
-   only BOUNDS it. **The trail must still be in the MR diff** — a repo CI gate may require it
-   and clerk item 3 (`references/closeout.md`) commits it — this is only about what reaches the reviewers.
+   An existing annotation in the artifact (a code comment, a plan note) closes a re-raised
+   finding only if its reasoning covers what this reviewer raised — then it can back a refutation,
+   or a waiver that traces to a real prior owner decision. Otherwise the finding is new signal.
+5. **Enforce the verdict** — the skill's job, never the exit code. Every confirmed BUG is fixed
+   (one exception below); every RISK/NIT is fixed, refuted, waived or follow-up. No blanket waivers.
+   - **Evidence.** Fixed and refuted both need evidence that fits the claim: run, reproduce or
+     rule out a runtime claim; quote the text for a structural or wording claim. Test the
+     reviewer's whole reasoning, not only their example; for a reachability claim trace the real
+     access path (auth, routing, permissions), not the type's shape. A claim that can't be checked
+     now (missing environment, credentials) stays OPEN with the missing prerequisite named — a
+     RISK/NIT there may still be waived.
+   - **The one exception — a BUG the change did not introduce** (DIFF gate only). The owner may
+     defer it when all three hold: (1) every wrong input the row quotes goes wrong at the
+     merge-base, through an entry point the target branch already used; (2) a row in the repo's
+     open-findings tracker gives its id, location, finding and the owner's dated sign-off; (3)
+     tests CI runs assert today's wrong result for each quoted input, labelled KNOWN WRONG and
+     naming the row (a BUG no test can pin, such as wording, doesn't qualify — fix it). A change
+     that lets more inputs or a new caller reach an old defect introduced those results: fix them
+     or hold the change. A deferred BUG is closed for this gate (it doesn't block a clean round or
+     count at the cap) and stays open in the tracker; each trail records DEFERRED with this gate's
+     merge-base reproduction (command and output). After the last round: "deferral not externally
+     re-verified".
+6. **Iterate — fix, then re-review WHAT CHANGED.** A *verification round* checks the fixes, not
+   the whole change again.
+   - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`; if
+     the base was merged in or the branch rebased since, run a full round instead. PLAN: the whole
+     plan, with the changed sections named in the prior-findings file.
+   - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
+     BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
+     `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
+     depth the fresh-eyes pass gets the same text, file and artifact) — confirm each fix landed in full and each
+     deferral meets step 5's conditions, check what changed for new problems, list the rest under
+     OUTSIDE SCOPE, and don't report clean to oblige.
+   - **Triage OUTSIDE SCOPE:** a BUG is a finding; a RISK/NIT is a follow-up. Scope is the host's
+     call, not the reviewer's label — re-sort misfiled items.
+   - **Two statuses per fix:** `locally_verified` (the author demonstrated it to step 5's standard)
+     and `externally_reverified` (a later round confirmed it). A checkable claim with neither
+     stays OPEN.
 
-   **Prose change? Sweep its claims before round 1:** `scripts/sweep_claims.sh --base <base>` lists the sentences the change
-   adds (or edits beside) that claim an absence or a universal; `--file <plan>` lists every such sentence in the file outside fenced code. Check each as `references/claims-sweep.md` says.
-3. Run tier 3 (fresh-eyes) with the same strict prompt.
-4. **Consolidate**: dedup findings across reviewers; keep per finding — a stable
-   id, severity (BUG/RISK/NIT), source reviewer(s), location, and status: open, fixed, refuted,
-   waived, or deferred. A waiver needs a reason and the human owner's sign-off; deferred is for a
-   BUG only, under point 5's one exception. Refuted applies the same way to
-   a BUG, RISK, or NIT alike — it needs the disproving reasoning instead of an owner sign-off,
-   since a refuted finding was never a real issue.
+   **Stop conditions.** (a) Clean — done. **(a2) Zero BUG and zero in-scope RISK is clean**
+   (deferred BUGs and follow-ups don't count): stop; fix or refute its NITs without another round,
+   recording fixed NITs as `locally_verified`, "closing edits not externally re-verified". Judge by
+   the BUG/RISK series, not the NIT column. (b) The round cap, below. (c) Budget or credits run
+   out: stop iterating once every BUG is fixed, refuted or deferred and every RISK/NIT is fixed,
+   refuted, waived or a follow-up; record "last round not re-verified" and run one later. Deferring
+   a fix is legitimate only under step 5; a waiver is granted or refused, never put off. These
+   conditions decide whether to run another round, nothing else — the marker's rule is closeout's.
 
-   **A pre-existing artifact annotation never auto-closes a finding that re-raises it — its own
-   reasoning must actually cover what THIS reviewer raised, confirm that first.** Only once
-   confirmed: if the artifact itself already explains a deliberate choice a finding re-raises (a
-   code comment, a plan annotation — e.g. from a prior planning-stage review whose reasoning was
-   carried forward, see `phased-plan-runner`'s equivalent convention for artifacts produced by
-   that skill), triage can cite that existing reasoning instead of a from-scratch re-derivation —
-   but citing it does not by itself pick a status: the finding still resolves to REFUTED only if
-   the annotation's reasoning actually disproves it, or to WAIVED only if the annotation traces to
-   a real prior owner decision (citing an old waiver does not manufacture a NEW one's required
-   sign-off out of nothing — get a fresh one if the annotation doesn't already clearly carry it).
-   An annotation that merely explains a tradeoff the team accepted, without disproving the finding,
-   is waiver-shaped, not refutation-shaped — treat it as such, not as an automatic close.
-   Whenever the annotation's reasoning does NOT cover what the new finding raises, that finding is
-   new signal — not repetition — regardless of whether the reviewer saw the annotation; it gets
-   triaged like any other finding, never dismissed because *something* was already written nearby.
-5. **Enforce the verdict** (this is the skill's job — never the script's exit
-   code): every BUG confirmed real by verification must be fixed. The one exception is a BUG
-   the change did not introduce; the paragraphs after this one say when the owner may defer it.
-   A BUG conclusively shown to be a non-issue is REFUTED, not waived, and needs no owner sign-off; RISK/NIT
-   may be waived only with a reason and the human owner's sign-off, OR likewise REFUTED (not waived)
-   if conclusively shown to be a non-issue — no blanket waivers either way. "Conclusively shown"
-   means evidence appropriate to what's actually being claimed: empirical verification (run it,
-   reproduce it, or rule it out — under the SAME standard as failure shape (a) below, testing the
-   claim's full stated reasoning, not just one cited example) for a claim about runtime/checkable
-   behavior; direct textual or
-   logical demonstration — quoting the actual contradiction, or its absence — for a claim about
-   structure, logic, or wording, where there is no runtime to check against. Don't demand an
-   empirical test a claim was never about in the first place.
+   **The round cap (6(b)): 3 rounds per artifact**, counted in rounds, not per finding.
+   - After round 3 with no BUG open (a deferred BUG is not open): stop. Open RISK/NIT go to the
+     owner as ONE decision — fix locally (`locally_verified`, "not externally re-verified") or
+     waive. They never earn a round on their own.
+   - After round 3 with a BUG open (one it raised or re-opened counts even once fixed locally),
+     the **BUG-trend extension**: while the round's confirmed BUGs (not refuted, not deferred) are
+     fewer than the round before's, run another, up to **round 5** — e.g. 4 → 2 → 1 earns round 4;
+     round 4 earns round 5 only if lower again. Name the extension rounds and their BUG series in
+     the trail.
+   - A BUG open when the cap fires — round 3 without a falling count, an extension round that did
+     not fall, or round 5 — is a hard gate-FAIL: surface and block; step 7's options apply.
 
-   **The one exception: a BUG the change did not introduce.** DIFF gate only; a plan has no base
-   to compare against, so a BUG in a plan is fixed before anyone builds from it. The owner may
-   defer the BUG out of the change when all three hold:
-   - every wrong input the row quotes goes wrong at the merge-base with the target branch,
-     through an entry point the target branch already used at the merge-base, before this change
-     — so the change did not create it;
-   - a row describes it in the repo's open-findings tracker — a file in the repo with a BUG
-     section, whose row gives the id, the location, the finding and the owner's dated sign-off;
-   - tests that the repo's CI runs assert today's wrong result for each quoted input, are
-     labelled KNOWN WRONG and name the row, so whoever fixes the BUG changes them on purpose. A
-     BUG no test can pin, such as wrong wording, does not qualify: fix it.
-
-   **A widening is a BUG the change introduced.** If the change lets more inputs reach an old
-   defect, or adds a caller that reaches it, the new wrong results did not exist at the
-   merge-base, so condition 1 fails for them: fix them, or hold the change. The row may be new,
-   written by the change itself; what counts is that its inputs go wrong at the merge-base.
-
-   **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
-   not keep a round from being clean (6(a2)), does not count toward the three-round cap (6(b)),
-   and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
-   tracker it stays open, in the BUG table, until someone fixes it. The owner's sign-off carries
-   over to later gates, but each gate's trail records DEFERRED, never fixed or refuted, together
-   with its own merge-base reproduction — the command and its output — so condition 1 is at least
-   `locally_verified`. A deferral made after the last round is marked "deferral not externally
-   re-verified", as (c) does for fixes. (Codified 2026-09-26: the owner had deferred BUGs, and
-   once a widening of one, under a rule that said "no exceptions", so the rule and the practice
-   had drifted apart. Widenings were left out after four review rounds failed to define one that
-   two readers would apply the same way.)
-
-   **Verify checkable claims — empirically where the claim is about runtime/checkable behavior, by
-   direct textual/logical demonstration where it's about structure, logic, or wording — before
-   calling them fixed OR refuted; a reviewer's named example is illustrative, not exhaustive.** Two
-   recurring failure shapes:
-   (a) a fix that resolves only the ONE example a reviewer happened to cite (a specific
-   string, a specific input) can still leave the reviewer's actual, broader claim true — test
-   against their full stated reasoning, not just the named case, before marking it fixed
-   (caught in practice: a regex fix was accepted after disproving only one cited false-positive
-   string, but the reviewer's broader point still reproduced on a harder test). (b) a finding that an
-   API/data surface is reachable, or behaves a certain way, is NOT settled by confirming a
-   type/field/shape matches — trace the real access path (auth mechanism, routing,
-   permissions) it actually goes through; a correctly-shaped type sitting behind different
-   auth than assumed is still wrong, and "the shape looks right" is exactly the plausible
-   half-check that misses it. Both apply symmetrically to REFUTING a finding, not just
-   fixing one: don't dismiss a reviewer's claim as wrong just because its own cited example
-   fails to reproduce — check whether the underlying point still holds under a harder case
-   before writing it off. **A claim that's checkable in principle but can't actually be tested
-   right now** (missing environment, credentials, or permissions) **stays OPEN**, with the
-   missing prerequisite recorded — don't force it into fixed or refuted without the check that
-   would justify either. (A RISK/NIT in this state may still be WAIVED with a reason and the
-   owner's sign-off, same as any other open RISK/NIT — waiving needs no check, just the owner's
-   call; only fixed/refuted are blocked pending the missing prerequisite.)
-6. **Iterate — fix, then re-review.** Send the updated artifact back through
-   the reviewers as a *verification round*: give them the prior round's BUG
-   list — and, for each BUG DEFERRED under point 5, its tracker row, its merge-base reproduction
-   and the names of the KNOWN WRONG tests that pin it, since point 2's exclusion usually keeps the
-   tracker out of what they see — ask them to confirm each fix landed, that each deferral meets
-   point 5's three conditions, AND that the fixes introduced
-   nothing new — and tell them the author expects clean **and that they must
-   not oblige out of politeness** (expectation of cleanliness is exactly the
-   bias that turns round 2 into a rubber stamp). Repeat until essentially
-   clean. Stop conditions: (a) clean — done; **(a2) a round returns ZERO BUG and ZERO RISK (a
-   BUG DEFERRED under point 5 does not count, whether that round first raised it or raised it
-   again without new evidence) — that
-   IS "clean", and it is the signal to stop, not an invitation to spend one more round chasing the
-   NITs it did return.** NIT-only rounds are where a gate quietly doubles in cost: each one returns
-   two or three more, because prose can always be tightened and a reviewer asked for findings will
-   find some. Fix or refute that round's NITs and close, without sending them back out. **A NIT you FIX
-   changes the artifact, so the thing you close on is not the thing that came back clean** —
-   record those fixes as `locally_verified` (point 6's own two statuses) and note in the trail
-   that the closing edits were not externally re-verified, the same admission (c) makes for the
-   same reason. Refusing this costs another full round and defeats (a2); leaving it unsaid
-   claims a coverage the gate did not have. A NIT that is refused or waived edits nothing and
-   needs neither. Re-read the
-   BUG/RISK-per-round series, not the raw finding count — a series like 5 → 2 → 2 → 1 → 0 has
-   already converged at the 0, whatever the NIT column says; (b) 3 rounds with BUG/RISK still
-   open (a DEFERRED BUG is not open here) — hard gate-FAIL, surface and block; (c) **budget/credits exhausted**
-   — you may stop ITERATING once all known BUGs are *fixed, refuted, or deferred under point 5's
-   one exception* AND every RISK/NIT is
-   fixed, refuted, or explicitly owner-waived (same bar as point 5's blocking rule), postponing
-   only the external re-verification of those fixes; record "last round not
-   re-verified" in the trail and run a later round when resources allow.
-   Postponing verification is legitimate. Deferring a fix is legitimate only under point 5's one
-   exception, and a waiver is granted or refused, never put off.
-   **This governs whether to run another round, and nothing else** — in particular it has no
-   bearing on the consolidated marker, whose own rule lives in clerk item 2.
-
-   **What "3 rounds" counts, since this is ambiguous the moment you need it.** The cap is
-   **per stable finding id** (point 4's id), not per calendar round: a finding first raised in
-   round 3 gets its own remediation-and-verification round before the cap can fire on it, and a
-   finding open across rounds 1–3 fails the gate even if that round found other, newer things.
-   **A redesign starts a NEW artifact and a new count.** When point 7 says stop patching and
-   redesign, the review of the redesign is round 1 of that new artifact, not round 4 of the cycle
-   it replaced — otherwise the cap would forbid reviewing the very rewrite it just demanded. Say
-   in the trail which artifact a round belongs to, so the count is never reconstructed by memory.
-   Re-gates forced by a moved diff (clerk item 2) do not count against the cap — they re-establish
-   coverage rather than iterating on findings.
-
-   **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
-   `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
-   to point 5's standard. `externally_reverified` = an independent reviewer confirmed the fix in
-   a later round. A checkable claim with neither status stays OPEN and blocking. The one exception
-   is a BUG DEFERRED under point 5: it has no fix to verify, and its merge-base reproduction must
-   itself be `locally_verified`. Record both per
-   finding; a trail that says only "fixed" does not say which.
-7. **Convergence check — the rabbit-hole detector.** Iteration is only healthy
-   while quality demonstrably rises each round. After every round, check three signals:
-
-   **(a) Finding count.** Is it falling? Don't read this alone as the verdict — a rising count
-   from genuinely new scrutiny is healthy: a later round that finally verifies claims no earlier
-   round checked SHOULD find more, not fewer, real issues.
-
-   **(b) Are findings landing on genuinely new ground?** A finding PASSES (b) when it targets
-   code *added by the previous round's fixes*, or when checking it names a concrete new thing —
-   a specific check, input class, execution path, invariant, or evidence source the earlier pass
-   didn't use (e.g. round 3 starts empirically tracing auth/data-access paths where rounds 1-2
-   only reasoned from reviewer prose) — regardless of whether the overall method is nominally the
-   same or different; simply asserting a pass was "more careful," "deeper," or used a "different"
-   method, without naming that concrete delta, does not pass (b) on its own. A genuinely new
-   method that comes back CLEAN isn't a (b) failure either — there's no finding for it to
-   classify; it's valid convergence evidence, not wasted effort. (b) FAILS when a finding
-   re-covers ground a PRIOR PASS explicitly checked and reported CLEAN, without naming that
-   concrete new thing — this is about ground nothing was ever raised against, a different
-   population from the re-raises (c) below covers, where something WAS raised and dispositioned.
-
-   **(c) No oscillation.** A fix that, once verified per point 5's own standard (reproduced or
-   demonstrated, not just asserted), DEMONSTRABLY re-breaks something an earlier round FIXED means
-   STOP regardless of how many other findings that round are genuinely new — a regression isn't
-   offset by unrelated progress elsewhere. This is the only EVEN-ONE-finding trigger in this
-   section; every other case below pools into the STOP threshold's MOST-of-the-round test instead.
-
-   A reviewer re-raising a finding THIS REVIEW's own round-to-round trail already dispositioned
-   (matched by the stable id from point 4, not just similar wording) is common and NOT
-   automatically oscillation — an independent reviewer, especially the no-shared-context
-   fresh-eyes seat, is expected to sometimes re-notice something a prior round already
-   handled, precisely because that seat doesn't know the prior rounds happened. What matters,
-   checked with the same verification standard as any other claim (not just asserted): does the
-   re-raise bring new reasoning or evidence beyond what the prior disposition already considered —
-   the same coverage test point 4 uses for pre-existing artifact annotations (does the prior
-   disposition's reasoning actually cover what the new evidence raises?), adapted here to
-   round-to-round dispositions *within this review*. If it does, it's a fresh finding, full stop,
-   regardless of what the prior disposition was. If it doesn't (checked, and the original
-   disposition still holds), where it counts depends on that prior disposition:
-   - a re-raise of something FIXED or REFUTED with no new reasoning pools into the MOST threshold
-     below, alongside (b)-failures — NOT this signal's strict even-one bucket above. It's reviewer
-     overhead (re-checking a claim that turned out to still be nothing new), not the artifact
-     regressing; the strict bucket is for a DEMONSTRATED regression specifically, and holding a
-     routine no-shared-context re-raise to that same bar would effectively punish running a
-     genuinely independent reviewer every round — the whole point of that seat.
-   - a re-raise of a BUG DEFERRED under point 5, with no new reasoning, pools into the MOST
-     threshold too: the owner accepted it as real and it stays open in the tracker, so re-noticing
-     it is neither a regression nor new signal.
-   - a re-raise of something WAIVED with no new reasoning also pools into the MOST threshold, for
-     a related but distinct reason: waiving concedes the issue may be real, so it was never "ruled
-     clean" (that's (b)'s own test above) and re-noticing it isn't a regression of something
-     dispositioned-as-resolved (that's this signal's own test above) — it's an independent
-     reviewer correctly re-noticing something the owner already knew about and accepted.
-   - a re-raise of something still OPEN under point 5's untestable-claim rule (blocked on a
-     missing prerequisite) pools into the MOST threshold the same way: it was never "ruled clean"
-     either, and there's no fixed/refuted disposition for it to contradict — restating a known,
-     already-tracked open item is not new signal, but it isn't instability either.
-
-   **STOP patching when:** the regression case above fires for even one finding; OR (b)-failures
-   and any of the four no-new-evidence re-raise cases above, TOGETHER, characterize MOST (more
-   than half) or all of the round's findings — not just one stray finding amid otherwise-new ones;
-   OR the count plateaus for two consecutive rounds AND those plateauing findings are not
-   predominantly (b)-passing (a plateau of genuinely distinct, newly-surfaced findings each round
-   is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
-   area is bigger than first estimated, worth naming explicitly rather than silently forcing
-   STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s hard
-   3-round cap for any round that still has a BUG or RISK open — that cap bounds iteration on
-   those regardless of how these signals read; a round left with ONLY NIT churn has no equivalent
-   hard cap and relies on these signals alone.) When triggered: step back and redesign the
-   component (patch-churn on a wrong design converges never), or take the open items to the owner
-   as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
-   BUG that's still open. It can defer a BUG out of the change only under point 5's one
-   exception. A BUG blocked on a missing prerequisite (point 5's untestable-claim rule) is held
-   open, not deferred: holding it keeps the release blocked, and the BUG can close only after the
-   prerequisite becomes available and verification supports either a refutation or a verified
-   fix. Point 5's rule holds regardless of who's deciding. Say so plainly in the trail — "stopped: not
-   converging" is a legitimate, documented outcome; silent round 7 is not.
-8. **Keep the human in the loop — narration is part of the gate.** Between
-   rounds, tell the owner: what was found, what was fixed, what is pending,
-   the convergence trend (e.g. 19 → 9 → 6), and roughly what each round
-   costs. The owner steers — they can stop, waive, redirect, or run a
-   **manual round of their own**; a human review round is a first-class
-   reviewer seat and goes in the trail like any other (reviewer: owner,
-   findings, dispositions). **It does not, however, satisfy cross-model
-   independence** — a human round contributes findings, but the Independence
-   rule's requirement of at least one successful CROSS-MODEL reviewer is about
-   model families and can only be met by a model. An owner round on top of a
-   same-family-only set leaves the gate degraded, needing the same explicit
-   waiver as before; it does not close it. Never let rounds run silently back-to-back. Once
-   the standard pair (and any fresh-eyes pass) has reported, ASK — don't just
-   stop — whether the owner wants anything more: a `--with-antigravity` round
-   (spending one of the scarce credits), or an extra same-family pass with a
-   stronger host-family model (free, no external credits, just not
-   cross-model). Offer, don't run either unasked.
-9. **Close out — both halves, not just the trail file.** Read
-   `references/closeout.md` and follow it: (a) write the trail file
-   (`docs/reviews/REVIEW-<gate>-<date>-r<round>-…`, collision-proof naming
-   rules there), and (b) post each reviewer's raw notes plus the consolidated
-   verdict to the PR/MR with the SHA-stamped marker **before merging** — a
-   committed trail alone is not a visible review. Which permission each
-   close-out action needs, and what to do when it is absent, is decided ONLY
-   by that file's permission table — consult it BEFORE deciding to write
-   anywhere, not after. Capture reviewer output by streaming it to disk, read
-   it from the TOP (the list is ranked — a tail hides the BUGs), and delete
-   the run's `$RAW_DIR` only once a durable verbatim copy exists, per the
-   cleanup rules there.
+   A redesign is a new artifact with a new count; say in the trail which artifact each round
+   belongs to. Re-gates forced by a moved diff (closeout, clerk item 2) don't count.
+7. **Convergence check** after every round: is the BUG/RISK count falling; do findings land on new
+   ground (code the last fixes added, or a named new check, input, path or evidence source — "more
+   careful" doesn't count); is anything oscillating? **STOP patching** when a verified fix
+   re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
+   re-cover ground a prior pass reported clean, or re-raise a dispositioned finding (fixed,
+   refuted, waived, deferred, or open on a missing prerequisite) without new evidence; or when the
+   count plateaus two rounds on mostly such findings. Then redesign, or take the open items to the
+   owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
+   only under step 5). "Stopped: not converging" goes in the trail. Long form:
+   `references/rationale.md`.
+8. **Keep the owner in the loop.** Between rounds: what was found, fixed and pending, the BUG/RISK
+   trend, what the round cost (the `timings:` line; the host seats' duration and tokens) and
+   any follow-ups. The owner may stop, waive, redirect, or run a manual round (a first-class seat
+   in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
+   fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger
+   same-family pass.
+9. **Close out** — read `references/closeout.md`, permission table first, and do both halves:
+   (a) the trail — ONE compact file per gate, updated each round; (b) ONE PR/MR comment per gate,
+   edited each round: the consolidated verdict with the SHA-stamped marker, and each round's raw
+   reviewer output collapsed beneath it. Post before merging. Raw output is not committed as
+   `RAW-*.md` files (a PLAN gate with no PR/MR: closeout item 4); delete `$RAW_DIR` only once a
+   durable verbatim copy exists.
 
 ## The strict review prompt (both gates)
 
