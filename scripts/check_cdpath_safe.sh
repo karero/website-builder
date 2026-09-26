@@ -70,7 +70,7 @@ rc=0
 # `make check` most needs to work for.
 discover() {
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null | head -n1)" ]; then
-    git ls-files -z 2>/dev/null | tr '\0' '\n'
+    git ls-files 2>/dev/null
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
          ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
@@ -114,10 +114,16 @@ mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"
 diffs=0
 for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
-  a_out="$(bash "$s" 2>&1)"; a_rc=$?
-  b_out="$(CDPATH="$decoy" bash "$s" 2>&1)"; b_rc=$?
+  # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
+  # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
+  # stdout+status is the whole signal. stderr is not deterministic: check_prompt_sync.sh:30 is a
+  # `grep | head -1`, and whether grep loses the SIGPIPE race and prints "write error: Broken
+  # pipe" depends on machine load. That raced zero times in 15 local runs and ten times in one
+  # CI run, failing this guard with the tell "(exit 0 vs 0)" — identical status, noise-only diff.
+  a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
+  b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
-    echo "FAIL — $s behaves differently under an exported CDPATH (exit $a_rc vs $b_rc):"
+    echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
     diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'
     diffs=$((diffs + 1)); rc=1
   fi
