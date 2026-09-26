@@ -91,10 +91,23 @@ the codex and ollama CLIs must re-gate the current pair with every seat.
   part of that review.
 - **Marker stamp** (GATED-THIS-DIFF): not taken; see above.
 
-## Out of scope, noted
+## CI flake folded in, at the owner's request
 
-`cdpath-safe` failed once in CI on `84ea3ee`, in the push run for the session branch.
-The cause was `grep: write error: Broken pipe` from `grep … | head -1` at
-`skills/independent-review/scripts/check_prompt_sync.sh:30`, which that check diffs as stderr.
-It passed on both PR runs of the same commit and 30 times in a row locally. It is not this PR's
-code. It was queued as a separate task instead of widening this PR.
+`cdpath-safe` failed at random, on this PR and on `main` (3 of the last 5 `main` runs). The cause
+was `skills/independent-review/scripts/check_prompt_sync.sh`: two pipelines whose last stage
+stops reading early (`| head -1` at line 30, `| grep -q` at line 78). The upstream `grep` then
+writes into a closed pipe. GitHub's runners ignore SIGPIPE, so grep prints
+`write error: Broken pipe` instead of dying silently, and `check_cdpath_safe.sh` diffs that
+stderr line as a behaviour change. That is also why it never showed locally.
+
+The first patch proposed on the PR, `grep -m1`, was wrong. It only moves the early exit one
+stage up, and measured worse: 6/100 runs against 3/100. The fix makes no consumer stop early.
+`sed -n '1s/:.*//p'` replaces `head -1 | cut`, and line 78 matches against `<<<"$(uncommented …)"`
+with no pipe.
+
+`locally_verified`:
+- With SIGPIPE ignored, as on the runners, the broken pipe went from 3/100 runs to 0/300.
+- Output is byte-identical to before, and all 17 built-in mutation self-tests still fire.
+- `make check` passes, and `check_cdpath_safe.sh` passed 20 in a row with SIGPIPE ignored.
+
+This code is part of the pair the next cross-model round must see.

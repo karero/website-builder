@@ -26,8 +26,11 @@ TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
 # any shape fails there, whether or not this check sees it.
 uncommented() { grep -vE '^[[:space:]]*#' "$1"; }
 assignments() { uncommented "$1" | grep -oE "$2\+?=|-v[[:space:]]+$2\b" | wc -l | tr -d ' '; }
+# No consumer below may stop reading early (head, grep -q, grep -m): the writer upstream then
+# hits a closed pipe, and where SIGPIPE is ignored (GitHub's runners) grep prints "write
+# error: Broken pipe" at random, which check_cdpath_safe.sh reads as a behaviour change.
 assign_line() {  # line number of the first occurrence of $2 being assigned, or empty
-  uncommented "$1" | grep -nE "$2\+?=" | head -1 | cut -d: -f1
+  uncommented "$1" | grep -nE "$2\+?=" | sed -n '1s/:.*//p'
 }
 
 norm() { tr -s ' \t\n' '   ' | sed -e 's/^ //' -e 's/ $//'; }
@@ -75,7 +78,7 @@ check() {  # $1 script, $2 SKILL.md; prints each problem, returns 1 if there is 
   for v in $TIERS; do
     n=$(assignments "$1" "$v")
     [ "$n" = 1 ] || { echo "$v is assigned $n times; expected once"; bad=1; }
-    uncommented "$1" | grep -qE "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
+    grep -qE "^[[:space:]]*$v=\"\\\$\{PROMPT_CORE\}" <<<"$(uncommented "$1")" || { echo "$v does not begin with \${PROMPT_CORE}"; bad=1; }
     vl=$(assign_line "$1" "$v")
     [ -n "$cl" ] && [ -n "$vl" ] && [ "$cl" -lt "$vl" ] || { echo "PROMPT_CORE is not assigned before $v"; bad=1; }
   done
