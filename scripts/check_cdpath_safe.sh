@@ -116,10 +116,11 @@ for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
   # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
   # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
-  # stdout+status is the whole signal. stderr is not deterministic: check_prompt_sync.sh:30 is a
-  # `grep | head -1`, and whether grep loses the SIGPIPE race and prints "write error: Broken
-  # pipe" depends on machine load. That raced zero times in 15 local runs and ten times in one
+  # stdout+status is the whole signal. stderr is not deterministic: check_prompt_sync.sh had a
+  # `grep | head -1`, and whether grep lost the SIGPIPE race and printed "write error: Broken
+  # pipe" depended on machine load. That raced zero times in 15 local runs and ten times in one
   # CI run, failing this guard with the tell "(exit 0 vs 0)" — identical status, noise-only diff.
+  # That pipeline is gone (grep -m1 on the file), but any subject can grow another one.
   a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
   b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then

@@ -53,7 +53,7 @@ for loc in C.UTF-8 C.utf8 en_US.UTF-8 en_US.utf8; do
   if grep -qixF "$loc" <<<"$LOCALES"; then UTF8_LOCALE="$loc"; break; fi
 done
 if [ -z "$UTF8_LOCALE" ]; then
-  UTF8_LOCALE=$(grep -iE '\.utf-?8$' <<<"$LOCALES" | head -1 || true)
+  UTF8_LOCALE=$(grep -m1 -iE '\.utf-?8$' <<<"$LOCALES" || true)
 fi
 if [ -z "$UTF8_LOCALE" ]; then
   echo "FAIL — no UTF-8 locale on this system; wc -m would count bytes, not characters,"
