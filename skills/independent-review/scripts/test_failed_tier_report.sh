@@ -131,13 +131,43 @@ case "${AGY_STUB:-ok}" in
           printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
 esac
 EOF
-chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy"
+# A stub curl for the ollama HTTP API transport: records the URL, the request body and the header
+# file it was handed (the file, not argv, must carry any key), and plays back a canned NDJSON stream.
+cat >"$T/bin/curl" <<'EOF'
+#!/bin/sh
+out= body= url=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift ;;
+    --data-binary) body="${2#@}"; shift ;;
+    -H) case "$2" in @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
+    -w|--max-time) shift ;;
+    http*) url="$1" ;;
+  esac
+  shift
+done
+printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
+cp "$body" "$STUB_MARKS/curl-body"
+case "${API_STUB:-ok}" in
+  ok)    printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: api "},"done":false}' \
+           '{"message":{"role":"assistant","content":"finding one\n- NIT: two"},"done":false}' \
+           '{"message":{"role":"assistant","content":""},"done":true,"prompt_eval_count":500,"eval_count":250}' >"$out"
+         printf 200 ;;
+  429)   printf '%s\n' '{"error":"you have reached your weekly usage limit"}' >"$out"; printf 429 ;;
+  trunc) printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: cut off"},"done":false}' >"$out"; printf 200 ;;
+  502)   printf 'upstream request failed' >"$out"; printf 502 ;;
+  down)  echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
+esac
+EOF
+chmod +x "$T/bin/codex" "$T/bin/ollama" "$T/bin/agy" "$T/bin/curl"
+# A PATH with no ollama CLI, as in a cloud session: the codex and curl stubs, then the system.
+mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 
 # run <name> [VAR=value ...] <command ...> — leaves $T/<name>.out, .err and .rc
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -505,6 +535,49 @@ check "summary with the log off says so, reads no file named off" \
   sh -c 'REVIEW_LOG=off bash "$1" summary | grep -qF "is off"' _ "$HERE/review_log.sh"
 REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --model x >/dev/null 2>&1
 check "add without --seat is refused" [ $? = 2 ]
+
+# 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
+#     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, rides in a
+#     header FILE that is gone afterwards; the tokens reach the timings line and the cost log.
+NOCLI="$T/bin2:/usr/bin:/bin"
+run api PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" REVIEW_LOG="$T/api.tsv" bash "$SCRIPT" "$T/change.diff"
+check "api: counted" has api.out "reviewers: codex OK, ollama-cloud OK"
+check "api: header names the transport" has api.out "## Independent review — ollama ($STUB_TAG, HTTP API)"
+check "api: the streamed pieces are joined" has api.out "- BUG: api finding one"
+check "api: ollama.com, /api/chat" grep -qxF "https://ollama.com/api/chat" "$T/api.marks/curl-url"
+check "api: the model without its :cloud suffix, streamed, carrying the artifact" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-model" && $j->{stream} && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/api.marks/curl-body"
+check "api: no key set, no Authorization header sent" not_in "$T/api.marks/curl-hdr" "Authorization"
+check "api: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s \(750 tokens\)$' "$T/api.out"
+check "api: tokens in the cost log" awk -F'\t' '$8=="ollama-cloud" && $12=="750" && $13=="OK" {f=1} END {exit !f}' "$T/api.tsv"
+run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
+check "apikey: the key rides in the header file" grep -qxF "Authorization: Bearer stub-secret" "$T/apikey.marks/curl-hdr"
+check "apikey: and the file is gone afterwards" [ ! -e "$T/apikey.raw/ollama.hdr" ]
+check "apikey: never in any output" sh -c '! grep -rqF stub-secret "$1/apikey.out" "$1/apikey.err" "$1/apikey.raw"' _ "$T"
+run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "api429: read as quota" has api429.out "ollama-cloud FAILED (HTTP 429; quota/rate limit: wait or add credits)"
+check "api429: the API's message is quoted" has api429.out "weekly usage limit"
+run apitrunc PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc bash "$SCRIPT" "$T/change.diff"
+check "apitrunc: a stream without its done line fails the tier" has apitrunc.out "ollama-cloud FAILED (HTTP 200)"
+check "apitrunc: and says it was truncated" has apitrunc.out "a truncated review"
+run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff"
+check "api502: a non-JSON error body is quoted" has api502.out "response is not JSON: upstream request failed"
+run apidown PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=down bash "$SCRIPT" "$T/change.diff"
+check "apidown: a network failure names curl's exit" has apidown.out "ollama-cloud FAILED (curl exit 56)"
+check "apidown: ...with a hint" has apidown.out "is the host allowed by the network policy?"
+run apinomodel PATH="$NOCLI" bash "$SCRIPT" "$T/change.diff"
+check "apinomodel: no CLI and no model — skipped" has apinomodel.out "ollama SKIPPED (not available)"
+check "apinomodel: the note names OLLAMA_MODEL" has apinomodel.err "Set OLLAMA_MODEL=<name>:cloud"
+check "apinomodel: nothing was sent" [ ! -e "$T/apinomodel.marks/curl-url" ]
+run apiforced OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" bash "$SCRIPT" "$T/change.diff"
+check "apiforced: OLLAMA_TRANSPORT=api wins over an installed CLI" \
+  sh -c '[ -e "$1/curl-url" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/apiforced.marks"
+run apibadtransport OLLAMA_TRANSPORT=grpc bash "$SCRIPT" "$T/change.diff"
+check "an unknown OLLAMA_TRANSPORT exits 2" rc_is apibadtransport 2
+run apilocal PATH="$NOCLI" OLLAMA_MODEL=stub-local OLLAMA_HOST=127.0.0.1:11434 bash "$SCRIPT" "$T/change.diff"
+check "apilocal: a local tag goes to OLLAMA_HOST" grep -qxF "http://127.0.0.1:11434/api/chat" "$T/apilocal.marks/curl-url"
+check "apilocal: with its tag unchanged" grep -qF '"model":"stub-local"' "$T/apilocal.marks/curl-body"
+check "apilocal: and stays a sanity pass" has apilocal.out "ollama-local NOT COUNTED (local model: sanity pass only)"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

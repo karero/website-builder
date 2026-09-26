@@ -49,7 +49,10 @@ skip silently. With a config diff, send the code that reads the config too.
    one run. Sandbox enforcement and project-context leaks are open (R-SANDBOX, R-PROJCTX in
    `docs/reviews/OPEN-FINDINGS-independent-review.md`).
 2. **ollama cloud** — the first `:cloud` tag in `ollama list`, auto-detected; `OLLAMA_MODEL`
-   overrides. Text only, no tools.
+   overrides. Text only, no tools. **No ollama CLI** (e.g. a cloud session): set
+   `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
+   `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
+   allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.

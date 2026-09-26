@@ -75,6 +75,14 @@
 #                                    (the owner's signed-in cloud model; this script
 #                                    prescribes no specific model). Override to point
 #                                    at a different cloud/local tag.
+#   OLLAMA_TRANSPORT (auto)          how the ollama tier is reached: cli (`ollama run`), api
+#                                    (ollama's HTTP API via curl), or auto = the CLI when it is
+#                                    installed, else the API. The API needs OLLAMA_MODEL set (no
+#                                    `ollama list` to auto-detect from); a ':cloud' tag goes to
+#                                    https://ollama.com without the suffix, a local tag to
+#                                    OLLAMA_HOST (default 127.0.0.1:11434). Auth: OLLAMA_API_KEY if
+#                                    set, else none is sent — in a cloud session an environment
+#                                    API credential for ollama.com is added by the proxy.
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
@@ -164,8 +172,17 @@ is_cloud_ollama_tag() {
 # NOT auto-detected in --local-only mode: that mode's whole point is nothing
 # leaves the machine, and every ':cloud' tag is a network call by definition —
 # local-only still requires the caller to name an explicit LOCAL model tag.
+case "${OLLAMA_TRANSPORT:-auto}" in
+  auto) if command -v ollama >/dev/null 2>&1; then OLLAMA_VIA=cli; else OLLAMA_VIA=api; fi ;;
+  cli|api) OLLAMA_VIA="$OLLAMA_TRANSPORT" ;;
+  *) echo "OLLAMA_TRANSPORT=\"$OLLAMA_TRANSPORT\" — expected auto, cli or api" >&2; exit 2 ;;
+esac
 if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
-  if ! command -v ollama >/dev/null 2>&1; then
+  if [ "$OLLAMA_VIA" = api ]; then
+    # Without the CLI there is no `ollama list` to read the signed-in model from, and this script
+    # names no model itself: the caller names it.
+    echo "note: no ollama CLI to auto-detect a model from — the ollama tier is skipped this run. Set OLLAMA_MODEL=<name>:cloud to review over ollama's HTTP API, or install ollama and 'ollama signin'." >&2
+  elif ! command -v ollama >/dev/null 2>&1; then
     echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer)." >&2
   elif ! list_out="$(ollama list 2>/dev/null)"; then
     # A failed listing is NOT "no cloud model" — don't send the user to signin
@@ -414,7 +431,7 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # clerk. Cleared once, centrally: a tier can be skipped INSIDE its function or at
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
-rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status} \
+rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
@@ -617,12 +634,34 @@ run_agy() {
 }
 run_ollama() {
   [ -n "${OLLAMA_MODEL:-}" ] || return 3          # must be named explicitly
+  local is_local=1 review via=""
+  is_cloud_ollama_tag "$OLLAMA_MODEL" && is_local=0
+  if [ "$OLLAMA_VIA" = api ]; then
+    ollama_via_api || return $?; review="$RAW_DIR/ollama.out"; via=", HTTP API"
+  else
+    ollama_via_cli || return $?; review="$RAW_DIR/ollama.filtered"
+  fi
+  printf '## Independent review — ollama (%s%s)\n\n' "$OLLAMA_MODEL" "$via"
+  cat "$review"
+  # tier 5 (local) = sanity pass, NEVER the sole gate — EXCEPT in --local-only mode,
+  # where the owner explicitly traded strength for privacy (mode is marked degraded).
+  # Returns 1 here means "policy rejection" (a real review WAS produced and
+  # printed above), not "failed/empty/non-review output" as the tier-function
+  # contract summary at this file's top describes for other tiers — this is
+  # the one intentional exception.
+  if [ $is_local -eq 1 ] && [ "$LOCAL_ONLY" != "1" ]; then
+    echo "⚠ '$OLLAMA_MODEL' looks LOCAL — sanity pass only, gate NOT satisfied by this tier. Prefer codex or a named cloud model." >&2
+    WHY="local model: sanity pass only"; TIER_PRINTED=1; return 1
+  fi
+}
+
+# The CLI transport: `ollama run`, whose stdout carries terminal redraw codes that must be undone.
+# Leaves the clean review in ollama.filtered. Returns 3 (unavailable) or 1 (failed, WHY set).
+ollama_via_cli() {
   command -v ollama >/dev/null 2>&1 || return 3
   # A model is named and the CLI is present, so a failing listing is an attempted tier
   # that failed (daemon down, broken install) — keep its error for the FAILED section.
   ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
-  local is_local=1
-  is_cloud_ollama_tag "$OLLAMA_MODEL" && is_local=0
   local tmp="$RAW_DIR/ollama.out" rc
   ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   { [ $rc -eq 0 ] && [ -s "$tmp" ]; } || { why_cli $rc; return 1; }
@@ -647,8 +686,8 @@ run_ollama() {
   # KNOWN RESIDUAL: code points are still not COLUMNS. A CJK ideograph is one code point and two
   # columns; a combining accent is a code point occupying none. The erase count can still be off
   # for such text — but the output stays valid UTF-8 and machine-readable, which is the property
-  # that matters downstream. A complete fix needs wcwidth/grapheme widths, or an ollama transport
-  # emitting no redraw stream at all (the sibling ollama-review skill uses the HTTP API for this).
+  # that matters downstream. A complete fix needs wcwidth/grapheme widths; the HTTP API transport
+  # (ollama_via_api, OLLAMA_TRANSPORT=api) has no redraw stream at all.
   local filtered="$RAW_DIR/ollama.filtered" prc
   perl -0777 -ne '
     use Encode qw(decode encode FB_CROAK);
@@ -676,18 +715,70 @@ run_ollama() {
     echo "ollama tier: output filter failed (exit $prc) — treating the tier as failed, see $RAW_DIR/ollama.err" >&2
     WHY="output filter failed (exit $prc)"; return 1
   fi
-  printf '## Independent review — ollama (%s)\n\n' "$OLLAMA_MODEL"
-  cat "$filtered"
-  # tier 5 (local) = sanity pass, NEVER the sole gate — EXCEPT in --local-only mode,
-  # where the owner explicitly traded strength for privacy (mode is marked degraded).
-  # Returns 1 here means "policy rejection" (a real review WAS produced and
-  # printed above), not "failed/empty/non-review output" as the tier-function
-  # contract summary at this file's top describes for other tiers — this is
-  # the one intentional exception.
-  if [ $is_local -eq 1 ] && [ "$LOCAL_ONLY" != "1" ]; then
-    echo "⚠ '$OLLAMA_MODEL' looks LOCAL — sanity pass only, gate NOT satisfied by this tier. Prefer codex or a named cloud model." >&2
-    WHY="local model: sanity pass only"; TIER_PRINTED=1; return 1
+}
+# The HTTP API transport (2026-09-26): POST /api/chat. The reply is JSON, so there is no redraw
+# stream to undo, and its final line carries token counts (prompt_eval_count + eval_count), written
+# to ollama.tokens for the cost log. STREAMED, one JSON object per line: a non-streamed request for
+# a real review came back "HTTP 502 upstream request failed" after 31s from a cloud session, while
+# the same request streamed returned in 45s — a silent connection gets cut somewhere on the way. A
+# stream that ends without its "done" line is a truncated review and fails the tier. The key, when OLLAMA_API_KEY is set, goes in a header FILE in the
+# owner-only RAW_DIR, never on curl's command line where `ps` would show it; the file is removed
+# right after the call. Errors are written as "Error: HTTP <code>: <message>" so attempt()'s quota
+# classification reads a 429 the same way as the CLI's. Leaves the review in ollama.out.
+ollama_via_api() {
+  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
+  local url model="$OLLAMA_MODEL" hdr="$RAW_DIR/ollama.hdr" body="$RAW_DIR/ollama.req"
+  local resp="$RAW_DIR/ollama.resp" code rc prc
+  if is_cloud_ollama_tag "$model"; then
+    url="https://ollama.com"; model="${model%:cloud}"
+  else
+    url="${OLLAMA_HOST:-127.0.0.1:11434}"
+    case "$url" in http://*|https://*) ;; *) url="http://$url" ;; esac
+    url="${url%/}"
   fi
+  ( umask 077; : >"$hdr"
+    if [ -n "${OLLAMA_API_KEY:-}" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_API_KEY" >"$hdr"; fi )
+  printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
+    local $/; my $p = decode("UTF-8", scalar <STDIN>);
+    print JSON::PP->new->utf8->canonical->encode(
+      { model => $ARGV[0], stream => JSON::PP::true, messages => [ { role => "user", content => $p } ] });
+  ' "$model" >"$body" || { rm -f "$hdr"; WHY="could not build the API request"; return 1; }
+  code="$(curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+    -H @"$hdr" -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
+    2>"$RAW_DIR/ollama.err")"; rc=$?
+  rm -f "$hdr"
+  if [ $rc -ne 0 ]; then
+    printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/ollama.err"
+    WHY="curl exit $rc"; return 1
+  fi
+  perl -MJSON::PP -e '
+    my ($file, $code, $tok) = @ARGV;
+    open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
+    my $json = JSON::PP->new->utf8;
+    my ($c, $done, $n) = ("", undef, 0);
+    while (my $line = <$f>) {
+      next unless $line =~ /\S/;
+      my $j = eval { $json->decode($line) };
+      if (ref $j ne "HASH") { chomp $line; print STDERR "Error: HTTP $code: response is not JSON: ", substr($line, 0, 300), "\n"; exit 3 }
+      if (defined $j->{error}) {
+        my $e = $j->{error}; $e = JSON::PP->new->encode($e) if ref $e;
+        print STDERR "Error: HTTP $code: $e\n"; exit 2;
+      }
+      $n++;
+      $c .= $j->{message}{content} // "" if ref $j->{message} eq "HASH";
+      $done = $j if $j->{done};
+    }
+    if ($code ne "200") { print STDERR "Error: HTTP $code: request failed\n"; exit 2 }
+    if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line after $n chunks — a truncated review\n"; exit 4 }
+    binmode STDOUT, ":encoding(UTF-8)";
+    print $c; print "\n" if length $c && $c !~ /\n\z/;
+    if (defined $done->{eval_count} && open my $t, ">", $tok) {
+      print $t (($done->{prompt_eval_count} // 0) + $done->{eval_count}), "\n";
+    }
+  ' "$resp" "$code" "$RAW_DIR/ollama.tokens" >"$RAW_DIR/ollama.out" 2>>"$RAW_DIR/ollama.err"; prc=$?
+  [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
+  [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
+  looks_like_review "$(cat "$RAW_DIR/ollama.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
 }
 
 # --- dispatch. DEFAULT STANDARD PAIR = Codex + ollama-cloud, both run AT ONCE,
@@ -768,6 +859,7 @@ report_tier() {
   [ -f "$RAW_DIR/$stem.section" ] && cat "$RAW_DIR/$stem.section"
   local tokens=""
   [ "$stem" = codex ] && tokens="$(codex_tokens)"
+  [ "$stem" = ollama ] && [ -s "$RAW_DIR/ollama.tokens" ] && tokens="$(tr -dc '0-9' <"$RAW_DIR/ollama.tokens")"
   [ $rc -ne 3 ] && [ -n "$secs" ] && TIMINGS="${TIMINGS:+$TIMINGS, }$label ${secs}s${tokens:+ ($tokens tokens)}"
   if [ $rc -eq 0 ]; then
     OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); outcome="OK"
