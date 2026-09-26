@@ -311,5 +311,17 @@ for m in "" stub-override; do
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
 
+# 22. KNOWN WRONG (B-TAGCLASS), deferred with the owner's sign-off of 2026-09-26: the size arms of
+# is_cloud_ollama_tag() call any "*:120b" tag cloud, even a model pulled and run locally, so it is
+# refused under --local-only and counted as a cloud reviewer outside it. These pin today's wrong
+# results through the real entry point, so whoever fixes the classifier changes them on purpose.
+BIG_TAG="stub-big"; BIG_TAG="${BIG_TAG}:120b"   # built at runtime, like STUB_TAG
+run bigtaglocal OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff" --local-only
+check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag is refused under --local-only" has bigtaglocal.err "looks like a cloud tag"
+check "KNOWN WRONG (B-TAGCLASS): ...with exit 2, before any reviewer runs" \
+  sh -c '[ "$(cat "$1/bigtaglocal.rc")" = 2 ] && [ ! -e "$1/bigtaglocal.marks/ollama-ran" ]' _ "$T"
+run bigtag OLLAMA_MODEL="$BIG_TAG" bash "$SCRIPT" "$T/change.diff"
+check "KNOWN WRONG (B-TAGCLASS): a local *:120b tag counts as a cloud reviewer" has bigtag.out "reviewers: codex OK, ollama-cloud OK"
+
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
