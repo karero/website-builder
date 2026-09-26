@@ -129,7 +129,7 @@ for s in "${SUBJECTS[@]}"; do
   b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
     echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
-    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | head -20 | sed 's/^/    /'
+    diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | sed -n '1,20s/^/    /p'
     diffs=$((diffs + 1)); rc=1
   fi
 done
