@@ -673,6 +673,25 @@ if command -v git >/dev/null 2>&1; then
     sh -c '[ "$(cat "$1/mlempty.rc")" = 0 ] && [ ! -s "$1/mlempty.out" ]' _ "$T"
   ( cd "$R" && bash "$ML" oldbase no-such-rev newbase ) >/dev/null 2>&1; echo $? >"$T/mlbad.rc"
   check "merge_link: an unknown revision exits 2" rc_is mlbad 2
+  # A rename is listed by its new name alone, so a merge that brings the old name back lost it
+  # (round 4, Codex): with both names kept the merge link printed nothing at all.
+  for mode in drop keep; do
+    R="$T/mlrename-$mode"; mkdir -p "$R"
+    (
+      cd "$R" && git init -q -b main && git config user.email t@t && git config user.name t
+      printf 'one\ntwo\nthree\nfour\nfive\nsix\n' >old.txt; echo base >other.txt
+      git add -A && git commit -qm base && git tag oldbase
+      git checkout -qb feat && git mv old.txt new.txt && echo "my edit" >>new.txt
+      git commit -qam rename && git tag reviewed
+      git checkout -q main && echo main >>other.txt && git commit -qam main
+      git checkout -q feat && git merge -q --no-commit --no-ff main
+      if [ "$mode" = drop ]; then git rm -qf new.txt; fi
+      git checkout main -- old.txt                     # the merge brings the old name back
+      git add -A && git commit -qm merge && git tag newbase "$(git merge-base main HEAD)"
+    ) >/dev/null 2>&1
+    ( cd "$R" && bash "$ML" oldbase reviewed newbase ) >"$T/mlrn-$mode.out" 2>&1
+    check "merge_link: a rename the merge undid ($mode the new name) shows the old name" has "mlrn-$mode.out" "old.txt"
+  done
 fi
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi

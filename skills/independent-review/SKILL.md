@@ -233,9 +233,13 @@ Codex's effort for any run.
    read, where one runs), whatever changed since — wording, comments, docs prose, the review
    record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
    with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
-   scope. Its RISK/NIT are follow-ups; a contradiction
-   with the code it describes is fixed and recorded `locally_verified`, without another pass. Only
-   a substantive BUG reopens the rounds. There is no second wording pass.
+   scope. Its RISK/NIT are follow-ups; a contradiction with the code it describes is fixed. The
+   fix moves the head, and the stamp needs a seen head (closeout, clerk item 2), so the same seat
+   gets ONE **confirmation** over that fix's delta alone, scoped to whether it removed the
+   contradiction without adding one. A confirmation is a re-gate, not a round and not a second
+   wording pass: its other findings are follow-ups. If it finds the fix wrong, fix it and confirm
+   that fix the same way, once; still wrong, it goes to the owner. Only a substantive BUG reopens
+   the rounds. There is no second wording pass.
 7. **Convergence check** after every round — not a count's direction (a real fix chain can run
    flat or noisy; the round budget already follows substantive BUGs): do findings land on new
    ground (code the last fixes added, or a named new check, input, path or evidence source — "more

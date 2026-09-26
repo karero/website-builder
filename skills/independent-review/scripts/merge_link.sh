@@ -12,7 +12,9 @@
 # The change's own files are taken from BOTH pairs, the old (old-merge-base...last-reviewed-head)
 # and the new (new-merge-base...HEAD): a file whose merge resolution threw the change's edit away
 # matches the new base again, drops out of the new pair's list, and would otherwise never show
-# (final full read, 2026-09-26). The lists are NUL-separated and the paths passed literally
+# (final full read, 2026-09-26). Both lists are built with --no-renames: a rename is listed by its
+# new name alone, so a merge that brought the old name back left it out (Codex, round 4). The lists
+# are NUL-separated and the paths passed literally
 # (--literal-pathspecs), so a space, '*', '?', '[' or a leading ':' in a name is just a character;
 # docs/reviews/ is dropped from the list itself, since a literal pathspec cannot carry :(exclude).
 set -euo pipefail
@@ -24,8 +26,8 @@ for rev in "$old_base" "$reviewed" "$new_base" HEAD; do
   git rev-parse --verify --quiet "$rev^{commit}" >/dev/null || { echo "merge_link.sh: not a commit: $rev" >&2; exit 2; }
 done
 list="$(mktemp "${TMPDIR:-/tmp}/merge_link.XXXXXX")"; trap 'rm -f "$list"' EXIT
-{ git diff -z --name-only "$old_base...$reviewed"
-  git diff -z --name-only "$new_base...HEAD"
+{ git diff -z --no-renames --name-only "$old_base...$reviewed"
+  git diff -z --no-renames --name-only "$new_base...HEAD"
   for p in "$@"; do printf '%s\0' "$p"; done
 } | perl -0 -ne 'print unless m{^docs/reviews/} or $seen{$_}++' >"$list"
 # An empty list must print nothing: xargs with no input runs git diff unfiltered on GNU (the whole

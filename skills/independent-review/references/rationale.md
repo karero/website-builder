@@ -215,7 +215,7 @@ not a standing free lane.
    written by the change itself; what counts is that its inputs go wrong at the merge-base.
 
    **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
-   not keep a round from being clean (6(a2)), does not count as an open BUG at the round cap (6(b)),
+   not keep a round from being clean (6(a2)), does not count as an open BUG in the round budget (6(b)),
    and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
    tracker it stays open, in the BUG table, until someone fixes it. The owner's sign-off carries
    over to later gates, but each gate's trail records DEFERRED, never fixed or refuted, together
@@ -253,7 +253,7 @@ not a standing free lane.
 
 ## Step 6 — why verification rounds are scoped and capped
 
-   **The round cap (6(b)): 3 rounds per artifact, counted in rounds, not per finding.** (Until
+   **Rounds are counted per artifact, not per finding (6(b)).** (Until
    2026-09-26 it counted per finding id, so each new RISK in round 3 earned its own round and the
    cap never fired — the 5–13-round gates.)
 
@@ -340,8 +340,8 @@ day by the round budget; see the next section for why.)
    is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
    area is bigger than first estimated, worth naming explicitly rather than silently forcing
    STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s round
-   cap — 3 rounds, or up to 5 while BUGs are falling — which bounds iteration regardless of how
-   these signals read.) When triggered: step back and redesign the
+   budget — past round 3 only a substantive BUG earns a round, past round 8 the owner decides —
+   which bounds iteration regardless of how these signals read.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
    BUG that's still open. It can defer a BUG out of the change only under point 5's one
