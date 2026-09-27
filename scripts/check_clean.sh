@@ -44,12 +44,22 @@ fail=0
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
 filter_ignored() { # stdin: grep output → stdout minus gitignored files
+  local line f rest keep
   while IFS= read -r line; do
     case "$line" in
-      "Binary file "*" matches") f="${line#Binary file }"; f="${f% matches}" ;;
-      *) f="${line%%:*}" ;;
+      "Binary file "*" matches") f="${line#Binary file }"; f="${f% matches}"
+        git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"; continue ;;
     esac
-    git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"
+    # A file name may hold a colon, so the name is not simply the text before the first
+    # one: try each prefix that ends at a colon, and drop the line only when every prefix
+    # naming an existing file is gitignored. In doubt, the hit is reported.
+    keep=1 f="" rest="$line"
+    while [ "${rest#*:}" != "$rest" ]; do
+      f="${f:+$f:}${rest%%:*}"; rest="${rest#*:}"
+      [ -e "$f" ] || continue
+      if git check-ignore -q -- "$f" 2>/dev/null; then keep=0; else keep=1; break; fi
+    done
+    if [ "$keep" = 1 ]; then printf '%s\n' "$line"; fi
   done
 }
 # grep wrapper: existence filtering says the paths are there, not that they were read.

@@ -69,6 +69,14 @@ printf 'plain notes\n' >"$R/docs/notes.md"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
 rm "$R/docs/notes:old.md"
+# Hits in gitignored files are dropped; a file whose name only starts like an ignored path
+# is not ignored, and was dropped too when the name was cut at its first colon.
+printf 'docs/scratch\n' >>"$R/.gitignore"
+printf 'ran zorblequux\n' >"$R/docs/scratch"
+expect "a listed name in a gitignored file: passes" 0 "OK —" "$R"
+printf 'ran zorblequux\n' >"$R/docs/scratch:notes.md"
+expect "a listed name in a file named like an ignored path plus a colon: fails" 1 "scratch:notes.md" "$R"
+rm "$R/docs/scratch" "$R/docs/scratch:notes.md"
 # A pattern grep cannot compile is a scan error, which must fail the run, not read as clean.
 cp "$R/scripts/.clean-denylist" "$T/list.bak"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
 expect "a broken pattern in the list: fails as a scan error" 1 "scan error" "$R"

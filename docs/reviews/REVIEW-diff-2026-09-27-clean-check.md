@@ -43,11 +43,14 @@ whole change, which the owner opened up mid-gate.
   paths from a subfolder of both the main checkout and a linked worktree, and the script moves
   to the repo root first anyway. Mixed case (the owner name capitalized) — deliberate: only the exact lowercase
   form is exempt, and anything else fails safe (flagged, nothing hidden).
-- **Left as is, and pre-existing — `filter_ignored` cuts at the first colon (round 3).** It
-  predates this change and applies to every check in the script. It matters only for a file
-  whose name holds a colon *and* whose name up to that colon is a gitignored path
-  (`docs/.DS_Store:notes.md`). Fixing it means carrying file names NUL-separated through
-  every check. Named to the owner.
+- **Fixed after the owner asked — `filter_ignored` cut at the first colon (round 3,
+  pre-existing).** It hid every hit in a file whose name holds a colon and whose name up to
+  that colon is a gitignored path (`docs/.DS_Store:notes.md`). First left as is on the view
+  that the fix meant carrying file names NUL-separated through every check; in fact every
+  check reaches it through `report`, so the fix is one function: try each prefix that ends at
+  a colon, and drop the line only when every prefix naming an existing file is ignored.
+  Two cases pin it (an ignored file still passes; the colon-named file fails, and fails the
+  pre-fix version).
 
 ## Evidence
 
