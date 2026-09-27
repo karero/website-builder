@@ -87,8 +87,14 @@ case "$1" in
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
   run)  shift
-        if [ "$1" = --help ]; then   # STUB_OLDCLI=1: a CLI too old to know --hidethinking
-          [ -n "${STUB_OLDCLI:-}" ] || echo '      --hidethinking            Hide thinking output (if provided)'
+        if [ "$1" = --help ]; then   # STUB_OLDCLI: 1 = too old to know --hidethinking; failhelp =
+                                      # help fails; longword = the flag only inside a longer word
+          case "${STUB_OLDCLI:-}" in
+            1)        echo '      --verbose                 Show timings for response' ;;
+            failhelp) echo 'Error: unknown flag: --hidethinking' >&2; exit 1 ;;
+            longword) echo '      --hidethinking-format     (a different option)' ;;
+            *)        echo '      --hidethinking            Hide thinking output (if provided)' ;;
+          esac
           exit 0
         fi
         if [ "$1" = --hidethinking ]; then : >"$STUB_MARKS/ollama-hidethinking"; shift; fi
@@ -718,6 +724,10 @@ check "think: the model and prompt still reach the CLI" \
 run thinkold STUB_OLDCLI=1 OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
 check "thinkold: a CLI without the flag is not given it" test ! -e "$T/thinkold.marks/ollama-hidethinking"
 check "thinkold: ...and still runs the model, as before this change" test -e "$T/thinkold.marks/ollama-ran"
+for how in failhelp longword; do   # round 1, Codex: a failed help, or the flag inside a longer word
+  run "think$how" STUB_OLDCLI=$how OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+  check "think$how: the flag is not passed" test ! -e "$T/think$how.marks/ollama-hidethinking"
+done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

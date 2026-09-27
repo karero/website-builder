@@ -685,8 +685,10 @@ ollama_via_cli() {
   # of stdout. The trace is not the answer, yet it was judged as one: a real review was
   # rejected because its trace quoted this prompt's "could not read" advice (2026-09-27).
   # Cutting the trace out of the text afterwards was tried and dropped — the trace can itself
-  # quote the closing line. A CLI too old to list the flag runs without it, as before.
-  if grep -q -- '--hidethinking' <<<"$(ollama run --help 2>&1)"; then
+  # quote the closing line. A CLI too old to list the flag runs without it, as before; so does
+  # one whose `run --help` fails, or mentions the flag only inside a longer word.
+  local help
+  if help="$(ollama run --help 2>&1)" && grep -qE -- '(^|[[:space:]])--hidethinking([[:space:]]|$)' <<<"$help"; then
     ollama run --hidethinking "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   else
     ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
