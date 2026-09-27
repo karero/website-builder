@@ -76,7 +76,8 @@ cp "$T/list.bak" "$R/scripts/.clean-denylist"
 
 # A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
 # that checkout (it names the git folder instead), so the list cannot be found from a linked
-# worktree. What matters is that the check then says it skipped, not a bare OK.
+# worktree. What matters is that the check never gives a bare OK: it finds the name (should
+# git ever record that path) or says it skipped the list.
 S="$T/sep"; SW="$T/sep-worktree"
 mkdir -p "$S/scripts" "$S/skills" "$S/docs"
 cp "$R/scripts/check_clean.sh" "$R/.gitignore" "$S/scripts/" 2>/dev/null; mv "$S/scripts/.gitignore" "$S/"
@@ -86,7 +87,13 @@ $git init -q --separate-git-dir "$T/sep.git" "$S"; $git -C "$S" add -A; $git -C 
 printf 'zorblequux\n' >"$S/scripts/.clean-denylist"
 $git -C "$S" worktree add -q --detach "$SW"
 printf 'ran the live check on zorblequux\n' >>"$SW/docs/notes.md"
-expect "worktree of a --separate-git-dir checkout: says the list was skipped" 0 "denylist skipped" "$SW"
+out="$(cd "$SW" && bash scripts/check_clean.sh 2>&1)"; rc=$?
+if { [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qF zorblequux; } ||
+   { [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qF 'denylist skipped'; }; then
+  printf 'ok   worktree of a --separate-git-dir checkout: finds the name or says it skipped\n'
+else
+  printf 'FAIL worktree of a --separate-git-dir checkout: a bare OK (exit %s)\n' "$rc"; fails=$((fails+1))
+fi
 
 mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
 printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
