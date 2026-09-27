@@ -15,9 +15,9 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | **closed** 2026-09-27: 7 rounds + final full read; round 7 had no BUG, its one RISK fixed locally (tie-break, not externally re-verified beyond the wording pass) | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
 | Probe of the real Google responses (see "Probe results") | **done** 2026-09-27, one real site (owner's OK), read-only | "Probe results" below; raw output kept outside the repo |
 | Build | **done**, test-first: `search_report.py`, site settings file in `schedule_tracking.sh`, AI-report link in `geo_check.py`, report step in `track.sh`; 38 new tests (S1–S16 and the counting rules), 7 deliberate breakages of key rules each caught | this commit; `tests/test_search_report.py`, `test_schedule_settings.py`, additions to `test_track_entry.py` and `test_geo_check.py` |
-| DIFF gate (Codex only, ollama out of credits; fresh-eyes Sonnet in round 1) | 8 rounds, round-8 fix locally verified only; **two owner decisions open** (a verification round for the one-line round-8 fix; the Google-evidence RISK a no-network reviewer cannot settle) | rounds on `7c1b320` … `a82c67b`; BUG/RISK per round: r1 4/4 (Codex + fresh-eyes, three shared), r2 4/1, r3 1/1, r4 1/2, r5 4/1, r6 1/2, r7 2/0, r8 1/0 |
+| DIFF gate (Codex only, ollama out of credits; fresh-eyes Sonnet in round 1) | **closed** 2026-09-27: 9 rounds (round 9 granted by the owner, clean); the Google-evidence RISK **waived by the owner** ("yes to both") | trail: `REVIEW-diff-2026-09-27-gsc-report.md`; BUG/RISK per round: r1 4/4, r2 4/1, r3 1/1, r4 1/2, r5 4/1, r6 1/2, r7 2/0, r8 1/0, r9 0/0 |
 | Live check on a real site | **done** twice, 2026-09-27, one real site (read-only, owner's OK) | run 1 found 2 issues (old Bing keywords, full page addresses), fixed; run 2 clean: headline, Bing, paths, nothing external |
-| PR | not started | — |
+| PR | opening | — |
 
 ## Context
 
