@@ -71,6 +71,7 @@ PIPEFAIL_RE='^[[:space:]]*set[[:space:]]+(.*[[:space:]])?-[a-zA-Z]*o[[:space:]]+
 # read, not "$(cat <<'AWK' … )": bash 3.2 (macOS /bin/bash) parses a heredoc inside $( ) for
 # quotes, and this awk body's unbalanced ' and ` stop the whole script from parsing there.
 IFS= read -r -d '' LEXER <<'AWK' || true
+BEGIN { EXITRE = "(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)" }
 function reset() {
   d = 1; ft[1] = "C"; tm[1] = ""; own[1] = 1; sq[1] = 0; an[1] = 0
   buf[1] = ""; op[1] = ""; bl[1] = 0; nh = 0; hh = 0; cont = 0
@@ -142,41 +143,64 @@ function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
     if (val) { val = 0; continue }                                # the value -v was waiting for
     if (!dd && (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/)) { val = 1; continue }
     if (!dd && (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/)) continue
-    if (early_exit(unlit(w))) return 1
+    if (early_exit(w)) return 1
   }
   return 0
 }
-# An exit inside END runs after all input is read, so it cannot close the pipe early. Drop
-# every END block, wherever it sits, and look for an exit in what remains.
-function early_exit(rest,   st, j, nb, ch) {
-  while (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) {
-    st = (substr(rest, RSTART, 3) == "END") ? RSTART - 1 : RSTART
+# Whether awk program text can exit early. Fail-safe, in two steps. First the raw text, with
+# its END blocks removed (an exit there runs after all input is read): no `exit` word, no
+# finding, and nothing was blanked that could hide one. Only then may unlit() clear it, by
+# showing every `exit` sits in a string, regex or comment — and only if it read the text
+# without meeting anything it could misread (unsure). A misreading costs a false alarm,
+# never a miss.
+function early_exit(prog,   u) {
+  if (strip_end(prog) !~ EXITRE) return 0
+  u = unlit(prog)
+  if (unsure) return 1
+  return strip_end(u) ~ EXITRE
+}
+# The text without its END blocks. An END counts only where a rule can start (the start, a
+# newline, } or ;) and only when its braces close; otherwise the text stays, so a brace or an
+# "END {" inside a string can make a false alarm, never hide an exit.
+function strip_end(rest,   out, j, nb, ch, m, pre) {
+  out = ""
+  while (match(rest, /(^|[\n};])[ \t\n]*END[ \t\n]*\{/)) {
     j = RSTART + RLENGTH; nb = 1
     while (j <= length(rest) && nb > 0) { ch = substr(rest, j, 1); if (ch == "{") nb++; else if (ch == "}") nb--; j++ }
-    rest = substr(rest, 1, st) substr(rest, j)
+    if (nb > 0) break
+    m = substr(rest, RSTART, 1); pre = (m ~ /[\n};]/) ? m : ""
+    out = out substr(rest, 1, RSTART - 1) pre
+    rest = substr(rest, j)
   }
-  return rest ~ /(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)/
+  return out rest
 }
-# An awk program with its string, regex and comment contents blanked, so `print "exit"`,
-# `/exit/` or `# exit` is not read as the exit statement. One pass over the text, so a quote
-# inside a comment or a # inside a string cannot throw the others off. A / starts a regex
-# where an operand can start: at the start, after a newline or after ( , ! ~ { } ; & | =,
-# spaces allowed; after a value (`$1 / 2`, `(s / NR`) it divides.
+# The program with its strings, regex literals and comments blanked, in one pass, so
+# `print "exit"`, `/exit/` or `# exit` is not the exit statement. Sets `unsure` when the text
+# could be read two ways, and early_exit() then trusts the raw text instead: a / after a word
+# (`print /re/` or `n / 2`?), a string or regex that does not close on its line, a
+# backslash-newline. A / after an operator or at the start opens a regex; after a digit, ) or
+# ] it divides.
 function unlit(s,   n, i, c, out, last) {
-  n = length(s); out = ""; last = ""
+  n = length(s); out = ""; last = ""; unsure = 0
   for (i = 1; i <= n; i++) {
     c = substr(s, i, 1)
-    if (c == "\"") {                                   # string: to the closing unescaped "
-      for (i++; i <= n && substr(s, i, 1) != "\""; i++) if (substr(s, i, 1) == "\\") i++
-      out = out "\"\""; last = "v"; continue
+    if (c == "\\") {
+      if (substr(s, i + 1, 1) == "\n") unsure = 1
+      out = out substr(s, i, 2); i++; last = "a"; continue
     }
-    if (c == "#") {                                    # comment: to the end of the line
-      while (i < n && substr(s, i + 1, 1) != "\n") i++
-      continue
+    if (c == "\"") {
+      for (i++; i <= n && substr(s, i, 1) != "\"" && substr(s, i, 1) != "\n"; i++) if (substr(s, i, 1) == "\\") i++
+      if (i > n || substr(s, i, 1) == "\n") unsure = 1
+      out = out "\"\""; last = ")"; continue
     }
-    if (c == "/" && (last == "" || index("\n(,!~{};&|=", last))) {   # regex: to the closing /
-      for (i++; i <= n && substr(s, i, 1) != "/" && substr(s, i, 1) != "\n"; i++) if (substr(s, i, 1) == "\\") i++
-      out = out "//"; last = "v"; continue
+    if (c == "#") { while (i < n && substr(s, i + 1, 1) != "\n") i++; continue }
+    if (c == "/") {
+      if (last == "" || last !~ /[A-Za-z0-9_)\].$]/) {
+        for (i++; i <= n && substr(s, i, 1) != "/" && substr(s, i, 1) != "\n"; i++) if (substr(s, i, 1) == "\\") i++
+        if (i > n || substr(s, i, 1) == "\n") unsure = 1
+        out = out "//"; last = ")"; continue
+      }
+      if (last ~ /[A-Za-z_]/) unsure = 1
     }
     out = out c
     if (c !~ /[ \t]/) last = c
@@ -385,6 +409,15 @@ cmd | awk '# a "quote
 # and another "'
 @@ bad/awk-hash-in-string-before-exit
 cmd | awk '{ print "#" } NR == 1 { exit }'
+@@ bad/awk-regex-with-quote-after-print
+cmd | awk '{ print /"/; exit }'
+@@ bad/awk-end-inside-a-string
+cmd | awk '{ print "END {"; if (NR == 1) exit; print "}" }'
+@@ bad/awk-brace-in-end-string
+cmd | awk 'END { print "{" } NR == 1 { exit }'
+@@ bad/awk-backslash-newline
+cmd | awk '{ x = 1 \
+/ 2; exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
