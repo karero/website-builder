@@ -136,10 +136,10 @@ function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
   dd = 0; val = 0
   for (k = 1; k <= nw; k++) {
     w = words[k]
-    if (lead[k] == w && w ~ /^[0-9]*(<|>|>>|>[|]|>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
+    if (lead[k] == w && w ~ /^[0-9]*(<|<<|<<-|<<<|>|>>|>[|]|>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
     if (lead[k] ~ /^[0-9]*[<>&]/) continue                        # 2>/dev/null, 2>'exit.log'
+    if (!dd && w == "--") { dd = 1; val = 0; continue }
     if (val) { val = 0; continue }                                # the value -v was waiting for
-    if (!dd && w == "--") { dd = 1; continue }
     if (!dd && (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/)) { val = 1; continue }
     if (!dd && (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/)) continue
     if (early_exit(unlit(w))) return 1
@@ -157,21 +157,31 @@ function early_exit(rest,   st, j, nb, ch) {
   }
   return rest ~ /(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)/
 }
-# An awk program with its string, regex and comment contents blanked, so `print "exit"` or
-# `/exit/` is not read as the exit statement. A regex is a /.../ where an operand can start:
-# at the start, after a newline or after ( , ! ~ { } ; & | =, spaces allowed. After a value
-# (`$1 / 2`, `(s / NR`) a slash divides.
-function unlit(s,   out, m) {
-  gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
-  out = ""
-  while (match(s, /(^|[\n(,!~{};&|=])[ \t\n]*\/([^\/\\\n]|\\.)+\//)) {
-    m = substr(s, RSTART, RLENGTH)
-    out = out substr(s, 1, RSTART - 1) substr(m, 1, index(m, "/") - 1) "//"
-    s = substr(s, RSTART + RLENGTH)
+# An awk program with its string, regex and comment contents blanked, so `print "exit"`,
+# `/exit/` or `# exit` is not read as the exit statement. One pass over the text, so a quote
+# inside a comment or a # inside a string cannot throw the others off. A / starts a regex
+# where an operand can start: at the start, after a newline or after ( , ! ~ { } ; & | =,
+# spaces allowed; after a value (`$1 / 2`, `(s / NR`) it divides.
+function unlit(s,   n, i, c, out, last) {
+  n = length(s); out = ""; last = ""
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (c == "\"") {                                   # string: to the closing unescaped "
+      for (i++; i <= n && substr(s, i, 1) != "\""; i++) if (substr(s, i, 1) == "\\") i++
+      out = out "\"\""; last = "v"; continue
+    }
+    if (c == "#") {                                    # comment: to the end of the line
+      while (i < n && substr(s, i + 1, 1) != "\n") i++
+      continue
+    }
+    if (c == "/" && (last == "" || index("\n(,!~{};&|=", last))) {   # regex: to the closing /
+      for (i++; i <= n && substr(s, i, 1) != "/" && substr(s, i, 1) != "\n"; i++) if (substr(s, i, 1) == "\\") i++
+      out = out "//"; last = "v"; continue
+    }
+    out = out c
+    if (c !~ /[ \t]/) last = c
   }
-  s = out s
-  gsub(/#[^\n]*/, "", s)
-  return s
+  return out
 }
 function check(x, ln,   w, nw, k, kind) {
   sub(/^[ \t\n]+/, "", x)
@@ -369,6 +379,12 @@ cmd | gawk --profile prof.out 'NR == 1 { exit }'
 cmd | awk -v value=1 -- '-value { print; exit }'
 @@ bad/awk-escaped-quote-in-double-quoted-program
 cmd | awk "NR == 1 { print \"x\"; exit }"
+@@ bad/awk-quotes-in-comments-around-exit
+cmd | awk '# a "quote
+{ print; exit }
+# and another "'
+@@ bad/awk-hash-in-string-before-exit
+cmd | awk '{ print "#" } NR == 1 { exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
@@ -423,6 +439,11 @@ cmd | awk '{ print }' 2> "exit.log"
 cmd | awk -v 2>/dev/null mode=exit '{ print mode }'
 @@ good/awk-clobber-redirect-named-exit
 cmd | awk '{ print }' 2>| exit.log
+@@ good/awk-exit-in-comment
+cmd | awk '{ n++ } # exit early? no
+END { print n }'
+@@ good/awk-herestring-named-exit
+cmd | awk '{ print }' <<< exit
 @@ good/awk-division-then-exit-in-end
 cmd | awk '{ s += $1 / 2 } END { if (s / NR > 1) exit 1 }'
 @@ good/subshell-drains
