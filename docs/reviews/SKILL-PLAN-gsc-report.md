@@ -195,10 +195,11 @@ as a text table.
 run under the same file name, so a saved link shows the latest week. Otherwise it is rebuilt
 whenever the owner asks.
 
-**S16 — An older weekly job.** A job installed before per-site settings existed (commit
-`0b8a84e`) has no country entry in its job file, and the owner's `.env` says
-`GSC_COUNTRY=deu`. **Then** an on-demand report counts only searches from Germany, exactly as the
-weekly job does — a missing entry means "use `.env`", an empty entry means "none".
+**S16 — An older weekly job.** A job installed before this page existed has no settings file
+yet, and its country comes from `.env` (`GSC_COUNTRY=deu`). **Then** until its next weekly run
+(or a re-install, which keeps its settings) the page takes key searches and country from the
+history rows, which recorded `deu`, so it still counts Germany; from the next run on, the file the
+job writes decides.
 
 ## Decisions (owner, 2026-09-27: every one as recommended)
 
@@ -217,25 +218,19 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
 - **Command:** a new `search_report.py <domain>`, the same shape as `geo_check.py <domain>
   --report` (`insights.py` requires `--domain` and `--keywords`; a report asked for in plain
   words must not).
-- **Site settings file:** `schedule_tracking.sh` also writes
-  `~/.config/gsc-insights/sites/<site>.json` (key searches, country, history file) when it
-  creates or changes a weekly job, so an on-demand build knows the job's settings. A job created
-  before this change has no such file; its settings live only in its launchd job file
-  (`~/Library/LaunchAgents/`, named by `schedule_tracking.sh`'s `plist_for`), so an on-demand
-  build reads that file read-only as the next fallback: the full domain in its arguments must
-  equal the requested domain after the scheduler's own lower-casing (so `Example.COM` matches
-  `example.com`, and two domains whose file names collide do not), and its keywords,
-  `GSC_HISTORY_CSV` and `GSC_COUNTRY` are used exactly as `track.sh` would use them: an entry that
-  is **missing** (jobs from before `0b8a84e` have none) falls back to `.env`, and an entry that is
-  **empty** means the default history file and no country filter (S16). Settings, in order of
-  precedence: command-line flags; else the settings file; else the matching launchd job file;
-  else, from the history: take the latest date with `gsc` rows for the site, group that date's
-  rows by (window, country), and pick one group deterministically — window 28 first (the
-  tracker's default, a preference, not proof of the tracker), then the most distinct keywords,
-  then the shorter window (a blank or legacy window last), then the country code in
-  alphabetical order (a blank country first), so every tie ends in exactly one group; the keywords **and** country both come from that one group
-  (named on the page as "from your last check on <date>"); else S12. `track.sh` passes its own settings explicitly.
-  `schedule_tracking.sh remove` deletes the site's settings file along with the job.
+- **Site settings file:** `~/.config/gsc-insights/sites/<site>.json` (key searches, country,
+  history file). `track.sh` writes it on **every run** with the settings it actually resolved
+  (after `.env` and the job's own entries), and `schedule_tracking.sh` writes it on install;
+  `schedule_tracking.sh remove` deletes it. The report only reads it: it never re-evaluates
+  `.env` or the launchd job, so the two cannot differ (DIFF rounds 1–4 found four ways a
+  re-evaluation did; the redesign records instead). Settings, in order of precedence:
+  command-line flags; else the settings file; else, from the history: take the latest date with
+  `gsc` rows for the site, group that date's rows by (window, country), and pick one group
+  deterministically — window 28 first (the tracker's default, a preference, not proof of the
+  tracker), then the most distinct keywords, then the shorter window (a blank or legacy window
+  last), then the country code in alphabetical order (a blank country first); the keywords
+  **and** country both come from that one group (named on the page as "from your last check on
+  <date>"); else S12. `track.sh` passes its own settings explicitly.
 - **Output:** `~/.config/gsc-insights/reports/<site>/google.html` (stable name, S15) and
   `google-data.json` beside it (S9). It prints the path and opens nothing; the skill has the
   assistant open it.
@@ -271,7 +266,8 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
 ## Probe results (2026-09-27, one real site: ~16 months of data, ~9,000 impressions in 90 days)
 
 Read-only, with the owner's OK; the site is not named here (this repo is public), and its raw
-output stays outside the repo for the same reason. The documented behaviour quoted below is from
+output stays outside the repo for the same reason. The probe script is
+`docs/reviews/gsc-report-probe/gsc_probe.py`; anyone can re-run it on their own site. The documented behaviour quoted below is from
 the Search Analytics API reference, https://developers.google.com/webmaster-tools/v1/searchanalytics/query
 (time zone of dates, `dataState` / `firstIncompleteDate`, the `equals` operator).
 

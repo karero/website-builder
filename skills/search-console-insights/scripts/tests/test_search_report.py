@@ -11,7 +11,6 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 import datetime as dt
 import json
 import os
-import plistlib
 import sys
 import tempfile
 import unittest
@@ -434,48 +433,20 @@ class Scenarios(ReportTest):
 
 
 class Settings(ReportTest):
-    def plist(self, domain_arg, keywords, env=None):
-        la = self.home / "Library/LaunchAgents"
-        la.mkdir(parents=True, exist_ok=True)
-        pl = {"Label": "x", "ProgramArguments": ["/bin/bash", "/x/track.sh", domain_arg, keywords]}
-        if env is not None:
-            pl["EnvironmentVariables"] = env
-        with open(la / f"com.gsc-insights.{sr._sanitize(DOMAIN)}.plist", "wb") as f:
-            plistlib.dump(pl, f)
-
-    def test_s16_an_older_job_without_entries_falls_back_to_env(self):
-        """A job from before per-site settings counts Germany via .env; the report must too."""
-        self.plist("Example-Bakery.DE", "k1,k2")
-        (self.home / ".config/gsc-insights/.env").write_text("GSC_COUNTRY=deu\n")
+    def test_s16_an_older_job_before_its_first_new_run_uses_the_history(self):
+        """Until the weekly job has recorded its settings, the history's own rows decide — with
+        the country each check actually used, so a Germany-only job still counts Germany."""
+        self.history([{"date": "2026-09-14", "site": DOMAIN, "source": "gsc", "keyword": k,
+                       "position": 9, "impressions": 20, "window": "28", "country": "deu"} for k in ("k1", "k2")])
         s, _ = sr.resolve_settings(DOMAIN, args())
         self.assertEqual((s["keywords"], s["country"]), (["k1", "k2"], "deu"))
-
-    def test_env_is_read_as_bash_reads_it(self):
-        """A comment or quotes in .env must not change the country (review round 1: "deu # market")."""
-        self.plist(DOMAIN, "k1")
-        (self.home / ".config/gsc-insights/.env").write_text(
-            'GSC_COUNTRY=deu # market\nexport GSC_HISTORY_CSV="/tmp/with space.csv"\n')
-        s, _ = sr.resolve_settings(DOMAIN, args())
-        self.assertEqual((s["country"], s["csv"]), ("deu", "/tmp/with space.csv"))
-        # ${VAR} expands against what the JOB sees: launchd's minimal environment plus the job's
-        # own entries — not the shell that asked for the report (review rounds 2 and 3).
-        (self.home / ".config/gsc-insights/.env").write_text('GSC_COUNTRY=${MARKET:-usa}\necho noise\n')
-        os.environ["MARKET"] = "che"                    # only in this shell: the job never sees it
-        s, _ = sr.resolve_settings(DOMAIN, args())
-        self.assertEqual(s["country"], "usa")
-        self.plist(DOMAIN, "k1", env={"MARKET": "che"})  # in the job's own environment
-        s, _ = sr.resolve_settings(DOMAIN, args())
-        self.assertEqual(s["country"], "che")
-
-    def test_the_settings_lines_are_still_track_shs(self):
-        """The report reuses track.sh's settings lines verbatim; if track.sh changes them, this
-        must fail rather than let the two read .env differently."""
-        track = (Path(sr.__file__).parent / "track.sh").read_text()
-        self.assertIn(sr.TRACK_SETTINGS_SH, track)
+        self.assertIn("your last check on 2026-09-14", s["from"])
 
     def test_an_empty_history_setting_means_the_shared_default_file(self):
-        """Not a value inherited from the environment, as for track.sh (review round 1)."""
-        self.plist(DOMAIN, "k1", env={"GSC_COUNTRY": "", "GSC_HISTORY_CSV": ""})
+        """An explicitly empty value is "none", never one inherited from the environment."""
+        sites = self.home / ".config/gsc-insights/sites"
+        sites.mkdir()
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "", "csv": ""}))
         os.environ["GSC_HISTORY_CSV"] = "/tmp/inherited-other.csv"
         s, _ = sr.resolve_settings(DOMAIN, args())
         self.assertEqual(s["csv"], str(self.home / ".config/gsc-insights/history.csv"))
@@ -489,19 +460,7 @@ class Settings(ReportTest):
         self.assertEqual(len(drills), sr.S6_SHOWN)
         self.assertIn("q99", {f["expression"] for b in drills for grp in b["dimensionFilterGroups"] for f in grp["filters"]})
 
-    def test_an_empty_entry_means_none_even_if_env_says_otherwise(self):
-        self.plist(DOMAIN, "k1", env={"GSC_COUNTRY": "", "GSC_HISTORY_CSV": ""})
-        (self.home / ".config/gsc-insights/.env").write_text("GSC_COUNTRY=deu\n")
-        s, _ = sr.resolve_settings(DOMAIN, args())
-        self.assertEqual(s["country"], "")
-
-    def test_a_colliding_job_for_another_domain_is_ignored(self):
-        self.plist("example.bakery-de", "wrong")          # sanitizes to the same file name
-        s, _ = sr.resolve_settings(DOMAIN, args())
-        self.assertEqual(s["keywords"], [])
-
-    def test_precedence_flags_then_site_file_then_job_then_history(self):
-        self.plist(DOMAIN, "from-job")
+    def test_precedence_flags_then_site_file_then_history(self):
         sites = self.home / ".config/gsc-insights/sites"
         sites.mkdir()
         (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["from-file"], "country": "che", "csv": ""}))

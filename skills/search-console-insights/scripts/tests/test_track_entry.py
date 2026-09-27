@@ -133,6 +133,17 @@ class TrackEntry(unittest.TestCase):
         self.assertTrue(page.exists(), out)
         self.assertIn("could not be loaded", page.read_text())
 
+    def test_the_weekly_run_records_the_settings_it_resolved(self):
+        """The on-demand report reads these instead of re-evaluating .env (DIFF rounds 1–4 found
+        four ways a re-evaluation differs). A country set only in .env must land in the file."""
+        (self.home / ".config/gsc-insights/.env").write_text("GSC_COUNTRY=deu\n")
+        rc, out, _ = self.track()
+        self.assertEqual(rc, 0, out)
+        s = json.loads((self.home / ".config/gsc-insights/sites" / f"{DOMAIN}.json").read_text())
+        self.assertEqual(s["keywords"], ["sourdough munich"])
+        self.assertEqual(s["country"], "deu")
+        self.assertEqual(s["csv"], str(self.home / ".config/gsc-insights/history.csv"))
+
     def test_a_failed_report_page_is_listed_but_never_hides_the_gsc_exit(self):
         rc, out, _ = self.track(SHIM_REPORT_RC=1)
         self.assertEqual(rc, 1, out)

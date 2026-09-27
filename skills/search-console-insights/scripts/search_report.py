@@ -23,7 +23,6 @@ import html
 import json
 import math
 import os
-import plistlib
 import re
 import sys
 from pathlib import Path
@@ -52,72 +51,17 @@ def report_dir(site: str) -> Path:
 
 # ─── settings ────────────────────────────────────────────────────────────────────────────
 
-ENV_KEYS = ("GSC_COUNTRY", "GSC_HISTORY_CSV", "BING_API_KEY")
-
-
-# track.sh's own settings lines, run by bash, so the report reads .env exactly as the job does:
-# quotes, comments, `export`, ${VAR} expansion, and the per-site values the job was started with
-# surviving the source (set, even empty, wins; unset takes .env's). test_search_report checks
-# these lines still match track.sh's.
-TRACK_SETTINGS_SH = """\
-site_csv_set="${GSC_HISTORY_CSV+set}"; site_csv="${GSC_HISTORY_CSV:-}"
-site_country_set="${GSC_COUNTRY+set}"; site_country="${GSC_COUNTRY:-}"
-[ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
-[ -n "$site_csv_set" ] && GSC_HISTORY_CSV="$site_csv"
-[ -n "$site_country_set" ] && GSC_COUNTRY="$site_country"
-"""
-
-
-def job_env(start_env: dict) -> dict:
-    """The environment after track.sh's settings lines, starting from `start_env`."""
-    script = ('ENV="$1"\n{\n' + TRACK_SETTINGS_SH + '} >/dev/null 2>&1\nexport GSC_HISTORY_CSV GSC_COUNTRY 2>/dev/null\n'
-              'exec "$2" -c "import json,os,sys; json.dump(dict(os.environ), sys.stdout)"\n')
-    import subprocess
+def bing_key_set() -> bool:
+    """Whether a Bing key is configured (it only decides between "fills in after the next weekly
+    check" and "not connected yet", so a plain look at .env is enough)."""
+    if os.environ.get("BING_API_KEY"):
+        return True
+    p = base_dir() / ".env"
     try:
-        r = subprocess.run(["bash", "-c", script, "_", str(base_dir() / ".env"), sys.executable],
-                           env=start_env, capture_output=True, text=True, timeout=10)
-        return json.loads(r.stdout or "{}")
-    except (OSError, subprocess.TimeoutExpired, ValueError):
-        return dict(start_env)
-
-
-def read_env_file() -> dict:
-    """This page's keys from .env on top of the current environment (an on-demand run)."""
-    env = job_env(dict(os.environ))
-    return {k: env[k] for k in ENV_KEYS if k in env}
-
-
-def _sanitize(domain: str) -> str:
-    """schedule_tracking.sh's sanitize(): lowercase, every non-[a-z0-9] becomes '-'."""
-    return re.sub(r"[^a-z0-9]", "-", domain.lower())
-
-
-def plist_settings(domain: str):
-    """Settings of an existing weekly job, read-only (plan: Design → Site settings file).
-
-    Only when the job's own domain equals the requested one after lower-casing, as the scheduler
-    compares them (a sanitize() collision is a different site). The settings are what track.sh
-    ends up with when launchd starts it: launchd's PATH and HOME plus the job's own
-    EnvironmentVariables, then track.sh's settings lines over .env — so a MISSING entry takes
-    .env's value, an EMPTY one means none (S16), and ${VAR} in .env sees only what the job sees."""
-    p = Path(os.path.expanduser("~")) / "Library/LaunchAgents" / f"com.gsc-insights.{_sanitize(domain)}.plist"
-    if not p.exists():
-        return None
-    try:
-        with open(p, "rb") as f:
-            pl = plistlib.load(f)
-        args = pl.get("ProgramArguments") or []
-        if len(args) < 4 or args[2].lower() != domain.lower():
-            return None
-        env = pl.get("EnvironmentVariables") or {}
-    except Exception:
-        return None
-    start = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": os.path.expanduser("~")}
-    start.update({str(k): str(v) for k, v in env.items()})
-    after = job_env(start)
-    country, hist = after.get("GSC_COUNTRY", ""), after.get("GSC_HISTORY_CSV", "")
-    return {"keywords": split_keywords(args[3]), "country": country, "csv": hist,
-            "from": "your weekly check"}
+        text = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+    except OSError:
+        return False
+    return bool(re.search(r"^\s*(export\s+)?BING_API_KEY=\s*['\"]?[^'\"\s#]", text, re.M))
 
 
 def split_keywords(s):
@@ -158,7 +102,9 @@ def history_settings(rows):
 
 
 def resolve_settings(domain, args):
-    """Flags, else sites/<site>.json, else the weekly job's plist, else the history, else none."""
+    """Flags, else sites/<site>.json (what the weekly job last resolved, or what the scheduler
+    installed), else the history, else none. Nothing here re-reads .env or the launchd job: the
+    job records its own resolved settings, so the two can never evaluate them differently."""
     site = normalize_site(domain)
     s = {"keywords": [], "country": "", "csv": "", "from": ""}
     sf = base_dir() / "sites" / f"{site}.json"
@@ -166,13 +112,11 @@ def resolve_settings(domain, args):
     if sf.exists():
         try:
             j = json.loads(sf.read_text(encoding="utf-8"))
-            found = {"keywords": split_keywords(",".join(j.get("keywords") or [])),
+            found = {"keywords": [str(k).strip() for k in (j.get("keywords") or []) if str(k).strip()],
                      "country": j.get("country") or "", "csv": j.get("csv") or "",
                      "from": "your weekly check"}
         except (ValueError, OSError):
             found = None
-    if found is None:
-        found = plist_settings(domain)
     if found:
         s.update(found)
     if args.csv is not None:
@@ -868,7 +812,7 @@ def build(domain, args, service_factory=make_service, today=None):
     bing_rows = [r for r in rows if r.get("source") == "bing" and (r.get("keyword") or "").lower() in current_kw]
     if bing_rows:
         bing_state = "lines"
-    elif os.environ.get("BING_API_KEY") or read_env_file().get("BING_API_KEY"):
+    elif bing_key_set():
         bing_state = "waiting"
     else:
         bing_state = "off"
