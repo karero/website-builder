@@ -140,9 +140,9 @@ function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
     w = words[k]
     if (lead[k] == w && w ~ /^[0-9]*(<|<<|<<-|<<<|>|>>|>[|]|>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
     if (lead[k] ~ /^[0-9]*[<>&]/) continue                        # 2>/dev/null, 2>'exit.log'
-    if (!dd && w == "--") { dd = 1; val = 0; continue }
-    if (!dd && !val && (w ~ /^-[fE]/ || w ~ /^--(file|exec)(=|$)/)) return 2
-    if (val) { val = 0; continue }                                # the value -v was waiting for
+    if (val) { val = 0; continue }       # the value -v/-F was waiting for, even "--" (awk -F --)
+    if (!dd && w == "--") { dd = 1; continue }
+    if (!dd && (w ~ /^-[fE]/ || w ~ /^--(file|exec)(=|$)/)) return 2
     if (!dd && (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/)) { val = 1; continue }
     if (!dd && (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/)) continue
     if (early_exit(w)) return 1
@@ -435,6 +435,12 @@ cmd | awk '{ n = NR / 2; print n; exit } # a comment with a /'
 cmd | awk -f prog.awk
 @@ bad/gawk-program-from-a-file-long-option
 cmd | gawk -v n=1 --file=prog.awk
+@@ bad/awk-field-separator-dashdash-then-file
+cmd | awk -F -- -f prog.awk
+@@ bad/gawk-program-via-exec
+cmd | gawk -E prog.awk
+@@ bad/gawk-program-via-exec-long-option
+cmd | gawk --exec prog.awk
 @@ bad/awk-escaped-newline-in-string
 cmd | awk '{ s = "a\
 "; exit }'
