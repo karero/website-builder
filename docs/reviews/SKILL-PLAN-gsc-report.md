@@ -10,7 +10,7 @@ for the owner's visual check.
 |---|---|---|
 | Requirements as scenarios (this document) | draft, for the owner to check | — |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
-| Mock-up page with invented numbers, for a visual check | in progress | — |
+| Mock-up page with invented numbers, for a visual check | built; **waiting for the owner's visual check** | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
 | PLAN gate (Codex; ollama-cloud when it has credit) | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -131,6 +131,17 @@ always shows the latest week.
   chart has "See the numbers" with the same data as a table (S11).
 - **Weeks with too little data** (S4) are hollow points with a short legend; a configuration
   change (S5) is a marked vertical line, and the line is broken there.
+
+### What the mock-up changed in the design
+
+- **One position scale for all key-search charts** (small multiples): with a scale per chart the
+  same slope meant different moves from card to card.
+- **Two drawings per chart**, wide and narrow, swapped by a CSS media query: an SVG scales its
+  text with its width, so a single drawing was unreadable on a phone (labels about 6px).
+- **No "end of page 1" label inside the charts**: it collided with any line near position 10.
+  The 10 line is drawn darker and the section's intro names it.
+- **Scales round to 1/1.2/1.5/2/2.5/… steps**, so the line fills the chart (a 0–200 scale for
+  data peaking at 110 flattened it).
 
 ## Judgment calls (not verified facts)
 
