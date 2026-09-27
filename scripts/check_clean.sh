@@ -81,12 +81,20 @@ report() { # <label> <grep-output>
 #    so private names never ship in the repo. Absent (e.g. a fresh clone / CI) → skipped;
 #    the generic checks below still run.
 DENYLIST_FILE="scripts/.clean-denylist"
+# A linked worktree has no copy of the gitignored list, so the check used to skip itself in
+# exactly the checkouts where commits are made (2026-09-27: a client name reached main that
+# way). Use the main checkout's list then. No git (the handoff zip) or no list anywhere → skip.
+if [ ! -f "$DENYLIST_FILE" ]; then
+  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  [ -n "$common" ] && [ -f "$common/../$DENYLIST_FILE" ] && DENYLIST_FILE="$common/../$DENYLIST_FILE"
+fi
 if [ -f "$DENYLIST_FILE" ]; then
   NAMES="$(grep -vE '^[[:space:]]*(#|$)' "$DENYLIST_FILE" | paste -sd'|' -)"
   # karero/website-builder is this project's OWN public repo — self-links to it (README
-  # badges, clone instructions, the security policy) are the point, not a leak.
+  # badges, clone instructions, the security policy) and its short form in issue and PR
+  # references (karero/website-builder#131) are the point, not a leak.
   [ -n "$NAMES" ] && report "personal/site identifier" "$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES \
-    | grep -viE 'github\.com/karero/website-builder')"
+    | grep -viE '(github\.com/)?karero/website-builder')"
 else
   echo "· personal-name denylist skipped (no $DENYLIST_FILE) — generic checks still run"
 fi

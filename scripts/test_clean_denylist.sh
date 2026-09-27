@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+#
+# test_clean_denylist.sh — drives scripts/check_clean.sh's private-name check against a
+# throwaway repo with a linked worktree.
+#
+# Why it exists: the name list is a gitignored file in the main checkout, so a linked
+# worktree has no copy of it, and the check skipped itself there and still printed OK.
+# Commits are made in worktrees, so the check was off exactly where it mattered: a client
+# name reached main that way (2026-09-27). These cases pin that a worktree uses the main
+# checkout's list, that a copy with no git still skips (and says so), and that this repo's
+# own short name in an issue or PR reference is not a leak. The names are made up; the
+# real list never appears in this repo.
+#
+# Usage: bash scripts/test_clean_denylist.sh
+set -u
+if ! command -v git >/dev/null 2>&1; then
+  echo "SKIP: test_clean_denylist.sh needs git (it builds a throwaway repo and worktree)"
+  exit 0
+fi
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+T="$(mktemp -d "${TMPDIR:-/tmp}/clean-denylist-test.XXXXXX")"
+trap 'rm -rf "$T"' EXIT
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null"
+fails=0
+# expect <label> <exit code wanted> <text the output must contain, or ""> <dir>
+expect() {
+  local out rc
+  out="$(cd "$4" && bash scripts/check_clean.sh 2>&1)"; rc=$?
+  if [ "$rc" -eq "$2" ] && { [ -z "$3" ] || printf '%s' "$out" | grep -qF -- "$3"; }; then
+    printf 'ok   %s\n' "$1"
+  else
+    printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$2" "$out" | sed '2,$s/^/     /'
+    fails=$((fails+1))
+  fi
+}
+
+R="$T/repo"; W="$T/worktree"; N="$T/nogit"
+mkdir -p "$R/scripts" "$R/skills" "$R/docs"
+cp "$HERE/check_clean.sh" "$R/scripts/"
+for f in README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile LICENSE; do : >"$R/$f"; done
+printf 'plain notes\n' >"$R/docs/notes.md"
+printf '# a skill\n' >"$R/skills/SKILL.md"
+printf 'scripts/.clean-denylist\n' >"$R/.gitignore"
+$git init -q "$R"; $git -C "$R" add -A; $git -C "$R" commit -qm base
+printf '# made-up names\nzorblequux\nkarero\n' >"$R/scripts/.clean-denylist"
+$git -C "$R" worktree add -q --detach "$W"
+
+expect "main checkout, clean: passes" 0 "OK —" "$R"
+expect "worktree, clean: passes without skipping the list" 0 "OK —" "$W"
+if (cd "$W" && bash scripts/check_clean.sh 2>&1) | grep -q 'denylist skipped'; then
+  printf 'FAIL worktree still reports the list as skipped\n'; fails=$((fails+1))
+fi
+
+printf 'ran the live check on zorblequux\n' >>"$W/docs/notes.md"
+expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
+
+# In the main checkout, where the list is read either way, so only the short-form allowance
+# decides this case.
+printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder\n' >"$R/docs/notes.md"
+expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
+
+mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
+printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
+expect "no git, no list: skips the list and says so" 0 "denylist skipped" "$N"
+
+[ "$fails" -eq 0 ] && { echo "test_clean_denylist: all passed"; exit 0; }
+echo "test_clean_denylist: $fails failed"; exit 1
