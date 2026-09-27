@@ -101,13 +101,15 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
   if (ft[d] == "C" && substr(s, i + 1, 1) == "'") { add("$'"); sq[d] = 2; return 1 }
   add("$"); return 0
 }
-# The program an awk command runs, as awk sees it: the shell words after `awk` with their
-# quoting decoded ('…' literal; "…" with \" \\ \$ \` unescaped), skipping redirections
-# (2>/dev/null, > out, <in) and options with their values (-F, -v, -W, gawk's -i/-l and
-# --assign/--field-separator/--include/--load, any --opt=value). gawk's -e/--source give the
-# program directly. "" for a program read from a file (-f, -E, --file, --exec), which this
-# guard cannot see.
-function awkprog(s,   n, i, c, q, w, have, words, nw, k) {
+# Whether an awk command can exit before reading all its input. Fail-safe by design: every
+# shell word after `awk` is decoded ('…' literal; "…" with \" \\ \$ \` unescaped) and
+# checked as if it were program text, so a program is found wherever it sits (after options,
+# redirections, gawk's -e, several -e) without an option table having to be complete. Skipped,
+# only so they cannot raise a false alarm: an unquoted redirection with its target, and the
+# value of an option known to take one. A word skipped by mistake would be a miss, so both
+# lists stay narrow; a word checked by mistake is at worst a false alarm, fixed in EXEMPT.
+# A program read from a file (-f) is not visible here.
+function awkexits(s,   n, i, c, q, w, have, words, qd, nw, k) {
   n = length(s); q = ""; w = ""; have = 0; nw = 0
   for (i = 1; i <= n + 1; i++) {
     c = (i <= n) ? substr(s, i, 1) : " "
@@ -117,25 +119,34 @@ function awkprog(s,   n, i, c, q, w, have, words, nw, k) {
       if (c == "\"") q = ""; else w = w c
       continue
     }
-    if (c == "'" || c == "\"") { q = c; have = 1; continue }
-    if (c == "\\") { w = w substr(s, i + 1, 1); i++; have = 1; continue }
-    if (c ~ /[ \t\n]/) { if (have || w != "") words[++nw] = w; w = ""; have = 0; continue }
+    if (c == "'" || c == "\"" || c == "\\") {
+      have = 1
+      if (c == "\\") { w = w substr(s, i + 1, 1); i++ } else q = c
+      continue
+    }
+    if (c ~ /[ \t\n]/) { if (have || w != "") { words[++nw] = w; qd[nw] = have }; w = ""; have = 0; continue }
     w = w c
   }
   for (k = 1; k <= nw; k++) {
     w = words[k]
-    if (w ~ /^[0-9]*(<|>|>>|>&|<&|&>|&>>|<>)$/) { k++; continue }   # operator, target next
-    if (w ~ /^[0-9]*[<>&]/) continue                                 # 2>/dev/null, >out, <in
-    if (w == "--") return (k < nw) ? words[k + 1] : ""
-    if (w == "-e" || w == "--source") return (k < nw) ? words[k + 1] : ""
-    if (w ~ /^-e./) return substr(w, 3)
-    if (w ~ /^--source=/) return substr(w, 10)
-    if (w ~ /^-[fE]/ || w ~ /^--(file|exec)([=]|$)/) return ""
-    if (w ~ /^-[FvWil]$/ || w ~ /^--(assign|field-separator|include|load)$/) { k++; continue }
-    if (w ~ /^-./) continue                                          # -F:, -vx=1, --posix, --opt=value
-    return w
+    if (!qd[k] && w ~ /^[0-9]*(<|>|>>|>\||>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
+    if (!qd[k] && w ~ /^[0-9]*[<>&]/) continue                                     # 2>/dev/null
+    if (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/) { k++; continue }     # -v n=exit
+    if (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/) continue
+    if (early_exit(unlit(w))) return 1
   }
-  return ""
+  return 0
+}
+# An exit inside END runs after all input is read, so it cannot close the pipe early. Drop
+# every END block, wherever it sits, and look for an exit in what remains.
+function early_exit(rest,   st, j, nb, ch) {
+  while (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) {
+    st = (substr(rest, RSTART, 3) == "END") ? RSTART - 1 : RSTART
+    j = RSTART + RLENGTH; nb = 1
+    while (j <= length(rest) && nb > 0) { ch = substr(rest, j, 1); if (ch == "{") nb++; else if (ch == "}") nb--; j++ }
+    rest = substr(rest, 1, st) substr(rest, j)
+  }
+  return rest ~ /(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)/
 }
 # An awk program with its string, regex and comment contents blanked, so `print "exit"` or
 # `/exit/` is not read as the exit statement. A regex is a /.../ where an operand can start:
@@ -153,7 +164,7 @@ function unlit(s,   out, m) {
   gsub(/#[^\n]*/, "", s)
   return s
 }
-function check(x, ln,   w, nw, k, kind, rest, st, j, nb, ch) {
+function check(x, ln,   w, nw, k, kind) {
   sub(/^[ \t\n]+/, "", x)
   for (;;) {
     if (x ~ /^(!|\{|time|command|builtin|env|exec|nohup)([ \t\n]|$)/) { sub(/^[^ \t\n]*[ \t\n]*/, "", x); continue }
@@ -176,16 +187,7 @@ function check(x, ln,   w, nw, k, kind, rest, st, j, nb, ch) {
     if (substr(x, 4) ~ /(^|[^a-zA-Z_\\])[qQ][0-9]*([ \t\n;}'"]|$)/) kind = "sed with q"
   } else if (x ~ /^[gmn]?awk([ \t\n]|$)/) {
     sub(/^[gmn]?awk/, "", x)
-    rest = unlit(awkprog(x))
-    # An exit inside END runs after all input is read, so it cannot close the pipe early. Drop
-    # every END block, wherever it sits, and look for an exit in what remains.
-    while (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) {
-      st = (substr(rest, RSTART, 3) == "END") ? RSTART - 1 : RSTART
-      j = RSTART + RLENGTH; nb = 1
-      while (j <= length(rest) && nb > 0) { ch = substr(rest, j, 1); if (ch == "{") nb++; else if (ch == "}") nb--; j++ }
-      rest = substr(rest, 1, st) substr(rest, j)
-    }
-    if (rest ~ /(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)/) kind = "awk with exit"
+    if (awkexits(x)) kind = "awk with exit"
   }
   if (kind != "") print FILENAME "\t" ln "\t" kind
 }
@@ -342,6 +344,18 @@ cmd | gawk --field-separator '\t' 'NR == 1 { exit }'
 cmd | mawk -W interactive 'NR == 1 { exit }'
 @@ bad/gawk-source
 cmd | gawk -e 'NR == 1 { exit }'
+@@ bad/awk-program-looks-like-redirect
+cmd | awk '1>0 { print; exit }'
+@@ bad/awk-redirect-between-option-and-value
+cmd | awk -v 2>/dev/null n=1 'NR == n { exit }'
+@@ bad/awk-redirect-after-double-dash
+cmd | awk -- 2>/dev/null 'NR == 1 { exit }'
+@@ bad/awk-clobber-redirect
+cmd | awk 2>| /dev/null 'NR == 1 { exit }'
+@@ bad/gawk-exit-in-second-source
+cmd | gawk -e '{ print }' -e 'NR == 1 { exit }'
+@@ bad/awk-unknown-option-before-program
+cmd | gawk --profile prof.out 'NR == 1 { exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
