@@ -48,6 +48,26 @@ problems=()
 gsc_rc=0
 history_gap=0
 
+# Record the settings this run resolved, so an on-demand report page (search_report.py) uses
+# exactly what the weekly job uses without re-reading .env or the launchd job. Written through a
+# temporary file of its own (an overlapping run can't collide) and dated, so the page can say how
+# old a record is; nothing is deleted on failure (it could be another run's good record). `bing`
+# records only whether a key resolved, never the key.
+SITE_FILE="$HOME/.config/gsc-insights/sites/$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]').json"
+if ! { mkdir -p "$(dirname "$SITE_FILE")" &&
+       "$PY" -c 'import datetime,json,os,sys,tempfile; d,k,c,h,b,f=sys.argv[1:7]
+fd,t=tempfile.mkstemp(dir=os.path.dirname(f), prefix=".site-", suffix=".tmp")
+try:
+    with os.fdopen(fd,"w") as o:
+        json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h,"bing":b=="1","recorded":datetime.date.today().isoformat()}, o, ensure_ascii=False, indent=1)
+    os.replace(t,f)
+except BaseException:
+    os.path.exists(t) and os.remove(t); raise' \
+         "$DOMAIN" "$KEYWORDS" "${GSC_COUNTRY:-}" "$CSV" "$([ -n "${BING_API_KEY:-}" ] && echo 1 || echo 0)" "$SITE_FILE"; }; then
+  echo "  ⚠ could not record this site's settings in $SITE_FILE — the report page shows the date of any older record"
+  problems+=("site settings not recorded")
+fi
+
 echo "▶ Google Search Console …"
 # GSC_COUNTRY (ISO alpha-3, e.g. deu): optional country filter so the tracked
 # history matches ad-hoc --country reports (env-var pattern like GSC_HISTORY_CSV).
@@ -93,6 +113,15 @@ rc=0
 if [ "$rc" != 0 ] && [ "$rc" != 3 ]; then
   problems+=("AI check: exit $rc (see the ⚠ lines above)")
 fi
+
+echo "▶ Report page (how people find you on Google) …"
+# After the AI check, so the page links to this week's AI report. It writes a page even when
+# Google can't be reached (the page says so at the top), so a nonzero exit means no page at
+# all. Listed like every other failure; it never replaces GSC's exit code or the history's 4.
+rc=0
+"$PY" "$DIR/search_report.py" "$DOMAIN" --keywords "$KEYWORDS" --csv "$CSV" \
+  --country "${GSC_COUNTRY:-}" || rc=$?
+[ "$rc" = 0 ] || problems+=("report page: exit $rc")
 
 echo
 echo "═══ Position trend — lower is better; ▲ = improved since last run ═══"
