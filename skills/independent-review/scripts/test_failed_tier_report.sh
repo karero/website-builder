@@ -86,11 +86,23 @@ case "$1" in
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
-  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model"
-        printf '%s\n' "$3" >"$STUB_MARKS/ollama-prompt" ;;
+  run)  shift
+        if [ "$1" = --help ]; then   # STUB_OLDCLI=1: a CLI too old to know --hidethinking
+          [ -n "${STUB_OLDCLI:-}" ] || echo '      --hidethinking            Hide thinking output (if provided)'
+          exit 0
+        fi
+        if [ "$1" = --hidethinking ]; then : >"$STUB_MARKS/ollama-hidethinking"; shift; fi
+        : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$1" >"$STUB_MARKS/ollama-model"
+        printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
+  think)  # a reasoning model, as the real CLI prints it: the trace only without --hidethinking.
+          # Its trace quotes the prompt's "could not read" advice (2026-09-27).
+          if [ ! -e "$STUB_MARKS/ollama-hidethinking" ]; then
+            printf '%s\n' 'Thinking...' 'The advice says: phrase it about the claim, not "I could not read".' '...done thinking.' ''
+          fi
+          printf '%s\n' 'RISK — retry.rb:12 — the retry loop never terminates on a stalled connection.' 'No BUG or NIT findings.' ;;
   429)    # the byte shape of the 2026-09-11 failure: spinner, cursor and sync-mode escapes
           printf '\033[?2026h\033[?25l\033[1G\342\240\231 \033[K\033[?25h\033[?2026l\033[?25l\033[2K\033[1G\033[?25hError: 429 Too Many Requests: you (someone) have reached your weekly usage limit, upgrade for higher limits\n' >&2
           exit 1 ;;
@@ -693,6 +705,19 @@ if command -v git >/dev/null 2>&1; then
     check "merge_link: a rename the merge undid ($mode the new name) shows the old name" has "mlrn-$mode.out" "old.txt"
   done
 fi
+
+# 31. A reasoning model's trace is kept out of the answer (2026-09-27): its trace quoted the
+#     prompt's "could not read" advice, and the whole reply was rejected as not a review.
+run think OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+check "think: the CLI is asked to hide the trace" test -e "$T/think.marks/ollama-hidethinking"
+check "think: ollama-cloud counted, not FAILED" has think.out "reviewers: codex OK, ollama-cloud OK"
+check "think: the answer is printed, the trace is not" \
+  sh -c 'grep -qF "RISK — retry.rb:12" "$1" && ! grep -qF "Thinking..." "$1"' _ "$T/think.out"
+check "think: the model and prompt still reach the CLI" \
+  sh -c 'grep -qxF "$2" "$1/ollama-model" && [ -s "$1/ollama-prompt" ]' _ "$T/think.marks" "$STUB_TAG"
+run thinkold STUB_OLDCLI=1 OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+check "thinkold: a CLI without the flag is not given it" test ! -e "$T/thinkold.marks/ollama-hidethinking"
+check "thinkold: ...and still runs the model, as before this change" test -e "$T/thinkold.marks/ollama-ran"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

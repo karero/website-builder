@@ -681,7 +681,16 @@ ollama_via_cli() {
   # that failed (daemon down, broken install) — keep its error for the FAILED section.
   ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
   local tmp="$RAW_DIR/ollama.out" rc
-  ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+  # --hidethinking keeps a reasoning model's trace ("Thinking..." ... "...done thinking.") out
+  # of stdout. The trace is not the answer, yet it was judged as one: a real review was
+  # rejected because its trace quoted this prompt's "could not read" advice (2026-09-27).
+  # Cutting the trace out of the text afterwards was tried and dropped — the trace can itself
+  # quote the closing line. A CLI too old to list the flag runs without it, as before.
+  if grep -q -- '--hidethinking' <<<"$(ollama run --help 2>&1)"; then
+    ollama run --hidethinking "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+  else
+    ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+  fi
   { [ $rc -eq 0 ] && [ -s "$tmp" ]; } || { why_cli $rc; return 1; }
   looks_like_review "$(cat "$tmp")" || { WHY="$NOT_A_REVIEW"; return 1; }
     # Plain ANSI-stripping is not enough: ollama's own word-wrap redraw ("cursor
