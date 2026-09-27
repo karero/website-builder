@@ -93,8 +93,8 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N]"
-FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND=""
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--seat codex|ollama|agy]"
+FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
 while [ $# -gt 0 ]; do
   a="$1"; shift
   case "$a" in
@@ -108,6 +108,11 @@ while [ $# -gt 0 ]; do
                      # head, and this file holds the prior round's findings (SKILL.md step 6)
              [ $# -gt 0 ] && [ -n "$1" ] || { echo "--verify needs the prior-findings file" >&2; echo "$USAGE" >&2; exit 2; }
              VERIFY_FILE="$1"; shift ;;
+    --seat)  # run this ONE reviewer only (SKILL.md step 6: the wording pass, the final full read)
+             [ $# -gt 0 ] || { echo "--seat needs a value" >&2; echo "$USAGE" >&2; exit 2; }
+             case "$1" in codex|ollama|agy) SEAT="$1" ;;
+               *) echo "bad value for --seat: $1 (codex, ollama or agy)" >&2; echo "$USAGE" >&2; exit 2 ;;
+             esac; shift ;;
     --depth|--round) # recorded in the cost log only (review_log.sh); they change nothing else
              [ $# -gt 0 ] || { echo "$a needs a value" >&2; echo "$USAGE" >&2; exit 2; }
              case "$a:$1" in
@@ -141,6 +146,16 @@ case "${CODEX_EFFORT:-}" in
 esac
 if [ -z "$TYPE" ]; then
   case "$FILE" in -|*.diff|*.patch) TYPE="diff" ;; *) TYPE="plan" ;; esac
+fi
+# --seat names its one reviewer, and dispatch calls that tier directly. `--seat agy`, like
+# --with-antigravity, is how the owner's Antigravity opt-in reaches the script (SKILL.md, reviewer
+# stack): pass either only when the owner asked. --seat never combines with --first-success; with
+# --with-antigravity only as `--seat agy` (the same reviewer); with --local-only only as ollama.
+if [ -n "$SEAT" ] && { [ "$FIRST_SUCCESS" = 1 ] || { [ "$WITH_ANTIGRAVITY" = 1 ] && [ "$SEAT" != agy ]; }; }; then
+  echo "--seat $SEAT runs one named reviewer; drop --first-success/--with-antigravity (or WITH_ANTIGRAVITY=1)." >&2; exit 2
+fi
+if [ -n "$SEAT" ] && [ "$LOCAL_ONLY" = "1" ] && [ "$SEAT" != ollama ]; then
+  echo "--local-only runs local ollama only; --seat $SEAT would send content out — refusing." >&2; exit 2
 fi
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
@@ -962,6 +977,8 @@ report_round() {
     note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
     if [ "$LOCAL_ONLY" = "1" ]; then
       note="$note — --local-only, degraded by owner choice."
+    elif [ -n "$SEAT" ]; then
+      note="$note — --seat $SEAT was requested. One reviewer is right for the wording pass or the final full read (SKILL.md step 6); any other round needs the standard pair."
     elif [ "$FIRST_SUCCESS" = "1" ]; then
       note="$note — --first-success was requested."
     else
@@ -990,6 +1007,12 @@ if [ "$LOCAL_ONLY" = "1" ]; then
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
   echo "── LOCAL-ONLY mode: external reviewers skipped; gate is DEGRADED by owner choice ──" >&2
   attempt "$OLLAMA_LABEL" ollama run_ollama
+elif [ -n "$SEAT" ]; then
+  case "$SEAT" in
+    codex)  attempt codex codex run_codex ;;
+    ollama) attempt "$OLLAMA_LABEL" ollama run_ollama ;;
+    agy)    attempt antigravity agy run_agy ;;
+  esac
 elif [ "$FIRST_SUCCESS" = "1" ]; then
   attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
   [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                     # 2. ollama-cloud

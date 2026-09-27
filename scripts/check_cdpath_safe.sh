@@ -49,6 +49,7 @@ NOT_RUN=(
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
+  skills/independent-review/scripts/merge_link.sh               # needs a repo and three revisions; never locates itself
   skills/independent-review/scripts/test_failed_tier_report.sh  # slow; stubs a whole CLI
   skills/independent-review/scripts/test_looks_like_review.sh   # slow; stubs a whole CLI
   skills/independent-review/scripts/test_sweep_claims.sh        # builds throwaway repos; needs git and python3
