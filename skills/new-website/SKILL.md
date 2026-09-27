@@ -233,7 +233,8 @@ GitHub, tell them plainly that the account and the website in it are theirs, and
 two-factor sign-in with a passkey to keep others out (`SETUP.md` §1 has the link); for
 Cloudflare, which decides whether the site is online, the same with a security key or the
 device's fingerprint or face unlock. Recommend, never require: GitHub makes it mandatory only
-for some accounts, and Cloudflare for none.
+for some accounts, and Cloudflare leaves it optional unless an account's administrator
+enforces it for members.
 
 Assemble the project at `<site>/` so it travels without any global setup:
 
