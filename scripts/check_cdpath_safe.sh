@@ -78,7 +78,8 @@ rc=0
 discover() {
   # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
   # otherwise get that repository's index, which may track none, some or all of these files.
-  if [ "$(git rev-parse --show-toplevel 2>/dev/null)" = "$(pwd -P)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
+  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
     git ls-files 2>/dev/null
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
@@ -154,9 +155,10 @@ done
 # that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
 # SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
 # A zip unpacked inside some other repository still answers `git rev-parse`, so ask whether
-# the suite root IS the toplevel, the same test whats-new.sh makes before it runs.
+# the suite root IS the toplevel (an empty --show-prefix), the question whats-new.sh asks too.
 if ! command -v git >/dev/null 2>&1 ||
-   [ "$(git rev-parse --show-toplevel 2>/dev/null)" != "$(pwd -P)" ]; then
+   [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ] ||
+   [ -n "$(git rev-parse --show-prefix 2>/dev/null)" ]; then
   echo "SKIP — the whats-new.sh regression case needs a git clone of the suite (it compares suite history)."
   exit $rc
 fi

@@ -45,7 +45,8 @@ EXEMPT=(
 discover() {
   # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
   # otherwise get that repository's index, which may track none, some or all of these files.
-  if [ "$(git rev-parse --show-toplevel 2>/dev/null)" = "$(pwd -P)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
+  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
     git ls-files 2>/dev/null
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
