@@ -87,8 +87,9 @@ discover() {
     [ -f "$f" ] || continue
     # tr: a tracked binary file's first "line" can hold NUL bytes. bash drops them from a command
     # substitution anyway, and >= 4.4 warns on stderr as it does; dropping them first is silent
-    # and leaves the same string to match.
-    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
+    # and leaves the same string to match. LC_ALL=C: under a UTF-8 locale macOS tr stops on the
+    # first invalid byte with "Illegal byte sequence".
+    case "$(head -n 1 -- "$f" 2>/dev/null | LC_ALL=C tr -d '\0')" in
       '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort

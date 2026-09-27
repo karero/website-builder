@@ -52,7 +52,7 @@ discover() {
   fi |
   while IFS= read -r f; do
     [ -f "$f" ] || continue
-    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
+    case "$(head -n 1 -- "$f" 2>/dev/null | LC_ALL=C tr -d '\0')" in
       '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
@@ -65,7 +65,9 @@ PIPEFAIL_RE='^[[:space:]]*set[[:space:]]+(.*[[:space:]])?-[a-zA-Z]*o[[:space:]]+
 # --- the lexer ---------------------------------------------------------------------------------
 # Prints one line per flagged site: <file> TAB <line> TAB <consumer>. A file it cannot parse
 # prints <file> TAB 0 TAB PARSE: <reason>. Plain POSIX awk: runs under mawk, nawk and gawk.
-LEXER="$(cat <<'AWK'
+# read, not "$(cat <<'AWK' … )": bash 3.2 (macOS /bin/bash) parses a heredoc inside $( ) for
+# quotes, and this awk body's unbalanced ' and ` stop the whole script from parsing there.
+IFS= read -r -d '' LEXER <<'AWK' || true
 function reset() {
   d = 1; ft[1] = "C"; tm[1] = ""; own[1] = 1; sq[1] = 0; an[1] = 0
   buf[1] = ""; op[1] = ""; bl[1] = 0; nh = 0; hh = 0; cont = 0
@@ -209,7 +211,6 @@ FNR == 1 { if (NR > 1) finish(cur); reset(); cur = FILENAME }
 }
 END { if (NR > 0) finish(cur) }
 AWK
-)"
 
 # --- self-test, both directions ------------------------------------------------------------------
 # A guard that cannot fire is worse than none; one that fires on the fixed form is its mirror.
@@ -292,7 +293,7 @@ head -n 1 file | tr -d '\0'
 CASES
 
 TAB=$'\t'
-flagged="$(awk "$LEXER" "$tmp"/bad/* "$tmp"/good/*)"; lrc=$?
+flagged="$(LC_ALL=C awk "$LEXER" "$tmp"/bad/* "$tmp"/good/*)"; lrc=$?
 if [ "$lrc" -ne 0 ]; then
   echo "FAIL — self-test: awk exited $lrc; the lexer is broken on this system's awk."
   exit 1
@@ -340,7 +341,7 @@ if [ "${#SCOPE[@]}" -lt 10 ]; then
   exit 1
 fi
 
-found="$(awk "$LEXER" "${SCOPE[@]}")"; lrc=$?
+found="$(LC_ALL=C awk "$LEXER" "${SCOPE[@]}")"; lrc=$?
 if [ "$lrc" -ne 0 ]; then
   echo "FAIL — awk exited $lrc while scanning; the guard result is unreliable."
   exit 1
@@ -355,7 +356,7 @@ while IFS=$'\t' read -r f ln kind; do
     echo "FAIL — $f: cannot lex it (${kind#PARSE: }). Fix the script, or teach this guard the construct."
     rc=1; continue
   fi
-  src="$(sed -n "${ln}p" -- "$f")"
+  src="$(sed -n "${ln}p" <"$f")"
   hit=""
   for i in "${!EXEMPT[@]}"; do
     e="${EXEMPT[$i]}"
