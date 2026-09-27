@@ -12,7 +12,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | Requirements as scenarios (this document) | draft 6 | this document |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | rounds 1–6 done; final full read done; round 6's 2 BUG + 5 RISK fixed below; round 7 next, earned by them | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | **closed** 2026-09-27: 7 rounds + final full read; round 7 had no BUG, its one RISK fixed locally (tie-break, not externally re-verified beyond the wording pass) | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
 | Probe of the real Google responses (see "To verify before build") | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -233,8 +233,9 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
   precedence: command-line flags; else the settings file; else the matching launchd job file;
   else, from the history: take the latest date with `gsc` rows for the site, group that date's
   rows by (window, country), and pick one group deterministically — window 28 first (the
-  tracker's default, a preference, not proof of the tracker), then the most keywords, then the
-  country code in alphabetical order; the keywords **and** country both come from that one group
+  tracker's default, a preference, not proof of the tracker), then the most distinct keywords,
+  then the shorter window (a blank or legacy window last), then the country code in
+  alphabetical order (a blank country first), so every tie ends in exactly one group; the keywords **and** country both come from that one group
   (named on the page as "from your last check on <date>"); else S12. `track.sh` passes its own settings explicitly.
   `schedule_tracking.sh remove` deletes the site's settings file along with the job.
 - **Output:** `~/.config/gsc-insights/reports/<site>/google.html` (stable name, S15) and
@@ -375,3 +376,13 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
 | C6-5 | Codex RISK | history fallback could mix two configurations of one day | fixed: deterministic group; keywords and country from that group |
 | C6-6 | Codex RISK | "none moved clearly" hid too-little-data | fixed: counts every non-zero outcome |
 | C6-7 | Codex RISK | a past variant match presented as current | fixed: dated past match, never "shown now" |
+
+## PLAN round 7 — dispositions
+
+| # | Source | Finding | Disposition |
+|---|---|---|---|
+| C7-1 | Codex RISK | history group selection could still tie | fixed locally: distinct keywords, then shorter window (blank last), then country (blank first); round 7 had no BUG, so no further round; checked by the wording pass only |
+
+**Gate cost:** 7 Codex rounds, 1 fresh-eyes (Sonnet) pass, 1 final full read (Opus), 1 wording pass;
+findings per round (BUG/RISK/NIT): r1 8/10/1 (Codex + fresh-eyes), r2 5/3/0, r3 2/1/0, r4 1/0/0,
+r5 0/0/0, final read 4/7/5, r6 2/5/0, r7 0/1/0.
