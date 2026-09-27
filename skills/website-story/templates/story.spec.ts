@@ -18,8 +18,10 @@ const CONFIG = {
   /** Header plus at least one repeat. */
   directCtaMin: 2,
   /**
-   * The CTA's target (e.g. '/contact'). Set it and every link carrying the label
-   * must point there. Empty = the target is not checked.
+   * The CTA's target (e.g. '/contact', '/#contact', 'mailto:hello@example.com'). Set it and
+   * every link carrying the label must point there: same site, same page (a trailing slash
+   * does not matter, a query string is ignored), and the same #section when you give one.
+   * Empty = the target is not checked.
    */
   directCtaHref: '',
   /** The one-liner OR the controlling idea, verbatim. Empty = that test skips. */
@@ -44,7 +46,8 @@ const CONFIG = {
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
 // A CTA label matches when it IS the label, give or take trailing decoration such as
 // an emoji or an arrow. "Book" does not match "Bookings", and "Request quote" does
-// not match "Get a quote": label drift fails the count instead of hiding in it.
+// not match "Get a quote". A drifted copy therefore drops out of the count: the test
+// fails once fewer than directCtaMin copies still carry the exact label.
 const isLabel = (text: string, label: string) =>
   norm(text).replace(/[^\p{L}\p{N}]+$/u, '') === norm(label).replace(/[^\p{L}\p{N}]+$/u, '');
 
@@ -61,7 +64,10 @@ test.describe('story layer (home page)', () => {
     // count, and a <button> inside an <a> counts once.
     const ctas = await page.locator('a:visible, button:visible').evaluateAll((els) =>
       els.filter((el) => !(el.tagName === 'BUTTON' && el.closest('a')))
-        .map((el) => ({ text: (el as HTMLElement).innerText, link: el.tagName === 'A', href: el.getAttribute('href') ?? '' })));
+        // .href is the browser-resolved absolute URL, so '/contact', 'contact' and
+        // 'https://this-site/contact' compare alike; '' for a <button> or an <a> without href.
+        .map((el) => ({ text: (el as HTMLElement).innerText, link: el.tagName === 'A',
+          href: el.tagName === 'A' ? (el as HTMLAnchorElement).href : '' })));
     const hits = ctas.filter((c) => isLabel(c.text, CONFIG.directCta));
     expect(hits.length,
       `"${CONFIG.directCta}" found ${hits.length}x as a visible link/button on ${CONFIG.home}; ` +
@@ -69,7 +75,14 @@ test.describe('story layer (home page)', () => {
       .toBeGreaterThanOrEqual(CONFIG.directCtaMin);
     if (CONFIG.directCtaHref) {
       // Links only: a <button> CTA (a form submit, a dialog opener) has no href to compare.
-      const off = hits.filter((c) => c.link && !c.href.endsWith(CONFIG.directCtaHref)).map((c) => c.href || '(none)');
+      const want = new URL(CONFIG.directCtaHref, page.url());
+      const path = (u: URL) => u.pathname.replace(/\/+$/, '');
+      const same = (href: string) => {
+        if (!href) return false;
+        const u = new URL(href);
+        return u.origin === want.origin && path(u) === path(want) && (!want.hash || u.hash === want.hash);
+      };
+      const off = hits.filter((c) => c.link && !same(c.href)).map((c) => c.href || '(none)');
       expect(off, `"${CONFIG.directCta}" must always point to ${CONFIG.directCtaHref}`).toEqual([]);
     }
   });

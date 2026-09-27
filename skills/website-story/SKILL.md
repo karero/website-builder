@@ -203,7 +203,7 @@ in the `new-website` Astro overlay because a fresh scaffold has no story to asse
 
 | assertion | the bug it catches |
 |---|---|
-| The direct CTA appears at least twice as a visible link or button with exactly that label, and (with `directCtaHref`) always the same target | the label drifting ("Get a quote" / "Request quote"), the repeat being cut, or one copy pointing somewhere else |
+| The direct CTA appears at least twice as a visible link or button with exactly that label, and (with `directCtaHref`) always the same target | the repeat being cut, the label drifting ("Get a quote" / "Request quote") until fewer than `directCtaMin` copies still match (a third, drifted copy beside two exact ones is not caught), or one copy pointing to another page or site |
 | The one-liner or controlling idea is in the body text | the one line the page exists to say being edited away |
 | The plan is one container of three or four non-empty steps (a list, or a card grid via `planStep`) | the plan growing into a process, or being restyled into prose |
 
