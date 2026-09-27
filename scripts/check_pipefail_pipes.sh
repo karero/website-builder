@@ -111,7 +111,8 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
 # --assign or --field-separator; after `--` no word is taken for an option. A word skipped by
 # mistake would be a miss, so these lists stay narrow; a word checked by mistake (an input
 # file named exit.log, another option's value) is at worst a false alarm, fixed in EXEMPT.
-# A program read from a file (-f) is not visible here.
+# A program read from a file (-f, -E, --file, --exec) is not visible here, so that consumer is
+# flagged too (returns 2): read the file once and EXEMPT the site if it never exits early.
 function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
   n = length(s); q = ""; w = ""; have = 0; nw = 0; pre = ""
   for (i = 1; i <= n + 1; i++) {
@@ -140,6 +141,7 @@ function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
     if (lead[k] == w && w ~ /^[0-9]*(<|<<|<<-|<<<|>|>>|>[|]|>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
     if (lead[k] ~ /^[0-9]*[<>&]/) continue                        # 2>/dev/null, 2>'exit.log'
     if (!dd && w == "--") { dd = 1; val = 0; continue }
+    if (!dd && !val && (w ~ /^-[fE]/ || w ~ /^--(file|exec)(=|$)/)) return 2
     if (val) { val = 0; continue }                                # the value -v was waiting for
     if (!dd && (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/)) { val = 1; continue }
     if (!dd && (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/)) continue
@@ -226,7 +228,9 @@ function check(x, ln,   w, nw, k, kind) {
     if (substr(x, 4) ~ /(^|[^a-zA-Z_\\])[qQ][0-9]*([ \t\n;}'"]|$)/) kind = "sed with q"
   } else if (x ~ /^[gmn]?awk([ \t\n]|$)/) {
     sub(/^[gmn]?awk/, "", x)
-    if (awkexits(x)) kind = "awk with exit"
+    k = awkexits(x)
+    if (k == 1) kind = "awk with exit"
+    else if (k == 2) kind = "awk -f: its program file is not checked; read it, and EXEMPT the site if it never exits early"
   }
   if (kind != "") print FILENAME "\t" ln "\t" kind
 }
@@ -427,6 +431,10 @@ cmd | awk '{ if (1) /#/; exit }'
 cmd | awk '{ if (0) print 1; else print /#/; exit }'
 @@ bad/awk-slash-after-a-name-keeps-the-finding
 cmd | awk '{ n = NR / 2; print n; exit } # a comment with a /'
+@@ bad/awk-program-from-a-file
+cmd | awk -f prog.awk
+@@ bad/gawk-program-from-a-file-long-option
+cmd | gawk -v n=1 --file=prog.awk
 @@ bad/awk-escaped-newline-in-string
 cmd | awk '{ s = "a\
 "; exit }'
@@ -470,6 +478,8 @@ cmd | awk '{ n++ } /exit/ { print n }'
 cmd | awk '{ x = /exit/; print x }'
 @@ good/awk-exit-in-double-quoted-string
 cmd | awk "{ print \"exit\" }"
+@@ good/awk-field-separator-is-not-a-file
+cmd | awk -F, '{ print $1 }'
 @@ good/awk-var-named-exit
 cmd | awk -v exit_code=0 '{ print }'
 @@ good/awk-assign-value-named-exit
