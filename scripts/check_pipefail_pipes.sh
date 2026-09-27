@@ -147,21 +147,21 @@ function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
   }
   return 0
 }
-# Whether awk program text can exit early. Fail-safe, in two steps. First the raw text, with
-# its END blocks removed (an exit there runs after all input is read): no `exit` word, no
-# finding, and nothing was blanked that could hide one. Only then may unlit() clear it, by
-# showing every `exit` sits in a string, regex or comment — and only if it read the text
-# without meeting anything it could misread (unsure). A misreading costs a false alarm,
-# never a miss.
+# Whether awk program text can exit early. Fail-safe, in two steps. First a plain search of
+# the whole decoded program for the word `exit`, with nothing removed: no word, no finding,
+# and a plain search cannot be fooled. Only then may the finding be cleared: unlit() blanks
+# strings, regex literals and comments, strip_end() drops END blocks from that blanked text
+# (an exit there runs after all input is read), and if no exit is left the finding goes —
+# but only if unlit() met nothing it could have misread (`unsure`). Every misreading therefore
+# costs a false alarm, never a miss.
 function early_exit(prog,   u) {
-  if (strip_end(prog) !~ EXITRE) return 0
+  if (prog !~ EXITRE) return 0
   u = unlit(prog)
   if (unsure) return 1
   return strip_end(u) ~ EXITRE
 }
-# The text without its END blocks. An END counts only where a rule can start (the start, a
-# newline, } or ;) and only when its braces close; otherwise the text stays, so a brace or an
-# "END {" inside a string can make a false alarm, never hide an exit.
+# Blanked text without its END blocks: an END counts only where a rule can start (the start,
+# a newline, } or ;) and only if its braces close; otherwise the text stays.
 function strip_end(rest,   out, j, nb, ch, m, pre) {
   out = ""
   while (match(rest, /(^|[\n};])[ \t\n]*END[ \t\n]*\{/)) {
@@ -174,35 +174,33 @@ function strip_end(rest,   out, j, nb, ch, m, pre) {
   }
   return out rest
 }
-# The program with its strings, regex literals and comments blanked, in one pass, so
-# `print "exit"`, `/exit/` or `# exit` is not the exit statement. Sets `unsure` when the text
-# could be read two ways, and early_exit() then trusts the raw text instead: a / after a word
-# (`print /re/` or `n / 2`?), a string or regex that does not close on its line, a
-# backslash-newline. A / after an operator or at the start opens a regex; after a digit, ) or
-# ] it divides.
-function unlit(s,   n, i, c, out, last) {
-  n = length(s); out = ""; last = ""; unsure = 0
+# The program with its strings, regex literals and comments blanked, in one pass. A / opens a
+# regex only where nothing else can stand: at the start or right after one of \n ( , { } ; !
+# ~ & | = * % ^ < > ? :. After a digit, ] . $ or a variable name it divides. Anything else
+# sets `unsure`, and early_exit() then keeps its finding: a / after + or - (x++ / 2), after )
+# (`if (c) /re/` is a regex, `(a) / 2` a division), after a keyword that takes an operand
+# (print /re/), a string or regex still open at the end of its line, and any backslash-newline.
+function unlit(s,   n, i, c, out, last, word) {
+  n = length(s); out = ""; last = ""; word = ""; unsure = 0
   for (i = 1; i <= n; i++) {
     c = substr(s, i, 1)
     if (c == "\\") {
       if (substr(s, i + 1, 1) == "\n") unsure = 1
-      out = out substr(s, i, 2); i++; last = "a"; continue
+      out = out substr(s, i, 2); i++; last = "a"; word = ""; continue
     }
-    if (c == "\"") {
-      for (i++; i <= n && substr(s, i, 1) != "\"" && substr(s, i, 1) != "\n"; i++) if (substr(s, i, 1) == "\\") i++
+    if (c == "\"" || (c == "/" && (last == "" || index("\n(,{};!~&|=*%^<>?:", last)))) {
+      for (i++; i <= n && substr(s, i, 1) != c && substr(s, i, 1) != "\n"; i++)
+        if (substr(s, i, 1) == "\\") { if (substr(s, i + 1, 1) == "\n") unsure = 1; i++ }
       if (i > n || substr(s, i, 1) == "\n") unsure = 1
-      out = out "\"\""; last = ")"; continue
+      out = out c c; last = ")"; word = ""; continue
     }
     if (c == "#") { while (i < n && substr(s, i + 1, 1) != "\n") i++; continue }
     if (c == "/") {
-      if (last == "" || last !~ /[A-Za-z0-9_)\].$]/) {
-        for (i++; i <= n && substr(s, i, 1) != "/" && substr(s, i, 1) != "\n"; i++) if (substr(s, i, 1) == "\\") i++
-        if (i > n || substr(s, i, 1) == "\n") unsure = 1
-        out = out "//"; last = ")"; continue
-      }
-      if (last ~ /[A-Za-z_]/) unsure = 1
+      if (last ~ /[+-]/ || (last ~ /[A-Za-z_]/ && word ~ /^(print|printf|return|do|else|in|getline|exit|delete|case)$/)) unsure = 1
+      else if (last !~ /[A-Za-z0-9_\].$]/) unsure = 1
     }
     out = out c
+    if (c ~ /[A-Za-z0-9_]/) { if (last !~ /[A-Za-z0-9_]/) word = ""; word = word c }
     if (c !~ /[ \t]/) last = c
   }
   return out
@@ -418,6 +416,18 @@ cmd | awk 'END { print "{" } NR == 1 { exit }'
 @@ bad/awk-backslash-newline
 cmd | awk '{ x = 1 \
 / 2; exit }'
+@@ bad/awk-end-marker-inside-a-string
+cmd | awk '{ print ";END {"; exit; print "}" }'
+@@ bad/awk-braces-split-across-strings
+cmd | awk 'END { print "{" } NR == 1 { exit } { print "}" }'
+@@ bad/awk-division-after-postfix-increment
+cmd | awk '{ x = 2; y = x++ / 2; exit; # /
+}'
+@@ bad/awk-regex-after-if-paren
+cmd | awk '{ if (1) /#/; exit }'
+@@ bad/awk-escaped-newline-in-string
+cmd | awk '{ s = "a\
+"; exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
