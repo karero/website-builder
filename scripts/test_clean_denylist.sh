@@ -57,7 +57,7 @@ expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
 
 # In the main checkout, where the list is read either way, so only the self-reference
 # allowance decides these cases.
-printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\n' >"$R/docs/notes.md"
+printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/website-builder\n' >"$R/docs/notes.md"
 expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
 printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
 expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"

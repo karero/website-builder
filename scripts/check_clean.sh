@@ -98,15 +98,18 @@ if [ -f "$DENYLIST_FILE" ]; then
   # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
   # reference, in lowercase, and not inside a longer name (other-karero/website-builder,
   # karero/website-builder-x), then look again: dropping every line that held one also hid
-  # any private name beside it. Binary-file lines pass through for filter_ignored. A scan
-  # error (g's "✗ scan error" block, first in its output) goes to report whole: the filter
-  # would compile the same broken pattern, fail too, and turn the error into a clean pass.
+  # any private name beside it. One reference at a time, until none is left: a global
+  # replace consumes the character after one reference that the next needs before it
+  # (karero/website-builder,karero/website-builder). Binary-file lines pass through for
+  # filter_ignored. A scan error (g's "✗ scan error" block, first in its output) goes to
+  # report whole: the filter would compile the same broken pattern, fail too, and turn the
+  # error into a clean pass.
   if [ -n "$NAMES" ]; then
     hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
       *) hits="$(printf '%s\n' "$hits" \
-           | sed -E 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#g' \
+           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
     report "personal/site identifier" "$hits"
