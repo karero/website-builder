@@ -5,7 +5,7 @@
     {
       "id": 1,
       "prompt": "My business partner is going to help with the website from next week, she'll use Codex in the browser. The site is the Astro one we built with new-website, it's in a private repo on my personal GitHub account and Cloudflare Pages is already connected via git. Can you set everything up so we don't overwrite each other?",
-      "expected_output": "Triggers the skill without the word 'team'. Asks the five §1 questions one at a time (username, rights level, merge rule, who publishes if two-stage, browser vs local) before changing anything. Invites the collaborator with write access and says the invitation must be accepted. Sets allow_update_branch and delete_branch_on_merge, reads back the §3b settings. Checks that ci.yml has ever run on a pull_request event and, if not, does the manual start + throwaway pull request, then closes it and deletes the branch. Tries the ruleset, recognises the free-plan refusal on a private repo, enables the pre-push hook block after checking it is not already on, and verifies with a dry-run push, not a no-op push. Skips the Cloudflare connection because it exists, but checks the throwaway pull request shows only CI and Cloudflare Pages checks. Rewrites AGENTS.md §5 and adds TEAM-GUIDE.md with only the browser option. Opens the setup pull request and lets the owner merge.",
+      "expected_output": "Triggers the skill without the word 'team'. Asks the five §1 questions one at a time (username, rights level, merge rule, who publishes if two-stage, browser vs local) before changing anything. Invites the collaborator with write access and says the invitation must be accepted. Sets allow_update_branch and delete_branch_on_merge, reads back the §3b settings. Checks that ci.yml has ever run on a pull_request event and, if not, does the manual start + throwaway pull request, then closes it and deletes the branch. Tries the ruleset, recognises the free-plan refusal on a private repo, enables the pre-push hook block after checking it is not already on, and verifies with a dry-run push, not a no-op push. Skips the Cloudflare connection because it exists, but checks the throwaway pull request shows only CI and Cloudflare Pages checks. Rewrites AGENTS.md §5 and adds TEAM-GUIDE.md with only the browser option. Tells the owner the website is theirs and recommends that the collaborator turn on two-factor sign-in with a passkey, giving the github.com/settings/security link, as a recommendation, never a condition. Opens the setup pull request and lets the owner merge.",
       "assertions": [
         "Asks the §1 questions before running any command",
         "Invites with permission=push and mentions acceptance",
@@ -15,6 +15,7 @@
         "Verifies the push block with a dry run of a real ref update",
         "Rewrites AGENTS.md §5 with the answers; no [BRACKET] slot remains",
         "TEAM-GUIDE.md contains only the browser option and no email address",
+        "Recommends two-factor sign-in with a passkey for the collaborator (github.com/settings/security) without making it a condition",
         "Does not merge the setup pull request itself"
       ],
       "files": []
