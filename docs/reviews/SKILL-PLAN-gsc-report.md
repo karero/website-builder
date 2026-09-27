@@ -13,7 +13,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
 | PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | **closed** 2026-09-27: 7 rounds + final full read; round 7 had no BUG, its one RISK fixed locally (tie-break, not externally re-verified beyond the wording pass) | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
-| Probe of the real Google responses (see "To verify before build") | not started | — |
+| Probe of the real Google responses (see "Probe results") | **done** 2026-09-27, one real site (owner's OK), read-only | "Probe results" below; raw output kept outside the repo |
 | Build | not started | — |
 | DIFF gate | not started | — |
 | Live check on a real site | not started | — |
@@ -50,11 +50,11 @@ What data exists:
 
 - **Visits** = Search Console clicks (someone clicked the site in Google's results). The page
   says "visits from Google", not "people": one person can visit twice.
-- **Weeks** run Monday–Sunday in the time zone Google reports dates in (to verify; reportedly
-  Pacific Time). The data range starts at the **first date that has any row** in the `["date"]`
+- **Weeks** run Monday–Sunday in Pacific Time, the time zone Google reports dates in (Probe
+  results). The data range starts at the **first date that has any row** in the `["date"]`
   response (not the requested start: Google sends no row for a day without data) and ends at the
-  **latest date Google has finished** (from the API's data-freshness answer, or today minus the
-  lag — settled by the probe; not the last row, since quiet days have none). A day inside that
+  **latest date Google has finished**: the day before the `firstIncompleteDate` the API reports
+  (Probe results; not the last row, since quiet days have none). A day inside that
   range without a row counts as 0. A week counts only when it is **complete**: all seven days
   lie inside that range. A partial week at either end is never drawn or counted. No row at all
   in the whole range is S10; with a country filter set, the page adds the note the text report
@@ -69,10 +69,8 @@ What data exists:
   complete weeks before those. One window for the headline, the key-search moves and both tables.
 - **A key search on Google** is one exact query text, fetched with **one request per key
   search** (`query()` joins all its filters with "and", so several key searches in one request
-  would match nothing). The text is sent lowercased, because Search Console appears to report queries in
-  lowercase (a probe item);
-  whether its exact-match operator is case-sensitive is a probe item, and no case rule is claimed
-  until the probe answers it. The variant grouping the text report uses (`_lang_normalize.py`) is
+  would match nothing). The text is sent lowercased: Search Console reports queries in lowercase, and
+  lowercase matches whether or not the exact-match operator is case-sensitive (Probe results). The variant grouping the text report uses (`_lang_normalize.py`) is
   not used for Google charts, so a Google chart always shows one fixed search. An owner who cares
   about a variant adds it as its own key search.
 - **A key search on Bing** comes from the history: one point per run date (each row is a
@@ -270,15 +268,28 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
   sum) and its wording ("people came from Google", "How people find you on Google") predate these
   rules and are not the specification: the page says "visits".
 
-## To verify before build (a short probe on one real site, read-only, with the owner's OK)
+## Probe results (2026-09-27, one real site: ~16 months of data, ~9,000 impressions in 90 days)
 
-- The `["date"]` and `["date", "query"]` responses for this property: how far back they go,
-  the latest date, the time zone of the dates, whether queries come back in lowercase, whether the exact-match query filter is
-  case-sensitive,
-  how to read the latest finished date (the API's data-freshness answer or a fixed lag), and whether a key search known to be rare comes back empty (the privacy omission
-  behind S11). Record the answers here; if 16 months or exact matching does not hold, adjust
-  S1/D3.
-- Whether the row limit is reached for 16 months of `["date"]` (unlikely: about 480 rows).
+Read-only, with the owner's OK; the site is not named here (this repo is public).
+
+- **History:** the `["date"]` response went back 16.4 months, 498 days, with no day missing on
+  this site, well under the row limit — S1 and D3 hold.
+- **Finished date:** with the default (final) data the last row was 3 days old. A request with
+  `dataState: "all"` returns `metadata.firstIncompleteDate`, which the API documents as the first
+  date whose numbers may still change. **Rule:** the data range ends the day before
+  `firstIncompleteDate` (one small `dataState: "all"` request per build reads it); the daily
+  numbers themselves come from the default final-data request.
+- **Time zone:** the API reference says dates are "in PT time (UTC - 7:00/8:00)"; weeks are
+  counted in Pacific Time.
+- **Lowercase:** none of the site's 103 queries in 90 days had a capital letter.
+- **Case of exact match:** the API reference calls `equals` "case-sensitive for page and query
+  dimensions", but on this property Title Case matched exactly as lowercase did for all 12 key
+  searches. Sending the key search lowercased is right under both readings.
+- **One request per key search:** two key searches in one filter group returned 0 rows,
+  confirming FR-B2.
+- **Rare searches:** 32% of the site's impressions were in searches Google does not list, and 7
+  of its 12 key searches returned no rows in 3 months. S11's card ("no data from Google for this
+  search") will be common, not rare, and its variant hint matters.
 
 ## Judgment calls (not verified facts)
 
