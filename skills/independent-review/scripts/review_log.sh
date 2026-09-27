@@ -58,8 +58,11 @@ summary() {
   local since="" repo=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --since) since="${2:-}"; shift 2 ;;
-      --repo)  repo="${2:-}"; shift 2 ;;
+      --since|--repo) [ $# -ge 2 ] || { echo "review_log.sh: $1 needs a value" >&2; return 2; } ;;
+    esac
+    case "$1" in
+      --since) since="$2"; shift 2 ;;
+      --repo)  repo="$2"; shift 2 ;;
       *) echo "review_log.sh: unknown argument: $1" >&2; return 2 ;;
     esac
   done

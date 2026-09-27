@@ -151,8 +151,11 @@ done
 # rather than fail: a zip recipient should not get a red `make check` over a regression test
 # that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
 # SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
-if ! command -v git >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1; then
-  echo "SKIP — the whats-new.sh regression case needs git (it compares suite history)."
+# A zip unpacked inside some other repository still answers `git rev-parse`, so ask whether
+# the suite root IS the toplevel, the same test whats-new.sh makes before it runs.
+if ! command -v git >/dev/null 2>&1 ||
+   [ "$(git rev-parse --show-toplevel 2>/dev/null)" != "$(pwd -P)" ]; then
+  echo "SKIP — the whats-new.sh regression case needs a git clone of the suite (it compares suite history)."
   exit $rc
 fi
 

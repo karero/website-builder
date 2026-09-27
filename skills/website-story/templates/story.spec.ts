@@ -61,14 +61,15 @@ test.describe('story layer (home page)', () => {
     // count, and a <button> inside an <a> counts once.
     const ctas = await page.locator('a:visible, button:visible').evaluateAll((els) =>
       els.filter((el) => !(el.tagName === 'BUTTON' && el.closest('a')))
-        .map((el) => ({ text: (el as HTMLElement).innerText, href: el.getAttribute('href') ?? '' })));
+        .map((el) => ({ text: (el as HTMLElement).innerText, link: el.tagName === 'A', href: el.getAttribute('href') ?? '' })));
     const hits = ctas.filter((c) => isLabel(c.text, CONFIG.directCta));
     expect(hits.length,
       `"${CONFIG.directCta}" found ${hits.length}x as a visible link/button on ${CONFIG.home}; ` +
       `STORY.md asks for at least ${CONFIG.directCtaMin} (header + one repeat), same label`)
       .toBeGreaterThanOrEqual(CONFIG.directCtaMin);
     if (CONFIG.directCtaHref) {
-      const off = hits.filter((c) => !c.href.endsWith(CONFIG.directCtaHref)).map((c) => c.href || '(none)');
+      // Links only: a <button> CTA (a form submit, a dialog opener) has no href to compare.
+      const off = hits.filter((c) => c.link && !c.href.endsWith(CONFIG.directCtaHref)).map((c) => c.href || '(none)');
       expect(off, `"${CONFIG.directCta}" must always point to ${CONFIG.directCtaHref}`).toEqual([]);
     }
   });
