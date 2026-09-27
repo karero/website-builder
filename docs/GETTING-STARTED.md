@@ -35,7 +35,8 @@ helpers get installed later — only if and when your site actually needs them, 
 assistant will offer to do it for you.
 
 A **Cloudflare account** (also free) comes up later, when you're ready to publish your site
-to the internet. You don't need it on day one.
+to the internet. You don't need it on day one. It's yours as well, so we'll recommend
+protecting it the same way, with two-factor sign-in (your fingerprint or face unlock works).
 
 ---
 
