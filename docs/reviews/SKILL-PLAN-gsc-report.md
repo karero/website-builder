@@ -11,7 +11,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | Requirements as scenarios (this document) | draft 3 | this document |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | round 3 done (3 findings, addressed below); round 4 next, earned by round 3's BUG | round 1 on `d29b3de`, round 2 on draft 3, round 3 on `946d5ae` |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | round 4 done (1 BUG, fixed below); round 5 next, earned by it | rounds 1–4 on `d29b3de`, draft 3, `946d5ae`, draft 5 |
 | Probe of the real Google responses (see "To verify before build") | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -186,9 +186,11 @@ whenever the owner asks.
   creates or changes a weekly job, so an on-demand build knows the job's settings. A job created
   before this change has no such file; its settings live only in its launchd job file
   (`~/Library/LaunchAgents/`, named by `schedule_tracking.sh`'s `plist_for`), so an on-demand
-  build reads that file read-only as the next fallback: the domain in its arguments must equal
-  the requested domain exactly, and its keywords, `GSC_HISTORY_CSV` and `GSC_COUNTRY` are used as
-  the job would use them. Settings, in order of precedence: command-line flags; else the settings
+  build reads that file read-only as the next fallback: the full domain in its arguments must
+  equal the requested domain after the scheduler's own lower-casing (so `Example.COM` matches
+  `example.com`, and two domains whose file names collide do not), and its keywords,
+  `GSC_HISTORY_CSV` and `GSC_COUNTRY` are used exactly as `track.sh` would use them — an empty
+  value means the default history file and no country filter, as it does for the job. Settings, in order of precedence: command-line flags; else the settings
   file; else the matching launchd job file; else, for key searches only, the
   keywords of the latest date on which the history has `gsc` rows for the site (named on the
   page as "from your last check on <date>"), with no country filter; else S12. `track.sh` passes
@@ -276,3 +278,9 @@ whenever the owner asks.
 | C3-1 | Codex BUG | "last 4 weeks" promised with 1–3 complete weeks | fixed: headline branches by complete weeks (0 / 1–3 / 4–7 / 8+) |
 | C3-2 | Codex RISK | existing weekly jobs have no settings file | fixed: read-only fallback to the matching launchd job file, exact domain match |
 | C3-3 | Codex BUG (outside scope) | S9 with no saved data promised a date | fixed: its own "could not be loaded" message |
+
+## PLAN round 4 — dispositions
+
+| # | Source | Finding | Disposition |
+|---|---|---|---|
+| C4-1 | Codex BUG | exact domain equality misses a job set up with other capitals | fixed: compare after the scheduler's lower-casing; empty values keep `track.sh`'s meaning |
