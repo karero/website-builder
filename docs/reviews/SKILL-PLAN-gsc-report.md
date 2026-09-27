@@ -1,17 +1,18 @@
 # Plan — a visual Google & Bing report in search-console-insights
 
-Draft 5: requirements, the owner's decisions D1–D6, the counting rules and a design, revised
+Draft 6: requirements, the owner's decisions D1–D6, the counting rules and a design, revised
 after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 (Codex: 5 BUG,
-3 RISK) and 3 (Codex: 2 BUG, 1 RISK) — dispositions at the end. No product code yet.
+3 RISK), 3 (Codex: 2 BUG, 1 RISK), 4 (Codex: 1 BUG), 5 (Codex: clean) and the final full read
+(Claude Opus: 4 BUG, 7 RISK, 5 NIT) — dispositions at the end. No product code yet.
 
 ## Status
 
 | Step | State | Evidence |
 |---|---|---|
-| Requirements as scenarios (this document) | draft 3 | this document |
+| Requirements as scenarios (this document) | draft 6 | this document |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | round 4 done (1 BUG, fixed below); round 5 next, earned by it | rounds 1–4 on `d29b3de`, draft 3, `946d5ae`, draft 5 |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | rounds 1–5 done (round 5 clean); final full read done (16 findings, fixed below); round 6 next, earned by its BUGs | rounds on `d29b3de`, draft 3, `946d5ae`, draft 5, `e2a2f1c`-era draft 5; final read on the round-5 text |
 | Probe of the real Google responses (see "To verify before build") | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -50,9 +51,14 @@ What data exists:
 - **Visits** = Search Console clicks (someone clicked the site in Google's results). The page
   says "visits from Google", not "people": one person can visit twice.
 - **Weeks** run Monday–Sunday in the time zone Google reports dates in (to verify; reportedly
-  Pacific Time). A week counts only when it is **complete**: all seven days lie inside the range
-  Google returned data for — on or after the first date fetched and on or before the latest
-  date Google has. A partial week at either end is never drawn or counted. The headline follows
+  Pacific Time). The data range starts at the **first date that has any row** in the `["date"]`
+  response (not the requested start: Google sends no row for a day without data) and ends at the
+  **latest date Google has finished** (from the API's data-freshness answer, or today minus the
+  lag — settled by the probe; not the last row, since quiet days have none). A day inside that
+  range without a row counts as 0. A week counts only when it is **complete**: all seven days
+  lie inside that range. A partial week at either end is never drawn or counted. No row at all
+  in the whole range is S10; with a country filter set, the page adds the note the text report
+  already gives for that case. The headline follows
   the number of complete weeks: none → S10's "a few days" message; 1–3 → the visits over those
   weeks, named as such ("23 visits in the last 2 weeks"); 4–7 → the last 4 weeks, without a
   comparison; 8 or more → the comparison below.
@@ -61,34 +67,44 @@ What data exists:
   `bing_query.py` already does for Bing), never a sum.
 - **"The last 4 weeks"** everywhere on the page = the last 4 complete weeks; "before" = the 4
   complete weeks before those. One window for the headline, the key-search moves and both tables.
-- **A key search on Google** is the exact query text (case-insensitive exact match in the API
-  request). The variant grouping the text report uses (`_lang_normalize.py`) is not used for
-  Google charts, so a Google chart always shows one fixed search. An owner who cares about a
-  variant adds it as its own key search.
-- **A key search on Bing** comes from the history, where each run stored the variant Bing
-  matched best (`query` column). When that stored query changes between runs, the Bing line
-  breaks there, the card names the query each part measures, and no move is claimed across the
-  break (the text trend's existing ≠ rule).
+- **A key search on Google** is one exact query text, fetched with **one request per key
+  search** (`query()` joins all its filters with "and", so several key searches in one request
+  would match nothing). The text is sent lowercased, because Google stores queries in lowercase;
+  whether its exact-match operator is case-sensitive is a probe item, and no case rule is claimed
+  until the probe answers it. The variant grouping the text report uses (`_lang_normalize.py`) is
+  not used for Google charts, so a Google chart always shows one fixed search. An owner who cares
+  about a variant adds it as its own key search.
+- **A key search on Bing** comes from the history: one point per run date (each row is a
+  rolling ~6-month snapshot, not a week), taking that date's row whose window and country match
+  the latest row, as the text trend (`_history.print_trend`) does. Each run stored the variant
+  Bing matched best (`query` column); when it changes between runs, the line breaks there and the
+  card names the query each part measures (the text trend's ≠ rule). A Bing card shows the line
+  and the latest position and **claims no move**: the weekly rules below are for Google's daily
+  data only.
 - **A week with too little data** for a key search (under 10 impressions, the tracker's existing
   threshold) is drawn hollow and never used for a move.
 - **"Moved up / down"** for a key search compares its weighted position over the last 4 weeks
   with the 4 before, using only weeks that are not hollow; each side needs at least 2 such weeks.
-  A change of at least 1 whole place counts as a move; less is "no clear change"; too few weeks
-  is "too little data to tell". The card and the headline use this same rule.
+  Positions shown on the page are whole numbers (the weighted averages rounded); a move is
+  "up/down N places" with N = rounded before − rounded now, and counts only when N is at least 1,
+  so a card's numbers always agree with each other. Otherwise "no clear change"; too few weeks is
+  "too little data to tell". The card and the headline use this same rule, **for Google only**.
 - **The headline percentage** appears only when both 4-week sides have at least 20 visits;
   otherwise the sentence gives the two numbers without a percentage ("12 visits in the last 4
   weeks, 7 the 4 weeks before"); with none before, "12 visits in the last 4 weeks, none in the 4
-  weeks before"; with none in either, "no visits from Google in the last 8 weeks". Searches
-  with too little data are named as such, not counted as moved ("3 of your 5 key searches moved
-  up; 1 had too little data to tell").
+  weeks before"; with none in either, "no visits from Google in the last 8 weeks". The second
+  half of the headline names every outcome that occurred, Google key searches only: "3 of your 5
+  key searches moved up, 1 moved down, 1 had too little data to tell"; when nothing moved, "none
+  of your 5 key searches moved clearly".
 - **Settings:** Google charts are re-fetched whole on every build with **today's** settings
   (property, country filter), so a changed setting redraws the whole chart consistently; the page
   states the settings ("Counting: searches from Switzerland"). The country filter applies to
   Google only: Bing history is always stored worldwide over Bing's rolling period, so Bing
   lines do not break when it changes. A ‡ break on a Bing line marks only a change in Bing's
   own stored `window` or `country`.
-- **Property:** the domain property `sc-domain:<domain>`, as the tracker uses. If only a
-  URL-prefix property is available, the page says which address it counts.
+- **Property:** the domain property `sc-domain:<domain>`, as the tracker uses. If Google refuses
+  it, the report lists the account's properties (`sites().list`) and uses a URL-prefix property
+  for the same domain if there is one, saying on the page which address it counts.
 
 ## Requirements — scenarios
 
@@ -101,7 +117,7 @@ directly. One line says the Bing section fills in from next week.
 
 **S2 — The headline.** **Then** the first line answers "how am I doing?" in one sentence, per the
 counting rules: *"412 visits from Google in the last 4 weeks, 18% more than the 4 weeks before.
-3 of your 5 key searches moved up."* No "impressions", "CTR" or "SERP" in it.
+3 of your 5 key searches moved up, 1 moved down, 1 had too little data to tell."* No "impressions", "CTR" or "SERP" in it.
 
 **S3 — A key search over time.** A search averaged position 12 over the 4 weeks before and 8
 over the last 4. **Then** its chart shows the line moving towards the top (position 1 at the
@@ -115,10 +131,12 @@ such.
 Google chart is redrawn with the new filter from the start and the page names the filter; the
 Bing section is unaffected (Bing is always counted worldwide).
 
-**S6 — Just below page 1.** Searches (any, not only key searches) averaging position 11–20 over
-the last 4 weeks, shown at least 5 times. **Then** a table lists each with the page Google shows
-for it (the existing per-query page drill-down). Positions 8–10 are already on page 1 and are
-not listed here, although the text report's striking-distance range includes them.
+**S6 — Just below page 1.** Searches (any, not only key searches) averaging a position above 10
+and up to 20 over the last 4 weeks, shown at least 5 times. **Then** a table lists each with the
+page Google shows most for it, plus "+N more" when there are several. Positions up to 10 are on
+page 1 and are not listed here, although the text report's striking-distance range (8–20)
+includes 8–10. With fewer than 4 complete weeks, the table says "not enough complete weeks yet"
+(so does S7's).
 
 **S7 — Shown often, rarely clicked.** A page on page 1 (position ≤ 10) shown at least 20 times in
 the last 4 weeks, with under 2% of those showings clicked (the text report's existing rule).
@@ -134,11 +152,14 @@ says so and how to ask for it — never an empty chart.
 small data file), together with the settings it used (property, country, key searches), the
 dates it covers and when it was fetched — and replaces the saved file only when every Google
 request of that build succeeded. **When** a later fetch fails, the page is rebuilt from the saved
-data, shown with the settings and dates it was fetched with, and the top says plainly: "Google's
-numbers could not be refreshed; these are from <date>. Say *reconnect Google*." With no saved
-data yet, the Google charts are left out and the top says: "Google's numbers could not be
-loaded. Say *reconnect Google*." Nothing waits for a browser
-(`--no-browser`).
+data, shown with the settings and dates it was fetched with, and the top says what happened:
+for a sign-in failure (the credentials path `gsc_query.py` already recognises), "Google's
+numbers could not be refreshed; these are from <date>. Say *reconnect Google*"; for any other
+failure (a refused property, a quota limit), "Google's numbers could not be refreshed (<short
+reason>); these are from <date>" with no reconnect advice. With no saved data yet, the Google
+charts are left out and the same two messages say "could not be loaded" instead. A failed page
+drill-down for one S6 search does not count as a failed build: that row shows "page unknown",
+as the text report already degrades. Nothing waits for a browser (`--no-browser`).
 
 **S10 — A brand-new site.** Search Console was verified two days ago. **Then** the page says Google
 needs a few days to report, with no empty or zero-filled charts.
@@ -146,7 +167,9 @@ needs a few days to report, with no empty or zero-filled charts.
 **S11 — A key search with no data at all.** Google returns no rows for it in 3 months. **Then**
 its card says "No data from Google for this search in the last 3 months" instead of a chart —
 not "you are not shown": Google leaves out rare searches for privacy, so an empty answer does
-not prove the site never appeared.
+not prove the site never appeared. If the history shows Google matching a variant of it
+(`query` column, `gsc` rows), the card names that variant and offers to track it: "Google shows
+you for 'ai treffen münchen' — say *track it* to add it."
 
 **S12 — No key searches known.** The owner asks for the report, and neither the request, the
 weekly job nor the history names any key search for this site. **Then** the page shows the
@@ -163,6 +186,11 @@ as a text table.
 **S15 — Kept fresh.** When weekly tracking is on, `track.sh` rebuilds the page after each weekly
 run under the same file name, so a saved link shows the latest week. Otherwise it is rebuilt
 whenever the owner asks.
+
+**S16 — An older weekly job.** A job installed before per-site settings existed (commit
+`0b8a84e`) has no country entry in its job file, and the owner's `.env` says
+`GSC_COUNTRY=deu`. **Then** an on-demand report counts only searches from Germany, exactly as the
+weekly job does — a missing entry means "use `.env`", an empty entry means "none".
 
 ## Decisions (owner, 2026-09-27: every one as recommended)
 
@@ -189,34 +217,47 @@ whenever the owner asks.
   build reads that file read-only as the next fallback: the full domain in its arguments must
   equal the requested domain after the scheduler's own lower-casing (so `Example.COM` matches
   `example.com`, and two domains whose file names collide do not), and its keywords,
-  `GSC_HISTORY_CSV` and `GSC_COUNTRY` are used exactly as `track.sh` would use them — an empty
-  value means the default history file and no country filter, as it does for the job. Settings, in order of precedence: command-line flags; else the settings
-  file; else the matching launchd job file; else, for key searches only, the
-  keywords of the latest date on which the history has `gsc` rows for the site (named on the
-  page as "from your last check on <date>"), with no country filter; else S12. `track.sh` passes
-  its own settings explicitly.
+  `GSC_HISTORY_CSV` and `GSC_COUNTRY` are used exactly as `track.sh` would use them: an entry that
+  is **missing** (jobs from before `0b8a84e` have none) falls back to `.env`, and an entry that is
+  **empty** means the default history file and no country filter (S16). Settings, in order of
+  precedence: command-line flags; else the settings file; else the matching launchd job file;
+  else, from the history, the keywords and country of the latest date with `gsc` rows for the
+  site, preferring rows with the tracker's 28-day window over ad-hoc runs (named on the page as
+  "from your last check on <date>"); else S12. `track.sh` passes its own settings explicitly.
+  `schedule_tracking.sh remove` deletes the site's settings file along with the job.
 - **Output:** `~/.config/gsc-insights/reports/<site>/google.html` (stable name, S15) and
   `google-data.json` beside it (S9). It prints the path and opens nothing; the skill has the
   assistant open it.
-- **Google fetches** (reusing `gsc_query.py`'s authenticated `query()`): `["date"]` for up to 16
-  months; `["date", "query"]` with the key searches as exact-match filters for 3 months; and, for
-  the last 4 weeks, the query list (S6), a page per listed query (the existing drill-down) and
-  the page list (S7), then the page drill-down for each listed query (new loop). `query()` gains
-  `startRow` paging (new; it has none today) for any response that reaches the row limit.
+- **Google fetches** (reusing `gsc_query.py`'s authenticated `query()`):
+  - site-wide charts: one `["date"]` request for up to 16 months;
+  - key-search cards: one `["date", "query"]` request per key search, 3 months;
+  - S6: one `["query"]` request for the last 4 weeks, then one `["page"]` request filtered to each
+    listed query (a new loop over the existing single-query drill-down);
+  - S7: one `["page"]` request for the last 4 weeks; no drill-down.
+  `query()` gains `startRow` paging (new; it has none today) for any response that reaches the
+  row limit.
 - **Page:** headline; "How to read this"; visits per week; times shown per week as its own chart
   (never two scales on one chart); one card per key search on one shared position scale; the
-  S6 and S7 tables; Bing section or its one line; a link to the AI report; the settings line.
+  S6 and S7 tables; Bing section or its one line; a link to the newest AI report page found at
+  build time (`geo/reports/<site>/`, one file per run) or, if the AI check is not set up, one line
+  saying so; the settings line.
+- **AI report link back:** `geo_check.py`'s report page gains a relative link to
+  `reports/<site>/google.html` when that file exists (a change to `geo_check.py`).
+- **`track.sh`:** the report step runs after `geo_check.py` (so the AI link is current); its exit
+  status goes into the existing `problems` list like every other step and never replaces the
+  Google step's status or the history exit code 4.
 - **Charts:** SVG from the script, one colour, 2px lines, end-point labels, a wide and a narrow
   drawing per chart swapped by a CSS media query, the browser's own tooltip (SVG `<title>`) per
   week, and "See the numbers" tables.
 - **The mock-up** shows the layout the owner approved; its counting (`movement()`, the headline
-  sum) predates these rules and is not the specification.
+  sum) and its wording ("people came from Google", "How people find you on Google") predate these
+  rules and are not the specification: the page says "visits".
 
 ## To verify before build (a short probe on one real site, read-only, with the owner's OK)
 
 - The `["date"]` and `["date", "query"]` responses for this property: how far back they go,
-  the latest date, the time zone of the dates, whether an exact-match query filter behaves as
-  assumed, and whether a key search known to be rare comes back empty (the privacy omission
+  the latest date, the time zone of the dates, whether the exact-match query filter is case-sensitive,
+  how to read the latest finished date (the API's data-freshness answer or a fixed lag), and whether a key search known to be rare comes back empty (the privacy omission
   behind S11). Record the answers here; if 16 months or exact matching does not hold, adjust
   S1/D3.
 - Whether the row limit is reached for 16 months of `["date"]` (unlikely: about 480 rows).
@@ -284,3 +325,24 @@ whenever the owner asks.
 | # | Source | Finding | Disposition |
 |---|---|---|---|
 | C4-1 | Codex BUG | exact domain equality misses a job set up with other capitals | fixed: compare after the scheduler's lower-casing; empty values keep `track.sh`'s meaning |
+
+## PLAN round 5 — clean (Codex). Final full read (Claude Opus) — dispositions
+
+| # | Source | Finding | Disposition |
+|---|---|---|---|
+| FR-B1 | final read BUG | a missing job-file entry was read as "none"; `track.sh` falls back to `.env` | fixed: missing vs empty in Design; S16 |
+| FR-B2 | final read BUG | several key searches in one request match nothing (`query()` joins filters with "and"); case sensitivity | fixed: one request per key search, lowercased; case is a probe item, no rule claimed |
+| FR-B3 | final read BUG | weeks before the site had data counted as zeros; "latest date" undefined | fixed: range from the first row to the finished date; empty days inside are 0; no rows = S10 |
+| FR-B4 | final read BUG | Bing points and moves undefined | fixed: one point per run date, same-config row; no Bing moves; headline counts Google only |
+| FR-R1 | final read RISK | every failure said "reconnect"; one bad drill-down blocked every refresh; URL-prefix detection | fixed: sign-in vs other messages; drill-down degrades; `sites().list` |
+| FR-R2 | final read RISK | the AI report has no stable file; link back needs a `geo_check.py` change | fixed: newest AI page at build time; `geo_check.py` change listed |
+| FR-R3 | final read RISK | `track.sh` placement and failure handling | fixed: after `geo_check.py`; into `problems`; never masks other statuses |
+| FR-R4 | final read RISK | drill-down named twice; several pages per query | fixed: one sentence per table; top page plus "+N more" |
+| FR-R5 | final read RISK | headline hid searches that moved down | fixed: names up, down and too-little-data |
+| FR-R6 | final read RISK | exact match empty while the text trend shows a variant | fixed: S11 names the variant and offers to track it |
+| FR-R7 | final read RISK | history fallback ignored the rows' country and ad-hoc runs | fixed: rows' country; prefer 28-day tracker rows |
+| FR-N1 | final read NIT | tables with fewer than 4 complete weeks | fixed: "not enough complete weeks yet" |
+| FR-N2 | final read NIT | header and status drift | fixed |
+| FR-N3 | final read NIT | mock-up wording says "people" | fixed: Design says it is superseded |
+| FR-N4 | final read NIT | 10–11 gap; rounding | fixed: "above 10, up to 20"; whole-number rule for moves |
+| FR-N5 | final read NIT | `remove` left the settings file | fixed: deleted with the job |
