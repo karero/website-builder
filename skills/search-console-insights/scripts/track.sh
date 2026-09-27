@@ -49,16 +49,22 @@ gsc_rc=0
 history_gap=0
 
 # Record the settings this run resolved, so an on-demand report page (search_report.py) uses
-# exactly what the weekly job uses without re-reading .env or the launchd job. Written
-# atomically; if that fails, any older file is removed (a stale one would win over the history)
-# and the failure is listed. `bing` records only whether a key resolved, never the key.
+# exactly what the weekly job uses without re-reading .env or the launchd job. Written through a
+# temporary file of its own (an overlapping run can't collide) and dated, so the page can say how
+# old a record is; nothing is deleted on failure (it could be another run's good record). `bing`
+# records only whether a key resolved, never the key.
 SITE_FILE="$HOME/.config/gsc-insights/sites/$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]').json"
 if ! { mkdir -p "$(dirname "$SITE_FILE")" &&
-       "$PY" -c 'import json,os,sys; d,k,c,h,b,f=sys.argv[1:7]
-t=f+".tmp"; json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h,"bing":b=="1"}, open(t,"w"), ensure_ascii=False, indent=1); os.replace(t,f)' \
+       "$PY" -c 'import datetime,json,os,sys,tempfile; d,k,c,h,b,f=sys.argv[1:7]
+fd,t=tempfile.mkstemp(dir=os.path.dirname(f), prefix=".site-", suffix=".tmp")
+try:
+    with os.fdopen(fd,"w") as o:
+        json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h,"bing":b=="1","recorded":datetime.date.today().isoformat()}, o, ensure_ascii=False, indent=1)
+    os.replace(t,f)
+except BaseException:
+    os.path.exists(t) and os.remove(t); raise' \
          "$DOMAIN" "$KEYWORDS" "${GSC_COUNTRY:-}" "$CSV" "$([ -n "${BING_API_KEY:-}" ] && echo 1 || echo 0)" "$SITE_FILE"; }; then
-  rm -f "$SITE_FILE" "$SITE_FILE.tmp" 2>/dev/null || true
-  echo "  ⚠ could not record this site's settings in $SITE_FILE — the report page falls back to the history"
+  echo "  ⚠ could not record this site's settings in $SITE_FILE — the report page shows the date of any older record"
   problems+=("site settings not recorded")
 fi
 

@@ -154,6 +154,23 @@ class TrackEntry(unittest.TestCase):
         self.assertIs(json.loads(text)["bing"], True)
         self.assertNotIn("test-bing-placeholder", text)
 
+    def test_a_record_that_cannot_be_replaced_stays_dated_and_is_listed(self):
+        """Review round 6: an older record surviving a failed write must be visible, not silent.
+        Nothing is deleted (it could be another run's good record); the page names its date."""
+        sites = self.home / ".config/gsc-insights/sites"
+        sites.mkdir(parents=True)
+        old = sites / f"{DOMAIN}.json"
+        old.write_text(json.dumps({"keywords": ["old"], "country": "", "csv": "", "recorded": "2026-08-01"}))
+        sites.chmod(0o555)
+        try:
+            rc, out, _ = self.track()
+        finally:
+            sites.chmod(0o755)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("site settings not recorded", out)
+        self.assertEqual(json.loads(old.read_text())["keywords"], ["old"])
+        self.assertEqual([p.name for p in sites.iterdir()], [f"{DOMAIN}.json"])   # no temp file left
+
     def test_settings_that_cannot_be_recorded_are_listed(self):
         """A stale settings file would win over the history, so a failed write must be visible."""
         (self.home / ".config/gsc-insights/sites").write_text("not a folder")

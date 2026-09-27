@@ -45,7 +45,7 @@ site_settings_file() { echo "$HOME/.config/gsc-insights/sites/$(lower "$1").json
 write_site_settings() {
   local f py; f="$(site_settings_file "$1")"; mkdir -p "$(dirname "$f")"
   py="$HOME/.config/gsc-insights/venv/bin/python"; [ -x "$py" ] || py=python3
-  "$py" -c 'import json,sys; d,k,c,h,f=sys.argv[1:6]; json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h}, open(f,"w"), ensure_ascii=False, indent=1)' \
+  "$py" -c 'import datetime,json,sys; d,k,c,h,f=sys.argv[1:6]; json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h,"recorded":datetime.date.today().isoformat()}, open(f,"w"), ensure_ascii=False, indent=1)' \
     "$1" "$2" "$3" "$4" "$f" || echo "  ⚠ could not write $f — the Google report page will read the job instead"
 }
 # Values land inside XML text; an unescaped & or < makes a plist launchd rejects.

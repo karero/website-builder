@@ -222,9 +222,11 @@ into empty ones, which override `.env`.)
 - **Site settings file:** `~/.config/gsc-insights/sites/<site>.json` (key searches, country,
   history file). `track.sh` writes it on **every run** with the settings it actually resolved
   (after `.env` and the job's own entries), and `schedule_tracking.sh` writes it on install;
-  `schedule_tracking.sh remove` deletes it. `track.sh` writes it atomically, removes a stale one when the
-  write fails, and lists that failure; besides the settings it records only whether a Bing key
-  resolved (for the Bing line), never the key. The report only reads it: it never re-evaluates
+  `schedule_tracking.sh remove` deletes it. `track.sh` writes it through a temporary file of its own (an
+  overlapping run can't collide), dates it (`recorded`), deletes nothing when a write fails (it
+  could be another run's good record) and lists that failure; the page names the record's date
+  and flags a record older than two weeks, so a stale one never passes silently. Besides the
+  settings it records only whether a Bing key resolved (for the Bing line), never the key. The report only reads it: it never re-evaluates
   `.env` or the launchd job, so the two cannot differ (DIFF rounds 1–4 found four ways a
   re-evaluation did; the redesign records instead). Settings, in order of precedence:
   command-line flags; else the settings file; else, from the history: take the latest date with

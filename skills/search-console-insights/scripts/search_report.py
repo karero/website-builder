@@ -39,6 +39,7 @@ S6_MIN_IMPRESSIONS = 5      # the text report's striking-distance floor (gsc_que
 S6_SHOWN = 15               # rows shown in "just below page 1"
 S7_MAX_POSITION, S7_MIN_IMPRESSIONS, S7_MAX_CTR = 10.0, 20, 0.02   # gsc_query.py's low-CTR rule
 TRACKER_WINDOW = "28"
+STALE_RECORD_DAYS = 14      # a weekly record older than two weeks is named on the page
 
 
 def base_dir() -> Path:
@@ -93,7 +94,7 @@ def resolve_settings(domain, args):
     installed), else the history, else none. Nothing here re-reads .env or the launchd job: the
     job records its own resolved settings, so the two can never evaluate them differently."""
     site = normalize_site(domain)
-    s = {"keywords": [], "country": "", "csv": "", "from": "", "bing": None}
+    s = {"keywords": [], "country": "", "csv": "", "from": "", "bing": None, "recorded": ""}
     sf = base_dir() / "sites" / f"{site}.json"
     found = None
     if sf.exists():
@@ -102,7 +103,8 @@ def resolve_settings(domain, args):
             found = {"keywords": [str(k).strip() for k in (j.get("keywords") or []) if str(k).strip()],
                      "country": j.get("country") or "", "csv": j.get("csv") or "",
                      "bing": j.get("bing") if isinstance(j.get("bing"), bool) else None,
-                     "from": "your weekly check"}
+                     "recorded": j.get("recorded") or "",
+                     "from": f"your weekly check on {j['recorded']}" if j.get("recorded") else "your weekly check"}
         except (ValueError, OSError):
             found = None
     if found:
@@ -618,6 +620,14 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
                  + (f" · Google's numbers up to {finished:%d %B %Y}" if finished else "") + "</p>")
     if alert:
         parts.append(f'<p class="alert">{H(alert)}</p>')
+    rec = settings.get("recorded") or ""
+    if rec and settings.get("from", "").startswith("your weekly check"):
+        try:
+            if (today - dt.date.fromisoformat(rec)).days > STALE_RECORD_DAYS:
+                parts.append(f'<p class="alert">The weekly check last recorded this site\'s settings on {H(rec)}; '
+                             'if it no longer runs, ask me to check the weekly tracking.</p>')
+        except ValueError:
+            pass
     if data and not weeks:
         parts.append('<p class="answer">Google needs a few days to report on a new site. Check back next week.</p>')
         if data["country"]:

@@ -457,6 +457,18 @@ class Settings(ReportTest):
         self.assertEqual((s["keywords"], s["country"]), (["k1", "k2"], "deu"))
         self.assertIn("your last check on 2026-09-14", s["from"])
 
+    def test_an_old_weekly_record_is_named_on_the_page(self):
+        """Review round 6: a record the weekly check stopped updating must not pass silently."""
+        sites = self.home / ".config/gsc-insights/sites"
+        sites.mkdir()
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "", "csv": "", "recorded": "2026-08-01"}))
+        page, _ = sr.build(DOMAIN, args(), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text(), None
+        self.assertIn("last recorded this site's settings on 2026-08-01", page)
+        self.assertIn("key searches from your weekly check on 2026-08-01", page)
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "", "csv": "", "recorded": "2026-09-21"}))
+        page = sr.build(DOMAIN, args(), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
+        self.assertNotIn("last recorded this site's settings", page)
+
     def test_an_empty_history_setting_means_the_shared_default_file(self):
         """An explicitly empty value is "none", never one inherited from the environment."""
         sites = self.home / ".config/gsc-insights/sites"
