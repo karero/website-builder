@@ -37,6 +37,6 @@ Every BUG and RISK was fixed, except:
 found two issues no stub could (old one-off keywords in the Bing section; full page addresses) —
 fixed; run 2 clean.
 
-**Tests:** 164 in the skill suite (41 new or changed for this feature), all passing; `make check`
+**Tests:** 166 in the skill suite (48 new for this feature), all passing; `make check`
 green. Seven deliberate breakages of key counting rules each failed the suite. Not tested:
 concurrent writers beyond unique temp names and `os.replace`.
