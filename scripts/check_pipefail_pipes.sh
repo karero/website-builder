@@ -176,31 +176,28 @@ function strip_end(rest,   out, j, nb, ch, m, pre) {
 }
 # The program with its strings, regex literals and comments blanked, in one pass. A / opens a
 # regex only where nothing else can stand: at the start or right after one of \n ( , { } ; !
-# ~ & | = * % ^ < > ? :. After a digit, ] . $ or a variable name it divides. Anything else
-# sets `unsure`, and early_exit() then keeps its finding: a / after + or - (x++ / 2), after )
-# (`if (c) /re/` is a regex, `(a) / 2` a division), after a keyword that takes an operand
-# (print /re/), a string or regex still open at the end of its line, and any backslash-newline.
-function unlit(s,   n, i, c, out, last, word) {
-  n = length(s); out = ""; last = ""; word = ""; unsure = 0
+# ~ & | = * % ^ < > ? :. After a digit, ] or . it divides. Anything else sets `unsure`, and
+# early_exit() then keeps its finding: a / after a name (`n / 2` or `print /re/`: telling a
+# variable from a keyword is one more thing to get wrong), after + or - (x++ / 2), after )
+# (`if (c) /re/` vs `(a) / 2`), a string or regex still open at the end of its line, and any
+# backslash-newline.
+function unlit(s,   n, i, c, out, last) {
+  n = length(s); out = ""; last = ""; unsure = 0
   for (i = 1; i <= n; i++) {
     c = substr(s, i, 1)
     if (c == "\\") {
       if (substr(s, i + 1, 1) == "\n") unsure = 1
-      out = out substr(s, i, 2); i++; last = "a"; word = ""; continue
+      out = out substr(s, i, 2); i++; last = "a"; continue
     }
     if (c == "\"" || (c == "/" && (last == "" || index("\n(,{};!~&|=*%^<>?:", last)))) {
       for (i++; i <= n && substr(s, i, 1) != c && substr(s, i, 1) != "\n"; i++)
         if (substr(s, i, 1) == "\\") { if (substr(s, i + 1, 1) == "\n") unsure = 1; i++ }
       if (i > n || substr(s, i, 1) == "\n") unsure = 1
-      out = out c c; last = ")"; word = ""; continue
+      out = out c c; last = "0"; continue
     }
     if (c == "#") { while (i < n && substr(s, i + 1, 1) != "\n") i++; continue }
-    if (c == "/") {
-      if (last ~ /[+-]/ || (last ~ /[A-Za-z_]/ && word ~ /^(print|printf|return|do|else|in|getline|exit|delete|case)$/)) unsure = 1
-      else if (last !~ /[A-Za-z0-9_\].$]/) unsure = 1
-    }
+    if (c == "/" && last !~ /[0-9\].]/) unsure = 1
     out = out c
-    if (c ~ /[A-Za-z0-9_]/) { if (last !~ /[A-Za-z0-9_]/) word = ""; word = word c }
     if (c !~ /[ \t]/) last = c
   }
   return out
@@ -425,6 +422,10 @@ cmd | awk '{ x = 2; y = x++ / 2; exit; # /
 }'
 @@ bad/awk-regex-after-if-paren
 cmd | awk '{ if (1) /#/; exit }'
+@@ bad/awk-regex-after-else-print
+cmd | awk '{ if (0) print 1; else print /#/; exit }'
+@@ bad/awk-division-after-a-name
+cmd | awk '{ n = NR / 2; print n /#/; exit }'
 @@ bad/awk-escaped-newline-in-string
 cmd | awk '{ s = "a\
 "; exit }'
@@ -488,7 +489,7 @@ END { print n }'
 @@ good/awk-herestring-named-exit
 cmd | awk '{ print }' <<< exit
 @@ good/awk-division-then-exit-in-end
-cmd | awk '{ s += $1 / 2 } END { if (s / NR > 1) exit 1 }'
+cmd | awk '{ s += $1 / 2 } END { if (s > NR) exit 1 }'
 @@ good/subshell-drains
 cmd | ( cat >/dev/null )
 @@ good/subshell-not-piped
