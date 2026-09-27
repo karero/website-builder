@@ -24,7 +24,10 @@ Just three things to begin:
    - **OpenAI Codex** or **Google Antigravity** also work.
 2. **A GitHub account** (free) — this is where your website's files will live safely.
    You'll make one at [github.com](https://github.com) if you don't have it; your assistant
-   will point you there when it's time.
+   will point you there when it's time. The account and the website in it are **yours**, so
+   we recommend protecting them: turn on two-factor sign-in and add a **passkey** (you then
+   sign in with your fingerprint, face or phone, and a stolen password alone is not enough to
+   get in). It's optional unless GitHub itself asks you for it.
 3. **Your computer.** macOS, Linux, or Windows are all fine.
 
 You do **not** need to install anything else right now. Tools like Node, git, or image

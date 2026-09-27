@@ -77,7 +77,8 @@ below.)
 ## What you need
 
 - an **AI coding assistant** — Claude Code, OpenAI Codex, or Google Antigravity
-- a **GitHub account** (free) to store your site's code
+- a **GitHub account** (free) to store your site's code — it's yours, so we recommend
+  protecting it with two-factor sign-in and a passkey
 - a **computer** where you can run basic commands (macOS, Linux, or Windows)
 - *optionally*, a **Cloudflare account** (free) when you're ready to publish
 

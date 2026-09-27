@@ -7,8 +7,14 @@ file into a handed-off repo so the receiving party can get running too.
 
 ## 1. Accounts to create (human action — Claude can't do these)
 
-1. **GitHub — a PRIVATE account/repo.** https://github.com/signup → enable **2FA**. Client
-   work stays in **private** repos. Run `gh auth login` (see tools) so pushes need no password.
+1. **GitHub — a PRIVATE account/repo.** https://github.com/signup. Client work stays in
+   **private** repos. Run `gh auth login` (see tools) so pushes need no password.
+   **Recommended: protect the account.** The account and the website in it are yours, and
+   whoever gets into the account can change or delete the site. At
+   https://github.com/settings/security, turn on **two-factor authentication** and add a
+   **passkey** (sign in with fingerprint, face or phone; with two-factor on, a passkey covers
+   both steps at once). Optional unless GitHub asks for it: GitHub requires two-factor only
+   for some accounts, and tells those by email and on the site.
 2. **Cloudflare account.** https://dash.cloudflare.com/sign-up → enable **2FA**. Hosts the site
    (Pages) and, if you move the domain's DNS there, the DNS. Free tier (unmetered bandwidth)
    covers a small static site; upgrade to Workers Paid ($5/mo) only when a feature needs it.

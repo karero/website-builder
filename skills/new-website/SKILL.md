@@ -228,7 +228,10 @@ Ask exactly once per build. Never run it unasked.
 
 **Prerequisites (one-time).** Walk the user through `templates/SETUP.md` if needed —
 Node/git/gh/wrangler + image tools, a **private GitHub** account, a **Cloudflare**
-account (both 2FA). The accounts are a human action the agent cannot do.
+account (2FA). The accounts are a human action the agent cannot do. When the owner sets up
+GitHub, tell them plainly that the account and the website in it are theirs, and recommend
+two-factor sign-in with a passkey to keep others out (`SETUP.md` §1 has the link). Recommend,
+never require: GitHub makes it mandatory only for some accounts, and says so itself.
 
 Assemble the project at `<site>/` so it travels without any global setup:
 
