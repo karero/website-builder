@@ -1,15 +1,16 @@
 # Plan — a visual Google & Bing report in search-console-insights
 
-Draft 1: requirements and open decisions only. No design is fixed and no code is written until
-the owner has answered the decisions below and checked the scenarios.
+Draft 2: requirements, the owner's decisions (2026-09-27: "go with your recommendations for
+D1–D6") and a first design. No product code yet; next is a mock-up page with invented numbers
+for the owner's visual check.
 
 ## Status
 
 | Step | State | Evidence |
 |---|---|---|
 | Requirements as scenarios (this document) | draft, for the owner to check | — |
-| Decisions D1–D6 | **open, owner** | — |
-| Mock-up page with invented numbers, for a visual check | not started (after D1–D6) | — |
+| Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
+| Mock-up page with invented numbers, for a visual check | in progress | — |
 | PLAN gate (Codex; ollama-cloud when it has credit) | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -92,7 +93,7 @@ numbers).
 **S12 — Kept fresh.** After each weekly run, the page is rebuilt, so the owner's saved link
 always shows the latest week.
 
-## Decisions for the owner (each with a recommendation)
+## Decisions (owner, 2026-09-27: every one as recommended)
 
 - **D1 — Where the trends come from.** (a) Google's own 16-month daily data, fetched when the page
   is built, plus the local history for Bing — charts are full on day one (S1). (b) Local history
@@ -110,6 +111,26 @@ always shows the latest week.
   but an outside script (conflicts with S11). *Recommended: (a).*
 - **D6 — How the owner gets it.** (a) Rebuilt after every weekly run (S12) and on request.
   (b) Only on request. *Recommended: (a).*
+
+## Design (first sketch, to be tested by the mock-up)
+
+- **Command:** `insights.py <domain> --report` (next to `geo_check.py --report`) writes one HTML
+  file under `~/.config/gsc-insights/reports/<site>/`, opens nothing by itself, and prints its
+  path; the skill tells the assistant to open it for the owner. `track.sh` calls it after each
+  weekly run (D6).
+- **Data (D1):** at build time, one Search Console call with `dimensions: ["date"]` for 16
+  months (site-wide visitors and times shown) and one with `["date", "query"]` filtered to the
+  key searches for 3 months; Bing from the local history. Numbers are summed per week
+  (Monday–Sunday) so the charts show weeks, not noisy days (D3).
+- **Page (D2, D4):** the headline sentence; "How to read this"; visitors per week (16 months) and,
+  as its own chart below, times shown per week (never two scales on one chart); one small chart
+  per key search, position 1 at the top; "almost on page 1" and "worth a look" tables; the Bing
+  section or its one-line "not connected"; a link to the AI report.
+- **Charts (D5):** SVG written by the script, one colour, 2px lines, end-point labels; the
+  browser's own tooltip (SVG `<title>`) gives each week's exact number without any script; each
+  chart has "See the numbers" with the same data as a table (S11).
+- **Weeks with too little data** (S4) are hollow points with a short legend; a configuration
+  change (S5) is a marked vertical line, and the line is broken there.
 
 ## Judgment calls (not verified facts)
 
