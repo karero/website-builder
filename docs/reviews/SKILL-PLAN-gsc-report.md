@@ -12,7 +12,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | Requirements as scenarios (this document) | draft 6 | this document |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | rounds 1–5 done (round 5 clean); final full read done (16 findings, fixed below); round 6 next, earned by its BUGs | rounds on `d29b3de`, draft 3, `946d5ae`, draft 5, `e2a2f1c`-era draft 5; final read on the round-5 text |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | rounds 1–5 done (round 5 clean); final full read done (16 findings, fixed below); round 6 next, earned by its BUGs | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
 | Probe of the real Google responses (see "To verify before build") | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -69,7 +69,8 @@ What data exists:
   complete weeks before those. One window for the headline, the key-search moves and both tables.
 - **A key search on Google** is one exact query text, fetched with **one request per key
   search** (`query()` joins all its filters with "and", so several key searches in one request
-  would match nothing). The text is sent lowercased, because Google stores queries in lowercase;
+  would match nothing). The text is sent lowercased, because Search Console appears to report queries in
+  lowercase (a probe item);
   whether its exact-match operator is case-sensitive is a probe item, and no case rule is claimed
   until the probe answers it. The variant grouping the text report uses (`_lang_normalize.py`) is
   not used for Google charts, so a Google chart always shows one fixed search. An owner who cares
@@ -256,7 +257,8 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
 ## To verify before build (a short probe on one real site, read-only, with the owner's OK)
 
 - The `["date"]` and `["date", "query"]` responses for this property: how far back they go,
-  the latest date, the time zone of the dates, whether the exact-match query filter is case-sensitive,
+  the latest date, the time zone of the dates, whether queries come back in lowercase, whether the exact-match query filter is
+  case-sensitive,
   how to read the latest finished date (the API's data-freshness answer or a fixed lag), and whether a key search known to be rare comes back empty (the privacy omission
   behind S11). Record the answers here; if 16 months or exact matching does not hold, adjust
   S1/D3.
