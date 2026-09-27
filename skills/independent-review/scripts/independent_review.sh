@@ -651,8 +651,10 @@ run_codex() {
 # model) a gate run came back empty. agy's log shows one soft-denied RunCommand and then shutdown;
 # its conversation record shows the command was `echo 'Checking if tools are blocked'`. The
 # text-only prompt's "You have NO tools" was false for agy, and the model tested it. PROMPT_AGY
-# drops that claim and asks for no tool calls instead. None of the other ten plan-mode runs in agy's logs from 2026-09-26 to
-# 2026-09-27 logged a denial. Whether the new wording lowers the rate is untested: no live run yet.
+# drops that claim and asks for no tool calls instead. None of the other ten plan-mode runs in
+# agy's logs from 2026-09-26 to 2026-09-27 logged a denial. Every print-mode run in those logs that
+# did log one (eight, 2026-08-29 to 2026-09-27) shut down within a second of its first denial.
+# Whether the new wording lowers the rate is untested: no live run yet.
 run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   local sbox out rc model="${AGY_MODEL:-}"

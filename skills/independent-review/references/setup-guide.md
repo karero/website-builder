@@ -192,8 +192,8 @@ headless on 2026-07-02 but returned nothing on 2026-09-26 (a tool call auto-deni
 `--mode plan` and a text-only prompt were added. On 2026-09-27 a plan-mode run still came back
 empty: the prompt said "You have NO tools", the model tried `echo` to test that, and the refusal
 ended the run. agy now gets its own prompt, which drops that claim, asks for no tool calls, and
-says a call can lose the review. Neither
-change makes an empty run impossible: re-verify before relying on it.
+says a call can lose the review. Neither change makes an empty run impossible: re-verify before
+relying on it.
 
 This is **not** a separate free lane — it's the same `agy` CLI and the same scarce-quota,
 opt-in-only rule as every other Antigravity use in this skill (see SKILL.md's reviewer stack).
