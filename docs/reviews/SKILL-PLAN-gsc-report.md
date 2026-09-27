@@ -1,8 +1,8 @@
 # Plan — a visual Google & Bing report in search-console-insights
 
-Draft 4: requirements, the owner's decisions D1–D6, the counting rules and a design, revised
-after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT) and 2 (Codex: 5 BUG,
-3 RISK) — dispositions at the end. No product code yet.
+Draft 5: requirements, the owner's decisions D1–D6, the counting rules and a design, revised
+after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 (Codex: 5 BUG,
+3 RISK) and 3 (Codex: 2 BUG, 1 RISK) — dispositions at the end. No product code yet.
 
 ## Status
 
@@ -11,7 +11,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT) and
 | Requirements as scenarios (this document) | draft 3 | this document |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | round 2 done (8 findings, all addressed below); round 3 next | round 1 on `d29b3de`, round 2 on the draft-3 commit; this draft answers both |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | round 3 done (3 findings, addressed below); round 4 next, earned by round 3's BUG | round 1 on `d29b3de`, round 2 on draft 3, round 3 on `946d5ae` |
 | Probe of the real Google responses (see "To verify before build") | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -52,8 +52,10 @@ What data exists:
 - **Weeks** run Monday–Sunday in the time zone Google reports dates in (to verify; reportedly
   Pacific Time). A week counts only when it is **complete**: all seven days lie inside the range
   Google returned data for — on or after the first date fetched and on or before the latest
-  date Google has. A partial week at either end is never drawn or counted. With fewer than 8
-  complete weeks, the headline gives the last-4-weeks number without a comparison.
+  date Google has. A partial week at either end is never drawn or counted. The headline follows
+  the number of complete weeks: none → S10's "a few days" message; 1–3 → the visits over those
+  weeks, named as such ("23 visits in the last 2 weeks"); 4–7 → the last 4 weeks, without a
+  comparison; 8 or more → the comparison below.
 - **Weekly values:** visits and times shown are the sums of the week's daily values; a weekly
   **position** is the average of the daily positions **weighted by impressions** (as
   `bing_query.py` already does for Bing), never a sum.
@@ -134,7 +136,8 @@ dates it covers and when it was fetched — and replaces the saved file only whe
 request of that build succeeded. **When** a later fetch fails, the page is rebuilt from the saved
 data, shown with the settings and dates it was fetched with, and the top says plainly: "Google's
 numbers could not be refreshed; these are from <date>. Say *reconnect Google*." With no saved
-data yet, the Google charts are left out with the same message. Nothing waits for a browser
+data yet, the Google charts are left out and the top says: "Google's numbers could not be
+loaded. Say *reconnect Google*." Nothing waits for a browser
 (`--no-browser`).
 
 **S10 — A brand-new site.** Search Console was verified two days ago. **Then** the page says Google
@@ -180,8 +183,13 @@ whenever the owner asks.
   words must not).
 - **Site settings file:** `schedule_tracking.sh` also writes
   `~/.config/gsc-insights/sites/<site>.json` (key searches, country, history file) when it
-  creates or changes a weekly job, so an on-demand build knows the job's settings. Settings, in
-  order of precedence: command-line flags; else that file; else, for key searches only, the
+  creates or changes a weekly job, so an on-demand build knows the job's settings. A job created
+  before this change has no such file; its settings live only in its launchd job file
+  (`~/Library/LaunchAgents/`, named by `schedule_tracking.sh`'s `plist_for`), so an on-demand
+  build reads that file read-only as the next fallback: the domain in its arguments must equal
+  the requested domain exactly, and its keywords, `GSC_HISTORY_CSV` and `GSC_COUNTRY` are used as
+  the job would use them. Settings, in order of precedence: command-line flags; else the settings
+  file; else the matching launchd job file; else, for key searches only, the
   keywords of the latest date on which the history has `gsc` rows for the site (named on the
   page as "from your last check on <date>"), with no country filter; else S12. `track.sh` passes
   its own settings explicitly.
@@ -260,3 +268,11 @@ whenever the owner asks.
 | C2-6 | Codex RISK | empty response ≠ never shown | fixed: S11 wording; probe covers the privacy omission |
 | C2-7 | Codex BUG | Context overstated the drill-down | fixed: single `--query` today; the loop is new work |
 | C2-8 | Codex BUG | "first visits" wrong for 0/0 or earlier visits | fixed: explicit wording for none-before and none-at-all |
+
+## PLAN round 3 — dispositions
+
+| # | Source | Finding | Disposition |
+|---|---|---|---|
+| C3-1 | Codex BUG | "last 4 weeks" promised with 1–3 complete weeks | fixed: headline branches by complete weeks (0 / 1–3 / 4–7 / 8+) |
+| C3-2 | Codex RISK | existing weekly jobs have no settings file | fixed: read-only fallback to the matching launchd job file, exact domain match |
+| C3-3 | Codex BUG (outside scope) | S9 with no saved data promised a date | fixed: its own "could not be loaded" message |
