@@ -134,8 +134,8 @@ Codex's effort for any run.
    gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
    <name> --model <m> --seconds <s> --tokens <t> --gate <plan|diff> --depth <d> --round <N>`
    (a Claude Code sub-agent reports its duration and tokens). The script's `--round 1` starts a
-   gate; every line after it carries that gate's id. A Light gate runs no script, so start it
-   with `scripts/review_log.sh new-gate`. The log is local, never committed;
+   gate; every line logged after it from the same worktree carries that gate's id. A Light gate
+   that runs no script starts one with `scripts/review_log.sh new-gate`. The log is local, never committed;
    `scripts/review_log.sh summary` compares depths and seats across PRs.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
