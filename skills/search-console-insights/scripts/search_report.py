@@ -56,20 +56,20 @@ ENV_KEYS = ("GSC_COUNTRY", "GSC_HISTORY_CSV", "BING_API_KEY")
 
 
 def read_env_file() -> dict:
-    """The shared .env as track.sh sees it: sourced by bash itself (quotes, comments, `export`),
-    so the two can never read it differently. Only the keys this page uses; a key .env does not
-    set is absent from the result."""
+    """The shared .env as track.sh sees it: sourced by bash itself (quotes, comments, `export`,
+    ${VAR} expansion) on top of this process's own environment, exactly as track.sh sources it
+    on top of the job's, so the two can never read it differently. Only the keys this page uses;
+    a key neither .env nor the environment sets is absent from the result."""
     p = base_dir() / ".env"
     if not p.exists():
         return {}
-    # bash sources the file into an otherwise empty environment and hands the result to this
-    # interpreter as JSON; a key is present only if .env set it.
+    # bash sources the file on top of the current environment and hands the result to this
+    # interpreter as JSON.
     script = 'set -a; . "$1" >/dev/null 2>&1; exec "$2" -c "import json,os,sys; json.dump(dict(os.environ), sys.stdout)"'
     import subprocess
     try:
         r = subprocess.run(["bash", "-c", script, "_", str(p), sys.executable],
-                           env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": os.path.expanduser("~")},
-                           capture_output=True, text=True, timeout=10)
+                           env=dict(os.environ), capture_output=True, text=True, timeout=10)
         env = json.loads(r.stdout or "{}")
     except (OSError, subprocess.TimeoutExpired, ValueError):
         return {}
@@ -634,7 +634,7 @@ COUNTRY_NAMES = {"deu": "Germany", "che": "Switzerland", "aut": "Austria", "usa"
                  "gbr": "the United Kingdom", "fra": "France", "ita": "Italy", "esp": "Spain", "nld": "the Netherlands"}
 
 
-def render(site, data, alert, settings, rows, ai_link, bing_state, today):
+def render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw=frozenset()):
     parts = []
     finished = dt.date.fromisoformat(data["finished"]) if data else None
     weeks = complete_weeks(data["daily"], finished) if data else []
@@ -760,8 +760,7 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today):
 
     parts.append("<h2>Bing</h2>")
     if bing_state == "lines":
-        current = {k.lower() for k in (data["keywords"] if data else settings.get("keywords") or [])}
-        lines = bing_lines(rows, current)
+        lines = bing_lines(rows, current_kw)
         parts.append('<p class="sub">The tracker records Bing as a rolling average of about 6 months, so these lines '
                      "move slowly. A break marks a week where Bing matched a different wording (≠) or the check was "
                      "measured differently (‡).</p>")
@@ -802,10 +801,12 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today):
 # ─── putting it together ─────────────────────────────────────────────────────────────────
 
 def show_page(url, site):
-    """The site's own pages as a path ('/roots'), which an owner reads more easily; others in full."""
-    m = re.match(r"^https?://([^/]+)(/.*)?$", url or "")
-    if m and m.group(1).lower() in (site, "www." + site):
-        return m.group(2) or "/"
+    """The site's own pages as a path ('/roots', '/?x=1'), which an owner reads more easily;
+    other addresses in full."""
+    from urllib.parse import urlsplit
+    u = urlsplit(url or "")
+    if u.scheme in ("http", "https") and (u.hostname or "") in (site, "www." + site):
+        return (u.path or "/") + (f"?{u.query}" if u.query else "") + (f"#{u.fragment}" if u.fragment else "")
     return url
 
 
@@ -848,7 +849,9 @@ def build(domain, args, service_factory=make_service, today=None):
                      + (" Say “reconnect Google”." if signin else ""))
         else:
             alert = f"Google's numbers could not be loaded{reason}." + (" Say “reconnect Google”." if signin else "")
-    bing_rows = [r for r in rows if r.get("source") == "bing"]
+    # Bing follows today's key searches, also when Google's part comes from saved data.
+    current_kw = {k.lower() for k in settings.get("keywords") or []}
+    bing_rows = [r for r in rows if r.get("source") == "bing" and (r.get("keyword") or "").lower() in current_kw]
     if bing_rows:
         bing_state = "lines"
     elif os.environ.get("BING_API_KEY") or read_env_file().get("BING_API_KEY"):
@@ -857,7 +860,7 @@ def build(domain, args, service_factory=make_service, today=None):
         bing_state = "off"
     ai = newest_ai_page(site)
     ai_link = f"../../geo/reports/{site}/{ai.name}" if ai else None
-    page = render(site, data, alert, settings, rows, ai_link, bing_state, today)
+    page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw)
     out = out_dir / "google.html"
     write_atomic(out, page)
     if ai:

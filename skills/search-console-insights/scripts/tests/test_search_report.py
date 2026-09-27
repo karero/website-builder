@@ -323,12 +323,35 @@ class Scenarios(ReportTest):
         self.assertIn("“Current”", bing)
         self.assertNotIn("old one-off", bing)
 
+    def test_bing_follows_todays_key_searches_even_from_saved_google_data(self):
+        """Review round 2: after a failed refresh, Bing must not bring back the old key searches."""
+        self.history([
+            {"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "old", "query": "old", "position": 5, "impressions": 40, "window": "~180"},
+            {"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "current", "query": "current", "position": 7, "impressions": 40, "window": "~180"},
+        ])
+        self.build(self.google(), keywords="old")
+        def expired():
+            raise sr.SignInError("expired")
+        page, _ = self.build(expired, keywords="current")
+        bing = page.split("<h2>Bing</h2>")[1]
+        self.assertIn("“current”", bing)
+        self.assertNotIn("“old”", bing)
+
+    def test_bing_with_no_rows_for_todays_searches_is_never_an_empty_section(self):
+        """Review round 2: history for other keywords only must still say something."""
+        os.environ["BING_API_KEY"] = "test-bing-placeholder"
+        self.history([{"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "other", "query": "other", "position": 5, "impressions": 40, "window": "~180"}])
+        page, _ = self.build(self.google(), keywords="mine")
+        self.assertIn("fills in after the next weekly check", page)
+
     def test_the_sites_own_pages_show_as_paths(self):
         """Found in the live run: owners read /cakes/ more easily than a full address."""
         pages = [{"keys": [f"https://www.{DOMAIN}/cakes/"], "position": 6, "impressions": 900, "clicks": 3, "ctr": 0.003},
                  {"keys": ["https://other.example/x"], "position": 6, "impressions": 800, "clicks": 1, "ctr": 0.001}]
         page, _ = self.build(self.google(pages=pages))
         self.assertIn("<td>/cakes/</td>", page)
+        self.assertEqual(sr.show_page(f"https://{DOMAIN}?x=1", DOMAIN), "/?x=1")      # review round 2
+        self.assertEqual(sr.show_page(f"https://{DOMAIN}", DOMAIN), "/")
         self.assertIn("other.example/x", page)                  # not the site's own: kept in full
 
     def test_s8_bing_waits_when_connected_but_not_run(self):
@@ -434,6 +457,11 @@ class Settings(ReportTest):
             'GSC_COUNTRY=deu # market\nexport GSC_HISTORY_CSV="/tmp/with space.csv"\n')
         s, _ = sr.resolve_settings(DOMAIN, args())
         self.assertEqual((s["country"], s["csv"]), ("deu", "/tmp/with space.csv"))
+        # ${VAR} from the environment, as track.sh expands it (review round 2)
+        (self.home / ".config/gsc-insights/.env").write_text('GSC_COUNTRY=${MARKET:-usa}\n')
+        os.environ["MARKET"] = "che"
+        s, _ = sr.resolve_settings(DOMAIN, args())
+        self.assertEqual(s["country"], "che")
 
     def test_an_empty_history_setting_means_the_shared_default_file(self):
         """Not a value inherited from the environment, as for track.sh (review round 1)."""

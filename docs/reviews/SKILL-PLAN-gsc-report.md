@@ -270,7 +270,10 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
 
 ## Probe results (2026-09-27, one real site: ~16 months of data, ~9,000 impressions in 90 days)
 
-Read-only, with the owner's OK; the site is not named here (this repo is public).
+Read-only, with the owner's OK; the site is not named here (this repo is public), and its raw
+output stays outside the repo for the same reason. The documented behaviour quoted below is from
+the Search Analytics API reference, https://developers.google.com/webmaster-tools/v1/searchanalytics/query
+(time zone of dates, `dataState` / `firstIncompleteDate`, the `equals` operator).
 
 - **History:** the `["date"]` response went back 16.4 months, 498 days, with no day missing on
   this site, well under the row limit — S1 and D3 hold.
