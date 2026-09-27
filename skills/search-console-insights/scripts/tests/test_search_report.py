@@ -204,7 +204,9 @@ class CountingRules(ReportTest):
         self.assertEqual(sr.moves_sentence(["up", "up", "up", "down", "thin"]),
                          "3 of your 5 key searches moved up, 1 moved down, 1 had too little data to tell")
         self.assertEqual(sr.moves_sentence(["flat", "flat", "flat", "thin", "thin"]),
-                         "None of your 5 key searches moved: 3 no clear change, 2 had too little data to tell")
+                         "Of your 5 key searches, 3 showed no clear change, 2 had too little data to tell")
+        # All thin: nothing is known about moves, so nothing is claimed (review round 1).
+        self.assertEqual(sr.moves_sentence(["thin", "thin"]), "Of your 2 key searches, 2 had too little data to tell")
 
 
 class Scenarios(ReportTest):
@@ -304,11 +306,30 @@ class Scenarios(ReportTest):
             {"date": "2026-09-07", "site": DOMAIN, "source": "bing", "keyword": "k", "query": "k", "position": 11, "impressions": 40, "window": "~180"},
             {"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "k", "query": "best k", "position": 3, "impressions": 60, "window": "~180"},
         ])
-        page, _ = self.build(self.google())
+        page, _ = self.build(self.google(), keywords="k")
         self.assertIn("latest position about 3", page)
         self.assertIn(">≠<", page)
         self.assertIn("Bing matched: k, best k", page)
         self.assertNotIn("moved up", page.split("<h2>Bing</h2>")[1])
+
+    def test_s8_bing_shows_only_the_current_key_searches(self):
+        """Found in the live run: old one-off keywords in the history must not come back as cards."""
+        self.history([
+            {"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "Current", "query": "current", "position": 5, "impressions": 40, "window": "~180"},
+            {"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "old one-off", "query": "old one-off", "position": 7, "impressions": 40, "window": "~180"},
+        ])
+        page, _ = self.build(self.google(keys={"current": weekly_key([9] * 13)}), keywords="current")
+        bing = page.split("<h2>Bing</h2>")[1]
+        self.assertIn("“Current”", bing)
+        self.assertNotIn("old one-off", bing)
+
+    def test_the_sites_own_pages_show_as_paths(self):
+        """Found in the live run: owners read /cakes/ more easily than a full address."""
+        pages = [{"keys": [f"https://www.{DOMAIN}/cakes/"], "position": 6, "impressions": 900, "clicks": 3, "ctr": 0.003},
+                 {"keys": ["https://other.example/x"], "position": 6, "impressions": 800, "clicks": 1, "ctr": 0.001}]
+        page, _ = self.build(self.google(pages=pages))
+        self.assertIn("<td>/cakes/</td>", page)
+        self.assertIn("other.example/x", page)                  # not the site's own: kept in full
 
     def test_s8_bing_waits_when_connected_but_not_run(self):
         os.environ["BING_API_KEY"] = "test-bing-placeholder"
@@ -405,6 +426,30 @@ class Settings(ReportTest):
         (self.home / ".config/gsc-insights/.env").write_text("GSC_COUNTRY=deu\n")
         s, _ = sr.resolve_settings(DOMAIN, args())
         self.assertEqual((s["keywords"], s["country"]), (["k1", "k2"], "deu"))
+
+    def test_env_is_read_as_bash_reads_it(self):
+        """A comment or quotes in .env must not change the country (review round 1: "deu # market")."""
+        self.plist(DOMAIN, "k1")
+        (self.home / ".config/gsc-insights/.env").write_text(
+            'GSC_COUNTRY=deu # market\nexport GSC_HISTORY_CSV="/tmp/with space.csv"\n')
+        s, _ = sr.resolve_settings(DOMAIN, args())
+        self.assertEqual((s["country"], s["csv"]), ("deu", "/tmp/with space.csv"))
+
+    def test_an_empty_history_setting_means_the_shared_default_file(self):
+        """Not a value inherited from the environment, as for track.sh (review round 1)."""
+        self.plist(DOMAIN, "k1", env={"GSC_COUNTRY": "", "GSC_HISTORY_CSV": ""})
+        os.environ["GSC_HISTORY_CSV"] = "/tmp/inherited-other.csv"
+        s, _ = sr.resolve_settings(DOMAIN, args())
+        self.assertEqual(s["csv"], str(self.home / ".config/gsc-insights/history.csv"))
+
+    def test_only_the_shown_searches_get_a_page_drill_down(self):
+        """100 candidates must not mean 100 extra requests for 15 shown rows (review round 1)."""
+        queries = [{"keys": [f"q{i}"], "position": 12, "impressions": 100 + i} for i in range(100)]
+        g = Scenarios.google(self, queries=queries)
+        self.build(g)
+        drills = [b for _, b in g.calls if b.get("dimensions") == ["page"] and b.get("dimensionFilterGroups")]
+        self.assertEqual(len(drills), sr.S6_SHOWN)
+        self.assertIn("q99", {f["expression"] for b in drills for grp in b["dimensionFilterGroups"] for f in grp["filters"]})
 
     def test_an_empty_entry_means_none_even_if_env_says_otherwise(self):
         self.plist(DOMAIN, "k1", env={"GSC_COUNTRY": "", "GSC_HISTORY_CSV": ""})

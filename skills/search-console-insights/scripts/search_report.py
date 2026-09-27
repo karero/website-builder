@@ -37,6 +37,7 @@ KEY_WEEKS = 13              # key-search cards: the last 3 months
 MIN_WEEKS_PER_SIDE = 2      # a move needs at least 2 usable weeks on each side
 PCT_FLOOR = 20              # a percentage only when both 4-week sides have 20+ visits
 S6_MIN_IMPRESSIONS = 5      # the text report's striking-distance floor (gsc_query.py)
+S6_SHOWN = 15               # rows shown in "just below page 1"
 S7_MAX_POSITION, S7_MIN_IMPRESSIONS, S7_MAX_CTR = 10.0, 20, 0.02   # gsc_query.py's low-CTR rule
 TRACKER_WINDOW = "28"
 
@@ -51,20 +52,28 @@ def report_dir(site: str) -> Path:
 
 # ─── settings ────────────────────────────────────────────────────────────────────────────
 
+ENV_KEYS = ("GSC_COUNTRY", "GSC_HISTORY_CSV", "BING_API_KEY")
+
+
 def read_env_file() -> dict:
-    """KEY=VALUE lines of the shared .env (quotes stripped), as track.sh's `set -a; .` sees them."""
-    out = {}
+    """The shared .env as track.sh sees it: sourced by bash itself (quotes, comments, `export`),
+    so the two can never read it differently. Only the keys this page uses; a key .env does not
+    set is absent from the result."""
     p = base_dir() / ".env"
     if not p.exists():
-        return out
-    for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        k = k.replace("export ", "").strip()
-        out[k] = v.strip().strip('"').strip("'")
-    return out
+        return {}
+    # bash sources the file into an otherwise empty environment and hands the result to this
+    # interpreter as JSON; a key is present only if .env set it.
+    script = 'set -a; . "$1" >/dev/null 2>&1; exec "$2" -c "import json,os,sys; json.dump(dict(os.environ), sys.stdout)"'
+    import subprocess
+    try:
+        r = subprocess.run(["bash", "-c", script, "_", str(p), sys.executable],
+                           env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": os.path.expanduser("~")},
+                           capture_output=True, text=True, timeout=10)
+        env = json.loads(r.stdout or "{}")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return {}
+    return {k: env[k] for k in ENV_KEYS if k in env}
 
 
 def _sanitize(domain: str) -> str:
@@ -154,7 +163,10 @@ def resolve_settings(domain, args):
         s.update(found)
     if args.csv is not None:
         s["csv"] = args.csv
-    csv_path = s["csv"] or default_csv()
+    # An explicitly empty history setting (a job's or a flag's) means the shared default file,
+    # as it does for track.sh — never a value inherited from the environment.
+    explicit = found is not None or args.csv is not None
+    csv_path = s["csv"] or (str(base_dir() / "history.csv") if explicit else default_csv())
     rows = read_history(csv_path, site)
     if not found and not args.keywords:
         h = history_settings(rows)
@@ -280,20 +292,22 @@ def fetch_google(service, domain, settings, today):
     qrows, _ = run_query(service, prop, _body(start4, end4, ["query"], country))
     prows, _ = run_query(service, prop, _body(start4, end4, ["page"], country))
     s6 = []
-    for r in qrows:
-        pos, imp = r.get("position") or 0, r.get("impressions", 0)
-        if 10 < pos <= 20 and imp >= S6_MIN_IMPRESSIONS:
-            try:
-                pages, _ = run_query(service, prop, _body(start4, end4, ["page"], country, r["keys"][0]))
-                pages.sort(key=lambda p: -p.get("impressions", 0))
-                top = pages[0]["keys"][0] if pages else None
-                more = max(0, len(pages) - 1)
-            except Exception:
-                top, more = None, 0
-            s6.append({"query": r["keys"][0], "position": pos, "impressions": imp, "page": top, "more": more})
+    cands = [r for r in qrows if r.get("position") is not None and 10 < r["position"] <= 20
+             and r.get("impressions", 0) >= S6_MIN_IMPRESSIONS]
+    cands.sort(key=lambda r: -r.get("impressions", 0))
+    for r in cands[:S6_SHOWN]:   # only the rows the page shows get a page drill-down
+        pos, imp = r["position"], r.get("impressions", 0)
+        try:
+            pages, _ = run_query(service, prop, _body(start4, end4, ["page"], country, r["keys"][0]))
+            pages.sort(key=lambda p: -p.get("impressions", 0))
+            top = pages[0]["keys"][0] if pages else None
+            more = max(0, len(pages) - 1)
+        except Exception:
+            top, more = None, 0
+        s6.append({"query": r["keys"][0], "position": pos, "impressions": imp, "page": top, "more": more})
     s7 = [{"page": r["keys"][0], "impressions": r.get("impressions", 0), "clicks": r.get("clicks", 0)}
           for r in prows
-          if (r.get("position") or 99) <= S7_MAX_POSITION and r.get("impressions", 0) >= S7_MIN_IMPRESSIONS
+          if r.get("position") is not None and r["position"] <= S7_MAX_POSITION and r.get("impressions", 0) >= S7_MIN_IMPRESSIONS
           and r.get("ctr", 0) < S7_MAX_CTR]
     return {
         "fetched": today.isoformat(), "property": prop, "country": country,
@@ -326,7 +340,7 @@ def complete_weeks(daily, finished):
 def _week(monday, rows):
     clicks = sum(r.get("clicks", 0) for r in rows)
     imp = sum(r.get("impressions", 0) for r in rows)
-    pos = (sum((r.get("position") or 0) * r.get("impressions", 0) for r in rows) / imp) if imp else None
+    pos = (sum(r["position"] * r.get("impressions", 0) for r in rows if r.get("position") is not None) / imp) if imp else None
     return {"monday": monday, "clicks": clicks, "impressions": imp, "position": pos}
 
 
@@ -401,7 +415,7 @@ def moves_sentence(moves):
     """Every outcome that occurred, zero counts left out: "3 of your 5 key searches moved up,
     1 moved down, 1 had too little data to tell" / "None of your 5 key searches moved: …"."""
     total = len(moves)
-    phrase = {"up": "moved up", "down": "moved down", "flat": "no clear change",
+    phrase = {"up": "moved up", "down": "moved down", "flat": "showed no clear change",
               "thin": "had too little data to tell"}
     counts = [(k, sum(1 for m in moves if m == k)) for k in ("up", "down", "flat", "thin")]
     counts = [(k, c) for k, c in counts if c]
@@ -413,20 +427,23 @@ def moves_sentence(moves):
     if any(k in ("up", "down") for k, _ in counts):
         (k0, c0), rest = counts[0], counts[1:]
         return ", ".join([f"{c0} of your {total} key searches {phrase[k0]}"] + [f"{c} {phrase[k]}" for k, c in rest])
-    return f"None of your {total} key searches moved: " + ", ".join(f"{c} {phrase[k]}" for k, c in counts)
+    # Nothing moved: say what is known, never "none moved" (unknown for the thin ones).
+    return f"Of your {total} key searches, " + ", ".join(f"{c} {phrase[k]}" for k, c in counts)
 
 
 def _n(v):
     return f"{int(round(v)):,}"
 
 
-def bing_lines(rows):
-    """Per key search, one point per run date: that date's row with the latest row's window and
+def bing_lines(rows, keywords=None):
+    """Per CURRENT key search (old one-off keywords in the history are left out), one point per run date: that date's row with the latest row's window and
     country, else the date's row with the most impressions; ‡ where the config differs from the
     previous point, ≠ where the matched query does (both break the line)."""
     by_kw = {}
     for r in rows:
         if r.get("source") == "bing" and r.get("keyword"):
+            if keywords is not None and r["keyword"].lower() not in keywords:
+                continue
             by_kw.setdefault(r["keyword"], []).append(r)
     out = {}
     for kw, rs in by_kw.items():
@@ -728,8 +745,8 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today):
         else:
             parts.append("<table><tr><th>Search</th><th>Position</th><th>Shown (4 weeks)</th><th>Your page</th></tr>"
                          + "".join(f"<tr><td>{H(r['query'])}</td><td>{round(r['position'])}</td><td>{_n(r['impressions'])}</td>"
-                                   f"<td>{H(r['page'] or 'page unknown')}{H(f' (+{r['more']} more)') if r.get('more') else ''}</td></tr>"
-                                   for r in data["s6"][:15]) + "</table>")
+                                   f"<td>{H(show_page(r['page'], site) if r['page'] else 'page unknown')}{H(f' (+{r['more']} more)') if r.get('more') else ''}</td></tr>"
+                                   for r in data["s6"][:S6_SHOWN]) + "</table>")
         parts.append("<h2>Shown often, rarely clicked</h2><p class=\"sub\">Worth a look: first check how the page appears "
                      "in Google today, before changing anything.</p>")
         if not enough:
@@ -738,12 +755,13 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today):
             parts.append("<p>None right now.</p>")
         else:
             parts.append("<table><tr><th>Your page</th><th>Shown (4 weeks)</th><th>Clicked</th></tr>"
-                         + "".join(f"<tr><td>{H(r['page'])}</td><td>{_n(r['impressions'])}</td><td>{_n(r['clicks'])}</td></tr>"
+                         + "".join(f"<tr><td>{H(show_page(r['page'], site))}</td><td>{_n(r['impressions'])}</td><td>{_n(r['clicks'])}</td></tr>"
                                    for r in data["s7"][:15]) + "</table>")
 
     parts.append("<h2>Bing</h2>")
     if bing_state == "lines":
-        lines = bing_lines(rows)
+        current = {k.lower() for k in (data["keywords"] if data else settings.get("keywords") or [])}
+        lines = bing_lines(rows, current)
         parts.append('<p class="sub">The tracker records Bing as a rolling average of about 6 months, so these lines '
                      "move slowly. A break marks a week where Bing matched a different wording (≠) or the check was "
                      "measured differently (‡).</p>")
@@ -783,6 +801,14 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today):
 
 # ─── putting it together ─────────────────────────────────────────────────────────────────
 
+def show_page(url, site):
+    """The site's own pages as a path ('/roots'), which an owner reads more easily; others in full."""
+    m = re.match(r"^https?://([^/]+)(/.*)?$", url or "")
+    if m and m.group(1).lower() in (site, "www." + site):
+        return m.group(2) or "/"
+    return url
+
+
 def newest_ai_page(site):
     d = base_dir() / "geo" / "reports" / site
     pages = sorted(d.glob("*.html")) if d.exists() else []
@@ -813,7 +839,7 @@ def build(domain, args, service_factory=make_service, today=None):
         if cache.exists():
             try:
                 saved = json.loads(cache.read_text(encoding="utf-8"))
-            except ValueError:
+            except (ValueError, OSError):     # an unreadable saved file is the same as none
                 saved = None
         reason = "" if signin else f" ({_reason(e)})"
         if saved:
