@@ -112,3 +112,29 @@ jobs:
         run: python -m pip install requests
       - name: Run the tracker + AI-check tests (stub servers, no real API calls)
         run: make test PYTHON=python
+  macos-stock-tools:
+    # Every job above runs on Ubuntu (bash 5, GNU awk/sed/tr). A zip recipient on a Mac runs
+    # the same guards under /bin/bash 3.2 and BSD tools, and v0.27's pre-release review found
+    # main unable to pass `make smoke` there (a heredoc bash 3.2 could not parse; BSD tr and
+    # awk stopping on UTF-8 bytes) with every job here green. The runner image also carries
+    # Homebrew's bash 5 and GNU tools, so pin the stock ones first on PATH and print what ran:
+    # a job that silently used bash 5 would pass for the wrong reason.
+    runs-on: macos-latest
+    env:
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Put macOS's own bash, awk, sed, tr and grep first on PATH
+        run: |
+          stock="$RUNNER_TEMP/stock-tools"; mkdir -p "$stock"
+          ln -s /bin/bash "$stock/bash"
+          for t in awk sed tr grep; do ln -s "/usr/bin/$t" "$stock/$t"; done
+          echo "$stock" >> "$GITHUB_PATH"
+      - name: Show which tools this job uses
+        run: |
+          command -v bash awk sed tr grep
+          bash --version | head -1
+          case "$(bash -c 'echo $BASH_VERSION')" in 3.2.*) ;; *) echo "not bash 3.2"; exit 1 ;; esac
+      - name: Run every guard and build the handoff zip, as a Mac user would (make smoke)
+        run: make smoke
