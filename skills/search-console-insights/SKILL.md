@@ -431,7 +431,7 @@ from it that apply every time:
   updated questions, and **ask the owner** before changing anything. First check that the new
   homepage text is the real page: a cookie or bot page also shows up as "changed".
 - **Show results as the report page** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --report`), not raw files.
-- **Google and Bing results the same way:** `~/.config/gsc-insights/venv/bin/python scripts/search_report.py <domain>` prints the path of the owner's page; open it. Owners ask *"show me my Google report"*; with several sites, ask which one. It uses the settings the weekly job last recorded unless given `--keywords`/`--country`; for a job set up before this page existed, re-run `schedule_tracking.sh install <domain> "<keywords>"` once (it keeps the job's settings) or wait for its next weekly run.
+- **Google and Bing results the same way:** `~/.config/gsc-insights/venv/bin/python scripts/search_report.py <domain>` prints the path of the owner's page; open it. Owners ask *"show me my Google report"*; with several sites, ask which one. It uses the settings the weekly job last recorded unless given `--keywords`/`--country`; a job set up before this page existed records them on its next weekly run; until then the page falls back to the history, so for a site with its own history file pass `--csv <that file>`.
   Owners ask for it in their own words: *"show me my AI report"*, *"how is my business doing with AI?"*.
 - **You draft the questions; you never answer them.** The whole point is a buyer's
   un-primed question to an engine that knows nothing about this conversation.

@@ -221,7 +221,7 @@ class Scenarios(ReportTest):
         self.assertIn("“Sourdough Munich”", page)
         self.assertEqual(out, self.home / ".config/gsc-insights/reports" / DOMAIN / "google.html")
         self.assertEqual(self.cache()["finished"], d(FINISHED))
-        self.assertIn("Bing is not connected yet", page)
+        self.assertIn("No Bing data for these searches yet", page)   # not known before a recorded run
 
     def test_s2_headline_on_the_real_page(self):
         daily = {}
@@ -338,7 +338,7 @@ class Scenarios(ReportTest):
 
     def test_bing_with_no_rows_for_todays_searches_is_never_an_empty_section(self):
         """Review round 2: history for other keywords only must still say something."""
-        os.environ["BING_API_KEY"] = "test-bing-placeholder"
+        self.site_file(bing=True)
         self.history([{"date": "2026-09-14", "site": DOMAIN, "source": "bing", "keyword": "other", "query": "other", "position": 5, "impressions": 40, "window": "~180"}])
         page, _ = self.build(self.google(), keywords="mine")
         self.assertIn("fills in after the next weekly check", page)
@@ -353,8 +353,23 @@ class Scenarios(ReportTest):
         self.assertEqual(sr.show_page(f"https://{DOMAIN}", DOMAIN), "/")
         self.assertIn("other.example/x", page)                  # not the site's own: kept in full
 
+    def site_file(self, **kw):
+        sites = self.home / ".config/gsc-insights/sites"
+        sites.mkdir(exist_ok=True)
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": [], "country": "", "csv": "", **kw}))
+
+    def test_s8_bing_waits_when_the_weekly_run_recorded_a_key(self):
+        """Whether Bing is connected is what track.sh resolved (review round 5: reading .env as
+        text called BING_API_KEY=${MISSING:-} "set")."""
+        self.site_file(bing=True)
+        page, _ = self.build(self.google())
+        self.assertIn("fills in after the next weekly check", page)
+        self.site_file(bing=False)
+        page, _ = self.build(self.google())
+        self.assertIn("Bing is not connected yet", page)
+
     def test_s8_bing_waits_when_connected_but_not_run(self):
-        os.environ["BING_API_KEY"] = "test-bing-placeholder"
+        self.site_file(bing=True)
         page, _ = self.build(self.google())
         self.assertIn("fills in after the next weekly check", page)
 

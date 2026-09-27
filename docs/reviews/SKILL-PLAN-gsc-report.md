@@ -197,9 +197,10 @@ whenever the owner asks.
 
 **S16 — An older weekly job.** A job installed before this page existed has no settings file
 yet, and its country comes from `.env` (`GSC_COUNTRY=deu`). **Then** until its next weekly run
-(or a re-install, which keeps its settings) the page takes key searches and country from the
-history rows, which recorded `deu`, so it still counts Germany; from the next run on, the file the
-job writes decides.
+records the file, the page takes key searches and country from the history rows, which recorded
+`deu`, so it still counts Germany. A site that keeps its own history file is given it with
+`--csv` in the meantime. (Re-installing is not the migration: it turns the job's missing entries
+into empty ones, which override `.env`.)
 
 ## Decisions (owner, 2026-09-27: every one as recommended)
 
@@ -221,7 +222,9 @@ job writes decides.
 - **Site settings file:** `~/.config/gsc-insights/sites/<site>.json` (key searches, country,
   history file). `track.sh` writes it on **every run** with the settings it actually resolved
   (after `.env` and the job's own entries), and `schedule_tracking.sh` writes it on install;
-  `schedule_tracking.sh remove` deletes it. The report only reads it: it never re-evaluates
+  `schedule_tracking.sh remove` deletes it. `track.sh` writes it atomically, removes a stale one when the
+  write fails, and lists that failure; besides the settings it records only whether a Bing key
+  resolved (for the Bing line), never the key. The report only reads it: it never re-evaluates
   `.env` or the launchd job, so the two cannot differ (DIFF rounds 1–4 found four ways a
   re-evaluation did; the redesign records instead). Settings, in order of precedence:
   command-line flags; else the settings file; else, from the history: take the latest date with
@@ -280,8 +283,10 @@ the site's impression totals are left out):
 [2] dataState=all last=2026-09-27; response keys: ['metadata', 'responseAggregationType', 'rows'];
     metadata={'firstIncompleteDate': '2026-09-25'}
 [3] query rows (90d)=103 with_uppercase=0
-[4] key#1–#7: rows lower=0 Title=0 · key#8: 34/34 · key#9: 24/24 · key#10: 15/15 · key#11: 77/77 · key#12: 7/7
-[5] two key searches in one AND group: rows=0
+[4] key#1–#7: rows=0 · key#8: 34 · key#9: 24 · key#10: 15 · key#11: 77 · key#12: 7 rows;
+    for every key: lower == Title == UPPER, comparing the returned keys and numbers; returned
+    query lowercase: True
+[5] two key searches with data on their own (34 and 24 rows), combined in one AND group: rows=0
 [6] 90d impressions not in query rows: 32%
 ```
 
@@ -296,10 +301,11 @@ the site's impression totals are left out):
   counted in Pacific Time.
 - **Lowercase:** none of the site's 103 queries in 90 days had a capital letter.
 - **Case of exact match:** the API reference calls `equals` "case-sensitive for page and query
-  dimensions", but on this property Title Case matched exactly as lowercase did for all 12 key
-  searches. Sending the key search lowercased is right under both readings.
-- **One request per key search:** two key searches in one filter group returned 0 rows,
-  confirming FR-B2.
+  dimensions", but on this property lowercase, Title Case and UPPER CASE returned identical rows
+  (the same keys and numbers) for every key search with data. Sending the key search lowercased
+  is right under both readings.
+- **One request per key search:** two key searches that each return rows on their own (34 and
+  24) returned 0 rows combined in one filter group, confirming FR-B2.
 - **Rare searches:** 32% of the site's impressions were in searches Google does not list, and 7
   of its 12 key searches returned no rows in 3 months. S11's card ("no data from Google for this
   search") will be common, not rare, and its variant hint matters.

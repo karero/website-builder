@@ -34,14 +34,6 @@ site_country_set="${GSC_COUNTRY+set}"; site_country="${GSC_COUNTRY:-}"
 [ -n "${GSC_COUNTRY:-}" ] || unset GSC_COUNTRY
 CSV="${GSC_HISTORY_CSV:-$HOME/.config/gsc-insights/history.csv}"
 
-# Record the settings this run resolved, so an on-demand report page (search_report.py) uses
-# exactly what the weekly job uses without re-reading .env or the launchd job itself.
-SITE_FILE="$HOME/.config/gsc-insights/sites/$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]').json"
-mkdir -p "$(dirname "$SITE_FILE")"
-"$PY" -c 'import json,sys; d,k,c,h,f=sys.argv[1:6]; json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h}, open(f,"w"), ensure_ascii=False, indent=1)' \
-  "$DOMAIN" "$KEYWORDS" "${GSC_COUNTRY:-}" "$CSV" "$SITE_FILE" \
-  || echo "  ⚠ could not record this site's settings in $SITE_FILE (the report page falls back to the history)"
-
 # Every step runs, whatever happened before it, and each thing that went wrong is
 # collected in `problems` and printed at the end. A scheduled run's exit code is the
 # only unattended signal, so it is nonzero whenever that list isn't empty:
@@ -55,6 +47,20 @@ mkdir -p "$(dirname "$SITE_FILE")"
 problems=()
 gsc_rc=0
 history_gap=0
+
+# Record the settings this run resolved, so an on-demand report page (search_report.py) uses
+# exactly what the weekly job uses without re-reading .env or the launchd job. Written
+# atomically; if that fails, any older file is removed (a stale one would win over the history)
+# and the failure is listed. `bing` records only whether a key resolved, never the key.
+SITE_FILE="$HOME/.config/gsc-insights/sites/$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]').json"
+if ! { mkdir -p "$(dirname "$SITE_FILE")" &&
+       "$PY" -c 'import json,os,sys; d,k,c,h,b,f=sys.argv[1:7]
+t=f+".tmp"; json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h,"bing":b=="1"}, open(t,"w"), ensure_ascii=False, indent=1); os.replace(t,f)' \
+         "$DOMAIN" "$KEYWORDS" "${GSC_COUNTRY:-}" "$CSV" "$([ -n "${BING_API_KEY:-}" ] && echo 1 || echo 0)" "$SITE_FILE"; }; then
+  rm -f "$SITE_FILE" "$SITE_FILE.tmp" 2>/dev/null || true
+  echo "  ⚠ could not record this site's settings in $SITE_FILE — the report page falls back to the history"
+  problems+=("site settings not recorded")
+fi
 
 echo "▶ Google Search Console …"
 # GSC_COUNTRY (ISO alpha-3, e.g. deu): optional country filter so the tracked

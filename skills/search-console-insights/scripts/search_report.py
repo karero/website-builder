@@ -51,19 +51,6 @@ def report_dir(site: str) -> Path:
 
 # ─── settings ────────────────────────────────────────────────────────────────────────────
 
-def bing_key_set() -> bool:
-    """Whether a Bing key is configured (it only decides between "fills in after the next weekly
-    check" and "not connected yet", so a plain look at .env is enough)."""
-    if os.environ.get("BING_API_KEY"):
-        return True
-    p = base_dir() / ".env"
-    try:
-        text = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
-    except OSError:
-        return False
-    return bool(re.search(r"^\s*(export\s+)?BING_API_KEY=\s*['\"]?[^'\"\s#]", text, re.M))
-
-
 def split_keywords(s):
     return [k.strip() for k in (s or "").split(",") if k.strip()]
 
@@ -106,7 +93,7 @@ def resolve_settings(domain, args):
     installed), else the history, else none. Nothing here re-reads .env or the launchd job: the
     job records its own resolved settings, so the two can never evaluate them differently."""
     site = normalize_site(domain)
-    s = {"keywords": [], "country": "", "csv": "", "from": ""}
+    s = {"keywords": [], "country": "", "csv": "", "from": "", "bing": None}
     sf = base_dir() / "sites" / f"{site}.json"
     found = None
     if sf.exists():
@@ -114,6 +101,7 @@ def resolve_settings(domain, args):
             j = json.loads(sf.read_text(encoding="utf-8"))
             found = {"keywords": [str(k).strip() for k in (j.get("keywords") or []) if str(k).strip()],
                      "country": j.get("country") or "", "csv": j.get("csv") or "",
+                     "bing": j.get("bing") if isinstance(j.get("bing"), bool) else None,
                      "from": "your weekly check"}
         except (ValueError, OSError):
             found = None
@@ -743,6 +731,8 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
                                           for p in pts]) + "</section>")
     elif bing_state == "waiting":
         parts.append("<p>Bing is connected; its section fills in after the next weekly check.</p>")
+    elif bing_state == "unknown":
+        parts.append("<p>No Bing data for these searches yet. If Bing isn't connected, ask me <i>“connect Bing”</i>.</p>")
     else:
         parts.append("<p>Bing is not connected yet. Ask me <i>“connect Bing”</i> and I'll walk you through it.</p>")
 
@@ -810,12 +800,16 @@ def build(domain, args, service_factory=make_service, today=None):
     # Bing follows today's key searches, also when Google's part comes from saved data.
     current_kw = {k.lower() for k in settings.get("keywords") or []}
     bing_rows = [r for r in rows if r.get("source") == "bing" and (r.get("keyword") or "").lower() in current_kw]
+    # Whether Bing is connected is what the weekly run recorded (it resolved .env); unknown
+    # before the first recorded run.
     if bing_rows:
         bing_state = "lines"
-    elif bing_key_set():
+    elif settings.get("bing") is True:
         bing_state = "waiting"
-    else:
+    elif settings.get("bing") is False:
         bing_state = "off"
+    else:
+        bing_state = "unknown"
     ai = newest_ai_page(site)
     ai_link = f"../../geo/reports/{site}/{ai.name}" if ai else None
     page = render(site, data, alert, settings, rows, ai_link, bing_state, today, current_kw)

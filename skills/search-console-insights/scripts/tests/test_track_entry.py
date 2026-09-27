@@ -143,6 +143,23 @@ class TrackEntry(unittest.TestCase):
         self.assertEqual(s["keywords"], ["sourdough munich"])
         self.assertEqual(s["country"], "deu")
         self.assertEqual(s["csv"], str(self.home / ".config/gsc-insights/history.csv"))
+        self.assertIs(s["bing"], False)                  # a flag only, never the key
+        (self.home / ".config/gsc-insights/.env").write_text("BING_API_KEY=${MISSING:-}\n")
+        self.track()
+        s = json.loads((self.home / ".config/gsc-insights/sites" / f"{DOMAIN}.json").read_text())
+        self.assertIs(s["bing"], False)                  # resolved empty, as bash sees it
+        (self.home / ".config/gsc-insights/.env").write_text("BING_API_KEY=test-bing-placeholder\n")
+        self.track()
+        text = (self.home / ".config/gsc-insights/sites" / f"{DOMAIN}.json").read_text()
+        self.assertIs(json.loads(text)["bing"], True)
+        self.assertNotIn("test-bing-placeholder", text)
+
+    def test_settings_that_cannot_be_recorded_are_listed(self):
+        """A stale settings file would win over the history, so a failed write must be visible."""
+        (self.home / ".config/gsc-insights/sites").write_text("not a folder")
+        rc, out, _ = self.track()
+        self.assertEqual(rc, 1, out)
+        self.assertIn("site settings not recorded", out)
 
     def test_a_failed_report_page_is_listed_but_never_hides_the_gsc_exit(self):
         rc, out, _ = self.track(SHIM_REPORT_RC=1)

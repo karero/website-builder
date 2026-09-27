@@ -48,24 +48,38 @@ q = raw({"startDate": (today - dt.timedelta(days=90)).isoformat(), "endDate": to
 upper = sum(1 for x in q if x["keys"][0] != x["keys"][0].lower())
 print(f"[3] query rows (90d)={len(q)} with_uppercase={upper}")
 
-# 4. Exact match: case sensitivity, per key search, date x query over 3 months
+# 4. Exact match: does case matter? Compare the returned rows themselves (keys and numbers).
 start3 = (today - dt.timedelta(days=92)).isoformat()
-for k in KEYS:
-    res = {}
-    for label, text in (("lower", k.lower()), ("Title", k.title())):
-        body = {"startDate": start3, "endDate": today.isoformat(), "dimensions": ["date", "query"],
-                "dimensionFilterGroups": [{"groupType": "and", "filters": [
-                    {"dimension": "query", "operator": "equals", "expression": text}]}], "rowLimit": 25000}
-        res[label] = len(raw(body).get("rows", []))
-    print(f"[4] key#{KEYS.index(k) + 1}: rows lower={res['lower']} Title={res['Title']}")
 
-# 5. Two key searches in one AND group (plan's FR-B2 claim)
-if len(KEYS) >= 2:
+
+def key_rows(text):
     body = {"startDate": start3, "endDate": today.isoformat(), "dimensions": ["date", "query"],
             "dimensionFilterGroups": [{"groupType": "and", "filters": [
-                {"dimension": "query", "operator": "equals", "expression": KEYS[0].lower()},
-                {"dimension": "query", "operator": "equals", "expression": KEYS[1].lower()}]}]}
-    print(f"[5] two key searches in one AND group: rows={len(raw(body).get('rows', []))}")
+                {"dimension": "query", "operator": "equals", "expression": text}]}], "rowLimit": 25000}
+    return raw(body).get("rows", [])
+
+
+nonempty = []
+for n, k in enumerate(KEYS, 1):
+    lo, ti, up = key_rows(k.lower()), key_rows(k.title()), key_rows(k.upper())
+    same = lo == ti == up
+    returned = sorted({r["keys"][1] for r in lo})
+    lower_keys = all(q == q.lower() for q in returned)
+    print(f"[4] key#{n}: rows={len(lo)} lower==Title==UPPER (keys+metrics): {same}; returned query lowercase: {lower_keys}")
+    if lo:
+        nonempty.append(k.lower())
+
+# 5. Two key searches that EACH return rows, combined in one AND group
+if len(nonempty) >= 2:
+    a, b = nonempty[:2]
+    body = {"startDate": start3, "endDate": today.isoformat(), "dimensions": ["date", "query"],
+            "dimensionFilterGroups": [{"groupType": "and", "filters": [
+                {"dimension": "query", "operator": "equals", "expression": a},
+                {"dimension": "query", "operator": "equals", "expression": b}]}]}
+    print(f"[5] two key searches with data on their own ({len(key_rows(a))} and {len(key_rows(b))} rows), "
+          f"combined in one AND group: rows={len(raw(body).get('rows', []))}")
+else:
+    print("[5] fewer than two key searches with data; the AND test needs two")
 
 # 6. Anonymized-query gap: property total vs sum over query rows (same 90 days)
 tot = raw({"startDate": (today - dt.timedelta(days=90)).isoformat(), "endDate": today.isoformat()}).get("rows", [])
