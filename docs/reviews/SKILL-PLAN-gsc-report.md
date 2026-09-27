@@ -10,8 +10,8 @@ for the owner's visual check.
 |---|---|---|
 | Requirements as scenarios (this document) | draft, for the owner to check | — |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
-| Mock-up page with invented numbers, for a visual check | built; **waiting for the owner's visual check** | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex; ollama-cloud when it has credit) | not started | — |
+| Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass) | in progress | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
 | Live check on a real site | not started | — |
