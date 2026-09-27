@@ -74,7 +74,7 @@ the reading code in the artifact, or expect to spend the round refuting.
    not cross-model (see the Independence rule below). Offer it after
    presenting results, don't run it unasked.
 4. **Antigravity — OPT-IN ONLY, never automatic.** Google Gemini via the
-   Antigravity CLI (`agy --sandbox --mode plan -p`, text-only prompt;
+   Antigravity CLI (`agy --sandbox --mode plan -p`, a prompt telling it not to use tools;
    `AGY_MODEL` overrides the CLI's default model — `run_agy` in
    `scripts/independent_review.sh` has the full call), free Antigravity login. The
    owner's Antigravity free-tier credits are scarce and get spent only when

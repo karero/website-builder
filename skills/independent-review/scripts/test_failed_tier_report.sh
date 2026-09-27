@@ -432,19 +432,26 @@ check "B-TAGCLASS guard: the tag that ran is the configured one, not the listed 
 
 # 23. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy reached for a
 #     tool needing the "command" permission, headless mode auto-denied it, and the tier exited 0
-#     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and sends the text-only
-#     prompt, and loosens nothing: no --dangerously-skip-permissions. The exact argv pins that
-#     on both command lines, the default and the AGY_MODEL one. The stub cannot show the real
-#     CLI now answers; it shows the script asks for what the manual run that did answer used.
+#     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and
+#     loosens nothing: no --dangerously-skip-permissions. The exact argv pins that on both command
+#     lines, the default and the AGY_MODEL one. The stub cannot show the real CLI now answers; it
+#     shows the script asks for what the manual run that did answer used.
+#     The prompt: the text-only one said "You have NO tools", which is false for agy, and on
+#     2026-09-27 (1.2.12, plan mode) the model tried `echo` to test it; the denial ended the run.
+#     So agy gets PROMPT_AGY, which asks for no tool calls without claiming there are none, and
+#     must never get the false sentence back.
 for m in "" stub-agy-model; do
   name="agy${m:+-model}"
   run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff"
   check "$name: agy counted alongside the pair" has "$name.out" "reviewers: codex OK, ollama-cloud OK, antigravity OK"
   check "$name: header names the model" has "$name.out" "## Independent review — antigravity/agy (${m:-CLI default}"
-  check "$name: header says plan mode, text-only prompt" has "$name.out" ", sandbox, plan mode, text-only prompt)"
+  check "$name: header says plan mode, told not to use tools" has "$name.out" ", sandbox, plan mode, told not to use tools)"
   want="argv=[--sandbox][--mode][plan]${m:+[--model][$m]}[-p][<prompt>]"
   check "$name: exact argv (sandbox + plan mode, nothing looser)" grep -qxF -- "$want" "$T/$name.marks/agy-args"
-  check "$name: sent the text-only prompt" grep -qF -- "You have NO tools" "$T/$name.marks/agy-prompt"
+  check "$name: sent the agy prompt" grep -qF -- "the refusal ends the run" "$T/$name.marks/agy-prompt"
+  check "$name: not told the false 'You have NO tools'" not_in "$T/$name.marks/agy-prompt" "You have NO tools"
+  check "$name: ollama, which really has no tools, still gets the text-only prompt" \
+    grep -qF -- "You have NO tools" "$T/$name.marks/ollama-prompt"
   check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
   check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
   # These pin the directory agy is LAUNCHED in, not an access boundary: its tools run elsewhere

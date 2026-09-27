@@ -189,8 +189,11 @@ checking which model actually ran.
 Confirm the model family from the run's own output, per that same step's rule — the confirmed
 family, not an assumed default, is what satisfies the gate. The older `agy --sandbox -p` form worked
 headless on 2026-07-02 but returned nothing on 2026-09-26 (a tool call auto-denied), which is why
-`--mode plan` and the text-only prompt were added. They make that less likely, not impossible:
-re-verify before relying on it.
+`--mode plan` and a text-only prompt were added. On 2026-09-27 a plan-mode run still came back
+empty: the prompt said "You have NO tools", the model tried `echo` to test that, and the refusal
+ended the run. agy now gets its own prompt, which drops that claim, asks for no tool calls, and
+says a call can lose the review. Neither
+change makes an empty run impossible: re-verify before relying on it.
 
 This is **not** a separate free lane — it's the same `agy` CLI and the same scarce-quota,
 opt-in-only rule as every other Antigravity use in this skill (see SKILL.md's reviewer stack).

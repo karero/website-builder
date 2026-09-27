@@ -9,7 +9,7 @@
 set -u
 here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$here/independent_review.sh"; SKILL="$here/../SKILL.md"
-TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_PORTABLE"
+TIERS="PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE"
 
 # Counting assignments by recognising shell syntax was an arms race and lost it twice: a
 # declaring keyword with options (`declare -x X=`) and then a conditional (`if true; then X=`;
