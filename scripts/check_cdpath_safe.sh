@@ -137,8 +137,18 @@ for s in "${SUBJECTS[@]}"; do
   # where SIGPIPE is not ignored, and ten times in one CI run, failing this guard with the tell
   # "(exit 0 vs 0)" — identical status, noise-only diff. Both pipelines are gone (it now greps
   # the file directly), but any subject can grow another one.
-  a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
-  b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
+  # Run each subject so that a working copy prints something and exits 0; a script that
+  # fails silently either way (sweep_claims.sh with no arguments exits 2 before and after
+  # breaking) hides a broken self-location. The check after the runs keeps that true.
+  arg=""
+  case "$s" in */sweep_claims.sh) arg=--help ;; esac
+  a_out="$(bash "$s" $arg 2>/dev/null)"; a_rc=$?
+  b_out="$(CDPATH="$decoy" bash "$s" $arg 2>/dev/null)"; b_rc=$?
+  if [ "$a_rc" != 0 ] && [ -z "$a_out" ]; then
+    echo "FAIL — $s exits $a_rc with no output even without CDPATH, so a CDPATH break could not"
+    echo "    show. Give it arguments that make a working copy succeed (see arg= above)."
+    diffs=$((diffs + 1)); rc=1; continue
+  fi
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
     echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
     diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | sed -n '1,20s/^/    /p'

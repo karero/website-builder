@@ -38,22 +38,45 @@ check "the block uncomments as six lines" 6 "$changed"
 # A stub npm, so "the gate ran" is cheap and visible. No tests/ dir, so the hook's optional
 # classifier and SEO steps stay off.
 mkdir -p "$T/bin" "$T/site"
-printf '#!/bin/sh\necho "npm $*"\n' >"$T/bin/npm"; chmod +x "$T/bin/npm"
+# NPM_FAIL=build or =test makes that step fail, to prove a red gate stops the push.
+cat >"$T/bin/npm" <<'NPM'
+#!/bin/sh
+echo "npm $*"
+case "$*" in
+  "run build") [ "${NPM_FAIL:-}" = build ] && exit 1 ;;
+  test)        [ "${NPM_FAIL:-}" = test ] && exit 1 ;;
+esac
+exit 0
+NPM
+chmod +x "$T/bin/npm"
 export PATH="$T/bin:$PATH"
 TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 20"
 
 # outcome <output> — SKIP (gate skipped), BLOCK (block refused), GATE (gate ran and passed),
-# or what went wrong. A hang shows as a timeout, not a stuck `make check`.
+# FAILED (a gate step failed), or what went wrong. Every run appends "@@rc=<exit status>",
+# and an outcome counts only when the status agrees with the message: git decides on the
+# status alone, so a "blocked" message followed by exit 0 would still let the push through.
+# A hang shows as a timeout, not a stuck `make check`.
 outcome() {
+  local rc
+  rc="$(printf '%s\n' "$1" | sed -n 's/^@@rc=//p')"
   case "$1" in
-    *"pre-push gate: skipped"*) echo SKIP ;;
-    *"Direct push to 'main' blocked"*) echo BLOCK ;;
-    *"✓ pre-push gate passed"*) echo GATE ;;
-    *) echo "other:$(printf '%s' "$1" | tr '\n' ' ' | cut -c1-80)" ;;
+    *"pre-push gate: skipped"*)        want=0 name=SKIP ;;
+    *"Direct push to 'main' blocked"*) want=1 name=BLOCK ;;
+    *"✓ pre-push gate passed"*)        want=0 name=GATE ;;
+    *"▶ pre-push gate:"*)              want=1 name=FAILED ;;
+    *) echo "other(rc=$rc):$(printf '%s' "$1" | tr '\n' ' ' | cut -c1-80)"; return ;;
   esac
+  if [ -z "$rc" ]; then echo "$name-without-status"
+  elif [ "$want" = 0 ] && [ "$rc" = 0 ]; then echo "$name"
+  elif [ "$want" = 1 ] && [ "$rc" != 0 ]; then echo "$name"
+  else echo "$name-but-exit-$rc"; fi
 }
 # run <shell> <hook> <stdin-setup...> — runs the hook in the stub site with the given stdin.
-run() { local sh="$1" hook="$2"; shift 2; (cd "$T/site" && $TO "$@" "$sh" "$hook") 2>&1; }
+run() {
+  local sh="$1" hook="$2"; shift 2
+  (cd "$T/site" && $TO "$@" "$sh" "$hook") 2>&1; printf '\n@@rc=%s\n' "$?"
+}
 
 Z=0000000000000000000000000000000000000000; A=1111111111111111111111111111111111111111
 DEL="(delete) $Z refs/heads/feat $A"
@@ -84,6 +107,8 @@ for sh in $shells; do
     check "$p empty stdin runs the gate"         GATE "$(outcome "$(printf '' | run "$sh" "$h" env)")"
     check "$p /dev/null runs the gate"           GATE "$(outcome "$(run "$sh" "$h" env </dev/null)")"
     check "$p closed stdin runs the gate, no hang" GATE "$(outcome "$(run "$sh" "$h" env <&-)")"
+    check "$p a failing build stops the push"    FAILED "$(outcome "$(printf '%s\n' "$UPD" | NPM_FAIL=build run "$sh" "$h" env)")"
+    check "$p failing tests stop the push"       FAILED "$(outcome "$(printf '%s\n' "$UPD" | NPM_FAIL=test run "$sh" "$h" env)")"
     check "$p refs from a file are read"         SKIP "$(outcome "$(run "$sh" "$h" env <"$T/del.txt")")"
     # A socket is neither a pipe nor a file; a guard testing for those read nothing here.
     if command -v python3 >/dev/null 2>&1; then
@@ -91,16 +116,17 @@ for sh in $shells; do
 import socket, subprocess, sys
 a, b = socket.socketpair(); a.sendall(open(sys.argv[3], "rb").read()); a.shutdown(socket.SHUT_WR)
 r = subprocess.run([sys.argv[1], sys.argv[2]], stdin=b, capture_output=True, text=True)
-print(r.stdout + r.stderr)' "$sh" "$h" "$T/pushmain.txt" 2>&1)"
+print(r.stdout + r.stderr + "\n@@rc=%d" % r.returncode)' "$sh" "$h" "$T/pushmain.txt" 2>&1)"
       check "$p refs from a socket are read" "$main_push" "$(outcome "$out")"
     fi
     # Without /proc, /dev/stdin does not resolve — the case that let main through in PR #125.
     # Needs unprivileged user namespaces; where they are off, say so rather than fail.
     if command -v unshare >/dev/null 2>&1 && unshare -rm true 2>/dev/null; then
       out="$(printf '%s\n' "$PUSHMAIN" | (cd "$T/site" && $TO unshare -rm "$sh" -c \
-        'mount -t tmpfs none /proc 2>/dev/null || exit 97; exec "$0" "$1"' "$sh" "$h") 2>&1)"
+        'mount -t tmpfs none /proc 2>/dev/null || exit 97; exec "$0" "$1"' "$sh" "$h") 2>&1
+        printf '\n@@rc=%s\n' "$?")"
       case "$out" in
-        '') printf 'skip %s without /proc (could not hide /proc)\n' "$p" ;;
+        *"@@rc=97"*) printf 'skip %s without /proc (could not hide /proc)\n' "$p" ;;
         *) check "$p refs are read without /proc" "$main_push" "$(outcome "$out")" ;;
       esac
     else
@@ -116,15 +142,33 @@ for v in off on; do
   $git init -q --bare "$R"
   $git init -q "$W"
   $git -C "$W" commit -q --allow-empty -m one
-  $git -C "$W" push -q "$R" HEAD:refs/heads/main HEAD:refs/heads/feat HEAD:refs/heads/feat2 2>/dev/null
+  $git -C "$W" push -q "$R" HEAD:refs/heads/main HEAD:refs/heads/feat HEAD:refs/heads/feat2 HEAD:refs/heads/keep 2>/dev/null
+  # A remote refuses to delete the branch its HEAD names, whatever the hook says; point HEAD
+  # elsewhere so "deleting main" tests the hook, not that server-side refusal.
+  $git -C "$R" symbolic-ref HEAD refs/heads/keep
   mkdir -p "$W/.hooks"; cp "$T/$v" "$W/.hooks/pre-push"; chmod +x "$W/.hooks/pre-push"
-  gpush() { (cd "$W" && $TO $git -c core.hooksPath="$W/.hooks" push "$R" "$@") 2>&1; }
+  gpush() { (cd "$W" && $TO $git -c core.hooksPath="$W/.hooks" push "$R" "$@") 2>&1; printf '\n@@rc=%s\n' "$?"; }
+  # remote <branch> — the remote's commit for it, or "none": proof a refused push changed nothing.
+  remote() { $git -C "$R" rev-parse -q --verify "refs/heads/$1" 2>/dev/null || echo none; }
   $git -C "$W" commit -q --allow-empty -m two
   if [ "$v" = on ]; then main_push=BLOCK main_del=BLOCK; else main_push=GATE main_del=SKIP; fi
   check "git, block $v: --delete of a branch skips the gate" SKIP "$(outcome "$(gpush --delete feat)")"
   check "git, block $v: a mixed push runs the gate"          GATE "$(outcome "$(gpush HEAD:refs/heads/feat2 :refs/heads/feat3)")"
+  before="$(remote feat2)"
+  check "git, block $v: a failing build refuses the push"    FAILED "$(outcome "$(NPM_FAIL=build gpush HEAD:refs/heads/feat2)")"
+  check "git, block $v: ... and the remote is unchanged"     "$before" "$(remote feat2)"
+  before="$(remote main)"
   check "git, block $v: pushing main"                        "$main_push" "$(outcome "$(gpush HEAD:refs/heads/main)")"
+  if [ "$v" = on ]; then
+    check "git, block on: ... and the remote main is unchanged" "$before" "$(remote main)"
+  fi
+  before="$(remote main)"
   check "git, block $v: deleting main"                       "$main_del" "$(outcome "$(gpush --delete main)")"
+  if [ "$v" = on ]; then
+    check "git, block on: ... and main still exists"          "$before" "$(remote main)"
+  else
+    check "git, block off: ... and main is gone"              none "$(remote main)"
+  fi
 done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi

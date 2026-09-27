@@ -101,7 +101,23 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
   if (ft[d] == "C" && substr(s, i + 1, 1) == "'") { add("$'"); sq[d] = 2; return 1 }
   add("$"); return 0
 }
-function check(x, ln,   w, nw, k, kind, rest) {
+# An awk program with its string, regex and comment contents blanked, so `print "exit"` or
+# `/exit/` is not read as the exit statement. A regex is a /.../ where an operand can start:
+# after the program's opening quote, ( , ! ~ { ; & or |, spaces allowed. After a value
+# (`$1 / 2`, `(s / NR`) a slash divides.
+function unlit(s,   out, m) {
+  gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
+  out = ""
+  while (match(s, /(^|[(,!~{;&|'])[ \t\n]*\/([^\/\\\n]|\\.)+\//)) {
+    m = substr(s, RSTART, RLENGTH)
+    out = out substr(s, 1, RSTART - 1) substr(m, 1, index(m, "/") - 1) "//"
+    s = substr(s, RSTART + RLENGTH)
+  }
+  s = out s
+  gsub(/#[^\n]*/, "", s)
+  return s
+}
+function check(x, ln,   w, nw, k, kind, rest, st, j, nb, ch) {
   sub(/^[ \t\n]+/, "", x)
   for (;;) {
     if (x ~ /^(!|\{|time|command|builtin|env|exec|nohup)([ \t\n]|$)/) { sub(/^[^ \t\n]*[ \t\n]*/, "", x); continue }
@@ -114,6 +130,7 @@ function check(x, ln,   w, nw, k, kind, rest) {
   else if (x ~ /^[ef]?grep([ \t\n]|$)/) {
     nw = split(x, w, /[ \t\n]+/)
     for (k = 2; k <= nw; k++) {
+      gsub(/["']/, "", w[k])   # grep '-q' and grep "-q" are grep -q to the shell
       if (w[k] == "--") break
       if (w[k] ~ /^-[a-zA-Z]*[qmlL]/ || w[k] ~ /^--(quiet|silent|max-count|files-with-matches|files-without-match)/) {
         kind = "grep " w[k]; break
@@ -122,13 +139,20 @@ function check(x, ln,   w, nw, k, kind, rest) {
   } else if (x ~ /^sed([ \t\n]|$)/) {
     if (substr(x, 4) ~ /(^|[^a-zA-Z_\\])[qQ][0-9]*([ \t\n;}'"]|$)/) kind = "sed with q"
   } else if (x ~ /^[gmn]?awk([ \t\n]|$)/) {
-    rest = substr(x, 4)
-    if (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) rest = substr(rest, 1, RSTART)
+    rest = unlit(substr(x, 4))
+    # An exit inside END runs after all input is read, so it cannot close the pipe early. Drop
+    # every END block, wherever it sits, and look for an exit in what remains.
+    while (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) {
+      st = (substr(rest, RSTART, 3) == "END") ? RSTART - 1 : RSTART
+      j = RSTART + RLENGTH; nb = 1
+      while (j <= length(rest) && nb > 0) { ch = substr(rest, j, 1); if (ch == "{") nb++; else if (ch == "}") nb--; j++ }
+      rest = substr(rest, 1, st) substr(rest, j)
+    }
     if (rest ~ /(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)/) kind = "awk with exit"
   }
   if (kind != "") print FILENAME "\t" ln "\t" kind
 }
-function lex(s,   i, n, c, c2, t, j, w, ch, strip) {
+function lex(s,   i, n, c, c2, t, j, w, ch, strip, piped) {
   n = length(s)
   for (i = 1; i <= n; i++) {
     c = substr(s, i, 1); t = ft[d]
@@ -157,7 +181,9 @@ function lex(s,   i, n, c, c2, t, j, w, ch, strip) {
       if (c == ";") { endcmd("", 0); continue }
       if (c == "(") {
         if (substr(s, i + 1, 1) == "(" && blank(buf[d])) { add("(("); push("A", ""); i++; continue }
-        add(c); push("C", ")"); continue
+        # `cmd | ( … )`: the subshell is the consumer, so its first command reads the pipe.
+        piped = (op[d] == "|" && blank(buf[d]))
+        add(c); push("C", ")"); if (piped) op[d] = "|"; continue
       }
       if (c == ")") { if (tm[d] == ")") popc(c); else endcmd("", 0); continue }  # else: a case pattern
       if (c == "<" && substr(s, i + 1, 1) == "<") {
@@ -247,6 +273,20 @@ cmd |
 @@ bad/backslash-continuation
 cmd \
   | head -n 1
+@@ bad/subshell-consumer
+cmd | ( grep -q x )
+@@ bad/group-consumer
+cmd | { grep -q x; }
+@@ bad/grep-q-single-quoted
+cmd | grep '-q' x
+@@ bad/grep-q-double-quoted
+cmd | grep "-q" x
+@@ bad/awk-exit-after-end-block
+cmd | awk 'END { print n } NR == 1 { exit }'
+@@ bad/awk-exit-in-begin
+cmd | awk 'BEGIN { exit }'
+@@ bad/awk-exit-beside-string
+cmd | awk '{ print "x" } NR == 1 { exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
@@ -277,6 +317,16 @@ echo "a | head -1"
 grep -E 'a|head -1' file
 @@ good/awk-exit-in-end
 cmd | awk '{ n++ } END { exit n == 0 }'
+@@ good/awk-exit-in-string
+cmd | awk '{ print "exit" }'
+@@ good/awk-exit-in-regex
+cmd | awk '/exit/ { n++ } END { print n + 0 }'
+@@ good/awk-division-then-exit-in-end
+cmd | awk '{ s += $1 / 2 } END { if (s / NR > 1) exit 1 }'
+@@ good/subshell-drains
+cmd | ( cat >/dev/null )
+@@ good/subshell-not-piped
+( grep -q x file )
 @@ good/grep-count
 cmd | grep -c foo
 @@ good/grep-reads-to-eof
