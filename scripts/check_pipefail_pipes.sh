@@ -176,11 +176,12 @@ function strip_end(rest,   out, j, nb, ch, m, pre) {
 }
 # The program with its strings, regex literals and comments blanked, in one pass. A / opens a
 # regex only where nothing else can stand: at the start or right after one of \n ( , { } ; !
-# ~ & | = * % ^ < > ? :. After a digit, ] or . it divides. Anything else sets `unsure`, and
-# early_exit() then keeps its finding: a / after a name (`n / 2` or `print /re/`: telling a
-# variable from a keyword is one more thing to get wrong), after + or - (x++ / 2), after )
-# (`if (c) /re/` vs `(a) / 2`), a string or regex still open at the end of its line, and any
-# backslash-newline.
+# ~ & | = * % ^ < > ? :. It divides after a digit (a number, or a name ending in one, which
+# no keyword does), ], ., or a closed string or regex (awk reads "a" /x/ as a division).
+# Anything else sets `unsure`, and early_exit() then keeps its finding: a / after a name
+# (`n / 2` or `print /re/`: telling a variable from a keyword is one more thing to get wrong),
+# after $, + or - (x++ / 2), after ) (`if (c) /re/` vs `(a) / 2`), a string or regex still
+# open at the end of its line, and any backslash-newline.
 function unlit(s,   n, i, c, out, last) {
   n = length(s); out = ""; last = ""; unsure = 0
   for (i = 1; i <= n; i++) {
@@ -424,8 +425,8 @@ cmd | awk '{ x = 2; y = x++ / 2; exit; # /
 cmd | awk '{ if (1) /#/; exit }'
 @@ bad/awk-regex-after-else-print
 cmd | awk '{ if (0) print 1; else print /#/; exit }'
-@@ bad/awk-division-after-a-name
-cmd | awk '{ n = NR / 2; print n /#/; exit }'
+@@ bad/awk-slash-after-a-name-keeps-the-finding
+cmd | awk '{ n = NR / 2; print n; exit } # a comment with a /'
 @@ bad/awk-escaped-newline-in-string
 cmd | awk '{ s = "a\
 "; exit }'
