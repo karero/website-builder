@@ -102,8 +102,11 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
   add("$"); return 0
 }
 # The program an awk command runs, as awk sees it: the shell words after `awk` with their
-# quoting decoded ('…' literal; "…" with \" \\ \$ \` unescaped), skipping -F, -v and their
-# values. "" for a program read from a file (-f), which this guard cannot see.
+# quoting decoded ('…' literal; "…" with \" \\ \$ \` unescaped), skipping redirections
+# (2>/dev/null, > out, <in) and options with their values (-F, -v, -W, gawk's -i/-l and
+# --assign/--field-separator/--include/--load, any --opt=value). gawk's -e/--source give the
+# program directly. "" for a program read from a file (-f, -E, --file, --exec), which this
+# guard cannot see.
 function awkprog(s,   n, i, c, q, w, have, words, nw, k) {
   n = length(s); q = ""; w = ""; have = 0; nw = 0
   for (i = 1; i <= n + 1; i++) {
@@ -120,11 +123,17 @@ function awkprog(s,   n, i, c, q, w, have, words, nw, k) {
     w = w c
   }
   for (k = 1; k <= nw; k++) {
-    if (words[k] == "--") return (k < nw) ? words[k + 1] : ""
-    if (words[k] == "-f" || words[k] ~ /^-f./ || words[k] ~ /^--file/) return ""
-    if (words[k] == "-F" || words[k] == "-v") { k++; continue }
-    if (words[k] ~ /^-./) continue
-    return words[k]
+    w = words[k]
+    if (w ~ /^[0-9]*(<|>|>>|>&|<&|&>|&>>|<>)$/) { k++; continue }   # operator, target next
+    if (w ~ /^[0-9]*[<>&]/) continue                                 # 2>/dev/null, >out, <in
+    if (w == "--") return (k < nw) ? words[k + 1] : ""
+    if (w == "-e" || w == "--source") return (k < nw) ? words[k + 1] : ""
+    if (w ~ /^-e./) return substr(w, 3)
+    if (w ~ /^--source=/) return substr(w, 10)
+    if (w ~ /^-[fE]/ || w ~ /^--(file|exec)([=]|$)/) return ""
+    if (w ~ /^-[FvWil]$/ || w ~ /^--(assign|field-separator|include|load)$/) { k++; continue }
+    if (w ~ /^-./) continue                                          # -F:, -vx=1, --posix, --opt=value
+    return w
   }
   return ""
 }
@@ -321,6 +330,18 @@ cmd | awk "NR == 1 { exit }"
 cmd | awk -F'\t' -v n=1 'NR == n { print; exit }'
 @@ bad/gawk-exit
 cmd | gawk 'NR == 1 { exit }'
+@@ bad/awk-redirect-before-program
+cmd | awk 2>/dev/null 'NR == 1 { exit }'
+@@ bad/awk-separated-redirect-before-program
+cmd | awk 2> /dev/null 'NR == 1 { exit }'
+@@ bad/awk-long-assign
+cmd | gawk --assign n=1 'NR == n { exit }'
+@@ bad/awk-long-field-separator
+cmd | gawk --field-separator '\t' 'NR == 1 { exit }'
+@@ bad/awk-W-option
+cmd | mawk -W interactive 'NR == 1 { exit }'
+@@ bad/gawk-source
+cmd | gawk -e 'NR == 1 { exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
@@ -363,6 +384,10 @@ cmd | awk '{ x = /exit/; print x }'
 cmd | awk "{ print \"exit\" }"
 @@ good/awk-var-named-exit
 cmd | awk -v exit_code=0 '{ print }'
+@@ good/awk-assign-value-named-exit
+cmd | gawk --assign mode=exit '{ print mode }'
+@@ good/awk-redirect-named-exit
+cmd | awk '{ print }' 2>exit.log
 @@ good/awk-division-then-exit-in-end
 cmd | awk '{ s += $1 / 2 } END { if (s / NR > 1) exit 1 }'
 @@ good/subshell-drains
