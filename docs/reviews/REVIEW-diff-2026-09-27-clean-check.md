@@ -7,7 +7,7 @@ final check before v0.28: `make check` in the main checkout failed on a client n
 found `make check` failing in the unzipped handoff zip, already true of the v0.27 zip.
 
 Depth: **Normal** (a guard that decides whether private names reach a public repo). Seats: Codex
-CLI (`gpt-6-astra`, read-only) in rounds 1–3; the Antigravity CLI (`agy`, its default model) on
+CLI (`gpt-6-astra`, read-only) in rounds 1–3 and 5; the Antigravity CLI (`agy`, its default model) on
 the whole change in round 4, as the second model. ollama-cloud was out of credits. Consent: the
 owner, this session ("do you want to do a final check and review?", then "You can also use agy
 for reviews").
@@ -18,8 +18,9 @@ for reviews").
 | 2 | `cce44c7` | 3 / 1 / 0 | the new filter swallowed a scan error (a broken pattern read as clean); no left boundary (`other-<owner>/website-builder`); hits in a file name holding a colon dropped; the `--separate-git-dir` risk again |
 | 3 | `2b67b32` | 2 / 1 / 0 | two references one character apart (fails safe: flagged, nothing hidden); `filter_ignored` cutting a file name at its first colon; the `--separate-git-dir` risk a third time |
 | 4 (agy, whole change) | `0593197` | 0 / 2 / 1 | the `--separate-git-dir` test required a planted name to pass; `git worktree list` paths possibly relative; mixed-case self-references not exempted |
+| 5 (the colon fix only) | `48716fb` | 0 / 0 / 0 | clean; it could not run the test harness itself (read-only), which ran here: 13 cases pass under bash 5 and 3.2, and the colon case fails on `05452ec` |
 
-12 findings over 4 rounds, two of them the same risk repeated. Round 3 found no bug that could
+12 findings over 5 rounds, two of them the same risk repeated. Round 3 found no bug that could
 hide a name, so it earned no further Codex round; round 4 is the second model's read of the
 whole change, which the owner opened up mid-gate.
 
