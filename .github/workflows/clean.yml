@@ -131,10 +131,14 @@ jobs:
           ln -s /bin/bash "$stock/bash"
           for t in awk sed tr grep; do ln -s "/usr/bin/$t" "$stock/$t"; done
           echo "$stock" >> "$GITHUB_PATH"
-      - name: Show which tools this job uses
+      - name: Fail unless the stock tools and a UTF-8 locale are what the next step gets
         run: |
-          command -v bash awk sed tr grep
+          for t in bash awk sed tr grep; do
+            got="$(command -v "$t")"; echo "$t -> $got"
+            [ "$got" = "$RUNNER_TEMP/stock-tools/$t" ] || { echo "$t is not the stock one"; exit 1; }
+          done
           bash --version | head -1
           case "$(bash -c 'echo $BASH_VERSION')" in 3.2.*) ;; *) echo "not bash 3.2"; exit 1 ;; esac
+          [ "$(locale charmap)" = UTF-8 ] || { echo "locale is not UTF-8"; exit 1; }
       - name: Run every guard and build the handoff zip, as a Mac user would (make smoke)
         run: make smoke
