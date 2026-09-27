@@ -103,6 +103,19 @@ report "email address" "$(g -rinE "$EMAIL" $SCAN_DOCS \
 # sk-/pplx- cover OpenAI (incl. sk-proj-), Anthropic (sk-ant-) and Perplexity keys for the
 # AI check; they must start a word, or hyphenated prose ("risk-free-and-...") would match.
 SECRETS='(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{20,}|(^|[^A-Za-z0-9_-])pplx-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})'
+# Self-test, both directions: a pattern that stops matching real key shapes passes silently, and
+# one that starts matching prose fails every docs change. The samples are built at run time so
+# this file never holds a key-shaped literal of its own.
+x20=aaaaaaaaaaaaaaaaaaaa; x36="${x20}aaaaaaaaaaaaaaaa"
+for k in "AKIA""ABCDEFGHIJKLMNOP" "ghp_$x36" "github_pat_$x20" "glpat-$x20" "xoxb-$x20" \
+         "sk-""proj-$x20" "sk-""ant-api03-$x20" "key: sk-$x20" "pplx-$x20" "AIza$x36" \
+         "-----BEGIN RSA PRIVATE KEY-----"; do
+  grep -qE -- "$SECRETS" <<<"$k" || { echo "FAIL — the secret pattern no longer matches a key shaped like: ${k:0:12}…"; exit 1; }
+done
+for k in "a risk-free-and-clear-guarantee-for-everyone" "ask-me-anything-about-your-website-today" \
+         "task-sk-$x20" "the pplx-style answer"; do
+  if grep -qE -- "$SECRETS" <<<"$k"; then echo "FAIL — the secret pattern matches plain prose: $k"; exit 1; fi
+done
 report "credential/secret" "$(g -rnE "$SECRETS" $SCAN_DOCS)"
 
 # 5. Secret-looking assignments:  (api_key|secret|token|password|...) = "longish-literal"

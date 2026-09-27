@@ -43,7 +43,10 @@ EXEMPT=(
 # git's file list where there is one (it skips nested checkouts under .claude/worktrees/), else
 # find: the handoff zip has no git, and zip recipients run `make check` too.
 discover() {
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null)" ]; then
+  # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
+  # otherwise get that repository's index, which may track none, some or all of these files.
+  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
     git ls-files 2>/dev/null
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
@@ -52,7 +55,7 @@ discover() {
   fi |
   while IFS= read -r f; do
     [ -f "$f" ] || continue
-    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
+    case "$(head -n 1 -- "$f" 2>/dev/null | LC_ALL=C tr -d '\0')" in
       '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
@@ -65,7 +68,10 @@ PIPEFAIL_RE='^[[:space:]]*set[[:space:]]+(.*[[:space:]])?-[a-zA-Z]*o[[:space:]]+
 # --- the lexer ---------------------------------------------------------------------------------
 # Prints one line per flagged site: <file> TAB <line> TAB <consumer>. A file it cannot parse
 # prints <file> TAB 0 TAB PARSE: <reason>. Plain POSIX awk: runs under mawk, nawk and gawk.
-LEXER="$(cat <<'AWK'
+# read, not "$(cat <<'AWK' … )": bash 3.2 (macOS /bin/bash) parses a heredoc inside $( ) for
+# quotes, and this awk body's unbalanced ' and ` stop the whole script from parsing there.
+IFS= read -r -d '' LEXER <<'AWK' || true
+BEGIN { EXITRE = "(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)" }
 function reset() {
   d = 1; ft[1] = "C"; tm[1] = ""; own[1] = 1; sq[1] = 0; an[1] = 0
   buf[1] = ""; op[1] = ""; bl[1] = 0; nh = 0; hh = 0; cont = 0
@@ -96,7 +102,110 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
   if (ft[d] == "C" && substr(s, i + 1, 1) == "'") { add("$'"); sq[d] = 2; return 1 }
   add("$"); return 0
 }
-function check(x, ln,   w, nw, k, kind, rest) {
+# Whether an awk command can exit before reading all its input. Fail-safe by design: every
+# shell word after `awk` is decoded ('…' literal; "…" with \" \\ \$ \` unescaped) and
+# checked as if it were program text, so a program is found wherever it sits (after options,
+# redirections, gawk's -e, several -e) without an option table having to be complete. Skipped,
+# only so they cannot raise a false alarm: a redirection (judged by its unquoted start, so a
+# quoted program like '1>0 {…}' is still read) with its target, and the value of -F, -v,
+# --assign or --field-separator; after `--` no word is taken for an option. A word skipped by
+# mistake would be a miss, so these lists stay narrow; a word checked by mistake (an input
+# file named exit.log, another option's value) is at worst a false alarm, fixed in EXEMPT.
+# A program read from a file (-f, -E, --file, --exec) is not visible here, so that consumer is
+# flagged too (returns 2): read the file once and EXEMPT the site if it never exits early.
+function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
+  n = length(s); q = ""; w = ""; have = 0; nw = 0; pre = ""
+  for (i = 1; i <= n + 1; i++) {
+    c = (i <= n) ? substr(s, i, 1) : " "
+    if (q == "'") { if (c == "'") q = ""; else w = w c; continue }
+    if (q == "\"") {
+      if (c == "\\" && substr(s, i + 1, 1) ~ /["\\$`]/) { w = w substr(s, i + 1, 1); i++; continue }
+      if (c == "\"") q = ""; else w = w c
+      continue
+    }
+    if (c == "'" || c == "\"" || c == "\\") {
+      if (!have) pre = w   # the word's unquoted start
+      have = 1
+      if (c == "\\") { w = w substr(s, i + 1, 1); i++ } else q = c
+      continue
+    }
+    if (c ~ /[ \t\n]/) {
+      if (have || w != "") { words[++nw] = w; lead[nw] = have ? pre : w }
+      w = ""; have = 0; pre = ""; continue
+    }
+    w = w c
+  }
+  dd = 0; val = 0
+  for (k = 1; k <= nw; k++) {
+    w = words[k]
+    if (lead[k] == w && w ~ /^[0-9]*(<|<<|<<-|<<<|>|>>|>[|]|>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
+    if (lead[k] ~ /^[0-9]*[<>&]/) continue                        # 2>/dev/null, 2>'exit.log'
+    if (val) { val = 0; continue }       # the value -v/-F was waiting for, even "--" (awk -F --)
+    if (!dd && w == "--") { dd = 1; continue }
+    if (!dd && (w ~ /^-[fE]/ || w ~ /^--(file|exec)(=|$)/)) return 2
+    if (!dd && (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/)) { val = 1; continue }
+    if (!dd && (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/)) continue
+    if (early_exit(w)) return 1
+  }
+  return 0
+}
+# Whether awk program text can exit early. Fail-safe, in two steps. First a plain search of
+# the whole decoded program for the word `exit`, with nothing removed: no word, no finding,
+# and a plain search cannot be fooled. Only then may the finding be cleared: unlit() blanks
+# strings, regex literals and comments, strip_end() drops END blocks from that blanked text
+# (an exit there runs after all input is read), and if no exit is left the finding goes —
+# but only if unlit() met nothing it could have misread (`unsure`). Every misreading therefore
+# costs a false alarm, never a miss.
+function early_exit(prog,   u) {
+  if (prog !~ EXITRE) return 0
+  u = unlit(prog)
+  if (unsure) return 1
+  return strip_end(u) ~ EXITRE
+}
+# Blanked text without its END blocks: an END counts only where a rule can start (the start,
+# a newline, } or ;) and only if its braces close; otherwise the text stays.
+function strip_end(rest,   out, j, nb, ch, m, pre) {
+  out = ""
+  while (match(rest, /(^|[\n};])[ \t\n]*END[ \t\n]*\{/)) {
+    j = RSTART + RLENGTH; nb = 1
+    while (j <= length(rest) && nb > 0) { ch = substr(rest, j, 1); if (ch == "{") nb++; else if (ch == "}") nb--; j++ }
+    if (nb > 0) break
+    m = substr(rest, RSTART, 1); pre = (m ~ /[\n};]/) ? m : ""
+    out = out substr(rest, 1, RSTART - 1) pre
+    rest = substr(rest, j)
+  }
+  return out rest
+}
+# The program with its strings, regex literals and comments blanked, in one pass. A / opens a
+# regex only where nothing else can stand: at the start or right after one of \n ( , { } ; !
+# ~ & | = * % ^ < > ? :. It divides after a digit (a number, or a name ending in one, which
+# no keyword does), ], ., or a closed string or regex (awk reads "a" /x/ as a division).
+# Anything else sets `unsure`, and early_exit() then keeps its finding: a / after a name
+# (`n / 2` or `print /re/`: telling a variable from a keyword is one more thing to get wrong),
+# after $, + or - (x++ / 2), after ) (`if (c) /re/` vs `(a) / 2`), a string or regex still
+# open at the end of its line, and any backslash-newline.
+function unlit(s,   n, i, c, out, last) {
+  n = length(s); out = ""; last = ""; unsure = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (c == "\\") {
+      if (substr(s, i + 1, 1) == "\n") unsure = 1
+      out = out substr(s, i, 2); i++; last = "a"; continue
+    }
+    if (c == "\"" || (c == "/" && (last == "" || index("\n(,{};!~&|=*%^<>?:", last)))) {
+      for (i++; i <= n && substr(s, i, 1) != c && substr(s, i, 1) != "\n"; i++)
+        if (substr(s, i, 1) == "\\") { if (substr(s, i + 1, 1) == "\n") unsure = 1; i++ }
+      if (i > n || substr(s, i, 1) == "\n") unsure = 1
+      out = out c c; last = "0"; continue
+    }
+    if (c == "#") { while (i < n && substr(s, i + 1, 1) != "\n") i++; continue }
+    if (c == "/" && last !~ /[0-9\].]/) unsure = 1
+    out = out c
+    if (c !~ /[ \t]/) last = c
+  }
+  return out
+}
+function check(x, ln,   w, nw, k, kind) {
   sub(/^[ \t\n]+/, "", x)
   for (;;) {
     if (x ~ /^(!|\{|time|command|builtin|env|exec|nohup)([ \t\n]|$)/) { sub(/^[^ \t\n]*[ \t\n]*/, "", x); continue }
@@ -109,6 +218,7 @@ function check(x, ln,   w, nw, k, kind, rest) {
   else if (x ~ /^[ef]?grep([ \t\n]|$)/) {
     nw = split(x, w, /[ \t\n]+/)
     for (k = 2; k <= nw; k++) {
+      gsub(/["']/, "", w[k])   # grep '-q' and grep "-q" are grep -q to the shell
       if (w[k] == "--") break
       if (w[k] ~ /^-[a-zA-Z]*[qmlL]/ || w[k] ~ /^--(quiet|silent|max-count|files-with-matches|files-without-match)/) {
         kind = "grep " w[k]; break
@@ -117,13 +227,14 @@ function check(x, ln,   w, nw, k, kind, rest) {
   } else if (x ~ /^sed([ \t\n]|$)/) {
     if (substr(x, 4) ~ /(^|[^a-zA-Z_\\])[qQ][0-9]*([ \t\n;}'"]|$)/) kind = "sed with q"
   } else if (x ~ /^[gmn]?awk([ \t\n]|$)/) {
-    rest = substr(x, 4)
-    if (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) rest = substr(rest, 1, RSTART)
-    if (rest ~ /(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)/) kind = "awk with exit"
+    sub(/^[gmn]?awk/, "", x)
+    k = awkexits(x)
+    if (k == 1) kind = "awk with exit"
+    else if (k == 2) kind = "awk -f: its program file is not checked; read it, and EXEMPT the site if it never exits early"
   }
   if (kind != "") print FILENAME "\t" ln "\t" kind
 }
-function lex(s,   i, n, c, c2, t, j, w, ch, strip) {
+function lex(s,   i, n, c, c2, t, j, w, ch, strip, piped) {
   n = length(s)
   for (i = 1; i <= n; i++) {
     c = substr(s, i, 1); t = ft[d]
@@ -152,7 +263,9 @@ function lex(s,   i, n, c, c2, t, j, w, ch, strip) {
       if (c == ";") { endcmd("", 0); continue }
       if (c == "(") {
         if (substr(s, i + 1, 1) == "(" && blank(buf[d])) { add("(("); push("A", ""); i++; continue }
-        add(c); push("C", ")"); continue
+        # `cmd | ( … )`: the subshell is the consumer, so its first command reads the pipe.
+        piped = (op[d] == "|" && blank(buf[d]))
+        add(c); push("C", ")"); if (piped) op[d] = "|"; continue
       }
       if (c == ")") { if (tm[d] == ")") popc(c); else endcmd("", 0); continue }  # else: a case pattern
       if (c == "<" && substr(s, i + 1, 1) == "<") {
@@ -209,7 +322,6 @@ FNR == 1 { if (NR > 1) finish(cur); reset(); cur = FILENAME }
 }
 END { if (NR > 0) finish(cur) }
 AWK
-)"
 
 # --- self-test, both directions ------------------------------------------------------------------
 # A guard that cannot fire is worse than none; one that fires on the fixed form is its mirror.
@@ -243,6 +355,95 @@ cmd |
 @@ bad/backslash-continuation
 cmd \
   | head -n 1
+@@ bad/subshell-consumer
+cmd | ( grep -q x )
+@@ bad/group-consumer
+cmd | { grep -q x; }
+@@ bad/grep-q-single-quoted
+cmd | grep '-q' x
+@@ bad/grep-q-double-quoted
+cmd | grep "-q" x
+@@ bad/awk-exit-after-end-block
+cmd | awk 'END { print n } NR == 1 { exit }'
+@@ bad/awk-exit-in-begin
+cmd | awk 'BEGIN { exit }'
+@@ bad/awk-exit-beside-string
+cmd | awk '{ print "x" } NR == 1 { exit }'
+@@ bad/awk-program-in-double-quotes
+cmd | awk "NR == 1 { exit }"
+@@ bad/awk-with-options
+cmd | awk -F'\t' -v n=1 'NR == n { print; exit }'
+@@ bad/gawk-exit
+cmd | gawk 'NR == 1 { exit }'
+@@ bad/awk-redirect-before-program
+cmd | awk 2>/dev/null 'NR == 1 { exit }'
+@@ bad/awk-separated-redirect-before-program
+cmd | awk 2> /dev/null 'NR == 1 { exit }'
+@@ bad/awk-long-assign
+cmd | gawk --assign n=1 'NR == n { exit }'
+@@ bad/awk-long-field-separator
+cmd | gawk --field-separator '\t' 'NR == 1 { exit }'
+@@ bad/awk-W-option
+cmd | mawk -W interactive 'NR == 1 { exit }'
+@@ bad/gawk-source
+cmd | gawk -e 'NR == 1 { exit }'
+@@ bad/awk-program-looks-like-redirect
+cmd | awk '1>0 { print; exit }'
+@@ bad/awk-redirect-between-option-and-value
+cmd | awk -v 2>/dev/null n=1 'NR == n { exit }'
+@@ bad/awk-redirect-after-double-dash
+cmd | awk -- 2>/dev/null 'NR == 1 { exit }'
+@@ bad/awk-clobber-redirect
+cmd | awk 2>| /dev/null 'NR == 1 { exit }'
+@@ bad/gawk-exit-in-second-source
+cmd | gawk -e '{ print }' -e 'NR == 1 { exit }'
+@@ bad/awk-unknown-option-before-program
+cmd | gawk --profile prof.out 'NR == 1 { exit }'
+@@ bad/awk-dash-program-after-double-dash
+cmd | awk -v value=1 -- '-value { print; exit }'
+@@ bad/awk-escaped-quote-in-double-quoted-program
+cmd | awk "NR == 1 { print \"x\"; exit }"
+@@ bad/awk-quotes-in-comments-around-exit
+cmd | awk '# a "quote
+{ print; exit }
+# and another "'
+@@ bad/awk-hash-in-string-before-exit
+cmd | awk '{ print "#" } NR == 1 { exit }'
+@@ bad/awk-regex-with-quote-after-print
+cmd | awk '{ print /"/; exit }'
+@@ bad/awk-end-inside-a-string
+cmd | awk '{ print "END {"; if (NR == 1) exit; print "}" }'
+@@ bad/awk-brace-in-end-string
+cmd | awk 'END { print "{" } NR == 1 { exit }'
+@@ bad/awk-backslash-newline
+cmd | awk '{ x = 1 \
+/ 2; exit }'
+@@ bad/awk-end-marker-inside-a-string
+cmd | awk '{ print ";END {"; exit; print "}" }'
+@@ bad/awk-braces-split-across-strings
+cmd | awk 'END { print "{" } NR == 1 { exit } { print "}" }'
+@@ bad/awk-division-after-postfix-increment
+cmd | awk '{ x = 2; y = x++ / 2; exit; # /
+}'
+@@ bad/awk-regex-after-if-paren
+cmd | awk '{ if (1) /#/; exit }'
+@@ bad/awk-regex-after-else-print
+cmd | awk '{ if (0) print 1; else print /#/; exit }'
+@@ bad/awk-slash-after-a-name-keeps-the-finding
+cmd | awk '{ n = NR / 2; print n; exit } # a comment with a /'
+@@ bad/awk-program-from-a-file
+cmd | awk -f prog.awk
+@@ bad/gawk-program-from-a-file-long-option
+cmd | gawk -v n=1 --file=prog.awk
+@@ bad/awk-field-separator-dashdash-then-file
+cmd | awk -F -- -f prog.awk
+@@ bad/gawk-program-via-exec
+cmd | gawk -E prog.awk
+@@ bad/gawk-program-via-exec-long-option
+cmd | gawk --exec prog.awk
+@@ bad/awk-escaped-newline-in-string
+cmd | awk '{ s = "a\
+"; exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
@@ -273,6 +474,43 @@ echo "a | head -1"
 grep -E 'a|head -1' file
 @@ good/awk-exit-in-end
 cmd | awk '{ n++ } END { exit n == 0 }'
+@@ good/awk-exit-in-string
+cmd | awk '{ print "exit" }'
+@@ good/awk-exit-in-regex
+cmd | awk '/exit/ { n++ } END { print n + 0 }'
+@@ good/awk-exit-regex-after-brace
+cmd | awk '{ n++ } /exit/ { print n }'
+@@ good/awk-exit-regex-assigned
+cmd | awk '{ x = /exit/; print x }'
+@@ good/awk-exit-in-double-quoted-string
+cmd | awk "{ print \"exit\" }"
+@@ good/awk-field-separator-is-not-a-file
+cmd | awk -F, '{ print $1 }'
+@@ good/awk-var-named-exit
+cmd | awk -v exit_code=0 '{ print }'
+@@ good/awk-assign-value-named-exit
+cmd | gawk --assign mode=exit '{ print mode }'
+@@ good/awk-redirect-named-exit
+cmd | awk '{ print }' 2>exit.log
+@@ good/awk-redirect-quoted-target-named-exit
+cmd | awk '{ print }' 2>'exit.log'
+@@ good/awk-redirect-separated-quoted-target
+cmd | awk '{ print }' 2> "exit.log"
+@@ good/awk-redirect-between-option-and-value
+cmd | awk -v 2>/dev/null mode=exit '{ print mode }'
+@@ good/awk-clobber-redirect-named-exit
+cmd | awk '{ print }' 2>| exit.log
+@@ good/awk-exit-in-comment
+cmd | awk '{ n++ } # exit early? no
+END { print n }'
+@@ good/awk-herestring-named-exit
+cmd | awk '{ print }' <<< exit
+@@ good/awk-division-then-exit-in-end
+cmd | awk '{ s += $1 / 2 } END { if (s > NR) exit 1 }'
+@@ good/subshell-drains
+cmd | ( cat >/dev/null )
+@@ good/subshell-not-piped
+( grep -q x file )
 @@ good/grep-count
 cmd | grep -c foo
 @@ good/grep-reads-to-eof
@@ -292,7 +530,7 @@ head -n 1 file | tr -d '\0'
 CASES
 
 TAB=$'\t'
-flagged="$(awk "$LEXER" "$tmp"/bad/* "$tmp"/good/*)"; lrc=$?
+flagged="$(LC_ALL=C awk "$LEXER" "$tmp"/bad/* "$tmp"/good/*)"; lrc=$?
 if [ "$lrc" -ne 0 ]; then
   echo "FAIL — self-test: awk exited $lrc; the lexer is broken on this system's awk."
   exit 1
@@ -340,7 +578,7 @@ if [ "${#SCOPE[@]}" -lt 10 ]; then
   exit 1
 fi
 
-found="$(awk "$LEXER" "${SCOPE[@]}")"; lrc=$?
+found="$(LC_ALL=C awk "$LEXER" "${SCOPE[@]}")"; lrc=$?
 if [ "$lrc" -ne 0 ]; then
   echo "FAIL — awk exited $lrc while scanning; the guard result is unreliable."
   exit 1
@@ -355,7 +593,7 @@ while IFS=$'\t' read -r f ln kind; do
     echo "FAIL — $f: cannot lex it (${kind#PARSE: }). Fix the script, or teach this guard the construct."
     rc=1; continue
   fi
-  src="$(sed -n "${ln}p" -- "$f")"
+  src="$(sed -n "${ln}p" <"$f")"
   hit=""
   for i in "${!EXEMPT[@]}"; do
     e="${EXEMPT[$i]}"

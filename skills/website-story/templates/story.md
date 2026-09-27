@@ -92,10 +92,10 @@ term, never replaces it.
 
 | # | Section | Carries | Direct CTA |
 |---|---|---|---|
-| 1 | Header | `<h1>` with the positioning term, the one-liner as first paragraph, three outcomes, customer image | yes |
-| 2 | Stakes | §6, as "are you worried about…" | no |
+| 1 | Header | `<h1>` with the positioning term, the one-liner as first paragraph, up to three outcomes (one per §7 success line; never invent one), customer image | yes |
+| 2 | Stakes | §6, one to three lines in the "what you keep missing" register, then a one-line pivot to the guide | no |
 | 3 | Plan | §4 as an `<ol>` | yes |
-| 4 | Value stack | §7, three benefits | no |
+| 4 | Value stack | §7 success lines, as many as §7 has, up to three | no |
 | 5 | Explanatory paragraph | §3 guide, top objections, "read more" link | no |
 | 6 | Lead generator | §5 transitional CTA (omit if blank) | no |
 | 7 | Junk drawer | FAQ, everything else | yes |

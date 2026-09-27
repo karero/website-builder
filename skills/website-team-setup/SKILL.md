@@ -53,7 +53,9 @@ Ask, one at a time, offer the options, record the answers — they feed §§2, 7
    `BRAND.md`) ·
    **everything** the owner may change (also new pages, tests, scripts, CI, settings).
    The reference site started at "content" and widened to "everything" within a day;
-   pick what fits now, it is one line to change later.
+   pick what fits now, it is one line to change later. If only the owner publishes
+   (Q4), say that "everything" includes `ship.sh`, the hook and the CI file, which a
+   collaborator could then change and merge.
 3. **Merge rule.** Default and recommended: a collaborator merges their **own** pull
    request when the checks are green, no placeholders remain and it is not a draft;
    other people's pull requests only after asking. Alternative: the owner merges
@@ -71,8 +73,10 @@ Ask, one at a time, offer the options, record the answers — they feed §§2, 7
 
 ```bash
 OWNER=<github-owner>; REPO=<repo>
-# write access = can push branches and open/merge pull requests; not admin
-gh api -X PUT "repos/$OWNER/$REPO/collaborators/<username>" -f permission=push
+# On a personal-account repo a collaborator always gets write access (push branches,
+# open/merge pull requests; not admin): GitHub has no other level there, and the API's
+# `permission` field applies to organization repos only.
+gh api -X PUT "repos/$OWNER/$REPO/collaborators/<username>"
 gh api "repos/$OWNER/$REPO/invitations" --jq '.[] | "\(.invitee.login) \(.permissions) pending"'
 ```
 Dashboard path: repo → **Settings → Collaborators → Add people**. The invitee gets an
@@ -118,9 +122,9 @@ the current value first, change only what differs, and say what you changed.
 | **Workflow token** | leave **read-only** (default) | The kit's CI writes nothing to the repo. | Settings → Actions → General |
 | **Dependabot** | **security updates on**; version updates off unless the owner wants weekly dependency pull requests | Security updates arrive as ordinary pull requests that CI checks; version updates are noise for a non-technical team. | Settings → Code security |
 | **Secret scanning + push protection** | **on** where the plan offers it (free on public repos; paid on private) | Catches a token pasted into a commit before it lands; the kit's `.gitignore` is the backstop either way. | Settings → Code security |
-| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. On a personal-account repo GitHub cannot restrict *who* pushes to `production`, so "who may ship" (§1 Q4) stays a written rule in `AGENTS.md`, not an enforced one. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
+| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. Rulesets need a public repo or a paid plan: on a free private repo this one is refused like §5-A's, and `production` has no server-side protection at all. Where rulesets are available, GitHub documents a **Restrict updates** rule (only bypass actors may push) and lists the repository admin role as a bypass actor, which would make "who may ship" (§1 Q4) enforced; this is not yet tested on a real site, so until it is, "who may ship" stays a written rule in `AGENTS.md`. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
 | **Cloudflare GitHub App** | access to **this repo only** | The app gets read access to every repo it is granted; least privilege. | GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure (see §6.2) |
-| **2FA** | every collaborator has a second sign-in step (a passkey counts) | A personal-account repo cannot require it (only organizations can). Do not hand a non-technical collaborator a settings path: GitHub prompts for it on sign-in, and `TEAM-GUIDE.md` tells them to accept that prompt. You only check it is on: `gh api users/<login>` shows nothing about 2FA, so ask them, or look at Settings → Collaborators, which flags accounts without it. | the collaborator follows GitHub's own prompt |
+| **2FA** | recommended, not required: each collaborator turns on two-factor sign-in and adds a passkey | The website is the owner's, and anyone who gets into a collaborator's account can change it, so recommend it to each collaborator in those words. Never make it a condition: a personal-account repo cannot require it (only organizations can), and GitHub itself requires it only for some accounts (it tells those by email and on the site). Do not count on GitHub prompting a collaborator who only edits content; `TEAM-GUIDE.md` gives them the link. There is nothing to check from your side: `gh api users/<login>` shows nothing about 2FA, and GitHub documents no 2FA marker on Settings → Collaborators for a personal-account repo, so if the owner wants to know, ask. | the collaborator, at https://github.com/settings/security |
 | **Watching** | each collaborator watches the repo (at least "Participating and @mentions", the default) | Otherwise nobody sees a review comment or a failed check on their pull request. | the "Watch" button on the repo |
 
 Skipped on purpose: CODEOWNERS with required code-owner review (needs the paid
@@ -273,13 +277,18 @@ file. Then continue. Found this on the first real site the skill ran on: its hoo
 predated the block.
 If it is not enabled: remove the leading `# ` from those six lines and replace only
 the first sentence of the comment above them ("OPTIONAL: PR-only main flow …") with
-the date and why it is on — keep the rest of that comment: it is the **single source
-of truth for what bypasses the block** (`ALLOW_MAIN_PUSH=1`, the deliberate override;
-`git push --no-verify`; unsetting `core.hooksPath`; a clone that never ran
-`npm install`, since the `prepare` script is what wires the hook) and for why the
-block must stay above the build steps. Commit that in the setup pull request. Then
+the date and why it is on — keep the rest of that comment: it says why the block must
+stay above the build steps. The hook's comments, its header and this one, are the
+**source of truth for what bypasses the block**: `ALLOW_MAIN_PUSH=1`, the deliberate
+override (above the block); `git push --no-verify` and unsetting `core.hooksPath`
+(header); and a clone that never ran `npm install`, since the `prepare` script is what
+wires the hook. Commit that in the setup pull request. Then
 tell the owner, and write into `AGENTS.md` §2, what it is: a **local convention**,
-with the bypasses quoted from that hook comment, not from memory. It does not touch
+with the bypasses quoted from the hook's comments, not from memory. `PUBLISHING.md`
+tells the owner to push to `main` directly (to publish on a single-stage site, to
+update the preview on a two-stage one), which the block now refuses: in the setup pull
+request, point those steps at a pull request, with `ALLOW_MAIN_PUSH=1` named as the
+owner's deliberate exception. It does not touch
 `npm run ship` (which pushes `main:production`), nor GitHub's own merges, nor Codex
 in the cloud (which only ever creates pull requests). It is the best a free private
 repo gets, and it is enough when everyone follows `AGENTS.md`.
@@ -295,15 +304,20 @@ gh api "repos/$OWNER/$REPO/rules/branches/main" --jq '.[].type'
 
 # Hook (§5-B ONLY — on a ruleset site the hook is off by design and this would
 # print "NOT blocked"): a dry run of a real ref update — the hook runs, nothing is
-# transferred.
-git switch --no-track -c setup/push-check origin/main
+# transferred. Branch from the SETUP branch, not origin/main: git runs the hook from
+# the checked-out files, and until the setup pull request merges, origin/main still
+# has the block commented out, so a check from there always says "NOT blocked".
+git switch --no-track -c setup/push-check setup/team   # the setup branch, block enabled
 git commit --allow-empty -m "push-block check (never pushed)"
 # The push is EXPECTED to fail, so test it as a condition — in a script run under
-# `set -e` a bare failing push would abort before the cleanup line runs.
-if git push --dry-run origin HEAD:main; then
+# `set -e` a bare failing push would abort before the cleanup line runs. Only the
+# hook's own message counts as "blocked": a push can fail for other reasons.
+if out="$(git push --dry-run origin HEAD:main 2>&1)"; then
   echo "NOT blocked — the hook is not active in this clone (npm install run? hooksPath set?)"
+elif grep -qF "Direct push to 'main' blocked" <<<"$out"; then
+  echo "blocked as expected"
 else
-  echo "blocked as expected"      # git printed: Direct push to 'main' blocked
+  echo "push failed for another reason — read it: $out"
 fi
 git switch - && git branch -D setup/push-check
 ```
@@ -335,8 +349,9 @@ pull request). Walk the owner through it with these warnings ahead of each click
    Cloudflare accounts, so the obvious name may be taken with no explanation beyond a
    validation error. Pick a short alternative; it only changes the preview address.
    Whatever it ends up being, write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
-   and the README's deploy section, so nobody quotes a preview address that does not
-   exist.
+   and the README's deploy section, and search the repo for the old one
+   (`git grep -n '<old-name>.pages.dev'`, a site may have it in `src/config.ts`), so
+   nobody quotes a preview address that does not exist.
 4. **Build settings.** Framework preset **Astro**, build command `npm run build`,
    output directory `dist`. Node version comes from the repo's `.nvmrc`.
 5. **Production branch = the publish model.** Two-stage: **`production`** (create the
@@ -371,8 +386,10 @@ pull request). Walk the owner through it with these warnings ahead of each click
      || echo "placeholder step missing — copy it from the kit's templates/astro/.github/workflows/ci.yml and put this site's token in the pattern"
    ```
    Then plant one: a scratch branch with the site's own token (`"[MISSING: probe]"`,
-   or `"[FEHLT: probe]"` on that German site) in any page, push, watch the check turn
-   red, delete the branch. A gate that has never fired is a hypothesis, and a gate
+   or `"[FEHLT: probe]"` on that German site) in any page, push it and open a **draft**
+   pull request from it (the kit's CI runs on pushes only for `main` and `production`,
+   so a pushed branch alone starts no check), watch the check turn red, then close the
+   pull request and delete the branch. A gate that has never fired is a hypothesis, and a gate
    probed with the wrong token proves the wrong thing.
 9. **Direct-upload project already exists (deploy path A).** A git-connected Pages
    project is a *different project type*; Cloudflare cannot convert one into the

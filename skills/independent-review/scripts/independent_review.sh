@@ -1012,6 +1012,11 @@ if [ -n "${OLLAMA_MODEL:-}" ]; then
 fi
 # run_ollama itself returns 3 (skipped) when the CLI is missing, so no dispatcher
 # guard is needed — and without one, a missing CLI still shows in the summary.
+# --round 1 starts a gate in the cost log: every line logged from here on, the host's seats
+# included, carries its id until the next --round 1 (review_log.sh new-gate).
+if [ "$ROUND" = 1 ] && [ "${REVIEW_LOG:-}" != off ] && [ -x "$SCRIPT_DIR/review_log.sh" ]; then
+  "$SCRIPT_DIR/review_log.sh" new-gate >/dev/null 2>&1 || true
+fi
 OK=0 ; SUCCESS_COUNT=0
 if [ "$LOCAL_ONLY" = "1" ]; then
   # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
@@ -1034,9 +1039,18 @@ else
   # background jobs of a non-interactive shell ignore SIGINT, so stop them and their CLIs here.
   # The CLIs' pids are collected BEFORE their subshells die (they are reparented after), asked
   # to stop, and killed outright if still alive 2s later: a CLI mid-request may ignore TERM.
+  # Every descendant, not only children: a CLI's launcher (a node or python shim) may start the
+  # process that actually holds the request. One `ps` snapshot, walked down from each job.
+  tree_pids() {
+    ps -A -o pid= -o ppid= 2>/dev/null | awk -v roots="$*" '
+      function walk(p,   a, k, j) { print p; k = split(kid[p], a, " "); for (j = 1; j <= k; j++) walk(a[j]) }
+      $1 != $2 { kid[$2] = kid[$2] " " $1 }
+      END { n = split(roots, r, " "); for (i = 1; i <= n; i++) walk(r[i]) }'
+  }
   stop_tiers() {
-    local p pids=""
-    for p in $(jobs -p); do pids="$pids $p $(pgrep -P "$p" 2>/dev/null | tr '\n' ' ')"; done
+    local pids
+    # shellcheck disable=SC2046  # the job pids are words by design
+    pids="$(tree_pids $(jobs -p) | tr '\n' ' ')"
     [ -n "${pids// /}" ] || return 0
     kill -TERM $pids 2>/dev/null
     sleep 2

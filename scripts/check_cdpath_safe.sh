@@ -76,7 +76,10 @@ rc=0
 # branch is not dead code: the handoff zip has no git at all, and it is the zip recipients that
 # `make check` most needs to work for.
 discover() {
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1 && [ -n "$(git ls-files 2>/dev/null)" ]; then
+  # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
+  # otherwise get that repository's index, which may track none, some or all of these files.
+  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
+     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
     git ls-files 2>/dev/null
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
@@ -87,8 +90,9 @@ discover() {
     [ -f "$f" ] || continue
     # tr: a tracked binary file's first "line" can hold NUL bytes. bash drops them from a command
     # substitution anyway, and >= 4.4 warns on stderr as it does; dropping them first is silent
-    # and leaves the same string to match.
-    case "$(head -n 1 -- "$f" 2>/dev/null | tr -d '\0')" in
+    # and leaves the same string to match. LC_ALL=C: under a UTF-8 locale macOS tr stops on the
+    # first invalid byte with "Illegal byte sequence".
+    case "$(head -n 1 -- "$f" 2>/dev/null | LC_ALL=C tr -d '\0')" in
       '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
     esac
   done | sort
@@ -133,8 +137,18 @@ for s in "${SUBJECTS[@]}"; do
   # where SIGPIPE is not ignored, and ten times in one CI run, failing this guard with the tell
   # "(exit 0 vs 0)" — identical status, noise-only diff. Both pipelines are gone (it now greps
   # the file directly), but any subject can grow another one.
-  a_out="$(bash "$s" 2>/dev/null)"; a_rc=$?
-  b_out="$(CDPATH="$decoy" bash "$s" 2>/dev/null)"; b_rc=$?
+  # Run each subject so that a working copy prints something and exits 0; a script that
+  # fails silently either way (sweep_claims.sh with no arguments exits 2 before and after
+  # breaking) hides a broken self-location. The check after the runs keeps that true.
+  arg=""
+  case "$s" in */sweep_claims.sh) arg=--help ;; esac
+  a_out="$(bash "$s" $arg 2>/dev/null)"; a_rc=$?
+  b_out="$(CDPATH="$decoy" bash "$s" $arg 2>/dev/null)"; b_rc=$?
+  if [ "$a_rc" != 0 ] && [ -z "$a_out" ]; then
+    echo "FAIL — $s exits $a_rc with no output even without CDPATH, so a CDPATH break could not"
+    echo "    show. Give it arguments that make a working copy succeed (see arg= above)."
+    diffs=$((diffs + 1)); rc=1; continue
+  fi
   if [ "$a_rc" != "$b_rc" ] || [ "$a_out" != "$b_out" ]; then
     echo "FAIL — $s behaves differently under an exported CDPATH (stdout/status; exit $a_rc vs $b_rc):"
     diff <(printf '%s\n' "$a_out") <(printf '%s\n' "$b_out") | sed -n '1,20s/^/    /p'
@@ -150,8 +164,12 @@ done
 # rather than fail: a zip recipient should not get a red `make check` over a regression test
 # that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
 # SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
-if ! command -v git >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1; then
-  echo "SKIP — the whats-new.sh regression case needs git (it compares suite history)."
+# A zip unpacked inside some other repository still answers `git rev-parse`, so ask whether
+# the suite root IS the toplevel (an empty --show-prefix), the question whats-new.sh asks too.
+if ! command -v git >/dev/null 2>&1 ||
+   [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ] ||
+   [ -n "$(git rev-parse --show-prefix 2>/dev/null)" ]; then
+  echo "SKIP — the whats-new.sh regression case needs a git clone of the suite (it compares suite history)."
   exit $rc
 fi
 

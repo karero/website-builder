@@ -50,7 +50,7 @@ expectations — pick the one where your unique value wins.
 
 - **Market category:** [category]
   ← becomes the home page's `body: ['[category]']` entry in tests/positioning.spec.ts
-- **Trap test:** [what a search for the category returns; safe, half trap, or trap]
+- **Trap test:** [what a search for the category returns; safe, or a trap (the results are a different concept)]
 - **Familiar frame, as the foil (optional):** [the frame the customer already holds,
   used only in the statement's "unlike"; never a title, slug or schema value]
 
