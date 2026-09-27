@@ -113,6 +113,45 @@ program loaded with `-f`.
 - `strip_end` scans only to the `{`; `EXITRE` missing (ollama D5): both wrong, see the code.
 - A `/` after a string may open a regex (ollama D6): BSD awk and mawk divide there.
 
+## Closing changes (owner's request, after the report)
+
+The owner asked for the last two open items and a Skill Creator check of the new skills.
+
+- **`awk -f`**: an awk consumer whose program sits in a file (`-f`, `-E`, `--file`, `--exec`)
+  is now flagged ("its program file is not checked; read it, and EXEMPT the site if it never
+  exits early"). Nothing in the repo uses it. Round 1 (pair) found that a pending `-F` value of
+  `--` ended the options (Codex, BUG; the order had been swapped on an earlier suggestion);
+  fixed. `awk -F --` sets FS to `--` in BSD awk, mawk and gawk (run here). 89 fixtures.
+- **Cloudflare 2FA**: "enable 2FA" replaced by the GitHub-style recommendation. Sources:
+  Cloudflare changelog 2026-01-23 (2FA "remains optional, but strongly encouraged"; a skippable
+  prompt at login) and the Fundamentals 2FA page (My Profile → Authentication; security key
+  incl. Touch ID / Android fingerprint / Windows Hello, authenticator app, email; Super
+  Administrators can enforce it for members).
+- **Skill Creator audit**: `website-story` meets the guidelines (evals run in #133/#137, 19/20
+  vs 9/20). `website-team-setup` had never run its evals. Iteration 1 ran them **plan-only**
+  (no GitHub or Cloudflare touched), each with and without the skill, graded by a separate
+  agent: **with 21/22, without 9/22** (per-eval mean 94% vs 43%). Two with-skill runs found the
+  same two broken steps independently; all findings below were checked against the files first.
+
+| Finding (source) | Fix | Evidence |
+|---|---|---|
+| §5 push check branched from `origin/main`, where the block is still off: always "NOT blocked" (2 eval runs) | branch from `setup/team`; only the hook's own message counts as blocked | throwaway repo: "blocked as expected" from the enabled branch, "NOT blocked" from one without; `git push --dry-run` runs the checked-out hook |
+| §6.8 probe pushed a scratch branch; CI runs on push only for `main`/`production` (2 eval runs) | open a draft PR | `ci.yml`: `push: branches: [main, production]`, `pull_request:` with no draft filter |
+| bypasses said to live in one comment that names only `ALLOW_MAIN_PUSH` (eval run) | point at the header and block comments | hook lines 10–11 and 35 |
+| `PUBLISHING.md` tells the owner to push to `main` directly, which the block refuses (eval run, Codex) | the setup PR points those steps at a PR, `ALLOW_MAIN_PUSH=1` as the exception | `PUBLISHING.md` single- and two-stage sections |
+| `production` ruleset: refused on a free private repo too; "GitHub cannot restrict who ships" (eval run) | both said; a documented **Restrict updates** rule with a repository-admin bypass named as **untested**, ship rule stays written | docs.github.com: available rules; creating rulesets (bypass actors) |
+| invite used `-f permission=push` (grader) | dropped; a personal repo has one collaborator level | REST docs: "Only valid on organization-owned repositories" |
+| old `pages.dev` name elsewhere; Q2 "everything" vs owner-only shipping (eval run) | repo-wide search; one-line warning | — |
+| first deploy (path B) said to set the production branch "afterwards" (eval run) | choose it in the connect form, which publishes at once | Cloudflare Pages Git guide: "Production branch" field; "Save and Deploy" builds immediately |
+| eval assertions unpassable or ambiguous (grader; Codex r2 found eval 3's expected output contradicting the skill) | reworded; `_note` records iteration 1 | — |
+| 2FA advice not covered by any eval | new assertion in eval 1 | — |
+
+Closing review: round 1 (pair: Codex 77 s / 32,161, ollama 299 s), round 2 (pair: Codex 145 s /
+48,379, ollama 341 s), confirmation (Codex 99 s / 37,638): clean. ollama's "`lead[]` is never
+assigned" refuted (assigned in the splitter). **Not tested live:** the whole team-setup skill
+against a real repo (iteration 1 was plan-only), the Restrict-updates enforcement, and the
+permission-less invite on a personal repo (docs only).
+
 Rounds: 6 on the main artifact (round 1 over three artifacts), 6 on the awk-check redesign, and
 one wording pass. Every BUG and RISK raised is fixed or refuted above (F0–F17 with their
 round 4–5 follow-ons), plus 7 awk-check misses found inside the redesign. Verdict: **clean** — redesign round 6 and the wording pass found nothing; every other
