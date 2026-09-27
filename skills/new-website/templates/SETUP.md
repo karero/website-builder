@@ -22,8 +22,9 @@ file into a handed-off repo so the receiving party can get running too.
    with the DNS here, where your domain points. In the dashboard, **My Profile →
    Authentication**, turn on **two-factor authentication**; a security key is the strongest
    choice, and your device's own fingerprint or face unlock (Touch ID, Android fingerprint,
-   Windows Hello) counts as one; an authenticator app or email codes also work. Optional:
-   Cloudflare offers it at sign-in and lets you skip.
+   Windows Hello) counts as one; an authenticator app or email codes also work. Optional
+   unless your Cloudflare account's administrator requires it: Cloudflare offers it at
+   sign-in and lets you skip.
 
 ---
 

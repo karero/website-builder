@@ -284,10 +284,11 @@ override (above the block); `git push --no-verify` and unsetting `core.hooksPath
 (header); and a clone that never ran `npm install`, since the `prepare` script is what
 wires the hook. Commit that in the setup pull request. Then
 tell the owner, and write into `AGENTS.md` §2, what it is: a **local convention**,
-with the bypasses quoted from the hook's comments, not from memory. On a
-**single-stage** site `PUBLISHING.md` tells the owner to publish with a plain `git push`
-to `main`, which the block now refuses: in the setup pull request, point that step at a
-pull request, with `ALLOW_MAIN_PUSH=1` named as the owner's deliberate exception. It does not touch
+with the bypasses quoted from the hook's comments, not from memory. `PUBLISHING.md`
+tells the owner to push to `main` directly (to publish on a single-stage site, to
+update the preview on a two-stage one), which the block now refuses: in the setup pull
+request, point those steps at a pull request, with `ALLOW_MAIN_PUSH=1` named as the
+owner's deliberate exception. It does not touch
 `npm run ship` (which pushes `main:production`), nor GitHub's own merges, nor Codex
 in the cloud (which only ever creates pull requests). It is the best a free private
 repo gets, and it is enough when everyone follows `AGENTS.md`.
@@ -306,14 +307,17 @@ gh api "repos/$OWNER/$REPO/rules/branches/main" --jq '.[].type'
 # transferred. Branch from the SETUP branch, not origin/main: git runs the hook from
 # the checked-out files, and until the setup pull request merges, origin/main still
 # has the block commented out, so a check from there always says "NOT blocked".
-git switch -c setup/push-check        # from the setup branch that enables the block
+git switch --no-track -c setup/push-check setup/team   # the setup branch, block enabled
 git commit --allow-empty -m "push-block check (never pushed)"
 # The push is EXPECTED to fail, so test it as a condition — in a script run under
-# `set -e` a bare failing push would abort before the cleanup line runs.
-if git push --dry-run origin HEAD:main; then
+# `set -e` a bare failing push would abort before the cleanup line runs. Only the
+# hook's own message counts as "blocked": a push can fail for other reasons.
+if out="$(git push --dry-run origin HEAD:main 2>&1)"; then
   echo "NOT blocked — the hook is not active in this clone (npm install run? hooksPath set?)"
+elif grep -qF "Direct push to 'main' blocked" <<<"$out"; then
+  echo "blocked as expected"
 else
-  echo "blocked as expected"      # git printed: Direct push to 'main' blocked
+  echo "push failed for another reason — read it: $out"
 fi
 git switch - && git branch -D setup/push-check
 ```
