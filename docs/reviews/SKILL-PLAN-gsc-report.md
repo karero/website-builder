@@ -90,8 +90,9 @@ fonts or trackers, nothing uploaded. It reads well in light and dark mode and at
 Every chart has its numbers available as text (for screen readers, and for anyone who prefers
 numbers).
 
-**S12 — Kept fresh.** After each weekly run, the page is rebuilt, so the owner's saved link
-always shows the latest week.
+**S12 — Kept fresh.** When weekly tracking is on, the page is rebuilt after each weekly run
+under the same file name, so a link the owner saved shows the latest week. Without weekly
+tracking it is rebuilt whenever the owner asks.
 
 ## Decisions (owner, 2026-09-27: every one as recommended)
 
@@ -107,17 +108,20 @@ always shows the latest week.
   as the second half of the sentence. (b) Positions first. *Recommended: (a)* — visitors are what
   an owner cares about; positions explain them.
 - **D5 — How charts are drawn.** (a) Plain SVG written by the Python script: no JavaScript, no
-  download, works offline and in any browser. (b) A JavaScript chart library: hover details,
+  download, works offline in current browsers. (b) A JavaScript chart library: hover details,
   but an outside script (conflicts with S11). *Recommended: (a).*
 - **D6 — How the owner gets it.** (a) Rebuilt after every weekly run (S12) and on request.
   (b) Only on request. *Recommended: (a).*
 
 ## Design (first sketch, to be tested by the mock-up)
 
-- **Command:** `insights.py <domain> --report` (next to `geo_check.py --report`) writes one HTML
-  file under `~/.config/gsc-insights/reports/<site>/`, opens nothing by itself, and prints its
-  path; the skill tells the assistant to open it for the owner. `track.sh` calls it after each
-  weekly run (D6).
+- **Command:** a new `search_report.py <domain>`, the same shape as `geo_check.py <domain>
+  --report` (`insights.py` needs `--domain` and `--keywords`, and a report the owner asks for in
+  plain words must not). The key searches are the keywords the tracker has recorded for that
+  site in the history; `--keywords` overrides. It writes one HTML file at a stable path,
+  `~/.config/gsc-insights/reports/<site>/google.html` (S12: a saved link keeps working), opens
+  nothing by itself, and prints the path; the skill tells the assistant to open it for the
+  owner. `track.sh` calls it after each weekly run (D6).
 - **Data (D1):** at build time, one Search Console call with `dimensions: ["date"]` for 16
   months (site-wide visitors and times shown) and one with `["date", "query"]` filtered to the
   key searches for 3 months; Bing from the local history. Numbers are summed per week
