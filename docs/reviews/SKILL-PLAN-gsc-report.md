@@ -12,7 +12,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | Requirements as scenarios (this document) | draft 6 | this document |
 | Decisions D1–D6 | **decided** (owner, 2026-09-27: all as recommended) | this document |
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
-| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | rounds 1–5 done (round 5 clean); final full read done (16 findings, fixed below); round 6 next, earned by its BUGs | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
+| PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | rounds 1–6 done; final full read done; round 6's 2 BUG + 5 RISK fixed below; round 7 next, earned by them | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
 | Probe of the real Google responses (see "To verify before build") | not started | — |
 | Build | not started | — |
 | DIFF gate | not started | — |
@@ -77,7 +77,10 @@ What data exists:
   about a variant adds it as its own key search.
 - **A key search on Bing** comes from the history: one point per run date (each row is a
   rolling ~6-month snapshot, not a week), taking that date's row whose window and country match
-  the latest row, as the text trend (`_history.print_trend`) does. Each run stored the variant
+  the latest row, and, when a date has no such row, that date's row with the most impressions
+  (the text trend, `_history.print_trend`, likewise falls back to a differing row). Where the
+  window or country differs from the previous point, the line breaks with a ‡ (the text trend's
+  ‡ rule). Each run stored the variant
   Bing matched best (`query` column); when it changes between runs, the line breaks there and the
   card names the query each part measures (the text trend's ≠ rule). A Bing card shows the line
   and the latest position and **claims no move**: the weekly rules below are for Google's daily
@@ -87,16 +90,18 @@ What data exists:
 - **"Moved up / down"** for a key search compares its weighted position over the last 4 weeks
   with the 4 before, using only weeks that are not hollow; each side needs at least 2 such weeks.
   Positions shown on the page are whole numbers (the weighted averages rounded); a move is
-  "up/down N places" with N = rounded before − rounded now, and counts only when N is at least 1,
-  so a card's numbers always agree with each other. Otherwise "no clear change"; too few weeks is
-  "too little data to tell". The card and the headline use this same rule, **for Google only**.
+  measured as d = rounded before − rounded now (positive = better). It counts when d is at least
+  1 place either way: "up d places" for d > 0, "down |d| places" for d < 0, so a card's numbers
+  always agree with each other. Otherwise (d = 0) "no clear change"; too few weeks is "too
+  little data to tell". The card and the headline use this same rule, **for Google only**.
 - **The headline percentage** appears only when both 4-week sides have at least 20 visits;
   otherwise the sentence gives the two numbers without a percentage ("12 visits in the last 4
   weeks, 7 the 4 weeks before"); with none before, "12 visits in the last 4 weeks, none in the 4
   weeks before"; with none in either, "no visits from Google in the last 8 weeks". The second
-  half of the headline names every outcome that occurred, Google key searches only: "3 of your 5
-  key searches moved up, 1 moved down, 1 had too little data to tell"; when nothing moved, "none
-  of your 5 key searches moved clearly".
+  half of the headline counts every outcome that occurred, Google key searches only, and leaves
+  out only the ones with a count of 0: "3 of your 5 key searches moved up, 1 moved down, 1 had
+  too little data to tell"; "none of your 5 key searches moved: 3 no clear change, 2 too little
+  data to tell".
 - **Settings:** Google charts are re-fetched whole on every build with **today's** settings
   (property, country filter), so a changed setting redraws the whole chart consistently; the page
   states the settings ("Counting: searches from Switzerland"). The country filter applies to
@@ -151,8 +156,11 @@ says so and how to ask for it — never an empty chart.
 
 **S9 — Google sign-in expired.** A build saves what it fetched from Google next to the page (a
 small data file), together with the settings it used (property, country, key searches), the
-dates it covers and when it was fetched — and replaces the saved file only when every Google
-request of that build succeeded. **When** a later fetch fails, the page is rebuilt from the saved
+dates it covers and when it was fetched — and replaces the saved file only when every **required**
+Google request of that build succeeded: the site-wide dates, each key search, and the S6 query
+and S7 page lists. The S6 page drill-downs are optional: a failed one is saved as "page unknown"
+and does not hold the refresh back. Reaching Google through the URL-prefix fallback counts as
+success. **When** a later fetch fails, the page is rebuilt from the saved
 data, shown with the settings and dates it was fetched with, and the top says what happened:
 for a sign-in failure (the credentials path `gsc_query.py` already recognises), "Google's
 numbers could not be refreshed; these are from <date>. Say *reconnect Google*"; for any other
@@ -169,8 +177,9 @@ needs a few days to report, with no empty or zero-filled charts.
 its card says "No data from Google for this search in the last 3 months" instead of a chart —
 not "you are not shown": Google leaves out rare searches for privacy, so an empty answer does
 not prove the site never appeared. If the history shows Google matching a variant of it
-(`query` column, `gsc` rows), the card names that variant and offers to track it: "Google shows
-you for 'ai treffen münchen' — say *track it* to add it."
+(`query` column, `gsc` rows), the card names that variant as a past match, with its date and, when they
+differ from today's, its settings, and offers to track it: "Your check on 12 Sept matched 'ai
+treffen münchen' — say *track it* to add it." It never claims the site is shown for it now.
 
 **S12 — No key searches known.** The owner asks for the report, and neither the request, the
 weekly job nor the history names any key search for this site. **Then** the page shows the
@@ -222,9 +231,11 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
   is **missing** (jobs from before `0b8a84e` have none) falls back to `.env`, and an entry that is
   **empty** means the default history file and no country filter (S16). Settings, in order of
   precedence: command-line flags; else the settings file; else the matching launchd job file;
-  else, from the history, the keywords and country of the latest date with `gsc` rows for the
-  site, preferring rows with the tracker's 28-day window over ad-hoc runs (named on the page as
-  "from your last check on <date>"); else S12. `track.sh` passes its own settings explicitly.
+  else, from the history: take the latest date with `gsc` rows for the site, group that date's
+  rows by (window, country), and pick one group deterministically — window 28 first (the
+  tracker's default, a preference, not proof of the tracker), then the most keywords, then the
+  country code in alphabetical order; the keywords **and** country both come from that one group
+  (named on the page as "from your last check on <date>"); else S12. `track.sh` passes its own settings explicitly.
   `schedule_tracking.sh remove` deletes the site's settings file along with the job.
 - **Output:** `~/.config/gsc-insights/reports/<site>/google.html` (stable name, S15) and
   `google-data.json` beside it (S9). It prints the path and opens nothing; the skill has the
@@ -243,7 +254,11 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
   build time (`geo/reports/<site>/`, one file per run) or, if the AI check is not set up, one line
   saying so; the settings line.
 - **AI report link back:** `geo_check.py`'s report page gains a relative link to
-  `reports/<site>/google.html` when that file exists (a change to `geo_check.py`).
+  `reports/<site>/google.html` when that file exists (a change to `geo_check.py`). Because AI
+  pages are static files written per AI run, `search_report.py`, after writing `google.html`,
+  rebuilds the newest AI page locally with `geo_check.build_report(domain)` — from the saved AI
+  history, with no AI request — so the link appears without waiting for the next AI check. It
+  skips this when the AI check is not set up.
 - **`track.sh`:** the report step runs after `geo_check.py` (so the AI link is current); its exit
   status goes into the existing `problems` list like every other step and never replaces the
   Google step's status or the history exit code 4.
@@ -348,3 +363,15 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
 | FR-N3 | final read NIT | mock-up wording says "people" | fixed: Design says it is superseded |
 | FR-N4 | final read NIT | 10–11 gap; rounding | fixed: "above 10, up to 20"; whole-number rule for moves |
 | FR-N5 | final read NIT | `remove` left the settings file | fixed: deleted with the job |
+
+## PLAN round 6 — dispositions
+
+| # | Source | Finding | Disposition |
+|---|---|---|---|
+| C6-1 | Codex BUG | "N ≥ 1" excluded every downward move | fixed: signed d, counts when \|d\| ≥ 1 |
+| C6-2 | Codex BUG | Bing selection dropped differing rows, so ‡ could never show | fixed: fallback to the date's row with most impressions; ‡ where the config differs |
+| C6-3 | Codex RISK | one failing drill-down blocked the cache forever | fixed: only required requests gate the refresh; drill-downs are optional |
+| C6-4 | Codex RISK | the first Google page got no AI link back | fixed: rebuild the newest AI page locally, no AI request |
+| C6-5 | Codex RISK | history fallback could mix two configurations of one day | fixed: deterministic group; keywords and country from that group |
+| C6-6 | Codex RISK | "none moved clearly" hid too-little-data | fixed: counts every non-zero outcome |
+| C6-7 | Codex RISK | a past variant match presented as current | fixed: dated past match, never "shown now" |
