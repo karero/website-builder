@@ -472,6 +472,10 @@ class Settings(ReportTest):
         (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "deu", "csv": ""}))
         page = sr.build(DOMAIN, args(), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
         self.assertIn("last recorded this site's settings without a date", page)
+        for bad in (20260801, True, ["2026-08-01"], {"d": 1}):      # review round 8: never a crash
+            (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "", "csv": "", "recorded": bad}))
+            page = sr.build(DOMAIN, args(), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
+            self.assertIn("without a date", page)
         (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "deu", "csv": "", "recorded": "2026-08-01"}))
         page = sr.build(DOMAIN, args(keywords="new"), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
         self.assertIn("last recorded this site's settings on 2026-08-01", page)

@@ -103,7 +103,8 @@ def resolve_settings(domain, args):
             found = {"keywords": [str(k).strip() for k in (j.get("keywords") or []) if str(k).strip()],
                      "country": j.get("country") or "", "csv": j.get("csv") or "",
                      "bing": j.get("bing") if isinstance(j.get("bing"), bool) else None,
-                     "recorded": j.get("recorded") or "", "record_used": True,
+                     "recorded": j.get("recorded") if isinstance(j.get("recorded"), str) else "",
+                     "record_used": True,
                      "from": f"your weekly check on {j['recorded']}" if j.get("recorded") else "your weekly check"}
         except (ValueError, OSError):
             found = None
@@ -623,10 +624,10 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
     # Whenever the recorded settings are in use (even with --keywords, the country and history
     # can still come from them), an old or undated record is named, never passed over silently.
     if settings.get("record_used"):
-        rec = settings.get("recorded") or ""
+        rec = settings.get("recorded")
         try:
             stale = (today - dt.date.fromisoformat(rec)).days > STALE_RECORD_DAYS
-        except ValueError:
+        except (ValueError, TypeError):     # missing, malformed or not a string at all
             stale, rec = True, ""
         if stale:
             when = f"on {H(rec)}" if rec else "without a date"
