@@ -46,6 +46,7 @@ NOT_RUN=(
   scripts/test_install_pin.sh                                   # builds throwaway repos; needs git
   scripts/test_package_leak.sh                                  # runs package.sh in a throwaway dir with stub zip/unzip
   scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
+  scripts/test_clean_denylist.sh                                # builds a throwaway repo and worktree; needs git
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
@@ -125,9 +126,25 @@ trap 'rm -rf "$decoy" "$proj"' EXIT
 # The decoy must contain the first path segment of each subject, or cd never resolves into it.
 mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"
 
-diffs=0
+# whats-new.sh compares git history, so it cannot run in an unpacked handoff zip. A zip
+# unpacked inside some other repository still answers `git rev-parse`, so ask whether the
+# suite root IS the toplevel (an empty --show-prefix), the question whats-new.sh asks too.
+not_a_clone() {
+  ! command -v git >/dev/null 2>&1 ||
+  [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ] ||
+  [ -n "$(git rev-parse --show-prefix 2>/dev/null)" ]
+}
+
+diffs=0; skipped=0
 for s in "${SUBJECTS[@]}"; do
   [ -f "$s" ] || { echo "FAIL — subject $s does not exist."; rc=1; continue; }
+  # Outside a clone whats-new.sh can only exit 1 with nothing on stdout, which the check
+  # below would call a FAIL: `make check` in the handoff zip failed on it (found 2026-09-27,
+  # already true of the v0.27 zip). Skip it loudly instead, like the regression case below.
+  if [ "$s" = scripts/whats-new.sh ] && not_a_clone; then
+    echo "SKIP — $s needs a git clone of the suite (it compares suite history)."
+    skipped=$((skipped + 1)); continue
+  fi
   # STDOUT and exit status only, deliberately NOT stderr. A CDPATH-resolved cd prints the
   # directory it went to on STDOUT, and a wrong directory changes stdout or the exit status, so
   # stdout+status is the whole signal. stderr is not deterministic: GitHub's runner starts jobs
@@ -155,20 +172,16 @@ for s in "${SUBJECTS[@]}"; do
     diffs=$((diffs + 1)); rc=1
   fi
 done
-[ "$diffs" = 0 ] && echo "OK — all ${#SUBJECTS[@]} subjects behave identically with and without an exported CDPATH."
+[ "$diffs" = 0 ] && echo "OK — all $((${#SUBJECTS[@]} - skipped)) subjects behave identically with and without an exported CDPATH."
 
 # --- regression case for the original bug -----------------------------------------------------
 # The loop above cannot catch it: <project_dir> comes from the CALLER, so it needs a real
 # project and a same-named decoy to resolve away to.
-# whats-new.sh compares git history, so it cannot run in an unpacked handoff zip. Skip loudly
-# rather than fail: a zip recipient should not get a red `make check` over a regression test
-# that cannot run there — the same call test_install_pin.sh makes for the same reason. Saying
-# SKIP matters; a silent pass here would be exactly the vacuous OK this guard exists to prevent.
-# A zip unpacked inside some other repository still answers `git rev-parse`, so ask whether
-# the suite root IS the toplevel (an empty --show-prefix), the question whats-new.sh asks too.
-if ! command -v git >/dev/null 2>&1 ||
-   [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" != true ] ||
-   [ -n "$(git rev-parse --show-prefix 2>/dev/null)" ]; then
+# Skip loudly rather than fail outside a clone (not_a_clone, above): a zip recipient should not
+# get a red `make check` over a regression test that cannot run there — the same call
+# test_install_pin.sh makes for the same reason. Saying SKIP matters; a silent pass here would
+# be exactly the vacuous OK this guard exists to prevent.
+if not_a_clone; then
   echo "SKIP — the whats-new.sh regression case needs a git clone of the suite (it compares suite history)."
   exit $rc
 fi

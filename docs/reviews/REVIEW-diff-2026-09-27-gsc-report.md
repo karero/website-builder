@@ -7,7 +7,7 @@ data leaves the machine except to Google, read-only). Seats: Codex CLI (`gpt-6-a
 read-only) every round; a fresh-eyes Claude Sonnet pass in round 1. ollama-cloud was out of
 credits for the whole gate, so every round is a single cross-model seat. Consent: the owner,
 this session — "Codex and ollama pass over main" (repo content to Codex) and "run the Codex
-plan review", "fix the findings and run the live run on apreet".
+plan review", "fix the findings and run the live run on <a real site>".
 
 | Round | Head reviewed | BUG / RISK / NIT | What it found, in short |
 |---|---|---|---|

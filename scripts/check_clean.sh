@@ -44,12 +44,22 @@ fail=0
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
 filter_ignored() { # stdin: grep output → stdout minus gitignored files
+  local line f rest keep
   while IFS= read -r line; do
     case "$line" in
-      "Binary file "*" matches") f="${line#Binary file }"; f="${f% matches}" ;;
-      *) f="${line%%:*}" ;;
+      "Binary file "*" matches") f="${line#Binary file }"; f="${f% matches}"
+        git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"; continue ;;
     esac
-    git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"
+    # A file name may hold a colon, so the name is not simply the text before the first
+    # one: try each prefix that ends at a colon, and drop the line only when every prefix
+    # naming an existing file is gitignored. In doubt, the hit is reported.
+    keep=1 f="" rest="$line"
+    while [ "${rest#*:}" != "$rest" ]; do
+      f="${f:+$f:}${rest%%:*}"; rest="${rest#*:}"
+      [ -e "$f" ] || continue
+      if git check-ignore -q -- "$f" 2>/dev/null; then keep=0; else keep=1; break; fi
+    done
+    if [ "$keep" = 1 ]; then printf '%s\n' "$line"; fi
   done
 }
 # grep wrapper: existence filtering says the paths are there, not that they were read.
@@ -81,12 +91,39 @@ report() { # <label> <grep-output>
 #    so private names never ship in the repo. Absent (e.g. a fresh clone / CI) → skipped;
 #    the generic checks below still run.
 DENYLIST_FILE="scripts/.clean-denylist"
+# A linked worktree has no copy of the gitignored list, so the check used to skip itself in
+# exactly the checkouts where commits are made (2026-09-27: a client name reached main that
+# way). Use the main checkout's list then, asking git where that is: the first entry of
+# `git worktree list`. For a main checkout made with --separate-git-dir, git records no such
+# path (it names the git folder), so the list is not found there and the skip below says so.
+# No git (the handoff zip) or no list anywhere → skip, loudly.
+if [ ! -f "$DENYLIST_FILE" ]; then
+  main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+  [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
+fi
 if [ -f "$DENYLIST_FILE" ]; then
   NAMES="$(grep -vE '^[[:space:]]*(#|$)' "$DENYLIST_FILE" | paste -sd'|' -)"
   # karero/website-builder is this project's OWN public repo — self-links to it (README
-  # badges, clone instructions, the security policy) are the point, not a leak.
-  [ -n "$NAMES" ] && report "personal/site identifier" "$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES \
-    | grep -viE 'github\.com/karero/website-builder')"
+  # badges, clone instructions, the security policy) and its short form in issue and PR
+  # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
+  # reference, in lowercase, and not inside a longer name (other-karero/website-builder,
+  # karero/website-builder-x), then look again: dropping every line that held one also hid
+  # any private name beside it. One reference at a time, until none is left: a global
+  # replace consumes the character after one reference that the next needs before it
+  # (karero/website-builder,karero/website-builder). Binary-file lines pass through for
+  # filter_ignored. A scan error (g's "✗ scan error" block, first in its output) goes to
+  # report whole: the filter would compile the same broken pattern, fail too, and turn the
+  # error into a clean pass.
+  if [ -n "$NAMES" ]; then
+    hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
+    case "$hits" in
+      "✗ scan error"*) ;;
+      *) hits="$(printf '%s\n' "$hits" \
+           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
+           | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
+    esac
+    report "personal/site identifier" "$hits"
+  fi
 else
   echo "· personal-name denylist skipped (no $DENYLIST_FILE) — generic checks still run"
 fi
