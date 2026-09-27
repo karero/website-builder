@@ -75,12 +75,15 @@ test.describe('story layer (home page)', () => {
       .toBeGreaterThanOrEqual(CONFIG.directCtaMin);
     if (CONFIG.directCtaHref) {
       // Links only: a <button> CTA (a form submit, a dialog opener) has no href to compare.
-      const want = new URL(CONFIG.directCtaHref, page.url());
+      // Resolved against the page's base URL, as the browser resolved each link's href. The
+      // scheme counts too: mailto: and tel: both have the origin "null".
+      const want = new URL(CONFIG.directCtaHref, await page.evaluate(() => document.baseURI));
       const path = (u: URL) => u.pathname.replace(/\/+$/, '');
       const same = (href: string) => {
-        if (!href) return false;
-        const u = new URL(href);
-        return u.origin === want.origin && path(u) === path(want) && (!want.hash || u.hash === want.hash);
+        let u: URL;
+        try { u = new URL(href); } catch { return false; }   // no href, or one the browser could not parse
+        return u.protocol === want.protocol && u.origin === want.origin && path(u) === path(want) &&
+          (!want.hash || u.hash === want.hash);
       };
       const off = hits.filter((c) => c.link && !same(c.href)).map((c) => c.href || '(none)');
       expect(off, `"${CONFIG.directCta}" must always point to ${CONFIG.directCtaHref}`).toEqual([]);

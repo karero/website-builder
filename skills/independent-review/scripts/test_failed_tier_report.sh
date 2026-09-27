@@ -617,13 +617,17 @@ printf 'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tsecon
 for r in 1 2 3; do printf '2026-09-20T10:00:00Z\tr\tb\th\tdiff\thigh\t%s\tcodex\tm\te\t10\t5\tOK\n' "$r" >>"$OLDL"; done
 REVIEW_LOG="$OLDL" bash "$HERE/review_log.sh" summary >"$T/old.out"
 check "gates: a log from before gate ids still groups by branch" grep -qE '^high +1 +3\.0 +3$' "$T/old.out"
-# Many seats writing a new log at once: one header, no line lost. This cannot force the bad
-# interleaving (it never showed against the old code either); what closes it is noclobber,
-# which refuses to replace a file another seat has already created.
+# Many seats writing a new log at once: no line lost. This cannot force the bad interleaving
+# (it never showed against the old code either); what closes it is that nothing is written
+# with `>`: the header is appended like every line, so a race costs at most a spare header.
 RL="$T/race.tsv"; i=0
 while [ $i -lt 40 ]; do REVIEW_LOG="$RL" bash "$HERE/review_log.sh" add --seat "s$i" & i=$((i + 1)); done; wait
-check "race: one header" [ "$(grep -c '^date' "$RL")" = 1 ]
 check "race: forty lines, none lost" [ "$(grep -vc '^date' "$RL")" = 40 ]
+check "race: a header first" [ "$(awk 'NR == 1 {print $1}' "$RL")" = date ]
+printf 'date\tx\n' >>"$RL"   # a spare header, as a lost race can leave: summary must skip it
+REVIEW_LOG="$RL" bash "$HERE/review_log.sh" summary >"$T/race.out"
+# The first table has one row per depth+seat: exactly the forty seats, nothing for the header.
+check "race: a spare header is not counted as a seat" [ "$(awk 'NR > 1 && NF == 0 {exit} NR > 1' "$T/race.out" | grep -c .)" = 40 ]
 
 # 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
 #     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, rides in a

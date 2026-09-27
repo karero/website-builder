@@ -58,7 +58,7 @@ TO=""; command -v timeout >/dev/null 2>&1 && TO="timeout 20"
 # status alone, so a "blocked" message followed by exit 0 would still let the push through.
 # A hang shows as a timeout, not a stuck `make check`.
 outcome() {
-  local rc
+  local rc want name
   rc="$(printf '%s\n' "$1" | sed -n 's/^@@rc=//p')"
   case "$1" in
     *"pre-push gate: skipped"*)        want=0 name=SKIP ;;
@@ -154,7 +154,9 @@ for v in off on; do
   if [ "$v" = on ]; then main_push=BLOCK main_del=BLOCK; else main_push=GATE main_del=SKIP; fi
   check "git, block $v: --delete of a branch skips the gate" SKIP "$(outcome "$(gpush --delete feat)")"
   check "git, block $v: a mixed push runs the gate"          GATE "$(outcome "$(gpush HEAD:refs/heads/feat2 :refs/heads/feat3)")"
+  $git -C "$W" commit -q --allow-empty -m three   # something new, so the refused push had work to do
   before="$(remote feat2)"
+  check "git, block $v: the next push would change feat2"    yes "$([ "$before" != "$($git -C "$W" rev-parse HEAD)" ] && echo yes)"
   check "git, block $v: a failing build refuses the push"    FAILED "$(outcome "$(NPM_FAIL=build gpush HEAD:refs/heads/feat2)")"
   check "git, block $v: ... and the remote is unchanged"     "$before" "$(remote feat2)"
   before="$(remote main)"

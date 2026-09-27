@@ -62,11 +62,12 @@ add() {
     local gf; gf="$(gate_file)"
     [ -z "$gf" ] || [ ! -r "$gf" ] || IFS= read -r gate_id <"$gf" || true
   fi
-  # The header goes in with noclobber: two seats finishing together on a new log (codex and
-  # ollama run in parallel) would otherwise both see it empty, and the later `>` would erase
-  # the line the other had already appended.
+  # The header is APPENDED, like every line: two seats finishing together on a new log (codex
+  # and ollama run in parallel) may both see it empty, and a `>` could then overwrite a line
+  # the other had written. Appending loses nothing; the worst case is a second header line,
+  # which summary skips as it skips the first (by its content).
   { mkdir -p -- "$(dirname -- "$f")" &&
-    { [ -s "$f" ] || (set -C; printf '%s\n' "$HEADER" >"$f") 2>/dev/null || true; } &&
+    { [ -s "$f" ] || printf '%s\n' "$HEADER" >>"$f"; } &&
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(clean "$repo")" "$(clean "$branch")" "$(clean "$head")" \
       "$(clean "$gate")" "$(clean "$depth")" "$(clean "$round")" "$(clean "$seat")" \

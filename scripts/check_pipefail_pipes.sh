@@ -101,14 +101,41 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
   if (ft[d] == "C" && substr(s, i + 1, 1) == "'") { add("$'"); sq[d] = 2; return 1 }
   add("$"); return 0
 }
+# The program an awk command runs, as awk sees it: the shell words after `awk` with their
+# quoting decoded ('…' literal; "…" with \" \\ \$ \` unescaped), skipping -F, -v and their
+# values. "" for a program read from a file (-f), which this guard cannot see.
+function awkprog(s,   n, i, c, q, w, have, words, nw, k) {
+  n = length(s); q = ""; w = ""; have = 0; nw = 0
+  for (i = 1; i <= n + 1; i++) {
+    c = (i <= n) ? substr(s, i, 1) : " "
+    if (q == "'") { if (c == "'") q = ""; else w = w c; continue }
+    if (q == "\"") {
+      if (c == "\\" && substr(s, i + 1, 1) ~ /["\\$`]/) { w = w substr(s, i + 1, 1); i++; continue }
+      if (c == "\"") q = ""; else w = w c
+      continue
+    }
+    if (c == "'" || c == "\"") { q = c; have = 1; continue }
+    if (c == "\\") { w = w substr(s, i + 1, 1); i++; have = 1; continue }
+    if (c ~ /[ \t\n]/) { if (have || w != "") words[++nw] = w; w = ""; have = 0; continue }
+    w = w c
+  }
+  for (k = 1; k <= nw; k++) {
+    if (words[k] == "--") return (k < nw) ? words[k + 1] : ""
+    if (words[k] == "-f" || words[k] ~ /^-f./ || words[k] ~ /^--file/) return ""
+    if (words[k] == "-F" || words[k] == "-v") { k++; continue }
+    if (words[k] ~ /^-./) continue
+    return words[k]
+  }
+  return ""
+}
 # An awk program with its string, regex and comment contents blanked, so `print "exit"` or
 # `/exit/` is not read as the exit statement. A regex is a /.../ where an operand can start:
-# after the program's opening quote, ( , ! ~ { ; & or |, spaces allowed. After a value
+# at the start, after a newline or after ( , ! ~ { } ; & | =, spaces allowed. After a value
 # (`$1 / 2`, `(s / NR`) a slash divides.
 function unlit(s,   out, m) {
   gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
   out = ""
-  while (match(s, /(^|[(,!~{;&|'])[ \t\n]*\/([^\/\\\n]|\\.)+\//)) {
+  while (match(s, /(^|[\n(,!~{};&|=])[ \t\n]*\/([^\/\\\n]|\\.)+\//)) {
     m = substr(s, RSTART, RLENGTH)
     out = out substr(s, 1, RSTART - 1) substr(m, 1, index(m, "/") - 1) "//"
     s = substr(s, RSTART + RLENGTH)
@@ -139,7 +166,8 @@ function check(x, ln,   w, nw, k, kind, rest, st, j, nb, ch) {
   } else if (x ~ /^sed([ \t\n]|$)/) {
     if (substr(x, 4) ~ /(^|[^a-zA-Z_\\])[qQ][0-9]*([ \t\n;}'"]|$)/) kind = "sed with q"
   } else if (x ~ /^[gmn]?awk([ \t\n]|$)/) {
-    rest = unlit(substr(x, 4))
+    sub(/^[gmn]?awk/, "", x)
+    rest = unlit(awkprog(x))
     # An exit inside END runs after all input is read, so it cannot close the pipe early. Drop
     # every END block, wherever it sits, and look for an exit in what remains.
     while (match(rest, /(^|[^a-zA-Z0-9_])END[ \t\n]*\{/)) {
@@ -287,6 +315,12 @@ cmd | awk 'END { print n } NR == 1 { exit }'
 cmd | awk 'BEGIN { exit }'
 @@ bad/awk-exit-beside-string
 cmd | awk '{ print "x" } NR == 1 { exit }'
+@@ bad/awk-program-in-double-quotes
+cmd | awk "NR == 1 { exit }"
+@@ bad/awk-with-options
+cmd | awk -F'\t' -v n=1 'NR == n { print; exit }'
+@@ bad/gawk-exit
+cmd | gawk 'NR == 1 { exit }'
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
@@ -321,6 +355,14 @@ cmd | awk '{ n++ } END { exit n == 0 }'
 cmd | awk '{ print "exit" }'
 @@ good/awk-exit-in-regex
 cmd | awk '/exit/ { n++ } END { print n + 0 }'
+@@ good/awk-exit-regex-after-brace
+cmd | awk '{ n++ } /exit/ { print n }'
+@@ good/awk-exit-regex-assigned
+cmd | awk '{ x = /exit/; print x }'
+@@ good/awk-exit-in-double-quoted-string
+cmd | awk "{ print \"exit\" }"
+@@ good/awk-var-named-exit
+cmd | awk -v exit_code=0 '{ print }'
 @@ good/awk-division-then-exit-in-end
 cmd | awk '{ s += $1 / 2 } END { if (s / NR > 1) exit 1 }'
 @@ good/subshell-drains
