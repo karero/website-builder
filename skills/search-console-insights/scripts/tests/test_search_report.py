@@ -457,11 +457,21 @@ class Settings(ReportTest):
             'GSC_COUNTRY=deu # market\nexport GSC_HISTORY_CSV="/tmp/with space.csv"\n')
         s, _ = sr.resolve_settings(DOMAIN, args())
         self.assertEqual((s["country"], s["csv"]), ("deu", "/tmp/with space.csv"))
-        # ${VAR} from the environment, as track.sh expands it (review round 2)
-        (self.home / ".config/gsc-insights/.env").write_text('GSC_COUNTRY=${MARKET:-usa}\n')
-        os.environ["MARKET"] = "che"
+        # ${VAR} expands against what the JOB sees: launchd's minimal environment plus the job's
+        # own entries — not the shell that asked for the report (review rounds 2 and 3).
+        (self.home / ".config/gsc-insights/.env").write_text('GSC_COUNTRY=${MARKET:-usa}\necho noise\n')
+        os.environ["MARKET"] = "che"                    # only in this shell: the job never sees it
+        s, _ = sr.resolve_settings(DOMAIN, args())
+        self.assertEqual(s["country"], "usa")
+        self.plist(DOMAIN, "k1", env={"MARKET": "che"})  # in the job's own environment
         s, _ = sr.resolve_settings(DOMAIN, args())
         self.assertEqual(s["country"], "che")
+
+    def test_the_settings_lines_are_still_track_shs(self):
+        """The report reuses track.sh's settings lines verbatim; if track.sh changes them, this
+        must fail rather than let the two read .env differently."""
+        track = (Path(sr.__file__).parent / "track.sh").read_text()
+        self.assertIn(sr.TRACK_SETTINGS_SH, track)
 
     def test_an_empty_history_setting_means_the_shared_default_file(self):
         """Not a value inherited from the environment, as for track.sh (review round 1)."""

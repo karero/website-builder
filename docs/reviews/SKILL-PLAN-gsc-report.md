@@ -275,6 +275,20 @@ output stays outside the repo for the same reason. The documented behaviour quot
 the Search Analytics API reference, https://developers.google.com/webmaster-tools/v1/searchanalytics/query
 (time zone of dates, `dataState` / `firstIncompleteDate`, the `equals` operator).
 
+Probe transcript (the script printed only these facts; key searches are numbered, not named, and
+the site's impression totals are left out):
+
+```
+[1] date rows=498 requested_from=2025-05-09 first=2025-05-15 last=2026-09-24 today=2026-09-27
+    span_days=498 missing_days_inside=0 months_back~=16.4 lag_days=3
+[2] dataState=all last=2026-09-27; response keys: ['metadata', 'responseAggregationType', 'rows'];
+    metadata={'firstIncompleteDate': '2026-09-25'}
+[3] query rows (90d)=103 with_uppercase=0
+[4] key#1–#7: rows lower=0 Title=0 · key#8: 34/34 · key#9: 24/24 · key#10: 15/15 · key#11: 77/77 · key#12: 7/7
+[5] two key searches in one AND group: rows=0
+[6] 90d impressions not in query rows: 32%
+```
+
 - **History:** the `["date"]` response went back 16.4 months, 498 days, with no day missing on
   this site, well under the row limit — S1 and D3 hold.
 - **Finished date:** with the default (final) data the last row was 3 days old. A request with

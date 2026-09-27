@@ -55,24 +55,35 @@ def report_dir(site: str) -> Path:
 ENV_KEYS = ("GSC_COUNTRY", "GSC_HISTORY_CSV", "BING_API_KEY")
 
 
-def read_env_file() -> dict:
-    """The shared .env as track.sh sees it: sourced by bash itself (quotes, comments, `export`,
-    ${VAR} expansion) on top of this process's own environment, exactly as track.sh sources it
-    on top of the job's, so the two can never read it differently. Only the keys this page uses;
-    a key neither .env nor the environment sets is absent from the result."""
-    p = base_dir() / ".env"
-    if not p.exists():
-        return {}
-    # bash sources the file on top of the current environment and hands the result to this
-    # interpreter as JSON.
-    script = 'set -a; . "$1" >/dev/null 2>&1; exec "$2" -c "import json,os,sys; json.dump(dict(os.environ), sys.stdout)"'
+# track.sh's own settings lines, run by bash, so the report reads .env exactly as the job does:
+# quotes, comments, `export`, ${VAR} expansion, and the per-site values the job was started with
+# surviving the source (set, even empty, wins; unset takes .env's). test_search_report checks
+# these lines still match track.sh's.
+TRACK_SETTINGS_SH = """\
+site_csv_set="${GSC_HISTORY_CSV+set}"; site_csv="${GSC_HISTORY_CSV:-}"
+site_country_set="${GSC_COUNTRY+set}"; site_country="${GSC_COUNTRY:-}"
+[ -f "$ENV" ] && { set -a; . "$ENV"; set +a; }
+[ -n "$site_csv_set" ] && GSC_HISTORY_CSV="$site_csv"
+[ -n "$site_country_set" ] && GSC_COUNTRY="$site_country"
+"""
+
+
+def job_env(start_env: dict) -> dict:
+    """The environment after track.sh's settings lines, starting from `start_env`."""
+    script = ('ENV="$1"\n{\n' + TRACK_SETTINGS_SH + '} >/dev/null 2>&1\nexport GSC_HISTORY_CSV GSC_COUNTRY 2>/dev/null\n'
+              'exec "$2" -c "import json,os,sys; json.dump(dict(os.environ), sys.stdout)"\n')
     import subprocess
     try:
-        r = subprocess.run(["bash", "-c", script, "_", str(p), sys.executable],
-                           env=dict(os.environ), capture_output=True, text=True, timeout=10)
-        env = json.loads(r.stdout or "{}")
+        r = subprocess.run(["bash", "-c", script, "_", str(base_dir() / ".env"), sys.executable],
+                           env=start_env, capture_output=True, text=True, timeout=10)
+        return json.loads(r.stdout or "{}")
     except (OSError, subprocess.TimeoutExpired, ValueError):
-        return {}
+        return dict(start_env)
+
+
+def read_env_file() -> dict:
+    """This page's keys from .env on top of the current environment (an on-demand run)."""
+    env = job_env(dict(os.environ))
     return {k: env[k] for k in ENV_KEYS if k in env}
 
 
@@ -85,8 +96,10 @@ def plist_settings(domain: str):
     """Settings of an existing weekly job, read-only (plan: Design → Site settings file).
 
     Only when the job's own domain equals the requested one after lower-casing, as the scheduler
-    compares them (a sanitize() collision is a different site). A MISSING environment entry means
-    what it means to track.sh — fall back to .env; an EMPTY one means none (S16)."""
+    compares them (a sanitize() collision is a different site). The settings are what track.sh
+    ends up with when launchd starts it: launchd's PATH and HOME plus the job's own
+    EnvironmentVariables, then track.sh's settings lines over .env — so a MISSING entry takes
+    .env's value, an EMPTY one means none (S16), and ${VAR} in .env sees only what the job sees."""
     p = Path(os.path.expanduser("~")) / "Library/LaunchAgents" / f"com.gsc-insights.{_sanitize(domain)}.plist"
     if not p.exists():
         return None
@@ -99,9 +112,10 @@ def plist_settings(domain: str):
         env = pl.get("EnvironmentVariables") or {}
     except Exception:
         return None
-    dotenv = read_env_file()
-    country = env["GSC_COUNTRY"] if "GSC_COUNTRY" in env else dotenv.get("GSC_COUNTRY", "")
-    hist = env["GSC_HISTORY_CSV"] if "GSC_HISTORY_CSV" in env else dotenv.get("GSC_HISTORY_CSV", "")
+    start = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": os.path.expanduser("~")}
+    start.update({str(k): str(v) for k, v in env.items()})
+    after = job_env(start)
+    country, hist = after.get("GSC_COUNTRY", ""), after.get("GSC_HISTORY_CSV", "")
     return {"keywords": split_keywords(args[3]), "country": country, "csv": hist,
             "from": "your weekly check"}
 
