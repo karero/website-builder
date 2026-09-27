@@ -103,7 +103,7 @@ def resolve_settings(domain, args):
             found = {"keywords": [str(k).strip() for k in (j.get("keywords") or []) if str(k).strip()],
                      "country": j.get("country") or "", "csv": j.get("csv") or "",
                      "bing": j.get("bing") if isinstance(j.get("bing"), bool) else None,
-                     "recorded": j.get("recorded") or "",
+                     "recorded": j.get("recorded") or "", "record_used": True,
                      "from": f"your weekly check on {j['recorded']}" if j.get("recorded") else "your weekly check"}
         except (ValueError, OSError):
             found = None
@@ -620,14 +620,18 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
                  + (f" · Google's numbers up to {finished:%d %B %Y}" if finished else "") + "</p>")
     if alert:
         parts.append(f'<p class="alert">{H(alert)}</p>')
-    rec = settings.get("recorded") or ""
-    if rec and settings.get("from", "").startswith("your weekly check"):
+    # Whenever the recorded settings are in use (even with --keywords, the country and history
+    # can still come from them), an old or undated record is named, never passed over silently.
+    if settings.get("record_used"):
+        rec = settings.get("recorded") or ""
         try:
-            if (today - dt.date.fromisoformat(rec)).days > STALE_RECORD_DAYS:
-                parts.append(f'<p class="alert">The weekly check last recorded this site\'s settings on {H(rec)}; '
-                             'if it no longer runs, ask me to check the weekly tracking.</p>')
+            stale = (today - dt.date.fromisoformat(rec)).days > STALE_RECORD_DAYS
         except ValueError:
-            pass
+            stale, rec = True, ""
+        if stale:
+            when = f"on {H(rec)}" if rec else "without a date"
+            parts.append(f'<p class="alert">The weekly check last recorded this site\'s settings {when}; '
+                         'if it no longer runs, ask me to check the weekly tracking.</p>')
     if data and not weeks:
         parts.append('<p class="answer">Google needs a few days to report on a new site. Check back next week.</p>')
         if data["country"]:

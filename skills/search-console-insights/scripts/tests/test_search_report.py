@@ -468,6 +468,13 @@ class Settings(ReportTest):
         (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "", "csv": "", "recorded": "2026-09-21"}))
         page = sr.build(DOMAIN, args(), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
         self.assertNotIn("last recorded this site's settings", page)
+        # Review round 7: an undated record, and a stale one used with --keywords, are named too.
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "deu", "csv": ""}))
+        page = sr.build(DOMAIN, args(), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
+        self.assertIn("last recorded this site's settings without a date", page)
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["k"], "country": "deu", "csv": "", "recorded": "2026-08-01"}))
+        page = sr.build(DOMAIN, args(keywords="new"), service_factory=lambda: FakeGoogle(daily=daily_series(60)), today=TODAY).read_text()
+        self.assertIn("last recorded this site's settings on 2026-08-01", page)
 
     def test_an_empty_history_setting_means_the_shared_default_file(self):
         """An explicitly empty value is "none", never one inherited from the environment."""
