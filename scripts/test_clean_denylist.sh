@@ -55,10 +55,29 @@ fi
 printf 'ran the live check on zorblequux\n' >>"$W/docs/notes.md"
 expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
 
-# In the main checkout, where the list is read either way, so only the short-form allowance
-# decides this case.
-printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder\n' >"$R/docs/notes.md"
+# In the main checkout, where the list is read either way, so only the self-reference
+# allowance decides these cases.
+printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\n' >"$R/docs/notes.md"
 expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
+printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
+expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
+printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
+expect "a longer name that starts like this repo: fails" 1 "website-builder-private" "$R"
+printf 'plain notes\n' >"$R/docs/notes.md"
+
+# A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
+# that checkout (it names the git folder instead), so the list cannot be found from a linked
+# worktree. What matters is that the check then says it skipped, not a bare OK.
+S="$T/sep"; SW="$T/sep-worktree"
+mkdir -p "$S/scripts" "$S/skills" "$S/docs"
+cp "$R/scripts/check_clean.sh" "$R/.gitignore" "$S/scripts/" 2>/dev/null; mv "$S/scripts/.gitignore" "$S/"
+for f in README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile LICENSE; do : >"$S/$f"; done
+printf '# a skill\n' >"$S/skills/SKILL.md"; printf 'plain notes\n' >"$S/docs/notes.md"
+$git init -q --separate-git-dir "$T/sep.git" "$S"; $git -C "$S" add -A; $git -C "$S" commit -qm base
+printf 'zorblequux\n' >"$S/scripts/.clean-denylist"
+$git -C "$S" worktree add -q --detach "$SW"
+printf 'ran the live check on zorblequux\n' >>"$SW/docs/notes.md"
+expect "worktree of a --separate-git-dir checkout: says the list was skipped" 0 "denylist skipped" "$SW"
 
 mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
 printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
