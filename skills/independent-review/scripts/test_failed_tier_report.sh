@@ -77,6 +77,8 @@ case "${CODEX_STUB:-ok}" in
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
         trap '' TERM; echo $$ >"$STUB_MARKS/codex-pid"; sleep 30 ;;
+  wrapped) # a launcher whose worker, one level further down, ignores SIGTERM; records its pid
+        sh -c 'trap "" TERM; echo $$ >"$STUB_MARKS/codex-worker"; sleep 30' & wait ;;
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -493,6 +495,16 @@ check "stop: the script exits 130" rc_is stop 130
 # PID 1 may never reap it, so it can linger as <defunct> -- dead, not running.
 check "stop: the TERM-ignoring reviewer is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/stop.marks/codex-pid"
+# ...and a worker the CLI started itself, a grandchild of the tier's subshell (Codex, 2026-09-27).
+mkdir -p "$T/stopw.marks"
+env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
+  WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stopw.raw" STUB_MARKS="$T/stopw.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=wrapped OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stopw.out" 2>"$T/stopw.err" &
+spid=$!
+i=0; while [ ! -s "$T/stopw.marks/codex-worker" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/stopw.rc"
+check "stop: a TERM-ignoring worker under the CLI is gone too" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/stopw.marks/codex-worker"
 
 # 25. --verify: a verification round sends the prior findings in their own block, with the
 #     round's scope, to every tier; without the flag the prompt carries neither.
@@ -581,6 +593,37 @@ check "summary with the log off says so, reads no file named off" \
   sh -c 'REVIEW_LOG=off bash "$1" summary | grep -qF "is off"' _ "$HERE/review_log.sh"
 REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --model x >/dev/null 2>&1
 check "add without --seat is refused" [ $? = 2 ]
+
+# 27b. Gates (Codex, 2026-09-27): grouping by repo + branch merged two gates on a reused branch
+#      into one. --round 1 now starts a gate whose id every later line carries, the host's late
+#      seats included; lines from before ids existed keep the old grouping.
+G="$T/gaterepo"; mkdir -p "$G"; git -C "$G" init -q
+GL="$T/gates.tsv"
+inrepo() { run "$1" REVIEW_LOG="$GL" sh -c 'cd "$0" && shift && exec "$@"' "$G" "${@:2}"; }
+inrepo gate1a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
+inrepo gate1b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+inrepo gate2a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
+inrepo gate2b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+inrepo gate2c bash "$SCRIPT" "$T/change.diff" --depth normal --round 3
+inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
+check "gates: --round 1 leaves an id in the repo's git dir" [ -s "$G/.git/independent-review-gate" ]
+check "gates: every line carries a gate id" awk -F'\t' 'NR > 1 && ($14 == "" || $14 == "-") {bad=1} END {exit bad}' "$GL"
+check "gates: two ids, the late host seat in the second" \
+  [ "$(awk -F'\t' 'NR > 1 {print $14}' "$GL" | sort -u | grep -c .)" = 2 ]
+REVIEW_LOG="$GL" bash "$HERE/review_log.sh" summary >"$T/gates.out"
+check "gates: a reused branch counts as two gates, 2 and 3 rounds" grep -qE '^normal +2 +2\.5 +3$' "$T/gates.out"
+OLDL="$T/old.tsv"
+printf 'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\n' >"$OLDL"
+for r in 1 2 3; do printf '2026-09-20T10:00:00Z\tr\tb\th\tdiff\thigh\t%s\tcodex\tm\te\t10\t5\tOK\n' "$r" >>"$OLDL"; done
+REVIEW_LOG="$OLDL" bash "$HERE/review_log.sh" summary >"$T/old.out"
+check "gates: a log from before gate ids still groups by branch" grep -qE '^high +1 +3\.0 +3$' "$T/old.out"
+# Many seats writing a new log at once: one header, no line lost. This cannot force the bad
+# interleaving (it never showed against the old code either); what closes it is noclobber,
+# which refuses to replace a file another seat has already created.
+RL="$T/race.tsv"; i=0
+while [ $i -lt 40 ]; do REVIEW_LOG="$RL" bash "$HERE/review_log.sh" add --seat "s$i" & i=$((i + 1)); done; wait
+check "race: one header" [ "$(grep -c '^date' "$RL")" = 1 ]
+check "race: forty lines, none lost" [ "$(grep -vc '^date' "$RL")" = 40 ]
 
 # 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
 #     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, rides in a
