@@ -63,7 +63,16 @@ printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.m
 expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
 printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
 expect "a longer name that starts like this repo: fails" 1 "website-builder-private" "$R"
+printf 'see other-karero/website-builder\n' >"$R/docs/notes.md"
+expect "a longer name that ends like this repo: fails" 1 "other-karero" "$R"
 printf 'plain notes\n' >"$R/docs/notes.md"
+printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
+expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
+rm "$R/docs/notes:old.md"
+# A pattern grep cannot compile is a scan error, which must fail the run, not read as clean.
+cp "$R/scripts/.clean-denylist" "$T/list.bak"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
+expect "a broken pattern in the list: fails as a scan error" 1 "scan error" "$R"
+cp "$T/list.bak" "$R/scripts/.clean-denylist"
 
 # A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
 # that checkout (it names the git folder instead), so the list cannot be found from a linked
