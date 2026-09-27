@@ -105,12 +105,14 @@ function dollar(s, i) {  # at a `$`; returns how many extra chars were consumed
 # shell word after `awk` is decoded ('…' literal; "…" with \" \\ \$ \` unescaped) and
 # checked as if it were program text, so a program is found wherever it sits (after options,
 # redirections, gawk's -e, several -e) without an option table having to be complete. Skipped,
-# only so they cannot raise a false alarm: an unquoted redirection with its target, and the
-# value of an option known to take one. A word skipped by mistake would be a miss, so both
-# lists stay narrow; a word checked by mistake is at worst a false alarm, fixed in EXEMPT.
+# only so they cannot raise a false alarm: a redirection (judged by its unquoted start, so a
+# quoted program like '1>0 {…}' is still read) with its target, and the value of -F, -v,
+# --assign or --field-separator; after `--` no word is taken for an option. A word skipped by
+# mistake would be a miss, so these lists stay narrow; a word checked by mistake (an input
+# file named exit.log, another option's value) is at worst a false alarm, fixed in EXEMPT.
 # A program read from a file (-f) is not visible here.
-function awkexits(s,   n, i, c, q, w, have, words, qd, nw, k) {
-  n = length(s); q = ""; w = ""; have = 0; nw = 0
+function awkexits(s,   n, i, c, q, w, have, words, lead, pre, nw, k, dd, val) {
+  n = length(s); q = ""; w = ""; have = 0; nw = 0; pre = ""
   for (i = 1; i <= n + 1; i++) {
     c = (i <= n) ? substr(s, i, 1) : " "
     if (q == "'") { if (c == "'") q = ""; else w = w c; continue }
@@ -120,19 +122,26 @@ function awkexits(s,   n, i, c, q, w, have, words, qd, nw, k) {
       continue
     }
     if (c == "'" || c == "\"" || c == "\\") {
+      if (!have) pre = w   # the word's unquoted start
       have = 1
       if (c == "\\") { w = w substr(s, i + 1, 1); i++ } else q = c
       continue
     }
-    if (c ~ /[ \t\n]/) { if (have || w != "") { words[++nw] = w; qd[nw] = have }; w = ""; have = 0; continue }
+    if (c ~ /[ \t\n]/) {
+      if (have || w != "") { words[++nw] = w; lead[nw] = have ? pre : w }
+      w = ""; have = 0; pre = ""; continue
+    }
     w = w c
   }
+  dd = 0; val = 0
   for (k = 1; k <= nw; k++) {
     w = words[k]
-    if (!qd[k] && w ~ /^[0-9]*(<|>|>>|>\||>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
-    if (!qd[k] && w ~ /^[0-9]*[<>&]/) continue                                     # 2>/dev/null
-    if (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/) { k++; continue }     # -v n=exit
-    if (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/) continue
+    if (lead[k] == w && w ~ /^[0-9]*(<|>|>>|>[|]|>&|<&|&>|&>>|<>)$/) { k++; continue }   # 2> file
+    if (lead[k] ~ /^[0-9]*[<>&]/) continue                        # 2>/dev/null, 2>'exit.log'
+    if (val) { val = 0; continue }                                # the value -v was waiting for
+    if (!dd && w == "--") { dd = 1; continue }
+    if (!dd && (w ~ /^-[Fv]$/ || w ~ /^--(assign|field-separator)$/)) { val = 1; continue }
+    if (!dd && (w ~ /^-[Fv]./ || w ~ /^--(assign|field-separator)=/)) continue
     if (early_exit(unlit(w))) return 1
   }
   return 0
@@ -356,6 +365,10 @@ cmd | awk 2>| /dev/null 'NR == 1 { exit }'
 cmd | gawk -e '{ print }' -e 'NR == 1 { exit }'
 @@ bad/awk-unknown-option-before-program
 cmd | gawk --profile prof.out 'NR == 1 { exit }'
+@@ bad/awk-dash-program-after-double-dash
+cmd | awk -v value=1 -- '-value { print; exit }'
+@@ bad/awk-escaped-quote-in-double-quoted-program
+cmd | awk "NR == 1 { print \"x\"; exit }"
 @@ bad/pipe-stderr
 cmd |& head -1
 @@ bad/backticks
@@ -402,6 +415,14 @@ cmd | awk -v exit_code=0 '{ print }'
 cmd | gawk --assign mode=exit '{ print mode }'
 @@ good/awk-redirect-named-exit
 cmd | awk '{ print }' 2>exit.log
+@@ good/awk-redirect-quoted-target-named-exit
+cmd | awk '{ print }' 2>'exit.log'
+@@ good/awk-redirect-separated-quoted-target
+cmd | awk '{ print }' 2> "exit.log"
+@@ good/awk-redirect-between-option-and-value
+cmd | awk -v 2>/dev/null mode=exit '{ print mode }'
+@@ good/awk-clobber-redirect-named-exit
+cmd | awk '{ print }' 2>| exit.log
 @@ good/awk-division-then-exit-in-end
 cmd | awk '{ s += $1 / 2 } END { if (s / NR > 1) exit 1 }'
 @@ good/subshell-drains
