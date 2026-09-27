@@ -94,6 +94,15 @@ if [ "$rc" != 0 ] && [ "$rc" != 3 ]; then
   problems+=("AI check: exit $rc (see the ⚠ lines above)")
 fi
 
+echo "▶ Report page (how people find you on Google) …"
+# After the AI check, so the page links to this week's AI report. It writes a page even when
+# Google can't be reached (the page says so at the top), so a nonzero exit means no page at
+# all. Listed like every other failure; it never replaces GSC's exit code or the history's 4.
+rc=0
+"$PY" "$DIR/search_report.py" "$DOMAIN" --keywords "$KEYWORDS" --csv "$CSV" \
+  --country "${GSC_COUNTRY:-}" || rc=$?
+[ "$rc" = 0 ] || problems+=("report page: exit $rc")
+
 echo
 echo "═══ Position trend — lower is better; ▲ = improved since last run ═══"
 rc=0

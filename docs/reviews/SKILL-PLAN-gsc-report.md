@@ -14,7 +14,7 @@ after PLAN rounds 1 (Codex: 3 BUG, 6 RISK; fresh-eyes: 5 BUG, 4 RISK, 1 NIT), 2 
 | Mock-up page with invented numbers, for a visual check | done; owner's visual check 2026-09-27: "looks right" | `docs/reviews/gsc-report-mockup/mockup.html` (from `make_mockup.py`); checked in light and dark mode, at phone and desktop width |
 | PLAN gate (Codex only: ollama-cloud out of credits until ~2026-09-28; plus a fresh-eyes pass in round 1) | **closed** 2026-09-27: 7 rounds + final full read; round 7 had no BUG, its one RISK fixed locally (tie-break, not externally re-verified beyond the wording pass) | round 1 on `d29b3de`, 2 on `e9090ea`, 3 on `946d5ae`, 4 on `3d3cdf4`, 5 and the final read on `d595cb5` |
 | Probe of the real Google responses (see "Probe results") | **done** 2026-09-27, one real site (owner's OK), read-only | "Probe results" below; raw output kept outside the repo |
-| Build | not started | — |
+| Build | **done**, test-first: `search_report.py`, site settings file in `schedule_tracking.sh`, AI-report link in `geo_check.py`, report step in `track.sh`; 38 new tests (S1–S16 and the counting rules), 7 deliberate breakages of key rules each caught | this commit; `tests/test_search_report.py`, `test_schedule_settings.py`, additions to `test_track_entry.py` and `test_geo_check.py` |
 | DIFF gate | not started | — |
 | Live check on a real site | not started | — |
 | PR | not started | — |
@@ -245,8 +245,8 @@ weekly job does — a missing entry means "use `.env`", an empty entry means "no
   - S6: one `["query"]` request for the last 4 weeks, then one `["page"]` request filtered to each
     listed query (a new loop over the existing single-query drill-down);
   - S7: one `["page"]` request for the last 4 weeks; no drill-down.
-  `query()` gains `startRow` paging (new; it has none today) for any response that reaches the
-  row limit.
+  Paging with `startRow` lives in `search_report.py`'s own request helper (`run_query`), so
+  `gsc_query.query()` stays unchanged; it pages whenever a response comes back full.
 - **Page:** headline; "How to read this"; visits per week; times shown per week as its own chart
   (never two scales on one chart); one card per key search on one shared position scale; the
   S6 and S7 tables; Bing section or its one line; a link to the newest AI report page found at

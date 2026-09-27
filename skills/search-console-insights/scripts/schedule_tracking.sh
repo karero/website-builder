@@ -40,6 +40,14 @@ plist_for() { echo "$LA_DIR/$(label_for "$1").plist"; }
 plist_domain() { plutil -extract ProgramArguments.2 raw -o - "$1" 2>/dev/null || true; }
 plist_env() { plutil -extract "EnvironmentVariables.$2" raw -o - "$1" 2>/dev/null || true; }
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+site_settings_file() { echo "$HOME/.config/gsc-insights/sites/$(lower "$1").json"; }
+# JSON through python, so a keyword with a quote or a backslash can't break the file.
+write_site_settings() {
+  local f py; f="$(site_settings_file "$1")"; mkdir -p "$(dirname "$f")"
+  py="$HOME/.config/gsc-insights/venv/bin/python"; [ -x "$py" ] || py=python3
+  "$py" -c 'import json,sys; d,k,c,h,f=sys.argv[1:6]; json.dump({"domain":d,"keywords":[x.strip() for x in k.split(",") if x.strip()],"country":c,"csv":h}, open(f,"w"), ensure_ascii=False, indent=1)' \
+    "$1" "$2" "$3" "$4" "$f" || echo "  ⚠ could not write $f — the Google report page will read the job instead"
+}
 # Values land inside XML text; an unescaped & or < makes a plist launchd rejects.
 xml_esc() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 
@@ -97,6 +105,10 @@ case "$cmd" in
   <key>RunAtLoad</key><false/>
 </dict></plist>
 PLIST
+    # The same settings as a small file an on-demand report can read without launchd
+    # (search_report.py; docs/reviews/SKILL-PLAN-gsc-report.md, Design → Site settings file).
+    # An empty country or history means "none", as it does for the job.
+    write_site_settings "$domain" "$keywords" "$country" "$hist"
     # Reload idempotently. bootout/bootstrap is the modern path; fall back to load/unload.
     launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || launchctl unload "$plist" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$plist" 2>/dev/null || launchctl load "$plist"
@@ -113,7 +125,7 @@ PLIST
     label="$(label_for "$domain")"; plist="$(plist_for "$domain")"
     if [ -f "$plist" ]; then
       launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || launchctl unload "$plist" 2>/dev/null || true
-      rm -f "$plist"
+      rm -f "$plist" "$(site_settings_file "$domain")"
       echo "✓ Removed weekly tracking for $domain."
     else
       echo "No schedule found for $domain."

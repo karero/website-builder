@@ -33,6 +33,7 @@ case "$1" in
   */gsc_query.py) exit "${SHIM_GSC_RC:-0}" ;;
   */bing_query.py) exit "${SHIM_BING_RC:-3}" ;;
   */_history.py) [ -n "${SHIM_HISTORY_RC:-}" ] && exit "$SHIM_HISTORY_RC" ;;
+  */search_report.py) [ -n "${SHIM_REPORT_RC:-}" ] && exit "$SHIM_REPORT_RC" ;;
 esac
 exec "@PYTHON@" "$@"
 """
@@ -121,6 +122,23 @@ class TrackEntry(unittest.TestCase):
         rc, out, _ = self.track()
         self.assertEqual(rc, 0, out)
         self.assertIn("Couldn't read your homepage", out)
+
+    def test_the_weekly_run_writes_the_google_report_page(self):
+        """S15: the owner's saved link must show this week, even when Google can't be reached
+        (no sign-in here), since the page then says so at the top."""
+        rc, out, calls = self.track()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("search_report.py " + DOMAIN + " --keywords sourdough munich", calls)
+        page = self.home / ".config/gsc-insights/reports" / DOMAIN / "google.html"
+        self.assertTrue(page.exists(), out)
+        self.assertIn("could not be loaded", page.read_text())
+
+    def test_a_failed_report_page_is_listed_but_never_hides_the_gsc_exit(self):
+        rc, out, _ = self.track(SHIM_REPORT_RC=1)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("report page: exit 1", out)
+        rc, out, _ = self.track(SHIM_REPORT_RC=1, SHIM_GSC_RC=2)
+        self.assertEqual(rc, 2, out)                   # GSC's own code still wins
 
     def test_s7_not_set_up_keeps_the_old_green(self):
         rc, out, calls = self.track()
