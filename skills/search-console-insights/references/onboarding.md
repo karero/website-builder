@@ -74,9 +74,9 @@ step (see SKILL.md's "Once connected — how to use it").
 After the weekly-tracking question, and only if the site has no AI check yet
 (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <site> --check-drift` says "not set up"), offer it in one or two
 plain sentences: *"One more, optional: I can also check every week whether ChatGPT and other AI
-assistants mention your business when someone asks for what you offer. Gemini is free to start
-with; the others cost a few cents a week."* On a yes, follow `references/geo-check.md` → "Setting
+assistants mention your business when someone asks for what you offer. You prepay once, 5 or 10
+dollars or euros, and that covers the checks for weeks."* On a yes, follow `references/geo-check.md` → "Setting
 it up". Unlike Google and Bing above, this one can cost money and sends your questions to the AI
-companies you choose, so say that plainly. After the first run, show the report page and tell them how to see it
+companies you choose (through OpenRouter, unless you use each company's own key), so say that plainly. After the first run, show the report page and tell them how to see it
 again: *"Just ask me: show me my AI report."* A no is a complete answer; don't re-ask in the same
 session.

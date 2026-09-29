@@ -70,6 +70,21 @@ class RealResponses(unittest.TestCase):
         self.assertTrue(geo_check.is_named(text, ["Neulinger"]))
         self.assertFalse(geo_check.is_named(text, ["Bäckerei Example"]))
 
+    def test_openrouter_answers_whole_with_the_right_search_state(self):
+        # Real OpenRouter replies (captured 2026-09-26, same bakery question): "from memory" has no
+        # sources and no search; "with web search on" has the provider's own citations.
+        cases = {"openrouter-gemini-knows.json": (False, 0), "openrouter-openai-knows.json": (False, 0),
+                 "openrouter-anthropic-knows.json": (False, 0), "openrouter-openai-finds.json": (True, 5),
+                 "openrouter-anthropic-finds.json": (True, 13), "openrouter-perplexity-finds.json": (True, 18)}
+        for name, (searched, n_sources) in cases.items():
+            with self.subTest(fixture=name):
+                text, model, sources, did_search, cost = geo_check._openrouter_parse(load(name))
+                self.assertGreater(len(text.strip()), 300)
+                self.assertTrue(model.split("/")[0] in ("google", "openai", "anthropic", "perplexity"))
+                self.assertEqual((did_search, len(sources)), (searched, n_sources))
+                self.assertTrue(all(s.startswith("http") for s in sources))
+                self.assertIsInstance(cost, float)
+
     def test_absent_overview_is_its_own_state(self):
         # {} is what remains of a response without an ai_overview block once trimmed (synthetic).
         text, *_ = self.parse("google-overview", "google-overview-finds-absent.json")

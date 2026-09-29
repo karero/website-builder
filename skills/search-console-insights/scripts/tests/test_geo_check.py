@@ -152,7 +152,7 @@ class WeeklyRun(GeoTestCase):
         stub.engine_reply("gemini", "Bäckerei Example is great.", sources=["https://www.example-bakery.de/"])
         rc, out = self.cli()
         self.assertEqual(rc, 0, out)
-        self.assertIn("skipped — no GEO_OPENAI_API_KEY", out)
+        self.assertIn("skipped — no GEO_OPENROUTER_API_KEY (one key for all four) or GEO_OPENAI_API_KEY", out)
         self.assertIn("engines: 1 checked, 0 failed, 5 not set up", out)
         rows = self.history()
         # Gemini answers only without search: its terms forbid analysing grounded answers.
@@ -305,6 +305,185 @@ class WeeklyRun(GeoTestCase):
         self.assertEqual(finds["searched"], "0")
         rc, out = self.cli("--trend")
         self.assertIn("searched only 0/3", out)
+
+
+class ViaOpenRouter(GeoTestCase):
+    """The default route: one OpenRouter key for ChatGPT, Claude, Gemini and Perplexity, with each
+    provider's OWN web search ("native") — so the measurement is the same as with direct keys."""
+
+    RKEY = "test-openrouter-placeholder"
+
+    def setUp(self):
+        super().setUp()
+        self.setup_site()
+        os.environ["GEO_OPENROUTER_API_KEY"] = self.RKEY
+        for e in ("gemini", "openai", "anthropic", "perplexity"):
+            stub.engine_reply(e, "Bäckerei Example is the one.", sources=["https://www.example-bakery.de/"])
+
+    def posts(self):
+        return [h for h in stub.STATE["hits"] if h[0] == "POST"]
+
+    def test_one_key_asks_all_four_with_native_search(self):
+        rc, out = self.cli()
+        self.assertEqual(rc, 0, out)
+        posts = self.posts()
+        self.assertTrue(posts and all(h[1] == "/api/v1/chat/completions" for h in posts))
+        models = {h[3]["model"] for h in posts}
+        self.assertEqual(models, set(geo_check.OPENROUTER_MODELS.values()))
+        for h in posts:
+            finds = "plugins" in h[3]
+            if finds:
+                self.assertEqual(h[3]["plugins"], [{"id": "web", "engine": "native"}])
+            self.assertEqual(h[2].get("Authorization"), f"Bearer {self.RKEY}")
+        # Gemini is never asked with search, whichever route (Google's terms).
+        self.assertFalse([h for h in posts if h[3]["model"].startswith("google/") and "plugins" in h[3]])
+        # Sonar always searches and has no native-search option on OpenRouter: no plugin, and
+        # no "from memory" rows for Perplexity on this route.
+        self.assertFalse([h for h in posts if h[3]["model"].startswith("perplexity/") and "plugins" in h[3]])
+        self.assertTrue(all(h[3]["max_tokens"] == 4000 for h in posts))
+        self.assertEqual({r["mode"] for r in self.history() if r["engine"] == "perplexity"}, {"finds"})
+        rows = self.history()
+        self.assertTrue(rows and all(r["route"] == "openrouter" for r in rows))
+        finds = next(r for r in rows if r["engine"] == "openai" and r["mode"] == "finds" and r["slot"] == "broad")
+        self.assertEqual((finds["named"], finds["cited_own"], finds["searched"]), ("3", "3", "3"))
+        self.assertIn("cost of this run via OpenRouter: $", out)
+        self.assertIn("engines: 4 checked, 0 failed, 2 not set up", out)
+
+    def test_openrouter_wins_over_direct_keys(self):
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        self.cli()
+        self.assertFalse([h for h in self.posts() if h[1] == "/v1/responses"])
+        rc, out = self.cli_bare("--keys")
+        self.assertIn("set, not used: OpenRouter is set", out)
+        self.assertIn("not needed: OpenRouter is set", out)
+
+    def test_no_credit_stops_the_whole_route_after_one_call(self):
+        stub.STATE["engines"].clear()
+        stub.STATE["router_error"] = {"status": 402, "body": '{"error": {"message": "Insufficient credits. Add more using https://openrouter.ai/credits", "code": 402}}'}
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        self.assertEqual(len(self.posts()), 1)
+        self.assertIn("Insufficient credits", out)
+        self.assertNotIn(self.RKEY, out)
+
+    def test_one_model_error_does_not_stop_the_others(self):
+        # Gemini runs FIRST: a 404 for its model (e.g. a retired slug) must not blank the week
+        # for the three assistants after it. Only 401/402 are account-wide.
+        stub.engine_reply("gemini", "", status=404, body='{"error": {"message": "No endpoints found for this model."}}')
+        rc, out = self.cli()
+        self.assertEqual(rc, 1)
+        self.assertIn("gemini FAILED", out)
+        answered = {r["engine"] for r in self.history() if int(r["ok"] or 0)}
+        self.assertEqual(answered, {"openai", "anthropic", "perplexity"})
+        self.assertGreater(len(self.posts()), 1)
+
+    def test_request_details_cost_and_redaction(self):
+        stub.STATE["engines"]["anthropic"]["status"] = 400
+        stub.STATE["engines"]["anthropic"]["body"] = '{"error": {"message": "bad request for ' + self.RKEY + '"}}'
+        rc, out = self.cli()
+        self.assertNotIn(self.RKEY, out)                             # the router key is redacted
+        rows = self.history()
+        self.assertEqual({r["model_requested"] for r in rows if r["engine"] == "openai"}, {"openai/gpt-6-luna"})
+        # One question, 3 answers each: Gemini 3 + ChatGPT 6 + Perplexity 3 = 12 at the stub's
+        # $0.0012; Claude's refused calls carry no cost.
+        self.assertIn("cost of this run via OpenRouter: $0.014 (12 replies)", out)
+
+    def test_cut_off_answer_is_a_failure_but_its_cost_counts(self):
+        cut = geo_check.EngineError
+        with self.assertRaises(cut) as cm:
+            geo_check._openrouter_parse({"choices": [{"finish_reason": "length", "message": {"content": "Bäck"}}],
+                                         "usage": {"cost": 0.04}})
+        self.assertEqual(cm.exception.cost, 0.04)
+
+    def test_a_timeout_is_retried_and_stops_only_that_call(self):
+        """Review round 2: round 1 made 408 non-fatal but never retried it. One question: Gemini
+        is asked 3 times, so 3 attempts each is 9; the other assistants still answer."""
+        stub.engine_reply("gemini", "", status=408, body='{"error": {"message": "Request timeout"}}')
+        rc, out = self.cli()
+        self.assertEqual(rc, 1, out)
+        gemini = [h for h in self.posts() if h[3]["model"] == geo_check.OPENROUTER_MODELS["gemini"]]
+        self.assertEqual(len(gemini), 9)
+        answered = {r["engine"] for r in self.history() if int(r["ok"] or 0)}
+        self.assertEqual(answered, {"openai", "anthropic", "perplexity"})
+
+    def test_billed_replies_that_are_not_answers_count_in_the_run_cost(self):
+        """Review round 2: the cut-off test above only called the parser, so the run could drop a
+        billed failure's cost unnoticed; and an empty billed reply was dropped already. Through
+        the command line: Claude cut off ($0.50 each), Gemini empty ($0.25 each), ChatGPT and
+        Perplexity normal ($0.0012 each)."""
+        def reply(content, finish, cost=None):
+            usage = {"cost": cost} if cost is not None else {}
+            return {"model": "m", "choices": [{"finish_reason": finish, "message": {"content": content}}],
+                    "usage": usage}
+        stub.engine_reply("anthropic", "", raw=reply("Bäck", "length", 0.5))
+        stub.engine_reply("gemini", "", raw=reply("", "stop", 0.25))
+        rc, out = self.cli()
+        self.assertEqual(rc, 1, out)
+        calls = {e: sum(1 for h in self.posts() if h[3]["model"] == m)
+                 for e, m in geo_check.OPENROUTER_MODELS.items()}
+        total = calls["anthropic"] * 0.5 + calls["gemini"] * 0.25 + (calls["openai"] + calls["perplexity"]) * 0.0012
+        self.assertIn(f"cost of this run via OpenRouter: ${total:.3f} ({sum(calls.values())} replies)", out)
+
+    def test_searched_follows_the_reply_s_own_search_counter(self):
+        base = {"choices": [{"finish_reason": "stop", "message": {"content": "An answer.", "annotations": []}}]}
+        self.assertTrue(geo_check._openrouter_parse({**base, "usage": {"server_tool_use_details": {"web_search_requests": 2}}})[3])
+        self.assertFalse(geo_check._openrouter_parse({**base, "usage": {"server_tool_use_details": {"web_search_requests": 0}}})[3])
+        self.assertFalse(geo_check._openrouter_parse(base)[3])      # no counter, no citations
+
+    def test_old_perplexity_memory_answer_is_not_current_after_the_switch(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        os.environ["GEO_PERPLEXITY_API_KEY"] = "test-placeholder-pplx"
+        self.cli("--engines", "perplexity")                        # direct: knows + finds
+        os.environ["GEO_OPENROUTER_API_KEY"] = self.RKEY
+        self.cli("--engines", "perplexity")                        # OpenRouter: finds only
+        rc, out = self.cli("--report")
+        page = html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
+        self.assertIn("always searches the web", page)
+        self.assertNotIn("named you at least once <strong>from memory</strong>", page)
+
+    def test_rows_from_before_the_route_column_count_as_direct(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        self.cli("--engines", "openai")
+        Trend.age_history(self)
+        p = geo_check.history_path()
+        rows = self.history()
+        with open(p, "w", newline="") as f:                          # write them in the old schema
+            old = [x for x in geo_check.FIELDS if x != "route"]
+            w = csv.DictWriter(f, fieldnames=old, extrasaction="ignore")
+            w.writeheader(); w.writerows(rows)
+        os.environ["GEO_OPENROUTER_API_KEY"] = self.RKEY
+        self.cli("--engines", "openai")
+        rc, out = self.cli("--trend")
+        self.assertIn("route changed", out)
+
+    def test_no_key_message_points_to_openrouter(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        rc, out = self.cli()
+        self.assertIn("add GEO_OPENROUTER_API_KEY=...", out)
+
+    def test_route_switch_is_marked_in_the_trend(self):
+        del os.environ["GEO_OPENROUTER_API_KEY"]
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        self.cli("--engines", "openai")
+        Trend.age_history(self)
+        os.environ["GEO_OPENROUTER_API_KEY"] = self.RKEY
+        self.cli("--engines", "openai")
+        rc, out = self.cli("--trend")
+        self.assertIn("route changed", out)
+
+    def test_report_says_which_assistants_went_through_openrouter(self):
+        self.cli()
+        rc, out = self.cli("--report")
+        page = html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
+        self.assertIn("Asked through OpenRouter, which uses each assistant’s own web search: Gemini, ChatGPT, Claude, Perplexity", page)
+        self.assertIn("always searches the web", page)            # Perplexity's "from memory" cell
+
+    def cli_bare(self, *args):
+        o = io.StringIO()
+        with contextlib.redirect_stdout(o), contextlib.redirect_stderr(o):
+            rc = geo_check.main(list(args))
+        return rc, o.getvalue()
 
 
 class GoogleViaSerpApi(GeoTestCase):
@@ -880,7 +1059,8 @@ class KeySetup(GeoTestCase):
         self.assertEqual(rc, 0, out)
         text = self.env_file().read_text()
         self.assertTrue(text.startswith("BING_API_KEY=keepme\n"))
-        self.assertIn("GEO_GEMINI_API_KEY=\n", text)
+        self.assertIn("GEO_OPENROUTER_API_KEY=\n", text)
+        self.assertIn("GEO_GEMINI_API_KEY=\n", text)      # the free Gemini line the guide points at
         self.cli_bare("--prepare-env")
         self.assertEqual(self.env_file().read_text(), text)  # a second run adds nothing
         self.assertEqual(self.env_file().stat().st_mode & 0o777, 0o600)

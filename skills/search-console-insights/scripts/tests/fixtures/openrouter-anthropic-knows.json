@@ -1,0 +1,45 @@
+{
+ "id": "gen-1790459317-ovJbAEWnATyWJT5f91vX",
+ "object": "chat.completion",
+ "created": 1790459317,
+ "model": "anthropic/claude-sonnet-5",
+ "provider": "Claude Platform on AWS",
+ "system_fingerprint": null,
+ "service_tier": "default",
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "end_turn",
+   "message": {
+    "role": "assistant",
+    "content": "I don't have access to real-time, location-specific business data, so I can't give you a verified, current list of bakeries in Munich selling sourdough bread. However, I can share some general guidance based on what's commonly known about Munich's bakery scene (as of my last training data), though you should verify current details since bakeries open, close, and change offerings:\n\n**Bakeries known for sourdough (Sauerteig) that have had good reputations:**\n- **Der Beck** - large chain, often has sourdough options\n- **Rischart** - well-known Munich chain, traditional and quality-focused\n- **Hofpfisterei** - this one is particularly known for organic sourdough breads specifically\n- **Wimmer** - traditional bakery chain\n- **Ziegler** - smaller bakery known for quality bread\n\n**Better ways to get current, accurate information:**\n1. **Google Maps** - search \"Sauerteigbrot Bäckerei München\" and check recent reviews\n2. **Yelp** - filter by bakeries with bread-focused reviews\n3. **Local recommendation sites** - like München.de or local Reddit (r/München)\n4. **Ask locals directly** - Germans take bread seriously, so staff at any bakery can often point you to sourdough specialists nearby\n5. **Visit farmers markets** - Viktualienmarkt often has specialty bread stalls\n\n**Tip:** In German, look for \"Sauerteigbrot\" specifically, as this confirms true sourdough (natural fermentation) rather than bread with added sourness.\n\nWould you like tips on what to look for when identifying quality sourdough bread in Germany, or help with German bakery terminology?",
+    "refusal": null
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 25,
+  "completion_tokens": 540,
+  "total_tokens": 565,
+  "cost": 0.00545,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.00545,
+   "upstream_inference_prompt_cost": 5e-05,
+   "upstream_inference_completions_cost": 0.0054
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 0,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  }
+ }
+}
