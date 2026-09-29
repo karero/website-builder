@@ -407,6 +407,59 @@ class Scenarios(ReportTest):
         self.assertNotIn("reconnect", page)
         self.assertEqual(self.cache(), before)
 
+    def test_s9_a_copy_that_cannot_be_saved_never_replaces_fresh_numbers(self):
+        """Second-model review: a failed save was handled as a failed fetch, so the page showed
+        the older saved numbers under "could not be refreshed" although Google had answered."""
+        self.build(self.google(keys={"a": weekly_key([9] * 13)}), keywords="a")
+        (self.home / ".config/gsc-insights/reports" / DOMAIN / "google-data.json.tmp").mkdir()
+        page, _ = self.build(self.google(keys={"b": weekly_key([9] * 13)}), keywords="b")
+        self.assertIn("“b”", page)
+        self.assertNotIn("“a”", page)
+        self.assertNotIn("could not be refreshed", page)
+        self.assertIn("could not be saved on this computer", page)
+
+    def test_s9_saved_numbers_name_where_their_key_searches_came_from(self):
+        """Second-model review: saved key searches were labelled with today's source."""
+        self.build(self.google(keys={"a": weekly_key([9] * 13)}), keywords="a")
+        sites = self.home / ".config/gsc-insights/sites"
+        sites.mkdir()
+        (sites / f"{DOMAIN}.json").write_text(json.dumps({"keywords": ["b"], "country": "", "csv": "", "recorded": "2026-09-21"}))
+        def expired():
+            raise sr.SignInError("token expired")
+        page, _ = self.build(expired)
+        self.assertIn("“a”", page)
+        self.assertIn("key searches from your request", page)
+        self.assertNotIn("key searches from your weekly check", page)
+
+    def test_the_property_is_asked_for_as_the_bare_lowercase_domain(self):
+        """Second-model review: "Example-Bakery.DE" as typed became sc-domain:Example-Bakery.DE."""
+        for typed in ("Example-Bakery.DE", "sc-domain:example-bakery.de"):
+            g = self.google(keys={"a": weekly_key([9] * 13)})
+            self.build(g, domain=typed, keywords="a")
+            self.assertEqual({site for site, _ in g.calls}, {"sc-domain:example-bakery.de"}, typed)
+
+    def test_s6_s7_ask_for_the_last_four_complete_weeks(self):
+        """Second-model review: the fake answered any dates, so a wrong window would pass."""
+        g = self.google()
+        self.build(g, keywords="")
+        four = [(b["startDate"], b["endDate"]) for _, b in g.calls if b.get("dimensions") in (["query"], ["page"])]
+        self.assertTrue(four)
+        self.assertEqual(set(four), {(d(LAST_SUNDAY - dt.timedelta(days=27)), d(LAST_SUNDAY))})
+
+    def test_a_hand_edited_record_never_crashes_the_page(self):
+        """Second-model review: a string of key searches was read letter by letter."""
+        sites = self.home / ".config/gsc-insights/sites"
+        sites.mkdir()
+        rec = sites / f"{DOMAIN}.json"
+        rec.write_text(json.dumps({"keywords": "a, b", "country": "", "csv": "", "recorded": "2026-09-21"}))
+        page, _ = self.build(self.google(keys={"a": weekly_key([9] * 13), "b": weekly_key([9] * 13)}))
+        self.assertIn("“a”", page)
+        self.assertIn("“b”", page)
+        self.assertNotIn("“ ”", page)
+        for bad in ({"keywords": 5}, {"keywords": {"a": 1}}, [1, 2], "text"):
+            rec.write_text(json.dumps(bad))
+            self.build(self.google())                     # a page, never a crash
+
     def test_s10_brand_new_site_shows_no_empty_charts(self):
         page, _ = self.build(FakeGoogle(daily={}))
         self.assertIn("Google needs a few days to report on a new site", page)

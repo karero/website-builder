@@ -100,7 +100,13 @@ def resolve_settings(domain, args):
     if sf.exists():
         try:
             j = json.loads(sf.read_text(encoding="utf-8"))
-            found = {"keywords": [str(k).strip() for k in (j.get("keywords") or []) if str(k).strip()],
+            if not isinstance(j, dict):
+                raise ValueError("not a settings record")
+            kws = j.get("keywords") or []
+            # A hand-edited record may hold one string, or something else entirely: a string is
+            # read the way --keywords is, anything but a list as no key searches.
+            kws = split_keywords(kws) if isinstance(kws, str) else kws if isinstance(kws, list) else []
+            found = {"keywords": [str(k).strip() for k in kws if str(k).strip()],
                      "country": j.get("country") or "", "csv": j.get("csv") or "",
                      "bing": j.get("bing") if isinstance(j.get("bing"), bool) else None,
                      "recorded": j.get("recorded") if isinstance(j.get("recorded"), str) else "",
@@ -189,6 +195,7 @@ def _body(start, end, dims, country, query=None):
 def pick_property(service, domain):
     """sc-domain:<domain>, as the tracker uses; if Google refuses it, a URL-prefix property for the
     same domain from the account's list (plan: Counting rules → Property)."""
+    domain = normalize_site(domain)      # "Example.com" or "sc-domain:example.com" as typed
     prop = f"sc-domain:{domain}"
     try:
         service.searchanalytics().query(siteUrl=prop, body={
@@ -260,7 +267,8 @@ def fetch_google(service, domain, settings, today):
           and r.get("ctr", 0) < S7_MAX_CTR]
     return {
         "fetched": today.isoformat(), "property": prop, "country": country,
-        "keywords": list(settings["keywords"]), "finished": finished.isoformat(),
+        "keywords": list(settings["keywords"]), "from": settings.get("from") or "",
+        "finished": finished.isoformat(),
         "daily": [{"date": r["keys"][0], "clicks": r.get("clicks", 0), "impressions": r.get("impressions", 0),
                    "position": r.get("position")} for r in daily],
         "keys": keys, "window4": [start4.isoformat(), end4.isoformat()],
@@ -651,8 +659,11 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
                              else "Counting: searches from all countries")
         if not data["property"].startswith("sc-domain:"):
             settings_line.append(f"only the address {data['property']}")
-        if settings.get("from") and data["keywords"]:
-            settings_line.append(f"key searches from {settings['from']}")
+        # Where the key searches came from is saved with them: a page built from saved data
+        # names its own source, not today's (an older saved file has none, so today's stands in).
+        source = data.get("from", settings.get("from"))
+        if source and data["keywords"]:
+            settings_line.append(f"key searches from {source}")
         parts.append(f'<p class="note">{H("; ".join(settings_line))}.</p>')
 
     if weeks:
@@ -796,7 +807,6 @@ def build(domain, args, service_factory=make_service, today=None):
     try:
         service = service_factory()
         data = fetch_google(service, domain, settings, today)
-        write_atomic(cache, json.dumps(data, indent=1))
     except Exception as e:
         signin = isinstance(e, SignInError)
         saved = None
@@ -812,6 +822,14 @@ def build(domain, args, service_factory=make_service, today=None):
                      + (" Say “reconnect Google”." if signin else ""))
         else:
             alert = f"Google's numbers could not be loaded{reason}." + (" Say “reconnect Google”." if signin else "")
+    else:
+        # Fresh numbers stay on the page even when the copy for next time cannot be saved; only
+        # the fallback is lost, and the page says so.
+        try:
+            write_atomic(cache, json.dumps(data, indent=1))
+        except OSError:
+            alert = ("These numbers are up to date, but a copy for when Google can't be reached "
+                     "could not be saved on this computer.")
     # Bing follows today's key searches, also when Google's part comes from saved data.
     current_kw = {k.lower() for k in settings.get("keywords") or []}
     bing_rows = [r for r in rows if r.get("source") == "bing" and (r.get("keyword") or "").lower() in current_kw]
