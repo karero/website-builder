@@ -16,7 +16,7 @@ C = Codex, K = ollama-cloud, F = fresh-eyes.
 | id | sev | src | finding | disposition |
 |---|---|---|---|---|
 | O1 | BUG | F-B1 | any fatal error stopped all four assistants on the route; the new test broke Perplexity (last) and could not fail | fixed: only 401/402 (account-wide) stop the route; the test now breaks Gemini (first). Mutation-checked |
-| O2 | BUG | C2 F-B2 K-R3 | the OpenRouter route drops the site's country from web searches | **documented, not fixable:** OpenRouter documents no location parameter (checked 2026-09-26). geo-check.md says so plainly: a local business's questions name the place; a business selling everywhere can use direct keys or name the market |
+| O2 | BUG | C2 F-B2 K-R3 | the OpenRouter route drops the site's country from web searches | **documented, not fixable; accepted by the owner on 2026-09-29 ("Good"):** OpenRouter documents no location parameter (checked 2026-09-26). geo-check.md says so plainly: a local business's questions name the place; a business selling everywhere can use direct keys or name the market |
 | O3 | BUG | C3 F-R2 | an old direct Perplexity "from memory" row stayed current after switching to OpenRouter | fixed: the report keeps only modes the current route can ask. Mutation-checked |
 | O4 | BUG | C4 F-N | rows from before the route column never showed "route changed" | fixed: a missing route counts as "direct". Mutation-checked with a genuine old-schema file |
 | O5 | BUG | C5 F-N | a cut-off answer's billed cost was left out of the run total; unknown costs were silent | fixed: `EngineError.cost` carries it; the line says "cost unknown for N more". Mutation-checked |
@@ -32,7 +32,42 @@ C = Codex, K = ollama-cloud, F = fresh-eyes.
 | O15 | NIT | F | route missing from hints, answer headers, the ‡ legend, evals, onboarding | fixed |
 | O16 | NIT | F test gaps | `model_requested`, key redaction in an error body, the cost total, the cut-off check, the "no key" message | tests added (`test_request_details_cost_and_redaction`, `test_cut_off_answer_…`, `test_no_key_message_points_to_openrouter`) |
 
+## Round 2 — verifying the fixes, after merging main (2026-09-29)
+
+The session that opened this PR had ended; another session ("Release PR review and
+preparation") took it over at the owner's request ("Finalize it pls"). Main was merged in first
+(`f2ec19d`): one conflict, the `SKILL.md` table, where both rows were kept (main's new Google
+report row, this branch's OpenRouter wording for the AI check). 179 tests and `make check` passed
+on the merge.
+
+Seats: ollama-cloud (`kimi-k2.7-code:cloud`, `--verify` against the table above) and a fresh-eyes
+Claude verifier that reverted each fix in a scratch copy. Codex was out of quota until 3 October.
+
+| Seat | Verdict on round 1 | New BUG / RISK / NIT |
+|---|---|---|
+| ollama | all landed; O9 in code but not the docs; O14 partial | 1 / 1 / 1 |
+| fresh-eyes Claude | O1, O3, O4 verified by revert; O5, O6 fixed but untested; O9 docs | 0 / 1 / 5 |
+
+- **Fixed, O5's test (fresh-eyes RISK):** the cut-off cost was tested only at the parser, so the
+  run could drop it unnoticed. A test through the command line now pins the run's cost line
+  with cut-off and empty billed replies.
+- **Fixed, billed empty replies (fresh-eyes NIT):** an empty or unreadable reply now carries its
+  billed cost too.
+- **Fixed, wording (fresh-eyes NIT):** the cost line counts "replies", not "answers".
+- **Fixed, O6's test (fresh-eyes NIT):** `--prepare-env` is now tested for the free Gemini line.
+- **Fixed, O9 in the docs (ollama BUG, fresh-eyes NIT):** `geo-check.md` says `max_tokens: 4000`;
+  it also describes the citations fallback correctly and points "Finds you" at OpenRouter's Costs.
+- **Fixed, O14 (ollama NIT):** 408 was made non-fatal but never retried; it is now retried like
+  429, and a test counts the attempts (it fails on the round-1 code).
+- **Declined (ollama RISK), cost wording:** the Costs heading already says prices were measured on
+  2026-09-26 and change, the owner pitch says only "covers the checks for weeks", and every run
+  prints its own cost.
+- **Declined (fresh-eyes NIT), old Perplexity "knows you" lines in the trend:** the trend is the
+  history, and each line carries its dates; the report page already hides them (O3).
+- **Left as a follow-up:** a cut-off reply that carries no price is not counted as "cost unknown":
+  the check cannot tell it from an unbilled error without more detail from OpenRouter.
+
 ## Final state
 
-132 tests pass. Nothing open. The private-name check fails on this machine only for two review
-files that other PRs (#129/#130) added to `main`; not part of this change.
+All tests pass (181 in the skill suite); `make check` passes. The owner accepted O2 as
+documented. Codex did not see round 2 (out of quota).

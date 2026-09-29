@@ -395,6 +395,17 @@ class ViaOpenRouter(GeoTestCase):
                                          "usage": {"cost": 0.04}})
         self.assertEqual(cm.exception.cost, 0.04)
 
+    def test_a_timeout_is_retried_and_stops_only_that_call(self):
+        """Review round 2: round 1 made 408 non-fatal but never retried it. One question: Gemini
+        is asked 3 times, so 3 attempts each is 9; the other assistants still answer."""
+        stub.engine_reply("gemini", "", status=408, body='{"error": {"message": "Request timeout"}}')
+        rc, out = self.cli()
+        self.assertEqual(rc, 1, out)
+        gemini = [h for h in self.posts() if h[3]["model"] == geo_check.OPENROUTER_MODELS["gemini"]]
+        self.assertEqual(len(gemini), 9)
+        answered = {r["engine"] for r in self.history() if int(r["ok"] or 0)}
+        self.assertEqual(answered, {"openai", "anthropic", "perplexity"})
+
     def test_billed_replies_that_are_not_answers_count_in_the_run_cost(self):
         """Review round 2: the cut-off test above only called the parser, so the run could drop a
         billed failure's cost unnoticed; and an empty billed reply was dropped already. Through

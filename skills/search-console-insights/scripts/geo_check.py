@@ -635,7 +635,7 @@ def _error_line(r, all_keys) -> str:
 
 
 def _send(method, url, headers, payload, all_keys, deadline):
-    """One HTTP call with bounded 429 backoff. Returns the parsed JSON body."""
+    """One HTTP call with bounded backoff on 429 and 408 (a timeout). Returns the parsed JSON body."""
     delay = 0 if os.environ.get("GEO_TEST_MODE") == "1" else 5
     for attempt in range(3):
         remaining = deadline - time.monotonic()
@@ -650,7 +650,7 @@ def _send(method, url, headers, payload, all_keys, deadline):
             raise EngineError(redact(f"{type(e).__name__}: {e}", all_keys)) from None
         if r.status_code == 429 and _out_of_credit(r):
             raise EngineError(_error_line(r, all_keys), fatal=True, status=r.status_code)
-        if r.status_code == 429 and attempt < 2:
+        if r.status_code in (408, 429) and attempt < 2:
             time.sleep(delay * (attempt + 1))
             continue
         if r.status_code != 200:
