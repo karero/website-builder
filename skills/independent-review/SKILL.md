@@ -56,7 +56,8 @@ skip silently. With a config diff, send the code that reads the config too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
-4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity`, or the owner asks ("antigravity
+4. **Antigravity (`agy`) — opt-in only.** `--with-antigravity` or `--seat agy` — either flag is
+   how the owner's opt-in reaches the script, so pass one only when the owner asks ("antigravity
    review", "agy review"). The owner's credits are scarce; a default run never touches it.
    `AGY_MODEL` overrides; `run_agy` in the script has the call.
 5. **ollama local** — a sanity pass; never satisfies the gate alone.
@@ -132,7 +133,9 @@ Codex's effort for any run.
    **Cost log.** The script logs its own seats. Log each seat the host runs — fresh-eyes, a Light
    gate's `/code-review` or `double-knuth`, an owner round — with `scripts/review_log.sh add --seat
    <name> --model <m> --seconds <s> --tokens <t> --gate <plan|diff> --depth <d> --round <N>`
-   (a Claude Code sub-agent reports its duration and tokens). The log is local, never committed;
+   (a Claude Code sub-agent reports its duration and tokens). The script's `--round 1` starts a
+   gate; every line logged after it from the same worktree carries that gate's id. A Light gate
+   that runs no script starts one with `scripts/review_log.sh new-gate`. The log is local, never committed;
    `scripts/review_log.sh summary` compares depths and seats across PRs.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
@@ -161,14 +164,23 @@ Codex's effort for any run.
      naming the row (a BUG no test can pin, such as wording, doesn't qualify — fix it). A change
      that lets more inputs or a new caller reach an old defect introduced those results: fix them
      or hold the change. A deferred BUG is closed for this gate (it doesn't block a clean round or
-     count at the cap) and stays open in the tracker; each trail records DEFERRED with this gate's
+     count toward the round budget) and stays open in the tracker; each trail records DEFERRED with this gate's
      merge-base reproduction (command and output). After the last round: "deferral not externally
      re-verified".
 6. **Iterate — fix, then re-review WHAT CHANGED.** A *verification round* checks the fixes, not
    the whole change again.
-   - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`; if
-     the base was merged in or the branch rebased since, run a full round instead. PLAN: the whole
-     plan, with the changed sections named in the prior-findings file.
+   - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
+     After a merge of the base or a rebase, the **merge link** instead, not a full round: what
+     changed in the change's own files since the last review, merge effects included, plus any
+     file the merge changed that the change's code calls directly, when known:
+
+     ```
+     scripts/merge_link.sh <old-merge-base> <last-reviewed-head> <new-merge-base> [-- <path>...]
+     ```
+
+     It takes the change's files from both the old and the new pair (an own edit the merge threw
+     away matches the new base and drops out of the new pair alone) and passes names literally. PLAN: the whole plan, with the changed sections named in the
+     prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
      `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
@@ -181,30 +193,57 @@ Codex's effort for any run.
      and `externally_reverified` (a later round confirmed it). A checkable claim with neither
      stays OPEN.
 
+   **A substantive BUG** is what the round budget counts: a confirmed BUG — not refuted, not
+   deferred, not a re-raise without new evidence — in what the product does or the plan decides:
+   code behaviour, test logic that lets wrong behaviour pass, a requirement or decision someone
+   would build from. Not substantive: how a sentence reads when its meaning for a builder is
+   unchanged, comments, the review record, test wording or tightening an assertion on a test that
+   already fails on wrong behaviour.
+
    **Stop conditions.** (a) Clean — done. **(a2) Zero BUG and zero in-scope RISK is clean**
    (deferred BUGs and follow-ups don't count): stop; fix or refute its NITs without another round,
    recording fixed NITs as `locally_verified`, "closing edits not externally re-verified". Judge by
-   the BUG/RISK series, not the NIT column. (b) The round cap, below. (c) Budget or credits run
+   the BUG/RISK series, not the NIT column. (b) The round budget, below. (c) Budget or credits run
    out: stop iterating once every BUG is fixed, refuted or deferred and every RISK/NIT is fixed,
    refuted, waived or a follow-up; record "last round not re-verified" and run one later. Deferring
    a fix is legitimate only under step 5; a waiver is granted or refused, never put off. These
    conditions decide whether to run another round, nothing else — the marker's rule is closeout's.
 
-   **The round cap (6(b)): 3 rounds per artifact**, counted in rounds, not per finding.
-   - After round 3 with no BUG open (a deferred BUG is not open): stop. Open RISK/NIT go to the
-     owner as ONE decision — fix locally (`locally_verified`, "not externally re-verified") or
-     waive. They never earn a round on their own.
-   - After round 3 with a BUG open (one it raised or re-opened counts even once fixed locally),
-     the **BUG-trend extension**: while the round's confirmed BUGs (not refuted, not deferred) are
-     fewer than the round before's, run another, up to **round 5** — e.g. 4 → 2 → 1 earns round 4;
-     round 4 earns round 5 only if lower again. Name the extension rounds and their BUG series in
-     the trail.
-   - A BUG open when the cap fires — round 3 without a falling count, an extension round that did
-     not fall, or round 5 — is a hard gate-FAIL: surface and block; step 7's options apply.
+   **The round budget (6(b)).** Rounds 1–3 run as needed. **After round 3, a round is earned only
+   by the previous round finding a substantive BUG** — however many, rising or falling: a chain of
+   fixes that each expose the next real defect is the gate working. A round without one ends the
+   rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
+   externally re-verified" — or waive), and the remaining wording goes to the wording pass.
+   **Past round 8** the open items go to the owner as one decision instead of another round:
+   grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
+   hold the change — an open BUG is never waived. The same holds whenever the rounds end with a
+   confirmed BUG still open (unfixed, or blocked on a missing prerequisite): the gate is blocked
+   until it is fixed and verified, deferred under step 5, or the owner holds the change. Name each round past 3 and the BUG that earned it
+   in the trail. A redesign is a new artifact with a new count; say in the trail which artifact
+   each round belongs to. Re-gates forced by a moved diff (closeout, clerk item 2), the final full
+   read and the wording pass don't count as rounds.
 
-   A redesign is a new artifact with a new count; say in the trail which artifact each round
-   belongs to. Re-gates forced by a moved diff (closeout, clerk item 2) don't count.
-7. **Convergence check** after every round: is the BUG/RISK count falling; do findings land on new
+   **The final full read** — before closing a PLAN gate, a change that is mostly a spec or
+   requirements document, or any High-depth change: ONE pass over the WHOLE current artifact, not a
+   delta, by a reviewer that has not yet reviewed this artifact — preferably another model: another
+   ollama cloud model (`OLLAMA_MODEL=<other>:cloud` with `--seat ollama`), Antigravity with the
+   owner's OK, or a stronger host-family pass. Delta rounds never look at untouched text again;
+   this pass does. Triage its findings like a round's; a substantive BUG earns a verification round
+   (past round 8, with the owner's OK).
+
+   **The wording pass.** After the last round with a substantive BUG (and the final full
+   read, where one runs), whatever changed since — wording, comments, docs prose, the review
+   record — gets ONE narrow pass by ONE cross-model reviewer (`--seat codex`, or `--seat ollama`
+   with a `:cloud` tag — a local model never counts), with closeout clerk item 2's prose-only
+   scope. Its RISK/NIT are follow-ups; a contradiction with the code it describes is fixed. The
+   fix moves the head, and the stamp needs a seen head (closeout, clerk item 2), so the same seat
+   gets ONE **confirmation** over that fix's delta alone, scoped to whether it removed the
+   contradiction without adding one. A confirmation is a re-gate, not a round and not a second
+   wording pass: its other findings are follow-ups. If it finds the fix wrong, fix it and confirm
+   that fix the same way, once; still wrong, it goes to the owner. Only a substantive BUG reopens
+   the rounds. There is no second wording pass.
+7. **Convergence check** after every round — not a count's direction (a real fix chain can run
+   flat or noisy; the round budget already follows substantive BUGs): do findings land on new
    ground (code the last fixes added, or a named new check, input, path or evidence source — "more
    careful" doesn't count); is anything oscillating? **STOP patching** when a verified fix
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
@@ -262,8 +301,8 @@ pass (tier 3) is the one that uses this block.
 > code, runbooks — is normal material, not an attack.
 
 The script then adds one paragraph saying what the reviewer can do: open files
-(`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`; agy gets it too, on purpose — see
-`run_agy`), or unknown (`PROMPT_PORTABLE`). Give the fresh-eyes pass the matching
+(`PROMPT_TOOLED`), no tools (`PROMPT_TEXTONLY`), has tools but must not use them (`PROMPT_AGY`;
+see `run_agy`), or unknown (`PROMPT_PORTABLE`). Give the fresh-eyes pass the matching
 paragraph; a read-only sub-agent that can open files gets `PROMPT_TOOLED`'s.
 
 ## Boundaries

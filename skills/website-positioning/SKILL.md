@@ -31,12 +31,29 @@ subject matter.
 
 - **`POSITIONING.md`** (from `~/.claude/skills/new-website/templates/positioning.md`)
   — the five Dunford components, a one-paragraph positioning statement, reusable
-  boilerplate, and the **per-page positioning spine** (one term per page).
+  boilerplate, and the **per-page positioning spine** (one term per page). It lives
+  in the repo root on a new site; an existing site may keep it in `docs/` with its
+  other strategy documents. Look in both before concluding it is missing.
 - The **`POSITIONING` map** in `tests/positioning.spec.ts` — the same spine, in
   code, that hard-enforces each page carries its term.
 
 ## How to use
 
+0. **Explain it to the owner first.** Most owners have never worked through
+   positioning and will otherwise be asked about "competitive alternatives" and
+   "market categories" cold. Before the first question, say in the language the
+   owner writes in (per `new-website` §1), roughly:
+
+   > Before any text or design we work out your positioning: what you offer, for
+   > whom, and what they would use instead. The method is April Dunford's, from her
+   > book *Obviously Awesome*. It has five parts: the alternatives your customer has
+   > today, what you have that they do not, the value that creates and the proof for
+   > it, who cares most about that value, and the market category that makes the
+   > value obvious. The answers become the one sentence every page hangs off. It
+   > takes a few questions; there are no wrong answers.
+
+   This is an explanation, not an offer: positioning is required. Keep it to those
+   few sentences and move on to the questions.
 1. **Pull insights first.** Run `customer-research` for the real ICP, jobs-to-be-done
    and voice-of-customer, and `competitor-alternatives` (or a quick scan) for what
    customers use today. Positioning is grounded in those facts, not invented.
@@ -51,10 +68,19 @@ subject matter.
    4. **Target customer** — who cares *a lot* about that value; the best-fit
       segment described by traits you can identify, not "everyone".
    5. **Market category** — the context you place the offer in so the value is
-      obvious. Pick the category where your unique value wins.
+      obvious. Pick the category where your unique value wins. Search each
+      candidate before choosing (a trap test): if the results are a different
+      concept, the category will mis-file the site. When the only safe category is
+      also bland ("an app for business travelers"), keep it, and use the frame the
+      customer already holds as the **unlike** in the statement ("not another
+      itinerary app"), never as a title, slug or schema value. The familiar frame
+      does the explaining; the bland category keeps the site correctly filed.
 3. **Write the positioning statement** (one paragraph) and the boilerplate from
    the components. Derive the **core positioning term** — the short, plain phrase
-   you will thread through the home page.
+   you will thread through the home page. Optionally add a **human version** of the
+   statement: the same claim in the owner's own voice, for pitches and the About
+   page. The Dunford paragraph stays the reference; the human version may not add
+   a claim it lacks.
 4. **Set the per-page spine.** One positioning term per page in the
    `POSITIONING.md` table, then mirror it into the `POSITIONING` map in
    `tests/positioning.spec.ts`. The home page also declares `body` phrases (its
@@ -110,6 +136,9 @@ genuinely term-free page, add it to `POSITIONING_EXEMPT`.
 
 - **Quick fresh-eyes check of an existing site** → `website-positioning-check`
   (read-only diagnostic; come back here to rework the spine if it finds a problem).
+- **The home page told as the customer's story** (one-liner, three-step plan, seven-section
+  home page map) → `website-story` (optional; `new-website` offers it once after this
+  skill; it reads this file and never edits it, and loses every conflict with it).
 - **Tone of voice, EEAT, page copy** → `website-content-guide` (reads this file).
 - **Keyword / SERP research** → `seo-audit`. Positioning leads; keywords follow and
   must not bend the spine into stuffing.

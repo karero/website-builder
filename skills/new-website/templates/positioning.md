@@ -6,6 +6,7 @@
   H1, and the schema description. Built on April Dunford's framework (Obviously
   Awesome). Enforced by tests/positioning.spec.ts (the positioning spine).
   Owned by the website-positioning skill — do not restate positioning in CONTENT_GUIDE.md.
+  Further reading: https://www.aprildunford.com/books
 -->
 # [Site name] — positioning
 
@@ -49,6 +50,9 @@ expectations — pick the one where your unique value wins.
 
 - **Market category:** [category]
   ← becomes the home page's `body: ['[category]']` entry in tests/positioning.spec.ts
+- **Trap test:** [what a search for the category returns; safe, or a trap (the results are a different concept)]
+- **Familiar frame, as the foil (optional):** [the frame the customer already holds,
+  used only in the statement's "unlike"; never a title, slug or schema value]
 
 ## Positioning statement (one paragraph)
 
@@ -63,6 +67,8 @@ Fixed articles and pronouns can't agree with an arbitrary filled noun ("ein
 ..., die"). Write the sentence a native marketer would write, then extract the
 same fields from it.
 
+- **Human version (optional):** [the same claim in the owner's own voice, for pitches
+  and the About page; adds no claim the paragraph above lacks]
 - **Core positioning term:** [the short, plain phrase threaded through the home
   `<title>`, `<meta description>` and `<h1>` — keep it the SAME across all three]
 - **One-line boilerplate (≤ 12 words):** […]

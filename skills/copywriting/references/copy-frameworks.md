@@ -246,6 +246,23 @@ This tells a story and addresses objections.
 
 ---
 
+### Story-led Homepage (opt-in, `website-story`)
+
+```
+1. Header: h1 + the one-liner as first paragraph, direct CTA, up to three outcomes, customer image
+2. Stakes: the one to three lines in STORY.md §6 (what the visitor keeps missing), then the pivot
+3. Plan: titled three-step <ol>, direct CTA
+4. Value stack: the success lines in STORY.md §7 (up to three), life after
+5. Explanatory paragraph: the guide (empathy, then authority), top objections, "read more"
+6. Lead generator: the transitional CTA (omit if STORY.md leaves it blank)
+7. Junk drawer: FAQ, everything else, final direct CTA
+```
+
+Use only when the site has a `STORY.md`; the order and each section's job come from
+there. Every headline has the customer as its subject; one direct CTA label, repeated.
+
+---
+
 ### Compact Landing Page
 
 ```

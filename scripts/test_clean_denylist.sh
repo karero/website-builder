@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# test_clean_denylist.sh — drives scripts/check_clean.sh's private-name check against a
+# throwaway repo with a linked worktree.
+#
+# Why it exists: the name list is a gitignored file in the main checkout, so a linked
+# worktree has no copy of it, and the check skipped itself there and still printed OK.
+# Commits are made in worktrees, so the check was off exactly where it mattered: a client
+# name reached main that way (2026-09-27). These cases pin that a worktree uses the main
+# checkout's list, that a copy with no git still skips (and says so), and that this repo's
+# own short name in an issue or PR reference is not a leak. The names are made up; the
+# real list never appears in this repo.
+#
+# Usage: bash scripts/test_clean_denylist.sh
+set -u
+if ! command -v git >/dev/null 2>&1; then
+  echo "SKIP: test_clean_denylist.sh needs git (it builds a throwaway repo and worktree)"
+  exit 0
+fi
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+T="$(mktemp -d "${TMPDIR:-/tmp}/clean-denylist-test.XXXXXX")"
+trap 'rm -rf "$T"' EXIT
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null"
+fails=0
+# expect <label> <exit code wanted> <text the output must contain, or ""> <dir>
+expect() {
+  local out rc
+  out="$(cd "$4" && bash scripts/check_clean.sh 2>&1)"; rc=$?
+  if [ "$rc" -eq "$2" ] && { [ -z "$3" ] || printf '%s' "$out" | grep -qF -- "$3"; }; then
+    printf 'ok   %s\n' "$1"
+  else
+    printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$2" "$out" | sed '2,$s/^/     /'
+    fails=$((fails+1))
+  fi
+}
+
+R="$T/repo"; W="$T/worktree"; N="$T/nogit"
+mkdir -p "$R/scripts" "$R/skills" "$R/docs"
+cp "$HERE/check_clean.sh" "$R/scripts/"
+for f in README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile LICENSE; do : >"$R/$f"; done
+printf 'plain notes\n' >"$R/docs/notes.md"
+printf '# a skill\n' >"$R/skills/SKILL.md"
+printf 'scripts/.clean-denylist\n' >"$R/.gitignore"
+$git init -q "$R"; $git -C "$R" add -A; $git -C "$R" commit -qm base
+printf '# made-up names\nzorblequux\nkarero\n' >"$R/scripts/.clean-denylist"
+$git -C "$R" worktree add -q --detach "$W"
+
+expect "main checkout, clean: passes" 0 "OK —" "$R"
+expect "worktree, clean: passes without skipping the list" 0 "OK —" "$W"
+if (cd "$W" && bash scripts/check_clean.sh 2>&1) | grep -q 'denylist skipped'; then
+  printf 'FAIL worktree still reports the list as skipped\n'; fails=$((fails+1))
+fi
+
+printf 'ran the live check on zorblequux\n' >>"$W/docs/notes.md"
+expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
+
+# In the main checkout, where the list is read either way, so only the self-reference
+# allowance decides these cases.
+printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/website-builder\n' >"$R/docs/notes.md"
+expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
+printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
+expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
+printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
+expect "a longer name that starts like this repo: fails" 1 "website-builder-private" "$R"
+printf 'see other-karero/website-builder\n' >"$R/docs/notes.md"
+expect "a longer name that ends like this repo: fails" 1 "other-karero" "$R"
+printf 'plain notes\n' >"$R/docs/notes.md"
+printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
+expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
+rm "$R/docs/notes:old.md"
+# Hits in gitignored files are dropped; a file whose name only starts like an ignored path
+# is not ignored, and was dropped too when the name was cut at its first colon.
+printf 'docs/scratch\n' >>"$R/.gitignore"
+printf 'ran zorblequux\n' >"$R/docs/scratch"
+expect "a listed name in a gitignored file: passes" 0 "OK —" "$R"
+printf 'ran zorblequux\n' >"$R/docs/scratch:notes.md"
+expect "a listed name in a file named like an ignored path plus a colon: fails" 1 "scratch:notes.md" "$R"
+rm "$R/docs/scratch" "$R/docs/scratch:notes.md"
+# A pattern grep cannot compile is a scan error, which must fail the run, not read as clean.
+cp "$R/scripts/.clean-denylist" "$T/list.bak"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
+expect "a broken pattern in the list: fails as a scan error" 1 "scan error" "$R"
+cp "$T/list.bak" "$R/scripts/.clean-denylist"
+
+# A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
+# that checkout (it names the git folder instead), so the list cannot be found from a linked
+# worktree. What matters is that the check never gives a bare OK: it finds the name (should
+# git ever record that path) or says it skipped the list.
+S="$T/sep"; SW="$T/sep-worktree"
+mkdir -p "$S/scripts" "$S/skills" "$S/docs"
+cp "$R/scripts/check_clean.sh" "$R/.gitignore" "$S/scripts/" 2>/dev/null; mv "$S/scripts/.gitignore" "$S/"
+for f in README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile LICENSE; do : >"$S/$f"; done
+printf '# a skill\n' >"$S/skills/SKILL.md"; printf 'plain notes\n' >"$S/docs/notes.md"
+$git init -q --separate-git-dir "$T/sep.git" "$S"; $git -C "$S" add -A; $git -C "$S" commit -qm base
+printf 'zorblequux\n' >"$S/scripts/.clean-denylist"
+$git -C "$S" worktree add -q --detach "$SW"
+printf 'ran the live check on zorblequux\n' >>"$SW/docs/notes.md"
+out="$(cd "$SW" && bash scripts/check_clean.sh 2>&1)"; rc=$?
+if { [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qF zorblequux; } ||
+   { [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qF 'denylist skipped'; }; then
+  printf 'ok   worktree of a --separate-git-dir checkout: finds the name or says it skipped\n'
+else
+  printf 'FAIL worktree of a --separate-git-dir checkout: a bare OK (exit %s)\n' "$rc"; fails=$((fails+1))
+fi
+
+mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
+printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
+expect "no git, no list: skips the list and says so" 0 "denylist skipped" "$N"
+
+[ "$fails" -eq 0 ] && { echo "test_clean_denylist: all passed"; exit 0; }
+echo "test_clean_denylist: $fails failed"; exit 1

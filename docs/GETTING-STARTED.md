@@ -24,7 +24,10 @@ Just three things to begin:
    - **OpenAI Codex** or **Google Antigravity** also work.
 2. **A GitHub account** (free) — this is where your website's files will live safely.
    You'll make one at [github.com](https://github.com) if you don't have it; your assistant
-   will point you there when it's time.
+   will point you there when it's time. The account and the website in it are **yours**, so
+   we recommend protecting them: turn on two-factor sign-in and add a **passkey** (you then
+   sign in with your fingerprint, face or phone, and a stolen password alone is not enough to
+   get in). It's optional unless GitHub itself asks you for it.
 3. **Your computer.** macOS, Linux, or Windows are all fine.
 
 You do **not** need to install anything else right now. Tools like Node, git, or image
@@ -32,7 +35,8 @@ helpers get installed later — only if and when your site actually needs them, 
 assistant will offer to do it for you.
 
 A **Cloudflare account** (also free) comes up later, when you're ready to publish your site
-to the internet. You don't need it on day one.
+to the internet. You don't need it on day one. It's yours as well, so we'll recommend
+protecting it the same way, with two-factor sign-in (your fingerprint or face unlock works).
 
 ---
 
@@ -73,6 +77,9 @@ are *decisions*, not commands — things like:
 - What is this website for? Who is it for?
 - What should it be called?
 - Roughly what pages do you want?
+Later, once it has worked out with you what you offer and for whom, it asks one optional
+question: whether you want the home page told as a story, with your visitor as the hero.
+It explains the idea first and asks only once.
 
 Answer in your own words. There are no wrong answers, and you can change your mind.
 

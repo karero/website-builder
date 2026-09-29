@@ -1251,5 +1251,29 @@ class Safety(GeoTestCase):
             self.cli("--init", "--name", "X", "--lang", "de", "--country", "deu")
 
 
+
+class LinkToGoogleReport(GeoTestCase):
+    """The AI report links to the Google & Bing report (docs/reviews/SKILL-PLAN-gsc-report.md, D2),
+    only when that page exists, and search_report.py's local rebuild makes the link appear without
+    another AI request."""
+
+    def test_link_appears_only_when_the_google_page_exists(self):
+        self.setup_site()
+        os.environ["GEO_GEMINI_API_KEY"] = GKEY
+        stub.engine_reply("gemini", "Bäckerei Example.")
+        self.cli()
+        first = geo_check.build_report(DOMAIN).read_text()
+        self.assertNotIn("google.html", first)
+        google = geo_check.base_dir() / "reports" / DOMAIN / "google.html"
+        google.parent.mkdir(parents=True)
+        google.write_text("<p>x</p>")
+        hits_before = len(stub.STATE["hits"])
+        self.assertGreater(hits_before, 0)                 # the AI run above did reach the stub
+        page = geo_check.build_report(DOMAIN)
+        self.assertIn(f'href="../../../reports/{DOMAIN}/google.html"', page.read_text())
+        self.assertEqual((page.parent / "../../../reports" / DOMAIN / "google.html").resolve(), google.resolve())
+        self.assertEqual(len(stub.STATE["hits"]), hits_before)    # the rebuild made no AI request
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -120,7 +120,9 @@ One-time guided dashboard connect, then `git push` builds automatically — the 
 
 Cloudflare → **Workers & Pages → Create → Pages → Connect to Git** → pick the repo →
 framework preset **Astro**, build command `npm run build`, output directory `dist`. For a
-two-stage site, set **Production branch = `production`** afterwards (see new-website §4).
+two-stage site, choose **Production branch = `production`** in this same form (see
+new-website §4): connecting builds and publishes the production branch straight away, so
+leaving it at `main` would publish the preview first.
 
 ## C. Browser-assisted or manual walk-through — the fallback
 

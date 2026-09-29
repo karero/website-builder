@@ -1303,6 +1303,13 @@ def build_report(domain: str, run_id=None):
     n_ask = SAMPLES["broad"]
     google_line = (" Google's AI is asked once per question, because each lookup costs a paid search."
                    if any(e in SERP_ENGINES for e in engines) else "")
+    # The Google & Bing report (search_report.py) lives beside this folder; link to it when it
+    # exists. search_report.py rebuilds the newest AI page after writing its own, so the link
+    # appears without waiting for the next AI check.
+    google_link = ""
+    if (base_dir() / "reports" / site / "google.html").exists():
+        google_link = (f'<p>Also see: <a href="../../../reports/{h(site)}/google.html">How people find you '
+                       f'on Google</a> — visits, positions and searches, week by week.</p>')
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Do AI assistants name {h(name)}?</title>
 <style>{_CSS}</style></head><body><main>
@@ -1320,6 +1327,7 @@ and checked whether your name appears in the answer.</li>
 sometimes.{google_line}</li>
 </ul></div>
 {''.join(sections)}
+{google_link}
 <h2>What next?</h2>
 <p>Want AI assistants to name you more often? Ask Claude: <em>“How can I get AI assistants to recommend my
 business?”</em></p>

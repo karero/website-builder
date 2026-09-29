@@ -77,6 +77,8 @@ case "${CODEX_STUB:-ok}" in
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
         trap '' TERM; echo $$ >"$STUB_MARKS/codex-pid"; sleep 30 ;;
+  wrapped) # a launcher whose worker, one level further down, ignores SIGTERM; records its pid
+        sh -c 'trap "" TERM; echo $$ >"$STUB_MARKS/codex-worker"; sleep 30' & wait ;;
 esac
 EOF
 cat >"$T/bin/ollama" <<'EOF'
@@ -86,11 +88,29 @@ case "$1" in
           echo "Error: could not connect to ollama app, is it running?" >&2; exit 1
         fi
         printf 'NAME                ID      SIZE    MODIFIED\n%s    abc123  -       1 day ago\n' "$STUB_TAG"; exit 0 ;;
-  run)  : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$2" >"$STUB_MARKS/ollama-model"
-        printf '%s\n' "$3" >"$STUB_MARKS/ollama-prompt" ;;
+  run)  shift
+        if [ "$1" = --help ]; then   # STUB_OLDCLI: 1 = too old to know --hidethinking; failhelp =
+                                      # help fails; longword = the flag only inside a longer word
+          case "${STUB_OLDCLI:-}" in
+            1)        echo '      --verbose                 Show timings for response' ;;
+            failhelp) echo 'Error: unknown flag: --hidethinking' >&2; exit 1 ;;
+            longword) echo '      --hidethinking-format     (a different option)' ;;
+            *)        echo '      --hidethinking            Hide thinking output (if provided)' ;;
+          esac
+          exit 0
+        fi
+        if [ "$1" = --hidethinking ]; then : >"$STUB_MARKS/ollama-hidethinking"; shift; fi
+        : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$1" >"$STUB_MARKS/ollama-model"
+        printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
   ok)     printf '%s\n' '- RISK: stub ollama finding' '- NIT: another' ;;
+  think)  # a reasoning model, as the real CLI prints it: the trace only without --hidethinking.
+          # Its trace quotes the prompt's "could not read" advice (2026-09-27).
+          if [ ! -e "$STUB_MARKS/ollama-hidethinking" ]; then
+            printf '%s\n' 'Thinking...' 'The advice says: phrase it about the claim, not "I could not read".' '...done thinking.' ''
+          fi
+          printf '%s\n' 'RISK — retry.rb:12 — the retry loop never terminates on a stalled connection.' 'No BUG or NIT findings.' ;;
   429)    # the byte shape of the 2026-09-11 failure: spinner, cursor and sync-mode escapes
           printf '\033[?2026h\033[?25l\033[1G\342\240\231 \033[K\033[?25h\033[?2026l\033[?25l\033[2K\033[1G\033[?25hError: 429 Too Many Requests: you (someone) have reached your weekly usage limit, upgrade for higher limits\n' >&2
           exit 1 ;;
@@ -412,19 +432,26 @@ check "B-TAGCLASS guard: the tag that ran is the configured one, not the listed 
 
 # 23. Antigravity headless. With `--sandbox -p` and the MODE-line prompt, agy reached for a
 #     tool needing the "command" permission, headless mode auto-denied it, and the tier exited 0
-#     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and sends the text-only
-#     prompt, and loosens nothing: no --dangerously-skip-permissions. The exact argv pins that
-#     on both command lines, the default and the AGY_MODEL one. The stub cannot show the real
-#     CLI now answers; it shows the script asks for what the manual run that did answer used.
+#     with no output — on 1.2.9 and again on 1.2.11 (2026-09-26). The fix asks for plan mode and
+#     loosens nothing: no --dangerously-skip-permissions. The exact argv pins that on both command
+#     lines, the default and the AGY_MODEL one. The stub cannot show the real CLI now answers; it
+#     shows the script asks for what the manual run that did answer used.
+#     The prompt: the text-only one said "You have NO tools", which is false for agy, and on
+#     2026-09-27 (1.2.12, plan mode) the model tried `echo` to test it; the denial ended the run.
+#     So agy gets PROMPT_AGY, which asks for no tool calls without claiming there are none, and
+#     must never get the false sentence back.
 for m in "" stub-agy-model; do
   name="agy${m:+-model}"
   run "$name" WITH_ANTIGRAVITY=1 AGY_MODEL="$m" bash "$SCRIPT" "$T/change.diff"
   check "$name: agy counted alongside the pair" has "$name.out" "reviewers: codex OK, ollama-cloud OK, antigravity OK"
   check "$name: header names the model" has "$name.out" "## Independent review — antigravity/agy (${m:-CLI default}"
-  check "$name: header says plan mode, text-only prompt" has "$name.out" ", sandbox, plan mode, text-only prompt)"
+  check "$name: header says plan mode, told not to use tools" has "$name.out" ", sandbox, plan mode, told not to use tools)"
   want="argv=[--sandbox][--mode][plan]${m:+[--model][$m]}[-p][<prompt>]"
   check "$name: exact argv (sandbox + plan mode, nothing looser)" grep -qxF -- "$want" "$T/$name.marks/agy-args"
-  check "$name: sent the text-only prompt" grep -qF -- "You have NO tools" "$T/$name.marks/agy-prompt"
+  check "$name: sent the agy prompt" grep -qF -- "the refusal ends the run" "$T/$name.marks/agy-prompt"
+  check "$name: not told the false 'You have NO tools'" not_in "$T/$name.marks/agy-prompt" "You have NO tools"
+  check "$name: ollama, which really has no tools, still gets the text-only prompt" \
+    grep -qF -- "You have NO tools" "$T/$name.marks/ollama-prompt"
   check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
   check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
   # These pin the directory agy is LAUNCHED in, not an access boundary: its tools run elsewhere
@@ -475,6 +502,16 @@ check "stop: the script exits 130" rc_is stop 130
 # PID 1 may never reap it, so it can linger as <defunct> -- dead, not running.
 check "stop: the TERM-ignoring reviewer is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/stop.marks/codex-pid"
+# ...and a worker the CLI started itself, a grandchild of the tier's subshell (Codex, 2026-09-27).
+mkdir -p "$T/stopw.marks"
+env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL PATH="$T/bin:$PATH" HOME="$T/u" \
+  WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/stopw.raw" STUB_MARKS="$T/stopw.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=wrapped OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff" >"$T/stopw.out" 2>"$T/stopw.err" &
+spid=$!
+i=0; while [ ! -s "$T/stopw.marks/codex-worker" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/stopw.rc"
+check "stop: a TERM-ignoring worker under the CLI is gone too" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/stopw.marks/codex-worker"
 
 # 25. --verify: a verification round sends the prior findings in their own block, with the
 #     round's scope, to every tier; without the flag the prompt carries neither.
@@ -564,6 +601,41 @@ check "summary with the log off says so, reads no file named off" \
 REVIEW_LOG="$LOGT" bash "$HERE/review_log.sh" add --model x >/dev/null 2>&1
 check "add without --seat is refused" [ $? = 2 ]
 
+# 27b. Gates (Codex, 2026-09-27): grouping by repo + branch merged two gates on a reused branch
+#      into one. --round 1 now starts a gate whose id every later line carries, the host's late
+#      seats included; lines from before ids existed keep the old grouping.
+G="$T/gaterepo"; mkdir -p "$G"; git -C "$G" init -q
+GL="$T/gates.tsv"
+inrepo() { run "$1" REVIEW_LOG="$GL" sh -c 'cd "$0" && shift && exec "$@"' "$G" "${@:2}"; }
+inrepo gate1a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
+inrepo gate1b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+inrepo gate2a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
+inrepo gate2b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
+inrepo gate2c bash "$SCRIPT" "$T/change.diff" --depth normal --round 3
+inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
+check "gates: --round 1 leaves an id in the repo's git dir" [ -s "$G/.git/independent-review-gate" ]
+check "gates: every line carries a gate id" awk -F'\t' 'NR > 1 && ($14 == "" || $14 == "-") {bad=1} END {exit bad}' "$GL"
+check "gates: two ids, the late host seat in the second" \
+  [ "$(awk -F'\t' 'NR > 1 {print $14}' "$GL" | sort -u | grep -c .)" = 2 ]
+REVIEW_LOG="$GL" bash "$HERE/review_log.sh" summary >"$T/gates.out"
+check "gates: a reused branch counts as two gates, 2 and 3 rounds" grep -qE '^normal +2 +2\.5 +3$' "$T/gates.out"
+OLDL="$T/old.tsv"
+printf 'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\n' >"$OLDL"
+for r in 1 2 3; do printf '2026-09-20T10:00:00Z\tr\tb\th\tdiff\thigh\t%s\tcodex\tm\te\t10\t5\tOK\n' "$r" >>"$OLDL"; done
+REVIEW_LOG="$OLDL" bash "$HERE/review_log.sh" summary >"$T/old.out"
+check "gates: a log from before gate ids still groups by branch" grep -qE '^high +1 +3\.0 +3$' "$T/old.out"
+# Many seats writing a new log at once: no line lost. This cannot force the bad interleaving
+# (it never showed against the old code either); what closes it is that nothing is written
+# with `>`: the header is appended like every line, so a race costs at most a spare header.
+RL="$T/race.tsv"; i=0
+while [ $i -lt 40 ]; do REVIEW_LOG="$RL" bash "$HERE/review_log.sh" add --seat "s$i" & i=$((i + 1)); done; wait
+check "race: forty lines, none lost" [ "$(grep -vc '^date' "$RL")" = 40 ]
+check "race: a header first" [ "$(awk 'NR == 1 {print $1}' "$RL")" = date ]
+printf 'date\tx\n' >>"$RL"   # a spare header, as a lost race can leave: summary must skip it
+REVIEW_LOG="$RL" bash "$HERE/review_log.sh" summary >"$T/race.out"
+# The first table has one row per depth+seat: exactly the forty seats, nothing for the header.
+check "race: a spare header is not counted as a seat" [ "$(awk 'NR > 1 && NF == 0 {exit} NR > 1' "$T/race.out" | grep -c .)" = 40 ]
+
 # 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
 #     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, rides in a
 #     header FILE that is gone afterwards; the tokens reach the timings line and the cost log.
@@ -606,6 +678,110 @@ run apilocal PATH="$NOCLI" OLLAMA_MODEL=stub-local OLLAMA_HOST=127.0.0.1:11434 b
 check "apilocal: a local tag goes to OLLAMA_HOST" grep -qxF "http://127.0.0.1:11434/api/chat" "$T/apilocal.marks/curl-url"
 check "apilocal: with its tag unchanged" grep -qF '"model":"stub-local"' "$T/apilocal.marks/curl-body"
 check "apilocal: and stays a sanity pass" has apilocal.out "ollama-local NOT COUNTED (local model: sanity pass only)"
+
+# 29. --seat runs ONE named reviewer (2026-09-26: the wording pass and the final full read).
+run seatollama bash "$SCRIPT" "$T/change.diff" --seat ollama
+check "seat ollama: a successful single-seat run exits 0" rc_is seatollama 0
+check "seat ollama: only ollama ran" sh -c '[ -e "$1/ollama-ran" ] && [ ! -e "$1/codex-ran" ]' _ "$T/seatollama.marks"
+check "seat ollama: the summary names it alone" has seatollama.out "reviewers: ollama-cloud OK"
+check "seat ollama: the one-reviewer note says it was asked for" has seatollama.out "--seat ollama was requested"
+check "seat ollama: ...and when one reviewer is right" has seatollama.out "any other round needs the standard pair"
+run seatfirst bash "$SCRIPT" "$T/change.diff" --seat codex --first-success
+check "seat: with --first-success exits 2" rc_is seatfirst 2
+run seatwithagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --seat ollama
+check "seat: another seat with the Antigravity opt-in exits 2" rc_is seatwithagy 2
+run seatagyboth bash "$SCRIPT" "$T/change.diff" --seat agy --with-antigravity
+check "seat agy with --with-antigravity is allowed (same reviewer)" has seatagyboth.out "reviewers: antigravity OK"
+check "seat agy with --with-antigravity: exactly one Antigravity section, no other seat" \
+  sh -c '[ "$(grep -c "^## Independent review — antigravity" "$1/seatagyboth.out")" = 1 ] && [ ! -e "$1/seatagyboth.marks/codex-ran" ] && [ ! -e "$1/seatagyboth.marks/ollama-ran" ]' _ "$T"
+run seatcodex bash "$SCRIPT" "$T/change.diff" --seat codex
+check "seat codex: only codex ran" sh -c '[ -e "$1/codex-ran" ] && [ ! -e "$1/ollama-ran" ]' _ "$T/seatcodex.marks"
+run seatagy bash "$SCRIPT" "$T/change.diff" --seat agy
+check "seat agy: names Antigravity, so it runs without WITH_ANTIGRAVITY" has seatagy.out "reviewers: antigravity OK"
+run seatbad bash "$SCRIPT" "$T/change.diff" --seat gemini
+check "seat: an unknown seat exits 2" rc_is seatbad 2
+run seatlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only --seat codex
+check "seat: --local-only refuses an external seat, exit 2, nothing ran" \
+  sh -c '[ "$(cat "$1/seatlocal.rc")" = 2 ] && [ ! -e "$1/seatlocal.marks/codex-ran" ]' _ "$T"
+
+# 30. merge_link.sh (2026-09-26): the merge link's artifact, on real merges. Both reviewers of
+#     the change that introduced it found a way the one-line command lost a file: a path with a
+#     space (round 1) and an own edit the merge threw away (the final full read).
+ML="$HERE/merge_link.sh"
+if command -v git >/dev/null 2>&1; then
+  R="$T/mlrepo"; mkdir -p "$R"
+  (
+    cd "$R" && git init -q -b main && git config user.email t@t && git config user.name t
+    mkdir -p "dir with space" docs/reviews
+    echo base >"dir with space/f.txt"; echo base >own.txt; echo base >'[g]*.txt'; echo base >keep.txt
+    echo base >callee.txt; echo base >g1.txt; echo base >docs/reviews/trail.md
+    git add -A && git commit -qm base && git tag oldbase
+    git checkout -qb feat
+    echo feature >>"dir with space/f.txt"; echo "my change" >own.txt; echo feature >>'[g]*.txt'
+    echo feature >>keep.txt; echo round >>docs/reviews/trail.md
+    git commit -qam feat && git tag reviewed
+    git checkout -q main
+    echo main >"dir with space/f.txt"; echo "main change" >own.txt; echo main >callee.txt; echo main >g1.txt
+    git commit -qam main
+    git checkout -q feat
+    git merge -q main >/dev/null 2>&1 || true
+    printf 'resolved\n' >"dir with space/f.txt"        # a merge effect on a spaced path
+    git checkout --theirs own.txt                      # the merge throws the own edit away
+    git add -A && git commit -qm merge && git tag newhead
+    git tag newbase "$(git merge-base main HEAD)"
+  ) >/dev/null 2>&1
+  ( cd "$R" && bash "$ML" oldbase reviewed newbase ) >"$T/ml.out" 2>"$T/ml.err"; echo $? >"$T/ml.rc"
+  check "merge_link: exit 0" rc_is ml 0
+  check "merge_link: the spaced path's merge effect is in" has ml.out "+resolved"
+  check "merge_link: the own edit the merge threw away is in" has ml.out "-my change"
+  check "merge_link: a glob-character name is taken literally, matching no other file" lacks ml.out "b/g1.txt"
+  check "merge_link: an unmoved own file is not" lacks ml.out "b/keep.txt"
+  check "merge_link: the review trail is left out" lacks ml.out "docs/reviews/trail.md"
+  check "merge_link: a base-only file is not in, unless named" lacks ml.out "b/callee.txt"
+  ( cd "$R" && bash "$ML" oldbase reviewed newbase -- callee.txt ) >"$T/mlx.out" 2>&1
+  check "merge_link: an extra path the change calls is added" has mlx.out "+main"
+  ( cd "$R" && bash "$ML" newhead newhead newhead ) >"$T/mlempty.out" 2>&1; echo $? >"$T/mlempty.rc"
+  check "merge_link: nothing moved prints nothing (not the whole tree)" \
+    sh -c '[ "$(cat "$1/mlempty.rc")" = 0 ] && [ ! -s "$1/mlempty.out" ]' _ "$T"
+  ( cd "$R" && bash "$ML" oldbase no-such-rev newbase ) >/dev/null 2>&1; echo $? >"$T/mlbad.rc"
+  check "merge_link: an unknown revision exits 2" rc_is mlbad 2
+  # A rename is listed by its new name alone, so a merge that brings the old name back lost it
+  # (round 4, Codex): with both names kept the merge link printed nothing at all.
+  for mode in drop keep; do
+    R="$T/mlrename-$mode"; mkdir -p "$R"
+    (
+      cd "$R" && git init -q -b main && git config user.email t@t && git config user.name t
+      printf 'one\ntwo\nthree\nfour\nfive\nsix\n' >old.txt; echo base >other.txt
+      git add -A && git commit -qm base && git tag oldbase
+      git checkout -qb feat && git mv old.txt new.txt && echo "my edit" >>new.txt
+      git commit -qam rename && git tag reviewed
+      git checkout -q main && echo main >>other.txt && git commit -qam main
+      git checkout -q feat && git merge -q --no-commit --no-ff main
+      if [ "$mode" = drop ]; then git rm -qf new.txt; fi
+      git checkout main -- old.txt                     # the merge brings the old name back
+      git add -A && git commit -qm merge && git tag newbase "$(git merge-base main HEAD)"
+    ) >/dev/null 2>&1
+    ( cd "$R" && bash "$ML" oldbase reviewed newbase ) >"$T/mlrn-$mode.out" 2>&1
+    check "merge_link: a rename the merge undid ($mode the new name) shows the old name" has "mlrn-$mode.out" "old.txt"
+  done
+fi
+
+# 31. A reasoning model's trace is kept out of the answer (2026-09-27): its trace quoted the
+#     prompt's "could not read" advice, and the whole reply was rejected as not a review.
+run think OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+check "think: the CLI is asked to hide the trace" test -e "$T/think.marks/ollama-hidethinking"
+check "think: ollama-cloud counted, not FAILED" has think.out "reviewers: codex OK, ollama-cloud OK"
+check "think: the answer is printed, the trace is not" \
+  sh -c 'grep -qF "RISK — retry.rb:12" "$1" && ! grep -qF "Thinking..." "$1"' _ "$T/think.out"
+check "think: the model and prompt still reach the CLI" \
+  sh -c 'grep -qxF "$2" "$1/ollama-model" && [ -s "$1/ollama-prompt" ]' _ "$T/think.marks" "$STUB_TAG"
+run thinkold STUB_OLDCLI=1 OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+check "thinkold: a CLI without the flag is not given it" test ! -e "$T/thinkold.marks/ollama-hidethinking"
+check "thinkold: ...and still runs the model, as before this change" test -e "$T/thinkold.marks/ollama-ran"
+for how in failhelp longword; do   # round 1, Codex: a failed help, or the flag inside a longer word
+  run "think$how" STUB_OLDCLI=$how OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
+  check "think$how: the flag is not passed" test ! -e "$T/think$how.marks/ollama-hidethinking"
+done
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

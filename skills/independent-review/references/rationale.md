@@ -74,7 +74,7 @@ the reading code in the artifact, or expect to spend the round refuting.
    not cross-model (see the Independence rule below). Offer it after
    presenting results, don't run it unasked.
 4. **Antigravity — OPT-IN ONLY, never automatic.** Google Gemini via the
-   Antigravity CLI (`agy --sandbox --mode plan -p`, text-only prompt;
+   Antigravity CLI (`agy --sandbox --mode plan -p`, a prompt telling it not to use tools;
    `AGY_MODEL` overrides the CLI's default model — `run_agy` in
    `scripts/independent_review.sh` has the full call), free Antigravity login. The
    owner's Antigravity free-tier credits are scarce and get spent only when
@@ -215,7 +215,7 @@ not a standing free lane.
    written by the change itself; what counts is that its inputs go wrong at the merge-base.
 
    **DEFERRED is a status of its own** (point 4). For this gate a deferred BUG is closed: it does
-   not keep a round from being clean (6(a2)), does not count as an open BUG at the round cap (6(b)),
+   not keep a round from being clean (6(a2)), does not count as an open BUG in the round budget (6(b)),
    and a reviewer who raises it again without new evidence is making a re-raise (point 7). In the
    tracker it stays open, in the BUG table, until someone fixes it. The owner's sign-off carries
    over to later gates, but each gate's trail records DEFERRED, never fixed or refuted, together
@@ -253,7 +253,7 @@ not a standing free lane.
 
 ## Step 6 — why verification rounds are scoped and capped
 
-   **The round cap (6(b)): 3 rounds per artifact, counted in rounds, not per finding.** (Until
+   **Rounds are counted per artifact, not per finding (6(b)).** (Until
    2026-09-26 it counted per finding id, so each new RISK in round 3 earned its own round and the
    cap never fired — the 5–13-round gates.)
 
@@ -261,9 +261,9 @@ Codified 2026-09-26 from the trails: RISK counts per round ran 6 → 5 → 5 →
 change and never reached zero on most multi-round gates, because each round re-read the whole
 change and "an unsupported load-bearing claim" can always be found somewhere in it. Gates ran 5,
 6, 7, 8, 9 and 13 rounds. Scoping a verification round to the fixes and the change since, making
-out-of-scope RISK/NIT a follow-up, and counting the cap in rounds removes that loop. The
-BUG-trend extension (up to round 5) is the owner's: BUGs that are coming down but not fast enough
-earn more rounds; anything else goes to the owner.
+out-of-scope RISK/NIT a follow-up, and counting the cap in rounds removes that loop. (The cap
+first adopted here — 3 rounds, extended to 5 only while the BUG count fell — was replaced the same
+day by the round budget; see the next section for why.)
 
    **Two verification statuses, not one — "verified" alone is what makes 6(c) ambiguous.**
    `locally_verified` = the author reproduced, demonstrated, or ruled out the claim themselves,
@@ -340,8 +340,8 @@ earn more rounds; anything else goes to the owner.
    is not itself non-convergence — see (a) above — it's a slower signal the artifact's surface
    area is bigger than first estimated, worth naming explicitly rather than silently forcing
    STOP). (This is an early-exit heuristic layered on top of, not instead of, point 6(b)'s round
-   cap — 3 rounds, or up to 5 while BUGs are falling — which bounds iteration regardless of how
-   these signals read.) When triggered: step back and redesign the
+   budget — past round 3 only a substantive BUG earns a round, past round 8 the owner decides —
+   which bounds iteration regardless of how these signals read.) When triggered: step back and redesign the
    component (patch-churn on a wrong design converges never), or take the open items to the owner
    as a decision — escalation can postpone, re-scope, or reject the release, but it cannot waive a
    BUG that's still open. It can defer a BUG out of the change only under point 5's one
@@ -413,3 +413,28 @@ a handful of trails, not from measurements. It records seconds and tokens per se
 codex's own token count where it prints one, the host's sub-agent report for its seats — locally,
 outside any repo, so measuring adds no paperwork. Ollama tokens are not captured: getting them
 needs a change to the ollama call that could not be tested when this was written.
+
+## Round budget, wording pass, final full read, merge links — the backend evidence
+
+Codified 2026-09-26 after reading the review trails of ten of the largest tasks in the owner's
+backend repo (261 gated tasks, 782 rounds; 30% of all rounds after round 3, 15% after round 5).
+Long gates came in two kinds, and a count-based cap cannot tell them apart:
+
+- **Productive chains.** Each round found a real defect, often in the previous round's own fix:
+  an itinerary fix (six real regressions in rounds 2–7), an authentication change (concurrency
+  bugs through round 15), an admin error-handling change (rounds 5 and 7), a data-deletion change
+  (round 6: an account left half-erased), an authentication design plan (rounds B4–B5). BUGs per round ran
+  flat or noisy — 3,3,2,3,1,2,0 and 1,0,8,5,3 — so "extend only while the BUG count falls" would
+  have stopped five of the ten tasks around round 3–4 and missed those bugs.
+- **Waste.** After its round 7 the itinerary fix ran 20 more rounds without a new product
+  bug: wording drift, test-assertion tightening, two known issues re-raised every round, and three
+  full re-reviews after merges of the base. The design plan's late rounds spent most findings on the review
+  file's own arithmetic; one waived race was re-raised six times.
+
+Hence: rounds past 3 are earned by what the last round found (a substantive BUG), not by a
+count's direction; after the last such round, wording gets one narrow pass by one seat; a merge
+of the base is reviewed where it touches the change, not in full. And because delta rounds never
+reread untouched text, while two specs' most important late bugs sat in exactly such text (one
+found at round 14 by a fresh model reading the whole document, one wrong since round 1), plans,
+specs and High-depth changes end with one full read by a reviewer new to the artifact. None of
+the trails recorded time or tokens; the cost log exists so the next such review can.
