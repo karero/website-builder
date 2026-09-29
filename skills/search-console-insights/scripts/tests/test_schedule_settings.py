@@ -58,5 +58,27 @@ class SiteSettingsFile(unittest.TestCase):
         self.assertEqual((self.settings()["country"], self.settings()["csv"]), ("", ""))
 
 
+    def test_the_report_reads_what_install_writes(self):
+        """Second-model review: the scheduler and track.sh each write this record, and nothing
+        checked that the report reads the scheduler's copy as the weekly job's settings."""
+        import sys
+        from unittest import mock
+        sys.path.insert(0, str(SCRIPTS))
+        import search_report as sr
+        own = str(self.home / "own.csv")      # read by the report, so never a shared path
+        r = self.run_cmd("install", "Example-Bakery.DE", "Sourdough,Brot München",
+                         GSC_COUNTRY="DEU", GSC_HISTORY_CSV=own)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with mock.patch.dict(os.environ, {"HOME": str(self.home)}):
+            s, _ = sr.resolve_settings("example-bakery.de", SimpleArgs())
+        self.assertTrue(s["record_used"])
+        self.assertEqual(s["keywords"], ["Sourdough", "Brot München"])
+        self.assertEqual((s["country"], s["csv"]), ("deu", own))
+        self.assertTrue(s["from"].startswith("your weekly check on "))
+
+
+class SimpleArgs:
+    keywords = country = csv = None
+
 if __name__ == "__main__":
     unittest.main()
