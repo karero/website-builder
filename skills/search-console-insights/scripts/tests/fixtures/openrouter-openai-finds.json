@@ -1,0 +1,95 @@
+{
+ "id": "gen-1790459301-L93unhRYgfbC8bsuTGaE",
+ "object": "chat.completion",
+ "created": 1790459301,
+ "model": "openai/gpt-6-luna",
+ "provider": "OpenAI",
+ "system_fingerprint": null,
+ "service_tier": "default",
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "completed",
+   "message": {
+    "role": "assistant",
+    "content": "Yes—look for **“Sauerteigbrot”** on the menu. These Munich bakeries explicitly offer sourdough bread:\n\n- **Julius Brantner Brothandwerk** — Three locations: Schwabing (Nordendstraße 23), Altstadt (Kreuzstraße 1) and Haidhausen (Pariser Straße 38). Its rotating range includes organic breads; the sourdough baguette is listed for Saturdays. ([julius-brantner.de](https://www.julius-brantner.de/en/))\n- **Bageri** — A small bakery in the Schlachthofviertel at Adlzreiterstraße 21. Its breads are leavened exclusively with sourdough. It’s open Thursday–Sunday, and bread is sold while supplies last. ([bageri.de](https://bageri.de/menu))\n- **Hofpfisterei** — A Munich bakery chain with many branches and a large range of natural-sourdough breads, including rye and whole-grain loaves. ([hofpfisterei.de](https://www.hofpfisterei.de/hpf_sortiment_natursauerteigbrote.php?utm_source=openai))\n- **REIS** — In the city’s south, with its main bakery in Solln at Festingstraße 4 and other local branches. It describes its rye, mixed-rye and spelt loaves as sourdough breads. ([plasma.cafe](https://plasma.cafe/brot/))\n- **Bäckerei Zöttl** — Has multiple Munich locations; its Bauernlaib is made with the bakery’s own sourdough. ([zoettl.de](https://zoettl.de/))\n\nFor a dedicated sourdough bakery, **Bageri** is a good bet; for a wider choice of traditional rye-style loaves, try **Hofpfisterei**. Check opening hours and daily availability before heading out.",
+    "refusal": null,
+    "annotations": [
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.julius-brantner.de/en/",
+       "title": "",
+       "start_index": 340,
+       "end_index": 398
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://bageri.de/menu",
+       "title": "",
+       "start_index": 597,
+       "end_index": 634
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.hofpfisterei.de/hpf_sortiment_natursauerteigbrote.php?utm_source=openai",
+       "title": "",
+       "start_index": 782,
+       "end_index": 886
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://plasma.cafe/brot/",
+       "title": "",
+       "start_index": 1066,
+       "end_index": 1108
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://zoettl.de/",
+       "title": "",
+       "start_index": 1219,
+       "end_index": 1252
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 31576,
+  "completion_tokens": 1026,
+  "total_tokens": 32602,
+  "cost": 0.04327595,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 4385,
+   "cache_write_tokens": 0,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.04327595,
+   "upstream_inference_prompt_cost": 0.00276295,
+   "upstream_inference_completions_cost": 0.000513
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 620,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  },
+  "server_tool_use_details": {
+   "web_search_requests": 4
+  }
+ }
+}

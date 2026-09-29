@@ -1,0 +1,45 @@
+{
+ "id": "gen-1790459200-CDDNFgy5poNospyFs30l",
+ "object": "chat.completion",
+ "created": 1790459200,
+ "model": "google/gemini-3.5-flash-lite",
+ "provider": "Google",
+ "system_fingerprint": null,
+ "service_tier": "default",
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "STOP",
+   "message": {
+    "role": "assistant",
+    "content": "Munich has experienced a major artisanal bread revival over the last few years, and there are several fantastic bakeries specializing in long-fermented, traditional sourdough (known as *Sauerteigbrot* in German). \n\nHere are the top bakeries in Munich where you can buy exceptional sourdough bread:\n\n### 1. **AZUL – Brot & Kaffee**\n* **The Vibe:** A dedicated micro-bakery focused purely on traditional, long-fermented sourdough baking using organic, regional grains.\n* **Why go:** Their loaves have a fantastic, blistered dark crust and an open, airy crumb. Because they bake in smaller batches, it’s best to go early or check their schedule. \n* **Location:** Maxvorstadt (Türkenstraße area)\n\n### 2. **Kaso Bio-Bäckerei**\n* **The Vibe:** A fully organic (*Bio*) bakery that takes traditional German and international bread-making seriously. \n* **Why go:** They offer a great variety of heavy, nutrient-dense traditional German sourdoughs (like *Dinkel-Sauerteig* / spelt) as well as rustic, French-style boules. \n* **Locations:** Several branches across Munich (including Schwabing and Haidhausen).\n\n### 3. **Bäckerei & Konditorei Wimmer**\n* **The Vibe:** A traditional Munich institution with dozens of locations. While it is a larger chain, they still use traditional sourdough starters for many of their rustic dark breads.\n* **Why go:** It's the most convenient option if you need a solid, reliable everyday sourdough (*Fränkischer Landbrot* or *Hausbrot*) and can't travel to a niche artisanal bakery.\n* **Locations:** Everywhere in Munich.\n\n### 4. **Hofpfisterei**\n* **The Vibe:** Perhaps the most famous Bavarian specialty bread maker. They focus exclusively on natural sourdough fermentation using 100% Bavarian organic grain (*Bioland*).\n* **Why go:** They don't use any chemical additives or commercial yeast—just sourdough, water, salt, and spices (like fennel and coriander, which are traditional in Bavarian bread). Their \"Pfister-Mischbrot\" is iconic.\n* **Locations:** Ubiquitous throughout Munich (you’ll find small wooden-interior shops in almost every neighborhood).\n\n### 5. **Rischart**\n* **The Vibe:** A historic Munich family bakery with cafes and shops all over the city. \n* **Why go:** Alongside their famous pastries and pretzels, they bake several excellent sourdough loaves, particularly their rustic country loaves (*Bauernbrot*). \n* **Locations:** Major hubs like Marienplatz, Hauptbahnhof, and various neighborhoods.\n\n### 6. **Cinnamood / Local Specialty Cafes**\n* *Note:* Keep an eye out for independent specialty coffee shops (like **Man Versus Machine** or **Standl 20** at Elisabethmarkt), as they often partner with local micro-bakeries to sell fresh loaves of artisan sourdough on weekends.\n\n---\n\n### Tips for buying sourdough in Munich:\n* **Ask for 100% *Sauerteig*:** In Germany, many bakeries mix sourdough with commercial yeast to speed up production. If you want true, slow-fermented sourdough, ask: *\"Ist dieses Brot rein aus Natur-Sauerteig ohne Hefe?\"* (Is this bread purely from natural sourdough without commercial yeast?)\n* **Go Early:** Authentic artisanal loaves sell out fast, especially on Saturday mornings.",
+    "refusal": null
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 9,
+  "completion_tokens": 763,
+  "total_tokens": 772,
+  "cost": 0.0019102,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.0019102,
+   "upstream_inference_prompt_cost": 2.7e-06,
+   "upstream_inference_completions_cost": 0.0019075
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 0,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  }
+ }
+}

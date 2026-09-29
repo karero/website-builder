@@ -1,0 +1,209 @@
+{
+ "id": "gen-1790459342-leNTWEtc3pfoJrJu0NG5",
+ "object": "chat.completion",
+ "created": 1790459342,
+ "model": "perplexity/sonar",
+ "provider": "Perplexity",
+ "system_fingerprint": null,
+ "service_tier": null,
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "stop",
+   "message": {
+    "role": "assistant",
+    "content": "Several bakeries in Munich are reported to sell **sourdough bread**, including **Julius Brantner Brothandwerk**, **Hofpfisterei**, and **Cumpanum**.[2][5][10]\n\nOther Munich bakeries mentioned for sourdough or sourdough-style bread include **Bageri**, **Brotraum**, **Neulinger**, **Zeit für Brot**, **Brotatelier**, **Brotzeit/BrotZeit Bäckerei**, and **Hofbräuhaus-Kunstmühle**.[1][6][9][12]\n\nA few specific examples from the results:\n- **Julius Brantner Brothandwerk** — described as offering organic sourdough breads and long-fermented sourdough.[2][5][15]\n- **Hofpfisterei** — described as specializing in organic sourdough breads and using long sourdough fermentation.[10][12]\n- **Cumpanum** — described as making baked goods with real homemade sourdough.[4][8]\n- **Bageri** — recommended by Munich locals as offering outstanding sourdough bread.[1]\n- **Brotraum** — mentioned by locals as having a tasty sourdough loaf (“Weizen”).[1]\n\nIf you want, I can turn this into a **short shortlist by neighborhood** or a **map-friendly list with addresses**.",
+    "refusal": null,
+    "annotations": [
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.reddit.com/r/Munich/comments/1rptmpy/best_sourdough_bakeries_in_munich/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://tablejourney.com/germany/munich/bakeries/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://clarascrumbs.substack.com/p/top-3-munich-bakeries",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.rosewoodhotels.com/en/munich/experiences/munichs-most-respected-baker-julius-brantner-brothandwerk",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.reddit.com/r/Munich/comments/1g9az4x/your_must_go_bakery_recommendations/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.reddit.com/r/Munich/comments/1dyjr46/lifestyle_clubs_and_sourdough_bread/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/list/geoCategory/8197/best-bread-shops-in-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.reddit.com/r/Munich/comments/17qhlgg/what_are_your_favourite_breads_and_from_which/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.bahnhof.de/en/muenchen-hbf/shopping-and-eating/hofpfisterei",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.munich.travel/en/topics/eat-drink/bakeries-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.munich.travel/en/topics/eat-drink/back-ma-s",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/list/geoCategory/4627/best-bakeries-in-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.happycow.net/reviews/julius-brantner-munich-237136",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.cremeguides.com/en/munich/julius-brantner-brothandwerk-the-glazed-organic-bakery/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.munich.travel/en/topics/urban-districts/local-love-munich/expert-talk-julius-brantner",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://theculturetrip.com/europe/germany/articles/where-to-find-munichs-best-bakeries",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.falstaff.com/en/the-best/the-10-best-bakeries-in-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 11,
+  "completion_tokens": 320,
+  "total_tokens": 331,
+  "cost": 0.00533,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.00533,
+   "upstream_inference_prompt_cost": 1.1e-05,
+   "upstream_inference_completions_cost": 0.005319
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 0,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  }
+ }
+}

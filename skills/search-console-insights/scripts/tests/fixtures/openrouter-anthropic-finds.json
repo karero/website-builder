@@ -1,0 +1,180 @@
+{
+ "id": "gen-1790459325-QE2AWRfqZtUyO825szj5",
+ "object": "chat.completion",
+ "created": 1790459325,
+ "model": "anthropic/claude-sonnet-5",
+ "provider": "Claude Platform on AWS",
+ "system_fingerprint": null,
+ "service_tier": "default",
+ "choices": [
+  {
+   "index": 0,
+   "logprobs": null,
+   "finish_reason": "stop",
+   "native_finish_reason": "end_turn",
+   "message": {
+    "role": "assistant",
+    "content": "Munich has several well-known bakeries celebrated for their sourdough (Sauerteig) bread. Here are the top options:\n\n**Hofpfisterei (Ludwig Stocker Hofpfisterei GmbH)**\nThis is Munich's most famous sourdough specialist, with numerous branches throughout the city. The Hofpfisterei bakery manually manages its sourdough for 24 hours or more. No one markets their natural sourdough more than Hofpfisterei. It offers a delightful selection of freshly baked goods, including delicious sourdough bread, large pretzels, and mouthwatering cakes, and reviewers highly recommend their sourdough bread, large pretzels, tomato and mozzarella bread, and Frankenloaf.\n\n**Julius Brantner Brothandwerk**\nAn organic bakery with multiple locations (including Maxvorstadt, Schwabing, and the Altstadt). In Julius Brantner's organic bakery of the same name in Munich's Maxvorstadt, wonderful sourdough bread is baked in organic quality. Currently, in addition to rolls, the fixed assortment consists of bread such as sourdough and Munich loaf with a perfect crust. Reviewers rave about the buttery, crispy croissants and exceptional sourdough bread at this bakery, which is hailed as the ultimate place for bread and pastries.\n\n**Bäckerei Cumpanum**\nLocated on Nockherberg, this bakery focuses on alternative-grain sourdough. Since its opening in January 2022, this bakery has been offering a delectable selection of baked goods made with real homemade sourdough and without wheat flour, using alternative grains like spelt, rye, emmer, and einkorn. One reviewer called it \"the best sourdough bread I've ever had,\" noting \"the quality and taste are exceptional.\"\n\n**Echt Jetzt**\nA specialty option for those needing gluten-free sourdough. Anyone who suffers from coeliac disease or gluten intolerance should be familiar with the bakery echt jetzt in Barer Straße, which bakes 100% gluten-free. If you want to see for yourself, you can watch how the homemade rice flour-based sourdough is prepared in the open bakery. Yeast is also dispensed with and homemade fermentation water is used instead, which is prepared daily with dried fruit.\n\n**Riedmair**\nA traditional family bakery also known for its sourdough craft — the family bakery Riedmair keeps three starters going for its bread.\n\nIf you're looking for classic, widely available sourdough, Hofpfisterei is the most established choice with branches across the city, while Julius Brantner and Cumpanum are favored for more artisanal, organic approaches.",
+    "refusal": null,
+    "annotations": [
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.munich.travel/en/topics/eat-drink/traditional-bakers-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.munich.travel/en/topics/eat-drink/traditional-bakers-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/place/details/6835991/ludwig-stocker-hofpfisterei-gmbh",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/place/details/6835991/ludwig-stocker-hofpfisterei-gmbh",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.cremeguides.com/en/munich/julius-brantner-brothandwerk-the-glazed-organic-bakery/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.cremeguides.com/en/munich/julius-brantner-brothandwerk-the-glazed-organic-bakery/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/place/details/6118104",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/list/geoCategory/4627/best-bakeries-in-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://wanderlog.com/list/geoCategory/4627/best-bakeries-in-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://rausgegangen.de/en/blog/good-bakeries-in-munich/",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     },
+     {
+      "type": "url_citation",
+      "url_citation": {
+       "url": "https://www.munich.travel/en/topics/eat-drink/traditional-bakers-munich",
+       "title": "",
+       "start_index": 0,
+       "end_index": 0,
+       "content": ""
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "usage": {
+  "prompt_tokens": 13981,
+  "completion_tokens": 1293,
+  "total_tokens": 15274,
+  "cost": 0.050892,
+  "is_byok": false,
+  "prompt_tokens_details": {
+   "cached_tokens": 0,
+   "cache_write_tokens": 0,
+   "audio_tokens": 0,
+   "video_tokens": 0
+  },
+  "cost_details": {
+   "upstream_inference_cost": 0.050892,
+   "upstream_inference_prompt_cost": 0.027962,
+   "upstream_inference_completions_cost": 0.01293
+  },
+  "completion_tokens_details": {
+   "reasoning_tokens": 54,
+   "image_tokens": 0,
+   "audio_tokens": 0
+  },
+  "server_tool_use_details": {
+   "web_search_requests": 1
+  }
+ }
+}

@@ -57,6 +57,19 @@ def _payload(engine, spec, finds):
     raise ValueError(engine)
 
 
+ROUTER_PREFIX = {"google/": "gemini", "openai/": "openai", "anthropic/": "anthropic", "perplexity/": "perplexity"}
+
+
+def _router_payload(spec, body):
+    """OpenRouter's OpenAI-compatible chat completion, as it answers our requests."""
+    # Perplexity's Sonar always searches (no plugin needed or allowed); others only with the plugin.
+    finds = bool(body.get("plugins")) or str(body.get("model", "")).startswith("perplexity/")
+    ann = [{"type": "url_citation", "url_citation": {"url": u, "title": ""}} for u in (spec["sources"] if finds else [])]
+    return {"model": body.get("model"), "choices": [{"finish_reason": "stop",
+            "message": {"role": "assistant", "content": spec["text"], "annotations": ann}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 100, "cost": 0.0012}}
+
+
 def _engine_of(path):
     if ":generateContent" in path:
         return "gemini"
@@ -87,6 +100,16 @@ class _H(BaseHTTPRequestHandler):
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         STATE["hits"].append(("POST", self.path, dict(self.headers), body))
+        if self.path == "/api/v1/chat/completions":          # OpenRouter
+            engine = next((e for p, e in ROUTER_PREFIX.items() if str(body.get("model", "")).startswith(p)), None)
+            spec = STATE["engines"].get(engine) or STATE.get("router_error")
+            if not spec:
+                return self._send(500, '{"error": {"message": "no stub for this model"}}')
+            if spec.get("status", 200) != 200:
+                return self._send(spec["status"], spec["body"] or '{"error": {"message": "stubbed failure"}}')
+            if spec.get("raw") is not None:       # a reply given verbatim (cut off, empty, …)
+                return self._send(200, json.dumps(spec["raw"]))
+            return self._send(200, json.dumps(_router_payload(spec, body)))
         engine = _engine_of(self.path)
         if STATE.get("delay", {}).get(engine):
             time.sleep(STATE["delay"][engine])
@@ -113,4 +136,4 @@ def env_for(base_url):
     return {"GEO_TEST_MODE": "1", "GEO_HOMEPAGE_URL": base_url + "/",
             "GEO_GEMINI_BASE_URL": base_url, "GEO_OPENAI_BASE_URL": base_url,
             "GEO_ANTHROPIC_BASE_URL": base_url, "GEO_PERPLEXITY_BASE_URL": base_url,
-            "GEO_SERPAPI_BASE_URL": base_url}
+            "GEO_SERPAPI_BASE_URL": base_url, "GEO_OPENROUTER_BASE_URL": base_url}

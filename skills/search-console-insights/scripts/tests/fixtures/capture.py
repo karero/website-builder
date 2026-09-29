@@ -25,7 +25,8 @@ QUESTION = "Which bakeries in Munich sell sourdough bread?"
 QUESTION_FOR = {"google-overview": "how to make sourdough bread at home"}
 META_LISTS = {"references", "citations", "results", "annotations"}
 BLANK = {"title", "snippet", "thumbnail", "source", "source_icon", "cited_text", "favicon",
-         "date", "last_updated", "page_age", "displayed_link"}
+         "date", "last_updated", "page_age", "displayed_link",
+         "content"}   # OpenRouter's url_citation carries a page excerpt here (only inside those lists)
 SERP_KEEP = {"google-ai-mode": ("reconstructed_markdown", "text_blocks", "references"),
              "google-overview": ("ai_overview",)}
 
@@ -34,7 +35,8 @@ def trim(o, meta=False):
     if isinstance(o, dict):
         out = {}
         for k, v in o.items():
-            if k.startswith("encrypted_"):
+            # encrypted blobs, and OpenRouter's reasoning traces/signatures: never read by the tests
+            if k.startswith("encrypted_") or k in ("reasoning", "reasoning_details", "signature", "thoughtSignature"):
                 continue
             if meta and k in BLANK and isinstance(v, str):
                 out[k] = ""
@@ -78,6 +80,29 @@ def capture(out_dir: Path):
             (out_dir / f"{eng}-{mode}.json").write_text(blob + "\n", encoding="utf-8")
             text, model, sources, searched = g.parse_response(eng, data)
             print(eng, mode, "chars", len(text), "model", model, "sources", len(sources), "searched", searched)
+    capture_openrouter(out_dir, secrets)
+
+
+def capture_openrouter(out_dir: Path, secrets):
+    """The default route: openrouter-<engine>-<mode>.json, when GEO_OPENROUTER_API_KEY is set."""
+    key = g.setting(g.ROUTER_VAR)
+    if not key:
+        print("openrouter skipped: no key")
+        return
+    for eng in g.CHAT_ENGINES:
+        for mode in g.modes_for(eng, "openrouter"):
+            method, url, headers, payload = g.build_request(eng, mode, QUESTION, {}, key, "openrouter")
+            try:
+                data = trim(g._send(method, url, headers, payload, [*secrets, key], time.monotonic() + 180))
+            except g.EngineError as e:
+                print("openrouter", eng, mode, "ERROR", e)
+                continue
+            blob = json.dumps(data, ensure_ascii=False, indent=1)
+            if key in blob or any(k in blob for k in secrets):
+                raise SystemExit(f"openrouter {eng} {mode}: a key appears in the response — not saved")
+            (out_dir / f"openrouter-{eng}-{mode}.json").write_text(blob + "\n", encoding="utf-8")
+            text, model, sources, searched, cost = g._openrouter_parse(data)
+            print("openrouter", eng, mode, "chars", len(text), "sources", len(sources), "searched", searched, "cost", cost)
 
 
 if __name__ == "__main__":

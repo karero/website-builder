@@ -22,9 +22,10 @@ docs/reviews/SKILL-PLAN-geo-check.md in the website-builder repo.
   geo_check.py <domain> --engines gemini,openai  a run limited to some engines
   geo_check.py --keys | --prepare-env            which keys are set (never shown) / add the empty lines
 
-Keys: GEO_GEMINI_API_KEY, GEO_OPENAI_API_KEY, GEO_ANTHROPIC_API_KEY, GEO_PERPLEXITY_API_KEY and
-the skill's SERPAPI_KEY (used only for sites with --google on), plus optional GEO_<ENGINE>_MODEL
-overrides — from the environment or ~/.config/gsc-insights/.env. The generic OPENAI_API_KEY etc.
+Keys: GEO_OPENROUTER_API_KEY (the default route: one prepaid key for all four chat assistants),
+or direct GEO_GEMINI_API_KEY, GEO_OPENAI_API_KEY, GEO_ANTHROPIC_API_KEY, GEO_PERPLEXITY_API_KEY; and
+the skill's SERPAPI_KEY (used only for sites with --google on); plus optional GEO_<ENGINE>_MODEL /
+GEO_<ENGINE>_OPENROUTER_MODEL overrides — from the environment or ~/.config/gsc-insights/.env. The generic OPENAI_API_KEY etc.
 are never read, so a key exported in a developer shell is never billed by accident.
 
 Exit (weekly run): 0 no problems · 1 problems (each printed as a ⚠ line) · 3 not set up.
@@ -69,12 +70,17 @@ ENGINES = ["gemini", "openai", "anthropic", "perplexity", "google-ai-mode", "goo
 # (serp_check.py) already uses; the chat engines get GEO_* names of their own.
 SERP_ENGINES = {"google-ai-mode", "google-overview"}
 KEY_VARS = {e: ("SERPAPI_KEY" if e in SERP_ENGINES else f"GEO_{e.upper()}_API_KEY") for e in ENGINES}
+CHAT_ENGINES = [e for e in ENGINES if e not in SERP_ENGINES]
+# The default route: one OpenRouter key and one prepaid balance for all four chat assistants.
+# OpenRouter uses each provider's OWN web search for these models ("native"), so "ChatGPT with
+# web search on" is still ChatGPT's search. A direct provider key is used only without it.
+ROUTER_VAR = "GEO_OPENROUTER_API_KEY"
 SAMPLES = {"broad": 3, "narrow": 3, "branded": 1}
 SLOTS = list(SAMPLES)
 MODES = ["knows", "finds"]
 FIELDS = ["date", "run_id", "site", "engine", "mode", "slot", "rev", "query",
           "model_requested", "models_reported", "config_rev", "ok", "named",
-          "cited_own", "cited_domains", "searched", "status"]
+          "cited_own", "cited_domains", "searched", "status", "route"]
 
 CALL_TIMEOUT = 120      # seconds per engine call — web search answers can take a while
 # Per engine, so a slow engine early in the list can't starve the ones after it.
@@ -134,6 +140,15 @@ def setting(name: str) -> str:
 
 def load_keys() -> dict:
     return {e: setting(v) for e, v in KEY_VARS.items()}
+
+
+def route_for(engine: str, keys: dict, router_key: str):
+    """("openrouter" | "direct" | None, key): OpenRouter first for the chat assistants."""
+    if engine in CHAT_ENGINES and router_key:
+        return "openrouter", router_key
+    if keys.get(engine):
+        return "direct", keys[engine]
+    return None, ""
 
 
 def redact(msg: str, keys) -> str:
@@ -367,14 +382,22 @@ FINDS_SUPPORTED = {"gemini": False, "openai": True, "anthropic": True, "perplexi
 KNOWS_SUPPORTED = {e: e not in SERP_ENGINES for e in ENGINES}
 
 
-def model_for(engine: str) -> str:
+OPENROUTER_MODELS = {"gemini": "google/gemini-3.5-flash-lite", "openai": "openai/gpt-6-luna",
+                     "anthropic": "anthropic/claude-sonnet-5", "perplexity": "perplexity/sonar"}
+
+
+def model_for(engine: str, route: str = "direct") -> str:
     if engine in SERP_ENGINES:
         return DEFAULT_MODELS[engine]
+    if route == "openrouter":
+        return setting(f"GEO_{engine.upper()}_OPENROUTER_MODEL") or OPENROUTER_MODELS[engine]
     return setting(f"GEO_{engine.upper()}_MODEL") or DEFAULT_MODELS[engine]
 
 
-def modes_for(engine: str):
-    return [m for m in MODES if (KNOWS_SUPPORTED if m == "knows" else FINDS_SUPPORTED)[engine]]
+def modes_for(engine: str, route: str = "direct"):
+    """Through OpenRouter, Perplexity's Sonar always searches: no "from memory" there."""
+    knows = KNOWS_SUPPORTED[engine] and not (route == "openrouter" and engine == "perplexity")
+    return [m for m in MODES if (knows if m == "knows" else FINDS_SUPPORTED[engine])]
 
 
 def samples_for(engine: str, slot: str) -> int:
@@ -384,7 +407,52 @@ def samples_for(engine: str, slot: str) -> int:
     return 1 if engine in SERP_ENGINES else SAMPLES[slot]
 
 
-def build_request(engine, mode, question, cfg, key):
+def _openrouter_request(engine, mode, question, key):
+    """OpenRouter's OpenAI-compatible chat call. With web search on, the "web" plugin with
+    engine "native" makes OpenRouter use the provider's own search (never a substitute)."""
+    if mode == "finds" and not FINDS_SUPPORTED[engine]:
+        raise ValueError(f"{engine} is never asked with search (see FINDS_SUPPORTED)")
+    base = override("GEO_OPENROUTER_BASE_URL", "https://openrouter.ai")
+    body = {"model": model_for(engine, "openrouter"),
+            "messages": [{"role": "user", "content": question}],
+            # Without a cap OpenRouter reserves credit for the model's longest possible answer
+            # (65k tokens) and refuses the call on a small balance; these answers need far less.
+            "max_tokens": 4000,          # includes the model's hidden reasoning; answers need far less
+            "usage": {"include": True}}          # the response then carries the call's real cost
+    # Perplexity's Sonar searches by itself and has no "native" search option on OpenRouter
+    # (verified 2026-09-26: HTTP 404 "does not support native web search"), so it gets no plugin.
+    if mode == "finds" and engine != "perplexity":
+        body["plugins"] = [{"id": "web", "engine": "native"}]
+    return ("POST", f"{base}/api/v1/chat/completions",
+            {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
+             "X-Title": "website-builder AI check"}, body)
+
+
+def _openrouter_parse(data):
+    """(text, model, cited URLs, searched, cost) from an OpenRouter chat completion."""
+    choice = (data.get("choices") or [{}])[0]
+    if choice.get("finish_reason") in ("length", "content_filter"):
+        billed = (data.get("usage") or {}).get("cost")        # billed all the same
+        raise EngineError(f"incomplete answer ({choice['finish_reason']})",
+                          cost=billed if isinstance(billed, (int, float)) else None)
+    msg = choice.get("message") or {}
+    text = msg.get("content") or ""
+    urls = [a.get("url_citation", {}).get("url", "") for a in msg.get("annotations") or []
+            if isinstance(a, dict) and a.get("type") == "url_citation"]
+    if not urls:   # some replies list their sources only at the top level
+        urls = [u for u in data.get("citations") or [] if isinstance(u, str)]
+    usage = data.get("usage") or {}
+    searches = (usage.get("server_tool_use_details") or {}).get("web_search_requests")
+    # The reply's own search counter when it has one (seen in real replies, not documented);
+    # otherwise "it cited a web page".
+    searched = searches > 0 if isinstance(searches, int) else bool(urls)
+    cost = usage.get("cost")
+    return text, data.get("model", ""), urls, searched, cost if isinstance(cost, (int, float)) else None
+
+
+def build_request(engine, mode, question, cfg, key, route="direct"):
+    if route == "openrouter":
+        return _openrouter_request(engine, mode, question, key)
     model = model_for(engine)
     country = cfg.get("country")
     finds = mode == "finds"
@@ -525,9 +593,11 @@ NO_ANSWER_SAYS = {"no AI Overview shown": "Google showed no AI Overview",
 class EngineError(Exception):
     """A failed call. `fatal` = retrying this engine this run can't help (bad key, missing
     permission, no credit, a request the API rejects), so the run stops asking it."""
-    def __init__(self, message, fatal=False):
+    def __init__(self, message, fatal=False, status=None, cost=None):
         super().__init__(message)
         self.fatal = fatal
+        self.status = status   # the HTTP status, when the failure was an HTTP answer
+        self.cost = cost       # what the call cost even though its answer is unusable (OpenRouter)
 
 
 def _error_obj(r):
@@ -565,7 +635,7 @@ def _error_line(r, all_keys) -> str:
 
 
 def _send(method, url, headers, payload, all_keys, deadline):
-    """One HTTP call with bounded 429 backoff. Returns the parsed JSON body."""
+    """One HTTP call with bounded backoff on 429 and 408 (a timeout). Returns the parsed JSON body."""
     delay = 0 if os.environ.get("GEO_TEST_MODE") == "1" else 5
     for attempt in range(3):
         remaining = deadline - time.monotonic()
@@ -579,13 +649,13 @@ def _send(method, url, headers, payload, all_keys, deadline):
             # SerpApi's key is a query parameter, so a transport error's URL carries it.
             raise EngineError(redact(f"{type(e).__name__}: {e}", all_keys)) from None
         if r.status_code == 429 and _out_of_credit(r):
-            raise EngineError(_error_line(r, all_keys), fatal=True)
-        if r.status_code == 429 and attempt < 2:
+            raise EngineError(_error_line(r, all_keys), fatal=True, status=r.status_code)
+        if r.status_code in (408, 429) and attempt < 2:
             time.sleep(delay * (attempt + 1))
             continue
         if r.status_code != 200:
-            fatal = 400 <= r.status_code < 500 and r.status_code != 429
-            raise EngineError(_error_line(r, all_keys), fatal=fatal)
+            fatal = 400 <= r.status_code < 500 and r.status_code not in (408, 429)   # 408 = timeout
+            raise EngineError(_error_line(r, all_keys), fatal=fatal, status=r.status_code)
         try:
             return r.json()
         except ValueError:
@@ -597,9 +667,11 @@ _SERP_NO_RESULT = re.compile(r"hasn't returned any results|no results", re.IGNOR
 _SERP_FATAL = re.compile(r"api key|run out of searches|plan|account", re.IGNORECASE)
 
 
-def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
-    method, url, headers, payload = build_request(engine, mode, question, cfg, key)
+def call_engine(engine, mode, question, cfg, key, all_keys, deadline, route="direct"):
+    """(text, model, sources, searched, cost) — cost in USD when the route reports it, else None."""
+    method, url, headers, payload = build_request(engine, mode, question, cfg, key, route)
     data = _serp_checked(engine, _send(method, url, headers, payload, all_keys, deadline), all_keys)
+    cost = None
     if engine == "google-overview":
         ov = (data or {}).get("ai_overview") or {}
         if ov.get("page_token") and not ov.get("text_blocks"):
@@ -611,23 +683,27 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline):
                 {"engine": "google_ai_overview", "page_token": ov["page_token"], "api_key": key},
                 all_keys, deadline), all_keys)
     try:
-        text, model, sources, searched = parse_response(engine, data or {})
+        if route == "openrouter":
+            text, model, sources, searched, cost = _openrouter_parse(data or {})
+        else:
+            text, model, sources, searched = parse_response(engine, data or {})
     except (ValueError, AttributeError, TypeError) as e:
         raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
     # Provider JSON is outside input: only strings go on to be counted, so a malformed
     # citation (an object where a URL should be) can't crash the run after the call.
+    # A reply we can't use was still billed on OpenRouter: its cost goes with the error.
     if not isinstance(text, str):
-        raise EngineError("unexpected response shape: answer is not text")
+        raise EngineError("unexpected response shape: answer is not text", cost=cost)
     # A snippet cut mid-emoji arrives as a lone surrogate, which can't be written as UTF-8.
     text = text.encode("utf-8", "replace").decode("utf-8")
     sources = [x.encode("utf-8", "replace").decode("utf-8") for x in sources if isinstance(x, str)] \
         if isinstance(sources, list) else []
     if not text.strip():
         # An answer we couldn't read is a failed call, not "the business wasn't named".
-        raise EngineError("empty answer (nothing to read in the response)")
+        raise EngineError("empty answer (nothing to read in the response)", cost=cost)
     sources = [x for x in (sources if isinstance(sources, list) else []) if isinstance(x, str) and x]
     model = (model if isinstance(model, str) else str(model or "")).encode("utf-8", "replace").decode("utf-8")
-    return text, model, sources, bool(searched)
+    return text, model, sources, bool(searched), cost
 
 
 def _serp_checked(engine, data, all_keys):
@@ -727,15 +803,16 @@ def run(domain: str, only=None) -> int:
               "the homepage — ask Claude to review them (--check-drift, then --confirm --expect <page code>).")
 
     keys = load_keys()
-    all_keys = [k for k in keys.values() if k]
-    usable = [e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))]
+    router_key = setting(ROUTER_VAR)
+    all_keys = [k for k in [*keys.values(), router_key] if k]
+    usable = [e for e in ENGINES if route_for(e, keys, router_key)[0] and (e not in SERP_ENGINES or cfg.get("google"))]
     queries = [q for q in cfg.get("queries", []) if q.get("text")]
     if not usable and keys.get("google-ai-mode") and not cfg.get("google"):
         problems.append(f"the AI check has no engine it may ask: SERPAPI_KEY is set but Google is off "
-                        f"for this site (turn on with --google on, or add e.g. {KEY_VARS['gemini']})")
+                        f"for this site (turn on with --google on, or add {ROUTER_VAR}: one key for all four assistants)")
     elif not usable:
         problems.append("the AI check is set up but has no engine key "
-                        f"(add e.g. {KEY_VARS['gemini']}=... to {base_dir() / '.env'})")
+                        f"(add {ROUTER_VAR}=... to {base_dir() / '.env'}: one key for all four assistants)")
     if not queries:
         problems.append("the AI check has no questions yet (ask Claude to draft them)")
 
@@ -745,6 +822,8 @@ def run(domain: str, only=None) -> int:
     pause = 0 if os.environ.get("GEO_TEST_MODE") == "1" else 1.0
     rows, checked, failed, not_set_up = [], [], [], []
     write_errors = set()
+    run_cost = []
+    route_dead = {}   # a fatal error on a shared route (no OpenRouter credit) stops every engine on it
 
     for engine in ENGINES:
         if only and engine not in only:
@@ -754,18 +833,19 @@ def run(domain: str, only=None) -> int:
                   f"turn on with: {shlex.quote(sys.executable)} {shlex.quote(os.path.abspath(__file__))} {site} --google on")
             not_set_up.append(engine)
             continue
-        key = keys[engine]
+        route, key = route_for(engine, keys, router_key)
         deadline = time.monotonic() + ENGINE_BUDGET
         if not key:
-            print(f"  {engine}: skipped — no {KEY_VARS[engine]} (add it to {base_dir() / '.env'})")
+            hint = f"{ROUTER_VAR} (one key for all four) or {KEY_VARS[engine]}" if engine in CHAT_ENGINES else KEY_VARS[engine]
+            print(f"  {engine}: skipped — no {hint} (add it to {base_dir() / '.env'})")
             not_set_up.append(engine)
             continue
         if not queries:
             continue
         engine_ok = 0
         engine_err = None
-        dead = None  # set by a fatal error: the rest of this engine's calls are skipped
-        for mode in modes_for(engine):
+        dead = route_dead.get(route) if route == "openrouter" else None  # the rest of the calls are skipped
+        for mode in modes_for(engine, route):
             for q in queries:
                 slot, n = q["slot"], samples_for(engine, q["slot"])
                 ok = named = cited = searched = no_overview = 0
@@ -776,12 +856,21 @@ def run(domain: str, only=None) -> int:
                         errors.append(dead)
                         continue
                     try:
-                        text, model, sources, did_search = call_engine(
-                            engine, mode, q["text"], cfg, key, all_keys, deadline)
+                        text, model, sources, did_search, cost = call_engine(
+                            engine, mode, q["text"], cfg, key, all_keys, deadline, route)
+                        if route == "openrouter":
+                            run_cost.append(cost)          # None = OpenRouter reported no price
                     except EngineError as e:
                         errors.append(str(e))
+                        if route == "openrouter" and e.cost is not None:
+                            run_cost.append(e.cost)          # a cut-off answer is still billed
                         if e.fatal:
                             dead = f"{e} (not retried)"
+                            # Only account-wide answers stop the other assistants on the route:
+                            # a bad key (401) or no credit (402). A per-model error (e.g. 404
+                            # "no native search" for one model) stops that assistant alone.
+                            if route == "openrouter" and e.status in (401, 402):
+                                route_dead[route] = dead
                         continue
                     except Exception as e:  # noqa: BLE001 — keep the run's other rows (Rule 12: still reported)
                         errors.append(redact(f"unexpected {type(e).__name__}: {e}", all_keys)[:240])
@@ -803,7 +892,7 @@ def run(domain: str, only=None) -> int:
                         answers.mkdir(parents=True, exist_ok=True)
                         (answers / f"{engine}-{mode}-{slot}-{i}.txt").write_text(
                             f"# engine={engine} mode={mode} slot={slot} rev={q['rev']} "
-                            f"model={model} searched={'yes' if did_search else 'no'}\n"
+                            f"model={model} searched={'yes' if did_search else 'no'} route={route}\n"
                             f"# question: {q['text']}\n\n{text}\n\n# sources:\n"
                             + "".join(f"{s}\n" for s in sources), encoding="utf-8")
                     except (OSError, UnicodeError) as e:
@@ -816,7 +905,7 @@ def run(domain: str, only=None) -> int:
                 rows.append({
                     "date": today, "run_id": run_id, "site": site, "engine": engine,
                     "mode": mode, "slot": slot, "rev": q["rev"], "query": q["text"],
-                    "model_requested": model_for(engine),
+                    "model_requested": model_for(engine, route),
                     "models_reported": "|".join(sorted(models)),
                     "config_rev": config_rev(cfg), "ok": ok,
                     "named": "" if branded else named,
@@ -826,6 +915,7 @@ def run(domain: str, only=None) -> int:
                     "searched": searched if mode == "finds" else "",
                     "status": (f"{len(errors)} of {n} failed" if errors else
                                no_answer_status if no_overview and no_overview == ok else "ok"),
+                    "route": route,
                 })
         if engine_err:
             failed.append(engine)
@@ -841,6 +931,12 @@ def run(domain: str, only=None) -> int:
             problems.append(f"history write failed ({e}) — this run added nothing to the trend")
 
     print(f"  engines: {len(checked)} checked, {len(failed)} failed, {len(not_set_up)} not set up")
+    if run_cost:
+        priced = [c for c in run_cost if c is not None]
+        unknown = len(run_cost) - len(priced)
+        # Replies, not answers: a cut-off or empty reply is billed but is not an answer.
+        print(f"  cost of this run via OpenRouter: ${sum(priced):.3f} ({len(priced)} replies"
+              + (f"; cost unknown for {unknown} more)" if unknown else ")"))
     if rows:
         print(f"  answers: {answers}")
         try:
@@ -880,7 +976,7 @@ def trend(domain: str) -> int:
     last = [r for r in rows if last_run[r["engine"]] == r["run_id"]]
     cfg = load_config(domain) or {}
     keys = load_keys()
-    on = {e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))}
+    on = {e for e in ENGINES if route_for(e, keys, setting(ROUTER_VAR))[0] and (e not in SERP_ENGINES or cfg.get("google"))}
     eng_ok = {r["engine"] for r in last if _ok(r)} & on
     eng_failed = {r["engine"] for r in last if "failed" in r.get("status", "")} & on
     print(f"═══ Does AI name you? — named / answers; ▲ = named more often ═══")
@@ -929,6 +1025,8 @@ def trend(domain: str) -> int:
             causes.append("model changed")
         if prev["config_rev"] != now["config_rev"]:
             causes.append("settings changed")
+        if (prev.get("route") or "direct") != (now.get("route") or "direct"):   # older rows had no column: all direct
+            causes.append("route changed")
         dagger = f"  ‡ {', '.join(causes)} — not directly comparable" if causes else ""
         print(f"{head} named {prev['named']}/{_ok(prev)} ({prev['date']}) → "
               f"{now['named']}/{_ok(now)}{cite} ({now['date']}) {mark}{dagger}{note}")
@@ -1035,12 +1133,12 @@ def _counts(r):
     return _ok(r), int(r.get("named") or 0)
 
 
-def _cell(r, engine, mode):
+def _cell(r, engine, mode, route=None):
     """(css class, main words, small print) for one assistant x mode on one question."""
     if r is None:
         if mode == "finds" and engine == "gemini":
             return "na", "— not asked", "Google's rules don't allow checking Gemini's web answers"
-        if mode == "knows" and engine in SERP_ENGINES:
+        if mode == "knows" and (engine in SERP_ENGINES or (engine == "perplexity" and route == "openrouter")):
             return "na", "—", "always searches the web"
         return "na", "—", "not checked yet"
     ok, planned = _ok(r), samples_for(engine, r["slot"])
@@ -1090,13 +1188,18 @@ def build_report(domain: str, run_id=None):
     for r in sorted(rows, key=lambda r: r["run_id"]):
         latest[(r["engine"], r["mode"], r["slot"])] = r
     run_id = run_id or max(r["run_id"] for r in latest.values())
+    keys = load_keys()
+    router = setting(ROUTER_VAR)
+    # An answer in a mode the current route can't ask (Perplexity "from memory" after a switch to
+    # OpenRouter) is history, not a current result.
+    latest = {k: r for k, r in latest.items()
+              if k[1] in modes_for(k[0], route_for(k[0], keys, router)[0] or "direct")}
     names = cfg.get("names", [])
     name = names[0] if names else site
     h = html.escape
     queries = {q["slot"]: q for q in cfg.get("queries", [])}
     scored = [s for s in QUESTION_LABEL if s in queries]
-    keys = load_keys()
-    on = [e for e in ENGINES if keys[e] and (e not in SERP_ENGINES or cfg.get("google"))]
+    on = [e for e in ENGINES if route_for(e, keys, router)[0] and (e not in SERP_ENGINES or cfg.get("google"))]
     engines = [e for e in on if any(k[0] == e for k in latest)]
     any_stale = False
 
@@ -1106,7 +1209,8 @@ def build_report(domain: str, run_id=None):
         parts = []
         for i, fp in enumerate(files, 1):
             _, text, sources = read_answer(fp)
-            src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in sources[:12]) + "</div>") if sources else ""
+            uniq = list(dict.fromkeys(sources))[:12]      # a reply may cite the same page several times
+            src = ("<div class='sources'>Sources: " + " ".join(_link(s) for s in uniq) + "</div>") if uniq else ""
             label = f"Answer {i} of {len(files)}" if len(files) > 1 else "The answer"
             parts.append(f"<details><summary>{label}</summary>"
                          f"<div class='answer'>{_mark_names(_light_markdown(text), names)}</div>{src}</details>")
@@ -1160,7 +1264,7 @@ def build_report(domain: str, run_id=None):
             cells = []
             for mode in ("finds", "knows"):
                 r = latest.get((e, mode, slot))
-                cls, main, note = _cell(r, e, mode)
+                cls, main, note = _cell(r, e, mode, route_for(e, keys, router)[0])
                 star = ""
                 if r is not None and _stale(r, q):
                     star, any_stale = " *", True
@@ -1196,6 +1300,8 @@ def build_report(domain: str, run_id=None):
     dates = sorted({r["date"] for r in latest.values()})
     when = dates[-1] if len(dates) == 1 else f"{dates[0]} to {dates[-1]}"
     not_set_up = [ENGINE_LABEL[e] for e in ENGINES if e not in engines]
+    via_router = [ENGINE_LABEL[e] for e in engines
+                  if any(r.get("route") == "openrouter" for k, r in latest.items() if k[0] == e)]
     n_ask = SAMPLES["broad"]
     google_line = (" Google's AI is asked once per question, because each lookup costs a paid search."
                    if any(e in SERP_ENGINES for e in engines) else "")
@@ -1227,7 +1333,7 @@ sometimes.{google_line}</li>
 <h2>What next?</h2>
 <p>Want AI assistants to name you more often? Ask Claude: <em>“How can I get AI assistants to recommend my
 business?”</em></p>
-<p class="muted small">{'* = this answer was to an earlier version of the question; the next weekly check asks the new one. ' if any_stale else ''}{('Not set up: ' + ', '.join(not_set_up) + '. ') if not_set_up else ''}Each weekly check writes a new page like this one. To see the latest,
+<p class="muted small">{'* = this answer was to an earlier version of the question; the next weekly check asks the new one. ' if any_stale else ''}{('Not set up: ' + ', '.join(not_set_up) + '. ') if not_set_up else ''}{('Asked through OpenRouter, which uses each assistant’s own web search: ' + ', '.join(via_router) + '. ') if via_router else ''}Each weekly check writes a new page like this one. To see the latest,
 ask Claude: “Show me my AI report for {h(site)}.” Every answer is also saved as a text file under {h(str(geo_dir() / "answers" / site))}.</p>
 </main></body></html>"""
     out = geo_dir() / "reports" / site / f"{run_id}.html"
@@ -1238,6 +1344,7 @@ ask Claude: “Show me my AI report for {h(site)}.” Every answer is also saved
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
 
+ROUTER_HINT = "openrouter.ai → Credits: prepay 5–10 USD/EUR → Keys → Create Key (one key for all four)"
 ENV_HINTS = {
     "gemini": "aistudio.google.com → Get API key (free; in the EU/UK/CH also turn on billing)",
     "openai": "platform.openai.com → add credit under Billing → API keys → Create",
@@ -1251,10 +1358,16 @@ ENV_HINTS = {
 def show_keys() -> int:
     """Which engines have a key — never the values. For the owner walkthrough."""
     keys = load_keys()
+    router = setting(ROUTER_VAR)
     print(f"Key file: {base_dir() / '.env'}")
+    print(f"  {ROUTER_VAR:<24} {'set ✓' if router else 'empty — ' + ROUTER_HINT}  "
+          f"(the default route for {', '.join(CHAT_ENGINES)})")
     for var in dict.fromkeys(KEY_VARS.values()):          # SERPAPI_KEY serves two engines
         engines = [e for e in ENGINES if KEY_VARS[e] == var]
-        state = "set ✓" if keys[engines[0]] else f"empty — {ENV_HINTS[engines[0]]}"
+        if router and engines[0] in CHAT_ENGINES:
+            state = ("set, not used: OpenRouter is set" if keys[engines[0]] else "not needed: OpenRouter is set")
+        else:
+            state = "set ✓" if keys[engines[0]] else f"empty — {ENV_HINTS[engines[0]]}"
         print(f"  {var:<24} {state}  ({', '.join(engines)})")
     return 0
 
@@ -1265,12 +1378,14 @@ def prepare_env() -> int:
     env = base_dir() / ".env"
     env.parent.mkdir(parents=True, exist_ok=True)
     text = env.read_text(encoding="utf-8") if env.exists() else ""
-    names = list(dict.fromkeys(KEY_VARS.values()))  # both Google engines share one key
+    names = [ROUTER_VAR, "SERPAPI_KEY", KEY_VARS["gemini"]]   # the default route, Google's AI, the free Gemini option
     missing = [v for v in names
                if not re.search(r"(?m)^\s*(?:export\s+)?" + v + r"\s*=", text)]
     if missing:
         block = ("\n# Weekly AI check (does AI name you?) — paste each key after the = sign,\n"
-                 "# no spaces, no quotes. Leave a line empty to skip that engine.\n"
+                 "# no spaces, no quotes. GEO_OPENROUTER_API_KEY is one key for ChatGPT, Claude,\n"
+                 "# Gemini and Perplexity; SERPAPI_KEY is only for Google's AI (optional);\n"
+                 "# GEO_GEMINI_API_KEY is the free way to start (Gemini 'from memory' only).\n"
                  + "".join(f"{v}=\n" for v in missing))
         with open(env, "a", encoding="utf-8") as f:
             f.write(("" if not text or text.endswith("\n") else "\n") + block)

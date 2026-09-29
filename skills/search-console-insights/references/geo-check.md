@@ -26,22 +26,42 @@ gets one answer. It is **never scored**, because an answer repeats the name even
 says "I don't know it". Read it instead to see whether the engine describes the business
 correctly.
 
-## The engines, and what each needs
+## The engines, and how to pay for them
 
-| Engine | Knows you | Finds you | Key (in `~/.config/gsc-insights/.env`) | Cost |
-|---|---|---|---|---|
-| Gemini | ✓ | — (see below) | `GEO_GEMINI_API_KEY` | free key from Google AI Studio (see EU note) |
-| OpenAI | ✓ | ✓ | `GEO_OPENAI_API_KEY` | paid, prepaid credit |
-| Anthropic | ✓ | ✓ | `GEO_ANTHROPIC_API_KEY` | paid, prepaid credit |
-| Perplexity | ✓ | ✓ | `GEO_PERPLEXITY_API_KEY` | paid, prepaid credit |
-| Google AI Mode | — | ✓ | `SERPAPI_KEY` (the same key as the Top-10 check) | SerpApi searches |
-| Google AI Overview | — | ✓ | `SERPAPI_KEY` | SerpApi searches |
+**The simple way (the default): one OpenRouter key.** OpenRouter is a service that passes
+the questions on to ChatGPT, Claude, Gemini and Perplexity, and bills all four from **one
+prepaid balance**. It uses each assistant's **own** web search, so "ChatGPT with web search on"
+is what a ChatGPT user gets. The owner tops up once (5 or 10 USD/EUR is plenty to start; see
+Costs for how long that lasts) and adds one key. They pay what the AI companies charge, plus
+a top-up fee (5.5%, at least $0.80); OpenRouter says it doesn't store the questions or answers
+by default.
 
-Every engine is optional. Without its key an engine is skipped with a one-line hint; the
-report says e.g. "1 checked, 0 failed, 5 not set up". The script reads **only** these names
-(the `GEO_*` ones and the skill's own `SERPAPI_KEY`), never a generic `OPENAI_API_KEY`, so a key
-someone exported for other work is never billed by accident. `--engines google-ai-mode,gemini`
-asks only the listed engines for one run.
+| Assistant | From memory | With web search on | Key (in `~/.config/gsc-insights/.env`) |
+|---|---|---|---|
+| ChatGPT, Claude | ✓ | ✓ | `GEO_OPENROUTER_API_KEY` (or a direct key, below) |
+| Gemini | ✓ | — (see below) | `GEO_OPENROUTER_API_KEY` (or a free direct key) |
+| Perplexity | — via OpenRouter; ✓ with a direct key | ✓ | `GEO_OPENROUTER_API_KEY` (or a direct key) |
+| Google AI Mode, AI Overview | — | ✓ | `SERPAPI_KEY` (optional, the same key as the Top-10 check) |
+
+- **With an OpenRouter key, it is used for all four chat assistants.** Direct keys
+  (`GEO_GEMINI_API_KEY`, `GEO_OPENAI_API_KEY`, `GEO_ANTHROPIC_API_KEY`,
+  `GEO_PERPLEXITY_API_KEY`) are only used when there is no OpenRouter key. The report says which
+  route each assistant went through, and a switch between routes is marked in the trend.
+- **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
+  pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
+  barely matters, because its questions name the place ("… in Munich-Schwabing"). A business that
+  sells everywhere gets search results without a country, which can lean towards the US; if that
+  matters, use direct keys or name the market in the question.
+- **Perplexity through OpenRouter only answers "with web search on".** Its model always searches
+  by itself, so there is no "from memory" answer to collect on that route (checked: even "What is
+  2 + 2?" came back with 20 web sources).
+- **A free start:** a direct Gemini key from Google AI Studio costs nothing (outside the EU/UK/CH)
+  and gives Gemini's "from memory" column. Everything else needs a paid route.
+
+Every engine is optional. Without a key an engine is skipped with a one-line hint; the report
+says e.g. "1 checked, 0 failed, 5 not set up". The script reads **only** these names, never a
+generic `OPENAI_API_KEY`, so a key someone exported for other work is never billed by accident.
+`--engines google-ai-mode,gemini` asks only the listed engines for one run.
 
 **Google's own AI answers** come through SerpApi: **AI Mode** (Google's chat-style answer) and
 the **AI Overview** (the box above the normal results). Both are live Google search by nature,
@@ -60,7 +80,7 @@ mentions and keeping the answers to compare week to week is exactly that, so Gem
 only asked without search. Answers without search are not covered by that clause.
 
 **The free path, and its limit.** A free Gemini key gives "Knows you" only. For "Finds you"
-the owner needs one paid key. Perplexity or OpenAI are the cheapest at this volume; see Costs.
+the owner needs one paid key: one OpenRouter key covers all four assistants; see Costs.
 
 **EU / UK / Switzerland (a cautious reading, not legal advice).** Google's terms say: "You
 may use only Paid Services when making API Clients available to users in the European
@@ -68,19 +88,27 @@ Economic Area, Switzerland, or the United Kingdom." Whether an owner running thi
 for themselves counts is unclear. So tell owners there: **turn on billing for the Gemini
 key**. At this volume that should cost next to nothing, but check the pricing page.
 
-### Costs (rough, from the providers' price pages in September 2026 — recheck before quoting)
+### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
-Per site per week: 3 broad + 3 narrow + 1 branded = 7 calls per mode per engine.
+A full weekly check for **one site** asks ChatGPT, Claude, Gemini and Perplexity 42 times in total.
+Through OpenRouter it cost **$0.72 a week per site**. The top-up fee comes on top when buying credit:
+5.5%, at least $0.80, so a $5 top-up costs $5.80 and a $10 top-up $10.80.
 
-| Engine | Model (default) | Roughly per week |
+| Prepaid once | Lasts for one site | For three sites |
 |---|---|---|
-| Gemini | `gemini-3.5-flash-lite` | free (outside the EU/UK/CH); fractions of a cent with billing |
-| OpenAI | `gpt-6-luna` | ~$0.10: web search is $10 per 1,000 calls, tokens are tiny |
-| Anthropic | `claude-sonnet-5` | ~$0.20–0.50: $10 per 1,000 searches, more per token |
-| Perplexity | `perplexity/sonar` | ~$0.05: $2.50 per 1,000 searches |
-| Google AI Mode + AI Overview | — | 6–9 SerpApi searches per site (an overview sometimes needs a second call); check the plan's monthly allowance on the SerpApi dashboard |
+| 5 USD/EUR | about 6 weeks | about 2 weeks |
+| 10 USD/EUR | about 13 weeks | about 4 weeks |
 
-Override any model with `GEO_<ENGINE>_MODEL=...` in `.env`. **Providers retire models**
+Where the money goes: nearly all of it is ChatGPT's and Claude's **web search** answers (about
+$0.05 each: the pages they read count as input). Answers from memory cost fractions of a cent;
+Perplexity's searches about half a cent. OpenRouter's **Activity** page shows every call and its
+cost, and each weekly run prints its own total ("cost of this run via OpenRouter").
+
+Google AI Mode and AI Overview (if switched on) come on top: 6–9 SerpApi searches per site per
+week, from the SerpApi plan's monthly allowance.
+
+Override any model with `GEO_<ENGINE>_OPENROUTER_MODEL=...` (OpenRouter route) or
+`GEO_<ENGINE>_MODEL=...` (direct keys) in `.env`. **Providers retire models**
 (Claude Haiku 4.5 retires around 15 Oct 2026), and a retired model shows up as a weekly
 "FAILED" line. The fix is to set a current model there. Changing a model marks the next
 trend line "model changed".
@@ -89,8 +117,8 @@ trend line "model changed".
 
 Sell it first, in plain words, then ask:
 *"Want to know if ChatGPT and other AI assistants mention your business when someone asks
-for what you offer? I can check that every week, next to your Google rankings. Gemini is
-free to start with; the others cost a few cents a week if you want them."*
+for what you offer? I can check that every week, next to your Google rankings. You prepay
+once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
 
 1. 🤖 **Draft the questions.**
    - Read the live homepage and `POSITIONING.md` (if the site repo has one).
@@ -104,51 +132,45 @@ free to start with; the others cost a few cents a week if you want them."*
    and so on) without touching anything already there. The second opens the file in TextEdit.
    Tell the owner where it lives in words they can use. The `.config` folder is hidden in Finder:
    **Go → Go to Folder…** (⇧⌘G), then `~/.config/gsc-insights`, or ⇧⌘. to show hidden files.
-3. 🧑 **Get the keys — one engine at a time, Gemini first.** Hand over the steps for one engine,
-   wait until the owner says it's done, run `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py --keys` (it shows
-   "set ✓" or "empty", never the key itself), and only then offer the next one. **Never ask for
-   a key in the chat.** If a key is pasted there anyway, tell the owner to delete that key at
-   the provider and make a new one.
+3. 🧑 **Get the key — usually just one.** Explain the choice in plain words first:
+   *"The simplest way is one account at OpenRouter: you prepay once, 5 or 10 dollars or euros,
+   and it pays ChatGPT, Claude, Gemini and Perplexity for you from that balance, for weeks. If you'd
+   rather start free, a Gemini key costs nothing but only shows what Gemini knows from memory."*
+   Hand over the steps, wait until the owner says it's done, then run
+   `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py --keys` (it shows "set ✓" or
+   "empty", never the key itself). **Never ask for a key in the chat.** If a key is pasted there
+   anyway, tell the owner to delete it at the provider and make a new one.
 
-   Button names below come from the providers' docs (checked 2026-09) and may be worded slightly
+   Button names come from the providers' pages (checked 2026-09) and may be worded slightly
    differently on screen; say so.
 
-   **Gemini (free to start)**
-   1. aistudio.google.com → sign in with a Google account → **Get API key** → **Create API key**.
-   2. It asks for a **project**: pick the one AI Studio already created (usually "Gemini API").
-      A project is just the folder the key and its bills belong to. Limits and billing are per
-      project, not per key.
-   3. In the EU/UK/Switzerland: **Set up billing** for that same project (see the EU note above).
-   4. Copy the key and paste it after `GEO_GEMINI_API_KEY=`, with no space and no quotes. Save (⌘S).
+   **OpenRouter (the default: one key for all four)**
+   1. openrouter.ai → sign in (a Google login works).
+   2. **Credits → Add credits**: 5 or 10 USD/EUR. That is a one-time top-up, not a subscription;
+      it lasts for weeks (see Costs). OpenRouter's fee is 5.5%, at least $0.80, so $10 is the better value.
+   3. **Keys → Create Key**, name it "AI check". Setting a **credit limit** on the key (for
+      example the amount just added) means it can never spend more. Don't set it below a
+      few dollars, or calls get refused.
+   4. Copy the key and paste it after `GEO_OPENROUTER_API_KEY=`, with no space and no quotes. Save (⌘S).
+   5. Later, **Activity** on openrouter.ai shows every call and what it cost.
 
-   **OpenAI (paid)**
-   1. platform.openai.com → sign in. A ChatGPT login works, but the API is billed separately.
-   2. **Settings → Billing**: add a payment method and a small credit (about $5).
-   3. **Settings → Limits**: set a monthly budget, e.g. $5.
-   4. **API keys → Create new secret key → Restricted**. Set **Model capabilities** (or
-      "Responses") to **Write** and leave everything else, including Agents and Traces, at
-      **None**. The check only sends questions; it stores nothing at OpenAI.
-   5. Copy it right away (it is shown once) and paste it after `GEO_OPENAI_API_KEY=`.
+   **Gemini direct (free, "from memory" only; optional)**
+   1. aistudio.google.com → **Get API key** → **Create API key**; pick the project AI Studio already
+      created (usually "Gemini API").
+   2. In the EU/UK/Switzerland: **Set up billing** for that project (see the EU note).
+   3. Paste it after `GEO_GEMINI_API_KEY=`. With an OpenRouter key set, OpenRouter is used instead.
 
-   **Anthropic (paid)**
-   1. console.anthropic.com → sign in. The key belongs to the owner's organization and bills its credit.
-   2. **Settings → Billing**: buy a small credit. **Settings → Limits**: set a monthly spend limit.
-      Optionally create a workspace called "AI check" first, so its use shows separately.
-   3. **API Keys → Create Key**. Copy it right away and paste it after `GEO_ANTHROPIC_API_KEY=`.
+   **Direct keys per provider (advanced; only used without an OpenRouter key)**: OpenAI
+   (platform.openai.com → Billing → API keys → Create, restricted to "Model capabilities: Write"),
+   Anthropic (console.anthropic.com → Billing → API Keys), Perplexity (perplexity.ai → Settings →
+   API). Each needs its own prepaid credit. The only reason to prefer them: Perplexity's "from
+   memory" column, which OpenRouter can't provide.
 
-   **SerpApi (Google's AI answers)**: if the owner already set up the Top-10 check,
-   `SERPAPI_KEY` is already there. Otherwise: serpapi.com → sign up → Dashboard →
-   copy "Your Private API Key" → paste it after `SERPAPI_KEY=`.
-   Either way, Google is **off until the owner switches it on for the site**, because it spends
-   paid searches: ask first, then run `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --google on`. Having the key
-   for the Top-10 check never turns it on by itself.
-
-   **Perplexity (paid)**
-   1. perplexity.ai → sign in → **Settings → API** → add a small credit → **Generate API key**.
-   2. Paste it after `GEO_PERPLEXITY_API_KEY=`.
-
-   An empty line just skips that engine. Every paid engine is optional; "Knows you" with the free
-   Gemini key alone is a real result.
+   **SerpApi (Google's AI answers, optional)**: if the owner already set up the Top-10 check,
+   `SERPAPI_KEY` is already there. Otherwise: serpapi.com → sign up → Dashboard → copy "Your
+   Private API Key" → paste it after `SERPAPI_KEY=`. Either way, Google is **off until the owner
+   switches it on for the site**, because it spends paid searches: ask first, then run
+   `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --google on`.
 4. 🤖 **Save the site and its questions** with the confirmed wording. Write each question to a
    small text file first. Never put it inside a shell command string: an apostrophe
    ("contacts' plans") breaks the quoting.
@@ -239,7 +261,7 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 - **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. (For Perplexity
   this means "among the search results it used": its API doesn't say which of them it quoted.)
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
-- **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, or the settings (names, domain, country).
+- **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.
 
 Every answer is saved verbatim with its sources under
@@ -269,6 +291,15 @@ For a manual spot check in the apps, use a private mode: ChatGPT "Temporary chat
 ## Engines — request shapes (for maintenance)
 
 Checked against the providers' docs on 2026-09-26:
+- **OpenRouter (the default route):** `POST https://openrouter.ai/api/v1/chat/completions`, `Authorization:
+  Bearer`, models `google/gemini-3.5-flash-lite`, `openai/gpt-6-luna`, `anthropic/claude-sonnet-5`,
+  `perplexity/sonar`. "Finds" adds `plugins: [{"id": "web", "engine": "native"}]` (the provider's own
+  search; Perplexity's Sonar gets no plugin, it always searches and has no native option there).
+  `max_tokens: 4000` (without it OpenRouter reserves credit for 65k tokens and refuses small
+  balances) and `usage: {"include": true}` (the reply carries its real cost). Citations are
+  `choices[0].message.annotations[type=url_citation]`, else the top-level `citations` (some
+  replies list their sources only there).
+  "No credit" arrives as HTTP 402 and stops the whole route for that run.
 
 - **Gemini:** `POST …/v1beta/models/{model}:generateContent`, key in the `x-goog-api-key` header; the answer is in `candidates[0].content.parts[].text` and the model in `modelVersion`. No tools (see the terms above).
 - **OpenAI:** Responses API `POST /v1/responses`, `store: false`. For "finds": the `web_search` tool with `user_location: {type: "approximate", country}` (omitting it silently means United States) and `tool_choice: "required"`. Citations are `url_citation` annotations; a `web_search_call` output item means a search ran.
