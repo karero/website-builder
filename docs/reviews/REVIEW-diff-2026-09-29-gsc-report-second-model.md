@@ -32,7 +32,8 @@ whole was 126 KB, over the script's 117 KB limit, so it ran as two halves, each 
   `sc-domain:sc-domain:…`); it is now the bare lowercase domain, as everywhere else.
 - **A-NIT 3.** A hand-edited record holding `"keywords": "a, b"` was read letter by letter, and a
   record that is not an object, or keywords of another type, crashed the page. A string is now
-  read like `--keywords`; anything else counts as no key searches.
+  read like `--keywords`; anything else counts as no key searches. (The review of this fix
+  found `country` and `csv` of the wrong type crashed it too; fixed below.)
 - **B-RISK 1.** The test Google answered any dates for the S6/S7 requests, so a wrong window
   would pass. A test now pins the last four complete weeks (it fails when the window moves).
 - **B-RISK 3 (as a test).** `schedule_tracking.sh` and `track.sh` each write the site record,
@@ -75,9 +76,53 @@ the code they guard is broken.
   `_history`: settled by the plan's probe on a real property and the two live runs, recorded in
   `SKILL-PLAN-gsc-report.md` and `REVIEW-diff-2026-09-27-gsc-report.md`.
 
+## The review of this fix
+
+Round 1 on `b901405` plus working-tree edits. Codex could not run (usage limit until 3 October),
+so the second seat was a fresh-eyes Claude reviewer with the repo, which ran the suite and
+reverted each fix in a scratch copy.
+
+| Seat | BUG / RISK / NIT | Held up |
+|---|---|---|
+| ollama (`kimi-k2.7-code:cloud`) | 0 / 4 / 4 | 2 NITs |
+| fresh-eyes Claude | 0 / 2 / 4 | 2 RISKs, 3 NITs |
+
+14 findings in one round.
+
+- **Fixed (fresh-eyes RISK 1):** `country` or `csv` of the wrong type in a hand-edited record
+  still crashed the page (`(5 or "").lower()`, and `read_history(5)`). Every text field is now
+  kept only when it is a string; both cases are in the test.
+- **Fixed (fresh-eyes RISK 2):** the string-keywords case used one-letter key searches, so reading
+  them letter by letter still passed. It now uses `"sourdough, rye"` and fails on `list(kws)`.
+- **Fixed (fresh-eyes NIT 1):** a file saved by 0.28 has no `from`; today's source is now named
+  only when the saved key searches are today's, else none (a test drops `from` from a saved file).
+- **Fixed (fresh-eyes NIT 2):** non-string items in `keywords` (`null`, `1`) are dropped, not shown
+  as "None" and "1".
+- **Fixed (fresh-eyes NIT 3):** `pick_property` no longer normalizes twice.
+- **Fixed (ollama NIT 2):** the new scheduler test read a shared `/tmp/own.csv`; it uses a path in
+  its own temporary home.
+- **Fixed (ollama NIT 3):** a failed save is also printed to stderr, not only named on the page.
+- **Refuted (ollama RISK 1):** the `ValueError` for a non-object record is raised inside the `try`
+  that catches `ValueError`, so the record counts as absent (tested with `[1, 2]` and `"text"`).
+- **Refuted (ollama RISK 2):** the property test drives both `Example-Bakery.DE` and
+  `sc-domain:example-bakery.de` through `build()` and asserts every request.
+- **Refuted (ollama RISK 3):** if the temporary file's name changed, the folder would no longer
+  block the save and the test's "could not be saved" assertion would fail loudly, not pass.
+- **Declined (ollama RISK 4):** `json.dumps` of the fetched dict (strings, numbers, lists) cannot
+  raise; anything unexpected there should stop loudly rather than be named as a save problem.
+- **Declined (ollama NIT 1):** every test module in this suite puts the scripts folder on
+  `sys.path` the same way.
+- **Declined (ollama NIT 4):** the comment is about key searches, and a non-object record is
+  handled as absent, as it says.
+- **Declined (fresh-eyes NIT 4):** the scheduler test is a contract test: it enters through the
+  real `schedule_tracking.sh install` and reads through the report's own `resolve_settings`,
+  which `build()` calls first.
+
 ## Evidence
 
 - The skill suite: 172 tests pass (166 before, 6 new).
+- After the fix's review: the string case fails with `list(kws)`, and the saved-source case fails
+  with the 0.28 fallback.
 - The four fix tests fail against `origin/main`'s `search_report.py` (three FAIL, one ERROR);
   the two coverage tests fail when the S6/S7 window is moved a week and when the record is not
   treated as the job's.

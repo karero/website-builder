@@ -102,12 +102,13 @@ def resolve_settings(domain, args):
             j = json.loads(sf.read_text(encoding="utf-8"))
             if not isinstance(j, dict):
                 raise ValueError("not a settings record")
-            kws = j.get("keywords") or []
-            # A hand-edited record may hold one string, or something else entirely: a string is
-            # read the way --keywords is, anything but a list as no key searches.
+            # A hand-edited record may hold anything: key searches as one string are read the way
+            # --keywords is; any other value of the wrong type counts as not set.
+            text = lambda k: j.get(k) if isinstance(j.get(k), str) else ""
+            kws = j.get("keywords")
             kws = split_keywords(kws) if isinstance(kws, str) else kws if isinstance(kws, list) else []
-            found = {"keywords": [str(k).strip() for k in kws if str(k).strip()],
-                     "country": j.get("country") or "", "csv": j.get("csv") or "",
+            found = {"keywords": [k.strip() for k in kws if isinstance(k, str) and k.strip()],
+                     "country": text("country"), "csv": text("csv"),
                      "bing": j.get("bing") if isinstance(j.get("bing"), bool) else None,
                      "recorded": j.get("recorded") if isinstance(j.get("recorded"), str) else "",
                      "record_used": True,
@@ -206,7 +207,7 @@ def pick_property(service, domain):
             entries = service.sites().list().execute().get("siteEntry", [])
         except Exception:
             raise first
-        site = normalize_site(domain)
+        site = domain
         for e in entries:
             url = e.get("siteUrl", "")
             if url.startswith("http") and normalize_site(url) in (site, "www." + site):
@@ -660,8 +661,10 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
         if not data["property"].startswith("sc-domain:"):
             settings_line.append(f"only the address {data['property']}")
         # Where the key searches came from is saved with them: a page built from saved data
-        # names its own source, not today's (an older saved file has none, so today's stands in).
-        source = data.get("from", settings.get("from"))
+        # names its own source, not today's. A file saved before 0.29 has none; today's stands
+        # in only when the key searches are the same, else no source is named.
+        source = data["from"] if "from" in data else (
+            settings.get("from") if data["keywords"] == settings.get("keywords") else "")
         if source and data["keywords"]:
             settings_line.append(f"key searches from {source}")
         parts.append(f'<p class="note">{H("; ".join(settings_line))}.</p>')
@@ -827,7 +830,8 @@ def build(domain, args, service_factory=make_service, today=None):
         # the fallback is lost, and the page says so.
         try:
             write_atomic(cache, json.dumps(data, indent=1))
-        except OSError:
+        except OSError as e:
+            print(f"search_report: could not save {cache}: {e}", file=sys.stderr)
             alert = ("These numbers are up to date, but a copy for when Google can't be reached "
                      "could not be saved on this computer.")
     # Bing follows today's key searches, also when Google's part comes from saved data.

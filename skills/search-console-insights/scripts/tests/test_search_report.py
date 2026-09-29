@@ -430,6 +430,12 @@ class Scenarios(ReportTest):
         self.assertIn("“a”", page)
         self.assertIn("key searches from your request", page)
         self.assertNotIn("key searches from your weekly check", page)
+        # A file saved before 0.29 carries no source: today's is named only for the same key searches.
+        saved = self.cache(); del saved["from"]
+        (self.home / ".config/gsc-insights/reports" / DOMAIN / "google-data.json").write_text(json.dumps(saved))
+        page, _ = self.build(expired)
+        self.assertIn("“a”", page)
+        self.assertNotIn("key searches from", page)
 
     def test_the_property_is_asked_for_as_the_bare_lowercase_domain(self):
         """Second-model review: "Example-Bakery.DE" as typed became sc-domain:Example-Bakery.DE."""
@@ -451,12 +457,19 @@ class Scenarios(ReportTest):
         sites = self.home / ".config/gsc-insights/sites"
         sites.mkdir()
         rec = sites / f"{DOMAIN}.json"
-        rec.write_text(json.dumps({"keywords": "a, b", "country": "", "csv": "", "recorded": "2026-09-21"}))
-        page, _ = self.build(self.google(keys={"a": weekly_key([9] * 13), "b": weekly_key([9] * 13)}))
-        self.assertIn("“a”", page)
-        self.assertIn("“b”", page)
-        self.assertNotIn("“ ”", page)
-        for bad in ({"keywords": 5}, {"keywords": {"a": 1}}, [1, 2], "text"):
+        rec.write_text(json.dumps({"keywords": "sourdough, rye", "country": "", "csv": "", "recorded": "2026-09-21"}))
+        page, _ = self.build(self.google(keys={"sourdough": weekly_key([9] * 13), "rye": weekly_key([9] * 13)}))
+        self.assertIn("“sourdough”", page)
+        self.assertIn("“rye”", page)
+        self.assertNotIn("“s”", page)
+        rec.write_text(json.dumps({"keywords": ["rye", None, 1], "recorded": "2026-09-21"}))
+        page, _ = self.build(self.google(keys={"rye": weekly_key([9] * 13)}))
+        self.assertIn("“rye”", page)
+        self.assertNotIn("“None”", page)
+        self.assertNotIn("“1”", page)
+        # Fresh-eyes review: other fields of the wrong type crashed it too.
+        for bad in ({"keywords": 5}, {"keywords": {"a": 1}}, [1, 2], "text",
+                    {"keywords": ["a"], "country": 5}, {"keywords": ["a"], "csv": 5}):
             rec.write_text(json.dumps(bad))
             self.build(self.google())                     # a page, never a crash
 
