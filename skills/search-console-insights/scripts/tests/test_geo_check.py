@@ -386,7 +386,7 @@ class ViaOpenRouter(GeoTestCase):
         self.assertEqual({r["model_requested"] for r in rows if r["engine"] == "openai"}, {"openai/gpt-6-luna"})
         # One question, 3 answers each: Gemini 3 + ChatGPT 6 + Perplexity 3 = 12 at the stub's
         # $0.0012; Claude's refused calls carry no cost.
-        self.assertIn("cost of this run via OpenRouter: $0.014 (12 answers)", out)
+        self.assertIn("cost of this run via OpenRouter: $0.014 (12 replies)", out)
 
     def test_cut_off_answer_is_a_failure_but_its_cost_counts(self):
         cut = geo_check.EngineError
@@ -394,6 +394,24 @@ class ViaOpenRouter(GeoTestCase):
             geo_check._openrouter_parse({"choices": [{"finish_reason": "length", "message": {"content": "Bäck"}}],
                                          "usage": {"cost": 0.04}})
         self.assertEqual(cm.exception.cost, 0.04)
+
+    def test_billed_replies_that_are_not_answers_count_in_the_run_cost(self):
+        """Review round 2: the cut-off test above only called the parser, so the run could drop a
+        billed failure's cost unnoticed; and an empty billed reply was dropped already. Through
+        the command line: Claude cut off ($0.50 each), Gemini empty ($0.25 each), ChatGPT and
+        Perplexity normal ($0.0012 each)."""
+        def reply(content, finish, cost=None):
+            usage = {"cost": cost} if cost is not None else {}
+            return {"model": "m", "choices": [{"finish_reason": finish, "message": {"content": content}}],
+                    "usage": usage}
+        stub.engine_reply("anthropic", "", raw=reply("Bäck", "length", 0.5))
+        stub.engine_reply("gemini", "", raw=reply("", "stop", 0.25))
+        rc, out = self.cli()
+        self.assertEqual(rc, 1, out)
+        calls = {e: sum(1 for h in self.posts() if h[3]["model"] == m)
+                 for e, m in geo_check.OPENROUTER_MODELS.items()}
+        total = calls["anthropic"] * 0.5 + calls["gemini"] * 0.25 + (calls["openai"] + calls["perplexity"]) * 0.0012
+        self.assertIn(f"cost of this run via OpenRouter: ${total:.3f} ({sum(calls.values())} replies)", out)
 
     def test_searched_follows_the_reply_s_own_search_counter(self):
         base = {"choices": [{"finish_reason": "stop", "message": {"content": "An answer.", "annotations": []}}]}
@@ -1031,6 +1049,7 @@ class KeySetup(GeoTestCase):
         text = self.env_file().read_text()
         self.assertTrue(text.startswith("BING_API_KEY=keepme\n"))
         self.assertIn("GEO_OPENROUTER_API_KEY=\n", text)
+        self.assertIn("GEO_GEMINI_API_KEY=\n", text)      # the free Gemini line the guide points at
         self.cli_bare("--prepare-env")
         self.assertEqual(self.env_file().read_text(), text)  # a second run adds nothing
         self.assertEqual(self.env_file().stat().st_mode & 0o777, 0o600)

@@ -691,15 +691,16 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline, route="dir
         raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
     # Provider JSON is outside input: only strings go on to be counted, so a malformed
     # citation (an object where a URL should be) can't crash the run after the call.
+    # A reply we can't use was still billed on OpenRouter: its cost goes with the error.
     if not isinstance(text, str):
-        raise EngineError("unexpected response shape: answer is not text")
+        raise EngineError("unexpected response shape: answer is not text", cost=cost)
     # A snippet cut mid-emoji arrives as a lone surrogate, which can't be written as UTF-8.
     text = text.encode("utf-8", "replace").decode("utf-8")
     sources = [x.encode("utf-8", "replace").decode("utf-8") for x in sources if isinstance(x, str)] \
         if isinstance(sources, list) else []
     if not text.strip():
         # An answer we couldn't read is a failed call, not "the business wasn't named".
-        raise EngineError("empty answer (nothing to read in the response)")
+        raise EngineError("empty answer (nothing to read in the response)", cost=cost)
     sources = [x for x in (sources if isinstance(sources, list) else []) if isinstance(x, str) and x]
     model = (model if isinstance(model, str) else str(model or "")).encode("utf-8", "replace").decode("utf-8")
     return text, model, sources, bool(searched), cost
@@ -933,7 +934,8 @@ def run(domain: str, only=None) -> int:
     if run_cost:
         priced = [c for c in run_cost if c is not None]
         unknown = len(run_cost) - len(priced)
-        print(f"  cost of this run via OpenRouter: ${sum(priced):.3f} ({len(priced)} answers"
+        # Replies, not answers: a cut-off or empty reply is billed but is not an answer.
+        print(f"  cost of this run via OpenRouter: ${sum(priced):.3f} ({len(priced)} replies"
               + (f"; cost unknown for {unknown} more)" if unknown else ")"))
     if rows:
         print(f"  answers: {answers}")

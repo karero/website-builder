@@ -80,7 +80,7 @@ mentions and keeping the answers to compare week to week is exactly that, so Gem
 only asked without search. Answers without search are not covered by that clause.
 
 **The free path, and its limit.** A free Gemini key gives "Knows you" only. For "Finds you"
-the owner needs one paid key. Perplexity or OpenAI are the cheapest at this volume; see Costs.
+the owner needs one paid key: one OpenRouter key covers all four assistants; see Costs.
 
 **EU / UK / Switzerland (a cautious reading, not legal advice).** Google's terms say: "You
 may use only Paid Services when making API Clients available to users in the European
@@ -295,9 +295,10 @@ Checked against the providers' docs on 2026-09-26:
   Bearer`, models `google/gemini-3.5-flash-lite`, `openai/gpt-6-luna`, `anthropic/claude-sonnet-5`,
   `perplexity/sonar`. "Finds" adds `plugins: [{"id": "web", "engine": "native"}]` (the provider's own
   search; Perplexity's Sonar gets no plugin, it always searches and has no native option there).
-  `max_tokens: 2000` (without it OpenRouter reserves credit for 65k tokens and refuses small
+  `max_tokens: 4000` (without it OpenRouter reserves credit for 65k tokens and refuses small
   balances) and `usage: {"include": true}` (the reply carries its real cost). Citations are
-  `choices[0].message.annotations[type=url_citation]`, plus Perplexity's top-level `citations`.
+  `choices[0].message.annotations[type=url_citation]`, else the top-level `citations` (some
+  replies list their sources only there).
   "No credit" arrives as HTTP 402 and stops the whole route for that run.
 
 - **Gemini:** `POST …/v1beta/models/{model}:generateContent`, key in the `x-goog-api-key` header; the answer is in `candidates[0].content.parts[].text` and the model in `modelVersion`. No tools (see the terms above).
