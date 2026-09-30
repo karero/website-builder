@@ -64,8 +64,11 @@ Claude verifier that reverted each fix in a scratch copy. Codex was out of quota
   prints its own cost.
 - **Declined (fresh-eyes NIT), old Perplexity "knows you" lines in the trend:** the trend is the
   history, and each line carries its dates; the report page already hides them (O3).
-- **Left as a follow-up:** a cut-off reply that carries no price is not counted as "cost unknown":
-  the check cannot tell it from an unbilled error without more detail from OpenRouter.
+- **Follow-up, fixed after release (2026-09-30, owner: "yes"):** a cut-off reply that carries no
+  price was left out of the cost line. A reply that came back but cannot be used (cut off, empty,
+  unreadable) is now marked as charged (`EngineError.billed`) and counts as "cost unknown" when it
+  has no price; an HTTP error is no reply and stays out. A test through the command line pins
+  both (it fails on the previous code).
 
 ## Final state
 

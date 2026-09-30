@@ -434,7 +434,7 @@ def _openrouter_parse(data):
     if choice.get("finish_reason") in ("length", "content_filter"):
         billed = (data.get("usage") or {}).get("cost")        # billed all the same
         raise EngineError(f"incomplete answer ({choice['finish_reason']})",
-                          cost=billed if isinstance(billed, (int, float)) else None)
+                          cost=billed if isinstance(billed, (int, float)) else None, billed=True)
     msg = choice.get("message") or {}
     text = msg.get("content") or ""
     urls = [a.get("url_citation", {}).get("url", "") for a in msg.get("annotations") or []
@@ -593,11 +593,14 @@ NO_ANSWER_SAYS = {"no AI Overview shown": "Google showed no AI Overview",
 class EngineError(Exception):
     """A failed call. `fatal` = retrying this engine this run can't help (bad key, missing
     permission, no credit, a request the API rejects), so the run stops asking it."""
-    def __init__(self, message, fatal=False, status=None, cost=None):
+    def __init__(self, message, fatal=False, status=None, cost=None, billed=False):
         super().__init__(message)
         self.fatal = fatal
         self.status = status   # the HTTP status, when the failure was an HTTP answer
         self.cost = cost       # what the call cost even though its answer is unusable (OpenRouter)
+        # A reply came back but can't be used (cut off, empty, unreadable): it was charged all the
+        # same, so it counts in the run's cost, as "cost unknown" when the reply gives no price.
+        self.billed = billed or cost is not None
 
 
 def _error_obj(r):
@@ -688,19 +691,19 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline, route="dir
         else:
             text, model, sources, searched = parse_response(engine, data or {})
     except (ValueError, AttributeError, TypeError) as e:
-        raise EngineError(f"unexpected response shape: {type(e).__name__}") from None
+        raise EngineError(f"unexpected response shape: {type(e).__name__}", billed=True) from None
     # Provider JSON is outside input: only strings go on to be counted, so a malformed
     # citation (an object where a URL should be) can't crash the run after the call.
     # A reply we can't use was still billed on OpenRouter: its cost goes with the error.
     if not isinstance(text, str):
-        raise EngineError("unexpected response shape: answer is not text", cost=cost)
+        raise EngineError("unexpected response shape: answer is not text", cost=cost, billed=True)
     # A snippet cut mid-emoji arrives as a lone surrogate, which can't be written as UTF-8.
     text = text.encode("utf-8", "replace").decode("utf-8")
     sources = [x.encode("utf-8", "replace").decode("utf-8") for x in sources if isinstance(x, str)] \
         if isinstance(sources, list) else []
     if not text.strip():
         # An answer we couldn't read is a failed call, not "the business wasn't named".
-        raise EngineError("empty answer (nothing to read in the response)", cost=cost)
+        raise EngineError("empty answer (nothing to read in the response)", cost=cost, billed=True)
     sources = [x for x in (sources if isinstance(sources, list) else []) if isinstance(x, str) and x]
     model = (model if isinstance(model, str) else str(model or "")).encode("utf-8", "replace").decode("utf-8")
     return text, model, sources, bool(searched), cost
@@ -862,8 +865,8 @@ def run(domain: str, only=None) -> int:
                             run_cost.append(cost)          # None = OpenRouter reported no price
                     except EngineError as e:
                         errors.append(str(e))
-                        if route == "openrouter" and e.cost is not None:
-                            run_cost.append(e.cost)          # a cut-off answer is still billed
+                        if route == "openrouter" and e.billed:
+                            run_cost.append(e.cost)          # charged all the same; None = no price given
                         if e.fatal:
                             dead = f"{e} (not retried)"
                             # Only account-wide answers stop the other assistants on the route:

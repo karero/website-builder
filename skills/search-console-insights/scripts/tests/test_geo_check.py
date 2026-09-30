@@ -424,6 +424,21 @@ class ViaOpenRouter(GeoTestCase):
         total = calls["anthropic"] * 0.5 + calls["gemini"] * 0.25 + (calls["openai"] + calls["perplexity"]) * 0.0012
         self.assertIn(f"cost of this run via OpenRouter: ${total:.3f} ({sum(calls.values())} replies)", out)
 
+    def test_a_billed_reply_without_a_price_counts_as_cost_unknown(self):
+        """Follow-up from review round 2: a cut-off reply with no price was left out of the cost
+        line entirely, so the total looked complete. An HTTP error is not a reply and not billed:
+        it stays out. Perplexity cut off without a price; Claude refused (HTTP 400)."""
+        stub.engine_reply("perplexity", "", raw={"model": "m", "choices": [
+            {"finish_reason": "length", "message": {"content": "Bäck"}}]})
+        stub.engine_reply("anthropic", "", status=400, body='{"error": {"message": "bad request"}}')
+        rc, out = self.cli()
+        self.assertEqual(rc, 1, out)
+        calls = {e: sum(1 for h in self.posts() if h[3]["model"] == m)
+                 for e, m in geo_check.OPENROUTER_MODELS.items()}
+        priced = calls["gemini"] + calls["openai"]
+        self.assertIn(f"cost of this run via OpenRouter: ${priced * 0.0012:.3f} ({priced} replies; "
+                      f"cost unknown for {calls['perplexity']} more)", out)
+
     def test_searched_follows_the_reply_s_own_search_counter(self):
         base = {"choices": [{"finish_reason": "stop", "message": {"content": "An answer.", "annotations": []}}]}
         self.assertTrue(geo_check._openrouter_parse({**base, "usage": {"server_tool_use_details": {"web_search_requests": 2}}})[3])
