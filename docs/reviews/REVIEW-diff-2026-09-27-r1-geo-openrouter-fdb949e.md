@@ -68,7 +68,10 @@ Claude verifier that reverted each fix in a scratch copy. Codex was out of quota
   price was left out of the cost line. A reply that came back but cannot be used (cut off, empty,
   unreadable) is now marked as charged (`EngineError.billed`) and counts as "cost unknown" when it
   has no price; an HTTP error is no reply and stays out. A test through the command line pins
-  both (it fails on the previous code).
+  both (it fails on the previous code). Reviewed by ollama-cloud, 1 round, 0 / 2 / 3: the
+  variable name and a comment fixed; refuted: the cost summary already skips missing prices, an
+  unreadable reply reaches that point only after a successful answer (so "cost unknown" is the
+  honest label), and the test does run the command line. Codex was out of quota.
 
 ## Final state
 

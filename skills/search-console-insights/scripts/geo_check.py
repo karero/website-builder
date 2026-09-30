@@ -432,9 +432,9 @@ def _openrouter_parse(data):
     """(text, model, cited URLs, searched, cost) from an OpenRouter chat completion."""
     choice = (data.get("choices") or [{}])[0]
     if choice.get("finish_reason") in ("length", "content_filter"):
-        billed = (data.get("usage") or {}).get("cost")        # billed all the same
+        usage_cost = (data.get("usage") or {}).get("cost")    # charged all the same
         raise EngineError(f"incomplete answer ({choice['finish_reason']})",
-                          cost=billed if isinstance(billed, (int, float)) else None, billed=True)
+                          cost=usage_cost if isinstance(usage_cost, (int, float)) else None, billed=True)
     msg = choice.get("message") or {}
     text = msg.get("content") or ""
     urls = [a.get("url_citation", {}).get("url", "") for a in msg.get("annotations") or []
@@ -600,6 +600,7 @@ class EngineError(Exception):
         self.cost = cost       # what the call cost even though its answer is unusable (OpenRouter)
         # A reply came back but can't be used (cut off, empty, unreadable): it was charged all the
         # same, so it counts in the run's cost, as "cost unknown" when the reply gives no price.
+        # A price in the reply is proof of the charge, so it sets this too.
         self.billed = billed or cost is not None
 
 
