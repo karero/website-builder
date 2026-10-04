@@ -11,8 +11,9 @@ Live: [LIVE_URL] · Preview: [PREVIEW_URL]
      (collaborators, rights level, merge rule, who publishes). Owner writes in another
      language? Translate this file in-session, keep every rule, keep the commands
      verbatim — and if you translate the placeholder token "[MISSING: …]" (§2, §4),
-     change the grep pattern in .github/workflows/ci.yml to the same word, or the CI
-     gate never fires. CLAUDE.md imports this file, so Codex and Claude Code follow
+     change the grep pattern in .github/workflows/ci.yml and DRAFT_TOKEN in
+     tests/placeholders.spec.ts to the same word, or the CI gate never fires and a
+     draft branch cannot be pushed. CLAUDE.md imports this file, so Codex and Claude Code follow
      the same rules. -->
 
 Several people and several AI assistants may work on this site, sometimes at the same
@@ -88,7 +89,10 @@ applies there; instead of steps 2 to 4, only this:
   - Codex in the cloud: the person creates the pull request with the "Create PR"
     button (see the cloud case in §1).
   - If `"[MISSING: …]"` placeholders are still in it: open the pull request as a
-    **draft** and list the places in the description.
+    **draft** and list the places in the description. On your own computer the tests
+    print a warning for each one and still pass, so the branch can be pushed; on
+    GitHub the check stays red until they are filled. Any other leftover (an unfilled
+    slot, filler text, a `TODO`) fails the tests everywhere.
 - **Merging on GitHub:** a pull request may be merged, with the "Merge pull request"
   button on GitHub, only when
   - the automatic checks on GitHub are green (green tick on the pull request; while

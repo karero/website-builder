@@ -55,7 +55,7 @@ were left to the launch checklist.
 |---|---|---|
 | 1 | a freshly scaffolded site, nothing filled | green; privacy page, imprint and manifest are each reported as "not ready to launch" |
 | 2 | the home page says "TODO: add the prices", has "Lorem ipsum" inside a closed fold-out, and an image described as "[ALT TEXT]" | red, naming all three; a `[YOUR_API_KEY]` shown as code on the same page is left alone |
-| 3 | a "[MISSING: what it offers]" sits in the site description in `src/config.ts` | red on the home page (it reaches the search-result text) |
+| 3 | a "[MISSING: what it offers]" sits in the site description in `src/config.ts` | found on the home page (it reaches the search-result text): red in CI, a warning on the author's own machine (rows 15 and 16) |
 | 4 | the company name in the settings is still "Musterfirma GmbH" and shows up only in the structured data | red |
 | 5 | the owner empties the exemption list to launch, but the legal pages are not filled | red on all three, each slot listed |
 | 6 | the owner fills the privacy page and forgets the list | red: "nothing left to fill but still listed", until the entry is deleted |
@@ -67,36 +67,54 @@ were left to the launch checklist.
 | 12 | a slot is partly in bold, another is broken across two lines, "Lorem ipsum" is partly in italics | red, naming all three |
 | 13 | the manifest file is damaged (not valid JSON) | red: "not checked", instead of passing as "nothing found" |
 | 14 | a site scaffolded earlier, whose privacy page still has a slot that starts with a small letter; the owner fills every slot the test reports | red: the page carries a slot the test cannot see |
+| 15 | an assistant lacks a fact and writes "[MISSING: year built]" on a page, on its own branch | on that machine: green, with a warning naming the placeholder, so the branch can be pushed and a draft pull request opened |
+| 16 | the same branch on GitHub | red, so nothing merges until the placeholder is filled |
+| 17 | a "[MISSING: …]" next to a "FIXME" on the same page | red everywhere, for the FIXME |
+| 18 | "Regards, [your name]" on a finished page | red |
+| 19 | "VER TODO INCLUIDO" on an English page | red: "TODO" in capitals is an author's note |
+| 20 | the same words on a Spanish page | green: "todo" is an everyday word there; "TODO:" with a colon is still caught |
+| 21 | a form field that says "Type your text here", and the sentence "Request a free sample copy" | green: genuine copy |
+| 22 | the push check on the author's machine, pushing the branch from row 15 | lets the push through |
+| 23 | the same check where CI is set | refuses |
 
-All fourteen were run on 2026-10-04 against a scratch copy of the starter, each failing
-for the reason in the table, plus the whole suite and the type check on the untouched
-starter (61 passed, 0 type errors) and the German-only swap following
-`_datenschutz.astro`'s own header. The test also checks itself on every run: one test
-plants a leftover on each place the reading covers, inside a real browser, next to
-the places that must stay out; 31 deliberate breakages of the test's own logic (one
-per place and per rule) were each caught and named by it. Run without exemptions against a copy of one real
-site built with the toolkit, the first version found two unfilled slots on each legal
-page and raised no false alarm.
+All 23 were run on 2026-10-04 against a scratch copy of the starter, each failing or
+passing for the reason in the table, plus the whole suite (61 passed, on the author's
+machine and with CI set), the type check, and the German-only swap following
+`_datenschutz.astro`'s own header. The test also checks itself on every run: its rules
+and verdicts are pinned by example, and one test plants a leftover on each place the
+reading covers, inside a real browser, next to the places that must stay out. 46
+deliberate breakages of the test's own logic were each caught and named by it. Run
+without exemptions against a copy of one real site built with the toolkit, the first
+version found two unfilled slots on each legal page and raised no false alarm.
 
-Rows 10 to 14 come from the review. So does a correction: the starter itself served
-two slots that start with a small letter (the analytics hosting choice on the privacy
-page and in the German draft), which the rule could not see. Both now start with a
-capital word, and while a page is still listed the test fails on any slot of that
-shape, so the same gap cannot open again unnoticed.
+Rows 10 to 23 come from the review. So do three corrections:
+- The starter itself served two slots that start with a small letter (the analytics
+  hosting choice on the privacy page and in the German draft), which the rule could
+  not see. Both now start with a capital word, and while a page is still listed the
+  test fails on any slot of that shape.
+- The first version failed on "[MISSING: …]" everywhere, which broke the draft flow in
+  `AGENTS.md`: the push check refused the very branch a draft pull request needs.
+  Rows 15, 16, 22 and 23 are the fix.
+- Several rules flagged genuine copy ("TODO" in Spanish, "Type your text here" in a
+  form, "sample copy"). They are narrower now; rows 19 to 21.
 
 Known limits, on purpose:
 - A target still listed at launch only produces a warning. The list empties itself as
   pages are filled, and the launch checklist requires it empty, but nothing blocks a
-  launch with an entry left. Closing that belongs with A2 (the publish step is where a
-  hard stop can live). Open: the owner's call whether that is acceptable until then.
-- The starter's own example values (the name "Example", `hello@example.com` on the
-  home page and both legal pages) are not caught. A rule for the example address is
-  possible, but it would put the home page on the exemption list from the first
-  commit; not built without the owner's decision.
-- The rule for slots is "an opening bracket followed by a capital letter". Genuine
+  launch with an entry left. **Waived by the owner on 2026-10-04 until step A2**: the
+  publish step is where a hard stop can live.
+- A "[MISSING: …]" only warns on the author's machine, so a direct push of `main`
+  that still carries one is not refused there (CI turns red afterwards). That was so
+  before this test; the hard stop belongs to the same publish step.
+- The starter's own example values (the name "Example", `hello@example.com`) and the
+  slots in `public/llms.txt` are not caught. Both would put one more entry on the
+  exemption list from the first commit; asked as a decision row.
+- The rule for slots is "an opening bracket followed by a capital letter", plus
+  brackets opening with a typical slot word in small letters ("[your name]"). Genuine
   text of that shape (a "[PDF]" label, an editor's note in a quote) has to be
-  allow-listed by the site.
-- Not read: other files in `public/`, PDFs, text inside images.
+  allow-listed by the site. Other small-letter brackets pass on a finished page.
+- Not read: pages outside the page list (the 404 page), other files in `public/`,
+  PDFs, text inside images.
 
 ### A2. The publish gate holds on GitHub's side (not built)
 

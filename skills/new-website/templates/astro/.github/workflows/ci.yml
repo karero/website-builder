@@ -31,7 +31,8 @@ jobs:
       # page, manifest) are checked on the rendered site by
       # tests/placeholders.spec.ts, not here.
       # Translated site (AGENTS.md uses e.g. "[FEHLT: …]")? Put that token in the
-      # pattern below, or the gate greps for a word nobody writes.
+      # pattern below and in DRAFT_TOKEN in tests/placeholders.spec.ts, or the gate
+      # greps for a word nobody writes.
       # Two guards, two jobs: the folder loop names a missing folder in plain words;
       # the `case` reads grep's tri-state exit (0 found, 1 nothing, >=2 error such as
       # an unreadable file) so an error cannot pass as "nothing found" — grep may have

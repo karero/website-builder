@@ -57,6 +57,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    1200×630 share cards (`public/images/og/`; the starter ships a default).
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
+   Each target you fill here (privacy page, manifest) then comes out of
+   `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
@@ -94,9 +96,11 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > source-side half; this is the half that reads what a page serves. The starter's
 > privacy page, imprint and manifest are listed in its `UNFILLED_UNTIL_LAUNCH`, so
 > they are reported on every run instead of failing. That list empties itself (a
-> filled page fails until its entry is deleted) and must be empty at launch. It has no
-> rule for the starter's example values (the name `Example`, `hello@example.com`):
-> replacing those stays a human check.
+> filled page fails until its entry is deleted) and must be empty at launch. A
+> `"[MISSING: …]"` on a page only warns on your own machine, so a draft branch can be
+> pushed, and fails in CI. Not read, so still a human check: the 404 page, `llms.txt`
+> (it has slots of its own), and the starter's example values (the name `Example`,
+> `hello@example.com`).
 
 ## Section anchors
 

@@ -474,7 +474,8 @@ hold Search Console Request Indexing until then.
       that placeholder: the test only warns about a listed target. And an empty
       list is not the whole check: the spec has no rule for the starter's example
       values, so read the home page and both legal pages once for the name
-      `Example` and the address `hello@example.com`.
+      `Example` and the address `hello@example.com`, and `public/llms.txt` for its
+      own `[bracket]` slots.
 - [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
       is empty — merged-but-unpromoted work is invisibly unshipped. If not empty and it
       should ship: `npm run ship` (which also VERIFIES the live site serves the new build
