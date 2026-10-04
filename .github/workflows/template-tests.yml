@@ -91,6 +91,25 @@ jobs:
           git add scorecard.json && git commit -q -m "scores"
           npm test
           grep -q 'data-state="current"' dist/index.html
+      # The card's totals against Playwright's own summary, from a second run with another
+      # reporter: the script reads the JSON report, this reads the lines Playwright
+      # prints. So a change in the JSON report's shape that made the script miscount
+      # turns red here. The card leaves out its own spec, whose tests all sit that run out.
+      - name: The card's totals are Playwright's totals
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          out="$(SCORECARD_RUN=1 CI= npx playwright test --reporter=line 2>&1 | tail -n 8)"
+          echo "$out"
+          passed="$(printf '%s\n' "$out" | sed -n 's/^ *\([0-9][0-9]*\) passed.*/\1/p')"
+          skipped="$(printf '%s\n' "$out" | sed -n 's/^ *\([0-9][0-9]*\) skipped.*/\1/p')"
+          own="$(grep -c "^test('" tests/scorecard.spec.ts)"
+          node -e '
+            const card = JSON.parse(require("fs").readFileSync("scorecard.json", "utf8"));
+            const [passed, skipped, own] = process.argv.slice(1).map(Number);
+            const line = `card: ${card.passed} passed, ${card.skipped} skipped. Playwright: ${passed} passed, ${skipped} skipped, ${own} of them the tests of the card itself.`;
+            if (!(passed > 0) || card.passed !== passed || card.skipped !== skipped - own) { console.error("::error::" + line); process.exit(1); }
+            console.log("agree. " + line);
+          ' "$passed" "$skipped" "$own"
       # The three ways a run has to be refused, each against a real Playwright report:
       # the script's own arithmetic is pinned in its spec, this pins what Playwright
       # hands it. Each case is committed (the script wants a clean tree), must make
