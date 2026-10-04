@@ -11,8 +11,10 @@
 # cases pin what the gate does per push shape, per stdin kind and per shell, and that the
 # block refuses main whatever stdin git's pipe looks like.
 #
-# It also runs the "prepare" line that wires the hook (the template's package.json), to pin
-# that it touches git's hook folder only where the site is the root of its repo.
+# It also runs the "prepare" script that wires the hook (the template's package.json and
+# scripts/wire-hooks.mjs) through npm, to pin that the line needs no particular shell and
+# that it touches git's hook folder only where the site is the root of its repo. Those cases
+# need node and npm, and say so where they are skipped.
 #
 # Usage: bash scripts/test_pre_push_hook.sh
 set -u
@@ -41,6 +43,8 @@ sed '/^# while read -r _lref/,/^# done$/s/^# //' "$HOOK" >"$T/on"
 changed="$(diff "$T/off" "$T/on" | grep -c '^>')"
 check "the block uncomments as six lines" 6 "$changed"
 
+# The real npm, before the stub below shadows it: the "prepare" cases at the end run through it.
+NPM="$(command -v npm || true)"
 # A stub npm, so "the gate ran" is cheap and visible. No tests/ dir, so the hook's optional
 # classifier and SEO steps stay off.
 mkdir -p "$T/bin" "$T/site"
@@ -179,41 +183,72 @@ for v in off on; do
   fi
 done
 
-# The "prepare" line in the template's package.json is what wires the hook: npm runs it with
-# sh, in the site's folder, on every install. It may point git at scripts/hooks only where the
-# site is the root of its repo. Run from a site kept in a subfolder of a bigger repo, it used
-# to point that repo's hook folder at a scripts/hooks the repo does not have; git then runs no
-# hooks there at all and says nothing. This toolkit's own commit guard was dead with exactly
-# that setting: the template is such a subfolder here, and this line is the only thing in the
-# repo that writes the value. The install that set it was not observed.
-PKG="$HERE/../skills/new-website/templates/astro/package.json"
+# The "prepare" script in the template's package.json is what wires the hook: npm runs it in
+# the site's folder on every install, through the shell it uses for scripts — by default sh
+# on macOS and Linux, cmd.exe on Windows. So the line may hold nothing that one shell reads
+# differently from another: it only starts scripts/wire-hooks.mjs, and that script does the
+# work. It may point git at scripts/hooks only where the site is the root of its repo. Run
+# from a site kept in a subfolder of a bigger repo, an older line pointed that repo's hook
+# folder at a scripts/hooks the repo does not have; git then runs no hooks there at all and
+# says nothing.
+# This toolkit's own commit guard was dead with exactly that setting: the template is such a
+# subfolder here, and that line was the only thing in the repo that wrote the value. The
+# install that set it was not observed.
+TPL="$HERE/../skills/new-website/templates/astro"
+PKG="$TPL/package.json"
 prepare="$(sed -n 's/^ *"prepare": "\(.*\)",\{0,1\}$/\1/p' "$PKG")"
 check "package.json has a prepare line this test can read" yes "$([ -n "$prepare" ] && echo yes)"
-# The line is read with sed, not a JSON parser: an escape in it would be run as written.
-check "... and it holds no JSON escape" 0 "$(printf '%s\n' "$prepare" | grep -c '\\')"
+# cmd.exe has no `unset`, no /dev/null and no `true`, and reads quotes its own way. A quote or
+# a backslash would also be a JSON escape, which sed, reading the line here, does not undo.
+check "... and it is a command with plain arguments: nothing a shell has to interpret" 0 "$(printf '%s\n' "$prepare" | grep -c '[^A-Za-z0-9 ./_-]')"
+wire="${prepare#node }"
+check "... and the script it starts ships in the template" yes "$([ -f "$TPL/$wire" ] && echo yes)"
 # The hook's header quotes the line, so a site that has only the hook can repair an old one.
-check "... and the hook's header quotes that same line" yes "$(grep -qF -- "$prepare" "$HOOK" && echo yes)"
-# prep <dir> — run the line as npm does; prints its exit status.
-prep() { (cd "$1" && sh -c "$prepare") >/dev/null 2>&1; echo "$?"; }
+check "... and the hook's header quotes that same line" yes "$(grep -qxF -- "#   $prepare" "$HOOK" && echo yes)"
+
+# site <dir> — what a site has of the starter that "prepare" needs: package.json and the script.
+site() { mkdir -p "$(dirname "$1/$wire")" && cp "$PKG" "$1/package.json" && cp "$TPL/$wire" "$1/$wire"; }
+# prep <dir> — run "prepare" there through npm, as an install does: npm's own script runner
+# and the shell it picks. Prints the exit status.
+prep() { (cd "$1" && "$NPM" run --silent prepare) >/dev/null 2>&1; echo "$?"; }
+# said <dir> — the same run; prints what it wrote, which an install shows to whoever runs it.
+said() { (cd "$1" && "$NPM" run --silent prepare) 2>&1; }
 hooks_path() { $git -C "$1" config --local --get core.hooksPath || echo unset; }
 
-$git init -q "$T/root-site"
-check "prepare, site at the root of its repo: exits 0"         0 "$(prep "$T/root-site")"
-check "prepare, ... and the hook folder is wired"              scripts/hooks "$(hooks_path "$T/root-site")"
-$git init -q "$T/big"; mkdir -p "$T/big/apps/site"
-check "prepare, site in a subfolder of a bigger repo: exits 0" 0 "$(prep "$T/big/apps/site")"
-check "prepare, ... and that repo's hooks are left alone"      unset "$(hooks_path "$T/big")"
-# A git hook that runs `npm install` (post-merge, post-checkout) can hand it GIT_DIR: in a
-# linked worktree git exports an absolute one to its hooks. Git then takes the current folder
-# for the top of the working tree, so "am I in a subfolder?" answers no. The line must not
-# trust that.
-check "prepare, ... also run from a git hook (GIT_DIR set): exits 0" 0 "$(GIT_DIR="$T/big/.git" prep "$T/big/apps/site")"
-check "prepare, ... and that repo's hooks are still left alone" unset "$(hooks_path "$T/big")"
-$git -C "$T/big" config core.hooksPath .githooks
-check "prepare, ... also when it has a hook folder: exits 0"   0 "$(prep "$T/big/apps/site")"
-check "prepare, ... and that folder stays in use"              .githooks "$(hooks_path "$T/big")"
-mkdir -p "$T/plain"
-check "prepare, folder outside any repo: exits 0"              0 "$(GIT_CEILING_DIRECTORIES="$T" prep "$T/plain")"
+if [ -z "$NPM" ] || ! command -v node >/dev/null 2>&1; then
+  echo "SKIP: the prepare cases need node and npm (they run the line through npm, as an install does). The script that wires the hook was NOT run."
+else
+  # npm writes a log per run into its cache folder; a throwaway one keeps this test out of ~/.npm.
+  export npm_config_cache="$T/npm-cache" npm_config_update_notifier=false
+  $git init -q "$T/root-site"; site "$T/root-site"
+  check "prepare, site at the root of its repo: exits 0"         0 "$(prep "$T/root-site")"
+  check "prepare, ... and the hook folder is wired"              scripts/hooks "$(hooks_path "$T/root-site")"
+  $git init -q "$T/big"; site "$T/big/apps/site"
+  check "prepare, site in a subfolder of a bigger repo: exits 0" 0 "$(prep "$T/big/apps/site")"
+  check "prepare, ... and that repo's hooks are left alone"      unset "$(hooks_path "$T/big")"
+  # A git hook that runs `npm install` (post-merge, post-checkout) can hand it GIT_DIR: in a
+  # linked worktree git exports an absolute one to its hooks. Git then takes the current folder
+  # for the top of the working tree, so "am I in a subfolder?" answers no. The script must not
+  # trust that.
+  check "prepare, ... also run from a git hook (GIT_DIR set): exits 0" 0 "$(GIT_DIR="$T/big/.git" prep "$T/big/apps/site")"
+  check "prepare, ... and that repo's hooks are still left alone" unset "$(hooks_path "$T/big")"
+  # The script asks git about the folder it sits in, not the one it was started from. Started
+  # by hand from the top of the bigger repo, it must not take that top for the site.
+  check "prepare, ... also started from the top of the bigger repo: exits 0" 0 "$(cd "$T/big" && node "apps/site/$wire" >/dev/null 2>&1; echo "$?")"
+  check "prepare, ... and that repo's hooks are left alone then too" unset "$(hooks_path "$T/big")"
+  $git -C "$T/big" config core.hooksPath .githooks
+  check "prepare, ... also when it has a hook folder: exits 0"   0 "$(prep "$T/big/apps/site")"
+  check "prepare, ... and that folder stays in use"              .githooks "$(hooks_path "$T/big")"
+  site "$T/plain"
+  check "prepare, folder outside any repo: exits 0"              0 "$(GIT_CEILING_DIRECTORIES="$T" prep "$T/plain")"
+  check "prepare, ... and says nothing"                          "" "$(GIT_CEILING_DIRECTORIES="$T" said "$T/plain")"
+  # A machine without git: node alone, on a PATH that holds nothing, in a repo the script
+  # would wire if it found git — so a repo left unwired shows git was really out of reach.
+  $git init -q "$T/no-git"; site "$T/no-git"; mkdir -p "$T/empty"
+  node_bin="$(node -p process.execPath)"
+  check "prepare, no git on the machine: exits 0 and says nothing" 0 "$(cd "$T/no-git" && PATH="$T/empty" "$node_bin" "$wire" 2>&1; echo "$?")"
+  check "prepare, ... and git was out of reach there"            unset "$(hooks_path "$T/no-git")"
+fi
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
