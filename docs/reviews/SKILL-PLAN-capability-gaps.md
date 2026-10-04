@@ -204,7 +204,7 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 5 | a site with the form | the tests run | red unless the privacy page carries the marked sentences about the form, and they name Cloudflare. Red too while the test file does not say which page has the form and which is the privacy page |
 | 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success. The log names the settings that are missing |
 | 7 | a name with a line break and "Bcc:" in it, or two addresses in the email field | it is sent | the line break is removed from the subject; the two addresses are refused |
-| 8 | a form on another website posts to this site's endpoint through a visitor's browser | it submits | refused, also when the other site hides where it comes from or uses http for the same name |
+| 8 | a form on another website posts to this site's endpoint through a visitor's browser | it submits | refused whenever the browser names where the post comes from, also when the other site hides its name or uses http for this site's name. A post that names no origin at all is let through on purpose, so that an older browser's visitor does not lose a message |
 | 9 | a visitor whose browser runs no JavaScript, or whose browser failed to load the form's script | they send the form | they get a small page with the same answer, in the site's language, and a link back to the form that cannot lead to another site. The address to write to is under the form for every visitor, always |
 | 10 | a German site | the form is shown | German texts with no "du" or "Sie", so it fits either kind of site |
 | 11 | a visitor whose browser or password manager fills in fields by itself | they send a real message | it is sent unless that tool filled the hidden field too. The field's name and marking give it no reason to; that was not measured. A dropped submission leaves a line in the owner's log |
@@ -212,10 +212,11 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 13 | a visitor using only the keyboard | they tab through the form | name, email, message, send. The hidden field is never reached |
 | 14 | a two-stage site with the four settings entered for the live site only | the owner tries the form on the preview address | "could not be sent", and the log names the four settings. The skill says this is expected and that the first real message is sent on the live address |
 | 15 | a script posts a file as the name, a name made of control characters, or a post of 200 KB | it arrives | refused; nothing is sent |
+| 16 | the owner tries their own form and reads "could not be sent" | they open the function's log and send again | one line says why: a setting is missing, Cloudflare refused (status and numeric codes), the call got no answer, or the post named another origin. No line at all means the function was not reached. The skill says what to do in each case |
 
-Rows 1 to 9, 11, 13 and 15 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a
+Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a
 scratch copy of the starter with the skill installed by its own steps: 19 form tests, and
-the full suite with the form in place (80 passed, 1 skip). 53 deliberate breakages of the
+the full suite with the form in place (80 passed, 1 skip). 64 deliberate breakages of the
 function, the form or the privacy text were each caught by those tests. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default
@@ -227,7 +228,9 @@ announce a failure to screen readers, left visitors without JavaScript with no a
 logged nothing when Cloudflare refused a message, and used a hidden field named "website",
 which a browser may fill in for a real visitor. The second round found that the log could
 carry the token inside an error text, and that the link back to the form could be made to
-point at another site.
+point at another site. The third found that the form could say "could not be sent" while
+the log said nothing, and that the advice for one log line pointed the owner at Cloudflare
+when the cause can be a badly pasted token.
 
 **Not verified, and why.** No real email has been sent: that needs a Cloudflare account
 with a domain onboarded for sending, which only an owner has. The skill's last step is

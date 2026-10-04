@@ -41,18 +41,21 @@ export const LIMITS = { name: 100, email: 254, message: 5000 };
 export const TRAP = 'leave_empty';
 const SETTINGS = ['CONTACT_TO', 'CONTACT_FROM', 'CF_ACCOUNT_ID', 'CF_EMAIL_TOKEN'] as const;
 const TIMEOUT_MS = 10_000;
+// The kinds of error the log may name when the mail call throws.
+const KINDS = ['TimeoutError', 'AbortError', 'TypeError'];
 // A message of the allowed length is a few tens of kilobytes, however it is encoded.
 const MAX_BODY_BYTES = 100_000;
 // One address, nothing that could start a second header or a second recipient. An
 // apostrophe is allowed (o'brien@…): the address travels as a JSON value, not a header line.
 const EMAIL = /^[^\s@<>",;:\\()[\]]+@[^\s@<>",;:\\()[\]]+\.[^\s@<>",;:\\()[\]]{2,}$/;
 // Characters nobody types: no place in an address, a name or a subject line.
-const CONTROL = /[\x00-\x1F\x7F]/;
+const CONTROL = /[\x00-\x1F\x7F-\x9F]/;
 
 // The mail goes out through Cloudflare's own API. true only when Cloudflare says it
 // delivered or queued the message. Any other answer counts as a failure and is logged:
-// the HTTP status, Cloudflare's numeric error codes, how many addresses bounced and
-// whether the answer could be read. Its error texts are left out on purpose, because
+// the HTTP status, how many errors Cloudflare named and their numeric codes, how many
+// addresses bounced, and whether the answer could be read. Numbers and a yes or no,
+// nothing the answer spells out: its error texts are left out on purpose, because
 // nothing guarantees they never repeat part of what was sent, and the log must not
 // carry the token or the visitor's words.
 export async function sendViaCloudflare(message: Message, env: Required<Env>, fetcher: typeof fetch = fetch): Promise<boolean> {
@@ -64,17 +67,22 @@ export async function sendViaCloudflare(message: Message, env: Required<Env>, fe
     signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(TIMEOUT_MS) : undefined,
   });
   const body = (await res.json().catch(() => null)) as
-    | { success?: boolean; errors?: unknown; result?: { delivered?: unknown[]; queued?: unknown[]; permanent_bounces?: unknown[] } | null }
+    | { success?: unknown; errors?: unknown; result?: { delivered?: unknown; queued?: unknown; permanent_bounces?: unknown } | null }
     | null;
-  const accepted = (body?.result?.delivered?.length ?? 0) + (body?.result?.queued?.length ?? 0);
+  // Only a real list has a length to believe, or to log.
+  const count = (list: unknown) => (Array.isArray(list) ? list.length : 0);
+  const accepted = count(body?.result?.delivered) + count(body?.result?.queued);
   if (res.ok && body?.success === true && accepted > 0) return true;
-  const codes = (Array.isArray(body?.errors) ? body.errors : [])
+  // A code is a number, or digits in a text; anything else is counted, not repeated.
+  const errors: unknown[] = Array.isArray(body?.errors) ? body.errors : [];
+  const codes = errors
     .slice(0, 10)
-    .map((error: unknown) => (error as { code?: unknown } | null)?.code)
-    .filter((code): code is number => typeof code === 'number');
+    .map((error) => (error as { code?: unknown } | null)?.code)
+    .filter((code): code is number | string => typeof code === 'number' || (typeof code === 'string' && /^\d{1,10}$/.test(code)))
+    .map(Number);
   console.error(
     'contact form: Cloudflare did not accept the message: ' +
-      JSON.stringify({ status: res.status, codes, bounced: body?.result?.permanent_bounces?.length ?? 0, readable: body !== null }),
+      JSON.stringify({ status: res.status, errors: errors.length, codes, bounced: count(body?.result?.permanent_bounces), readable: body !== null }),
   );
   return false;
 }
@@ -84,7 +92,9 @@ type Outcome = { status: number; body: { ok: boolean; error?: 'forbidden' | 'inv
 // The decision, apart from how it is phrased back to the visitor.
 export async function decide(request: Request, env: Env, send: Send = sendViaCloudflare): Promise<{ outcome: Outcome; lang: string }> {
   // A post that declares far more than a message can be is refused unread. One that
-  // declares nothing is still read: Cloudflare's own limits are what bound it.
+  // declares nothing is still read: Cloudflare's own limits are what bound it. Whether
+  // Cloudflare hands this header to the function was not observed; if it does not, this
+  // check never fires there.
   if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) {
     return { outcome: { status: 400, body: { ok: false, error: 'invalid', fields: { form: 'too_large' } } }, lang: 'en' };
   }
@@ -110,20 +120,23 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
   // names the origin; it is not what stops a script (nothing here does, see the skill's §6).
   const origin = request.headers.get('origin');
   if (origin !== null && origin !== new URL(request.url).origin) {
+    // Logged, without the header's value: the form says "could not be sent" for this
+    // too, and an owner testing their own form needs to see why.
+    console.error('contact form: refused a post that names another origin');
     return { outcome: { status: 403, body: { ok: false, error: 'forbidden' } }, lang };
   }
 
   // The hidden field: people never see it, simple bots fill it. Same answer as a real
   // success, so the bot learns nothing, and nothing is sent. Logged without any of the
   // submitted text, so an owner who suspects lost messages can see that drops happen.
-  if (field(TRAP) !== '') {
+  if (form.getAll(TRAP).some((value) => typeof value !== 'string' || value.trim() !== '')) {
     console.log('contact form: dropped a submission that filled the hidden field');
     return { outcome: { status: 200, body: { ok: true } }, lang };
   }
 
   // The name goes into the subject line: a line break or any other control character
   // in it becomes a space.
-  const name = field('name').replace(/[\x00-\x1F\x7F]+/g, ' ').trim();
+  const name = field('name').replace(/[\x00-\x1F\x7F-\x9F]+/g, ' ').trim();
   const email = field('email');
   // Browsers send a textarea's line breaks as CRLF; count them as the one character
   // the visitor typed, or a long message with many paragraphs fails the limit.
@@ -157,9 +170,11 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
       { CONTACT_TO, CONTACT_FROM, CF_ACCOUNT_ID, CF_EMAIL_TOKEN },
     );
   } catch (err) {
-    // The kind of error only (TimeoutError: no answer in time). Its text is left out,
-    // for the same reason as Cloudflare's error texts above.
-    console.error('contact form: the mail call failed before an answer came: ' + (err instanceof Error ? err.name : 'unknown error'));
+    // The kind of error, and only one from the short list above (TimeoutError: no answer
+    // in time). Never its text, and never a name outside the list: either can repeat
+    // what was sent, as Cloudflare's error texts can.
+    const kind = err instanceof Error && KINDS.includes(err.name) ? err.name : 'another error';
+    console.error('contact form: the mail call failed before an answer came: ' + kind);
   }
   return { outcome: sent ? { status: 200, body: { ok: true } } : { status: 502, body: { ok: false, error: 'send_failed' } }, lang };
 }
@@ -167,38 +182,38 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
 // What a visitor without JavaScript reads after sending. No form of address, so it
 // fits a "du" site and a "Sie" site alike. On a failure it sends them back to the
 // form, where the address to write to is always shown.
-const PLAIN: Record<string, { title: string; sent: string; invalid: string; failed: string; back: string; home: string }> = {
+const PLAIN: Record<string, { title: string; sent: string; invalid: string; failed: string; back: string }> = {
   en: {
     title: 'Contact',
     sent: 'Thank you. The message has been sent.',
     invalid: 'Some details are missing or not valid. Please go back and check them.',
     failed: 'The message could not be sent. Please go back: the address to write to is shown with the form.',
-    back: 'Back to the form',
-    home: 'Back to the website',
+    back: 'Back to the website',
   },
   de: {
     title: 'Kontakt',
     sent: 'Danke. Die Nachricht wurde gesendet.',
     invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte zurückgehen und prüfen.',
     failed: 'Die Nachricht konnte nicht gesendet werden. Bitte zurückgehen: Die Adresse für eine direkte Nachricht steht beim Formular.',
-    back: 'Zurück zum Formular',
-    home: 'Zurück zur Website',
+    back: 'Zurück zur Website',
   },
 };
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-// The page the form was on, if the browser says so and it is this site. The whole
-// address, not only its path: a path that starts with two slashes
+// Where the link on that page leads: the page the form was on, if the browser says so
+// and it is this site (same scheme, same host), else the home page. The whole address,
+// not only its path: a path that starts with two slashes
 // (https://this-site//other-site/…) would send the browser to the other site.
-function formPage(request: Request): string | null {
+function backTo(request: Request): string {
   try {
+    const here = new URL(request.url);
     const from = new URL(request.headers.get('referer') ?? '');
-    if (from.origin === new URL(request.url).origin) return from.origin + from.pathname + from.search;
+    if (from.protocol === here.protocol && from.host === here.host) return from.origin + from.pathname + from.search;
   } catch {
     // no usable Referer
   }
-  return null;
+  return '/';
 }
 
 export async function handle(request: Request, env: Env, send: Send = sendViaCloudflare): Promise<Response> {
@@ -211,12 +226,10 @@ export async function handle(request: Request, env: Env, send: Send = sendViaClo
   const known = Object.hasOwn(PLAIN, lang) ? lang : 'en';
   const t = PLAIN[known];
   const line = outcome.body.ok ? t.sent : outcome.body.error === 'invalid' ? t.invalid : t.failed;
-  // Back to the form when the browser said where it was; else to the home page, named as such.
-  const from = formPage(request);
   const page =
     `<!doctype html><html lang="${known}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
     `<meta name="robots" content="noindex"><title>${t.title}</title><main><p>${line}</p>` +
-    `<p><a href="${escapeHtml(from ?? '/')}">${from ? t.back : t.home}</a></p></main></html>`;
+    `<p><a href="${escapeHtml(backTo(request))}">${t.back}</a></p></main></html>`;
   return new Response(page, { status: outcome.status, headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } });
 }
 

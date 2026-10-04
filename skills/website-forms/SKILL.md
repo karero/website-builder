@@ -189,17 +189,31 @@ Preview.
 3. It does not arrive, or the form says "could not be sent": have the owner open the
    function's log for that deployment in the Cloudflare dashboard, **then send the
    message again** (the dashboard shows a function's log lines as they happen; start
-   it first). The function writes one of three lines:
+   it first). The form says "could not be sent" in four cases, and the function writes
+   a line for each:
    - "not set on this deployment: …" names the settings missing from §2.
-   - "Cloudflare did not accept the message: …" carries the HTTP status and
-     Cloudflare's numeric error codes. Report them to the owner as they are, and look
-     them up in Cloudflare's documentation; do not guess.
-   - "the mail call failed before an answer came: …" means Cloudflare could not be
-     reached, or (`TimeoutError`) did not answer within ten seconds. Try again later;
-     if it keeps happening, look at Cloudflare's status page.
+   - "Cloudflare did not accept the message: …" carries the HTTP status, how many
+     errors Cloudflare named and their numeric codes. Report them to the owner as they
+     are, and look them up in Cloudflare's documentation; do not guess.
+   - "refused a post that names another origin": the browser said the form was posted
+     from another address than the one the function runs on. Open the form on the
+     address being tested. For visitors without JavaScript the site's `Referrer-Policy`
+     can cause this too (§6).
+   - "the mail call failed before an answer came: …" means the call ended without an
+     answer from Cloudflare. `TimeoutError`: no answer within ten seconds; try again
+     later, and if it keeps happening, look at Cloudflare's status page. Anything else
+     (`TypeError`, "another error"): the call could not be made. That can be the
+     network, and it can be a setting that holds something that cannot be sent, most
+     often a token pasted with a line break in it. If a second try a little later ends
+     the same way, have the owner create a new token and enter the four settings again
+     (§2), then redeploy.
 
    None of them contains the token or anything the visitor entered: only the status,
-   the numeric codes and the kind of error are logged, never Cloudflare's error text.
+   numeric codes and counts, and the kind of error from a short fixed list are logged,
+   never Cloudflare's error text.
+
+   No line at all while the form says "could not be sent": the function was not
+   reached. Check that `functions/api/contact.ts` is in the deployed commit.
 4. The form said "sent" and nothing arrived, with the log open: no line at all means
    Cloudflare accepted the message, so look in the spam folder and check that the
    destination address was confirmed (§2 step 2). The line "dropped a submission that
@@ -214,8 +228,8 @@ Only then is the form done.
 - **No storage, no list of past messages.** The mailbox is the record.
 - **One hidden field against bots, nothing more.** It stops bots that fill in every
   field of a page. A script that posts straight to `/api/contact` never sees the field
-  and is not stopped by it, nor by the check that keeps other websites from posting
-  here. If spam gets through, the next step is Cloudflare Turnstile on the form and a
+  and is not stopped by it, nor by the check that refuses a post naming another
+  website as its origin. If spam gets through, the next step is Cloudflare Turnstile on the form and a
   rate-limiting rule on `/api/contact`. Neither is built here: say so when the owner
   reports spam. A real visitor whose browser or password manager fills the hidden
   field is dropped the same way: its name and `autocomplete="off"` give them no reason
@@ -225,6 +239,11 @@ Only then is the form done.
   in question.
 - **Without JavaScript, the answer is a page of its own.** Reloading that page makes
   the browser ask whether to send the form again.
+- **Not with `Referrer-Policy: no-referrer`.** Under that policy a browser posts a plain
+  form with `Origin: null` (seen in Chromium), which the function refuses, so visitors
+  without JavaScript could not send. The starter's policy
+  (`strict-origin-when-cross-origin`) is fine; look at `public/_headers` on a site that
+  changed it.
 - **This repo's CI builds the English form only.** The German texts were read against
   the tone rules by hand; a site in German runs them through its own suite.
 - **No file uploads, no newsletter sign-up.** Different problems (size limits, consent

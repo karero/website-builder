@@ -82,6 +82,7 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
     [{ ...GOOD, email: 'ada@example.org, eve@example.net' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada@example.org\nBcc: eve@example.net' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada\u0000@example.org' }, { email: 'invalid' }],
+    [{ ...GOOD, email: 'ada\u0085@example.org' }, { email: 'invalid' }],
     [{ ...GOOD, name: 'x'.repeat(LIMITS.name + 1) }, { name: 'too_long' }],
     [{ ...GOOD, message: 'x'.repeat(LIMITS.message + 1) }, { message: 'too_long' }],
     [{ name: '', email: 'nope', message: '', [TRAP]: '', lang: 'en' }, { name: 'required', email: 'invalid', message: 'required' }],
@@ -118,11 +119,11 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
 test('contact — a line break in the name cannot start a new mail header', async () => {
   const { sent, send } = recorder();
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
-  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F' }), ENV, send);
+  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F' }), ENV, send);
   expect(sent).toHaveLength(2);
   for (const message of sent) {
-    expect(message.subject).not.toMatch(/[\x00-\x1F\x7F]/);
-    expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\x00-\x1F\x7F]/);
+    expect(message.subject).not.toMatch(/[\x00-\x1F\x7F-\x9F]/);
+    expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\x00-\x1F\x7F-\x9F]/);
   }
   // A name made of nothing else is no name.
   const none = recorder();
@@ -146,6 +147,18 @@ test('contact — a bot that fills the hidden field gets a thank-you and nothing
   expect(log).toContain('dropped a submission');
   expect(log).not.toContain('spam.example');
   expect(log).not.toContain('Ada');
+  // The trap's name sent twice, empty first: the filled one still counts. So does a file.
+  const twice = new URLSearchParams(GOOD);
+  twice.append(TRAP, 'https://spam.example');
+  const withFile = new FormData();
+  for (const [key, value] of Object.entries(GOOD)) withFile.set(key, value);
+  withFile.set(TRAP, new File(['x'], 'spam.txt'));
+  for (const body of [twice, withFile]) {
+    const again = recorder();
+    const answer = await handle(new Request(`${SITE_ORIGIN}/api/contact`, { method: 'POST', headers: { accept: 'application/json', origin: SITE_ORIGIN }, body }), ENV, again.send);
+    expect(await answer.json()).toEqual({ ok: true });
+    expect(again.sent, 'nothing is sent').toHaveLength(0);
+  }
 });
 
 test('contact — when the mail service refuses or breaks, the visitor is told', async () => {
@@ -153,14 +166,18 @@ test('contact — when the mail service refuses or breaks, the visitor is told',
   // with a line break in it comes back inside the "invalid header value" error.
   const timeout = new Error('"Bearer tok" is an invalid header value; gave up sending "Hello, do you have time in May?" for ada@example.org');
   timeout.name = 'TimeoutError';
-  for (const result of [false, timeout]) {
+  // An error's name is text too: one outside the function's short list is not repeated.
+  const named = new Error('x');
+  named.name = 'Bearer tok refused for ada@example.org';
+  for (const result of [false, timeout, named]) {
     const { send } = recorder(result);
     let res!: Response;
     const log = await logged(async () => { res = await handle(post(GOOD), ENV, send); });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ ok: false, error: 'send_failed' });
     // The log says what kind of error it was, and never what the visitor wrote.
-    if (result !== false) expect(log).toContain('the mail call failed before an answer came: TimeoutError');
+    if (result === timeout) expect(log).toContain('the mail call failed before an answer came: TimeoutError');
+    if (result === named) expect(log).toContain('the mail call failed before an answer came: another error');
     expect(log).not.toContain('time in May');
     expect(log).not.toContain('ada@example.org');
     expect(log).not.toContain('Bearer');
@@ -179,14 +196,19 @@ test('contact — a deployment without its settings says so, and its log names w
   }
 });
 
-test('contact — another website cannot post here through its visitors\' browsers', async () => {
+test('contact — a post that names another origin is refused, one that names none is let through', async () => {
   for (const origin of ['https://elsewhere.example', 'http://site.example', 'https://site.example.evil.example', 'null']) {
     const { sent, send } = recorder();
-    const res = await handle(post(GOOD, { origin }), ENV, send);
+    let res!: Response;
+    const log = await logged(async () => { res = await handle(post(GOOD, { origin }), ENV, send); });
     expect(res.status, `Origin: ${origin}`).toBe(403);
     expect(sent, `Origin: ${origin}`).toHaveLength(0);
+    // The owner's form says "could not be sent" here too, so the log has to say why.
+    expect(log, `Origin: ${origin}`).toContain('refused a post that names another origin');
+    expect(log, `Origin: ${origin}`).not.toContain(origin);
   }
-  // No Origin header at all: not a browser's cross-site post. Let through, on purpose.
+  // No Origin header at all is let through, on purpose (the function says why). These
+  // are header values handed to the function: which browsers send which was not measured.
   const { sent, send } = recorder();
   expect((await handle(post(GOOD, { origin: null }), ENV, send)).status).toBe(200);
   expect(sent).toHaveLength(1);
@@ -213,9 +235,10 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
   const failedPage = await failed.text();
   expect(failed.status).toBe(502);
   expect(failedPage).toContain('address to write to');
-  expect(failedPage).toContain(`<a href="${SITE_ORIGIN}/contact?from=%22x%22&amp;a=1">Back to the form</a>`);
-  // No usable Referer: the home page, and the link does not call it the form.
-  for (const referer of ['https://elsewhere.example/page', null]) {
+  expect(failedPage).toContain(`<a href="${SITE_ORIGIN}/contact?from=%22x%22&amp;a=1">Back to the website</a>`);
+  // No usable Referer (another site, none, or an address that only looks like this
+  // site's): the home page.
+  for (const referer of ['https://elsewhere.example/page', null, `blob:${SITE_ORIGIN}/0b1c2d3e`]) {
     const elsewhere = await handle(post(GOOD, { accept: 'text/html', referer }), ENV, recorder(false).send);
     expect(await elsewhere.text(), `Referer: ${referer}`).toContain('<a href="/">Back to the website</a>');
   }
@@ -223,6 +246,7 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
   for (const referer of [`${SITE_ORIGIN}//elsewhere.example/contact`, `${SITE_ORIGIN}/\\elsewhere.example/contact`]) {
     const tricky = await (await handle(post(GOOD, { accept: 'text/html', referer }), ENV, recorder(false).send)).text();
     const href = tricky.match(/<a href="([^"]*)">/)?.[1] ?? '';
+    expect(href, 'the page has a link').not.toBe('');
     expect(new URL(href, `${SITE_ORIGIN}/api/contact`).origin, `the back link for ${referer} stays on this site`).toBe(SITE_ORIGIN);
   }
   const { outcome } = await decide(post({ ...GOOD, email: 'nope' }), ENV, send);
@@ -252,6 +276,8 @@ test('contact — the mail call asks Cloudflare the right way, believes only a r
     ['a refused token', 403, { success: false, errors: [{ code: 10102, message: 'email.sending.error.authentication.forbidden' }] }],
     ['an error text that repeats what was sent', 400, { success: false, errors: [{ code: 10001, message: 'bad token tok-1 for "the visitor wrote this" from ada@example.org' }] }],
     ['errors in a shape nobody documented', 400, { success: false, errors: 'tok-1 the visitor wrote this' }],
+    ['a bounce list that is not a list', 200, { success: false, result: { permanent_bounces: { length: 'tok-1 the visitor wrote this ada@example.org' } } }],
+    ['"delivered" as a text, not a list of addresses', 200, { success: true, result: { delivered: 'owner@example.com' } }],
     ['an error status is never a yes', 500, { success: true, result: { delivered: ['owner@example.com'] } }],
     ['an answer that cannot be read', 200, 'not json'],
   ];
@@ -268,8 +294,15 @@ test('contact — the mail call asks Cloudflare the right way, believes only a r
     expect(log, why).not.toContain('ada@example.org');
   }
   const refused = await logged(async () => { await sendViaCloudflare(message, env, answer(403, { success: false, errors: [{ code: 10102, message: 'email.sending.error.authentication.forbidden' }] })); });
+  expect(refused).toContain('"errors":1');
   expect(refused).toContain('"codes":[10102]');
   expect(refused).not.toContain('authentication.forbidden');
+  // A code that arrives as digits in a text is still a code. One that is not is counted,
+  // so "no code" can be told from "no error".
+  const texts = await logged(async () => { await sendViaCloudflare(message, env, answer(400, { success: false, errors: [{ code: '10001' }, { code: 'E_tok-1' }] })); });
+  expect(texts).toContain('"errors":2');
+  expect(texts).toContain('"codes":[10001]');
+  expect(texts).not.toContain('tok-1');
 });
 
 test('contact — every field has a label, and the bot trap is out of everyone\'s way', async ({ page }) => {
@@ -281,6 +314,11 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
     await expect(page.locator(`label[for="${id}"]`), `a visible label for #${id}`).toBeVisible();
     await expect(page.locator(`#${id}`)).toHaveAttribute('required', '');
   }
+  // The sentences the form's script chooses from are all there and all different: the
+  // outcome tests below take the expected sentence from these same attributes.
+  const sentences = await Promise.all(['data-sending', 'data-sent', 'data-invalid', 'data-failed'].map((name) => form.getAttribute(name)));
+  expect(sentences.every((sentence) => sentence && sentence.trim() !== ''), 'four sentences').toBe(true);
+  expect(new Set(sentences).size, 'four different sentences').toBe(4);
   const trap = page.locator(`[name="${TRAP}"]`);
   await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');

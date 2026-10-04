@@ -70,21 +70,21 @@ const privacy = Astro.props.privacy ?? t.privacy;
     <label for="contact-message">{t.message}</label>
     <textarea id="contact-message" name="message" rows="6" required maxlength="5000"></textarea>
   </p>
-  <!-- Not for people: hidden from sight, from the keyboard and from screen readers.
+  {/* Not for people: hidden from sight, from the keyboard and from screen readers.
        A bot that fills every field fills this one, and its message is dropped. The
        name and autocomplete="off" give a browser or a password manager no reason to
        fill it in for a visitor; whether one does anyway was not measured, which is why
        the function logs every drop (keep the name in step with TRAP in
-       functions/api/contact.ts). -->
+       functions/api/contact.ts). These notes are not sent to the browser. */}
   <p class="contact-form-trap" aria-hidden="true">
     <label for="contact-leave-empty">{t.trap}</label>
     <input id="contact-leave-empty" name="leave_empty" type="text" tabindex="-1" autocomplete="off" />
   </p>
   <p class="contact-form-note">{t.note} <a href={privacy}>{t.privacyLink}</a></p>
   <p><button type="submit">{t.send}</button></p>
-  <!-- The answer: the line a screen reader is told to read out when it changes. -->
+  {/* The answer: the line a screen reader is told to read out when it changes. */}
   <p class="contact-form-status" role="status" aria-live="polite" data-contact-status></p>
-  <!-- Always there, never hidden: nothing has to work for a visitor to find it. -->
+  {/* Always there, never hidden: nothing has to work for a visitor to find it. */}
   <p class="contact-form-direct" data-contact-direct>{t.direct} <EmailLink address={fallback} /></p>
 </form>
 
