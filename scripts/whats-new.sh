@@ -63,7 +63,15 @@ write_stamp() {  # $1 = skills dir
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/.nvmrc'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/.nvmrc'
+# The guard scans templates/astro/ only; nothing forces a choice for the root templates
+# beside it. PUBLISHING.md is tracked like AGENTS.md: its "For AI assistants" section
+# holds the deploy rules a site's assistant follows, and AGENTS.md points there.
+# SETUP.md is deliberately NOT tracked: it is one-time setup for people (accounts, tools,
+# bootstrap) that no assistant follows after handoff, and it changes often, so reporting
+# it would ask every site to hand-merge steps it finished long ago. A note an existing
+# site needs belongs in a tracked file instead (the pre-push hook's repair note moved
+# there for this reason).
 
 # Upstream template files that scaffolded sites are EXPECTED to hand-edit — deliberately NOT
 # drift-tracked, for two different reasons:
@@ -320,6 +328,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
       skills/new-website/templates/AGENTS.md)
         echo "  templates/AGENTS.md (site copy: AGENTS.md — rules the assistants execute; merge by hand, the site's copy carries filled slots and §5)" ;;
+      skills/new-website/templates/PUBLISHING.md)
+        echo "  templates/PUBLISHING.md (site copy: PUBLISHING.md, or the owner's translation — deploy rules the assistants execute; merge by hand, keeping its \"For AI assistants\" section)" ;;
       skills/new-website/templates/astro/playwright.config.ts)
         echo "  templates/astro/playwright.config.ts (site copy: playwright.config.ts)" ;;
       skills/new-website/templates/astro/functions/_middleware.ts)
