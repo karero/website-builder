@@ -25,7 +25,8 @@ what your model below decides.
 
 Your site uses **one** of these. If you're not sure, your README's "Deploy" section says
 which, or just look at your branches: only `main` = single-stage; `main` **and**
-`production` = two-stage.
+`production` = two-stage. One more case: if your site isn't connected to GitHub in
+Cloudflare, a push publishes nothing. See "Deploy by command" below.
 
 ---
 
@@ -104,6 +105,33 @@ git push
 
 ---
 
+## Deploy by command — if your site isn't connected to GitHub in Cloudflare
+
+Some sites are put online with a Cloudflare token instead of a GitHub connection (your
+README's "Deploy" section says if yours is one). On such a site, `git push` and
+`npm run ship` only update GitHub. **Nothing goes online until someone runs these
+commands.** They publish what's in your folder, so save and upload your changes first
+(commit and push, as above): anything not saved would go live without being on GitHub.
+
+```bash
+# 1. Get the newest state from GitHub
+git switch main
+git pull
+
+# 2. Build the site, then upload it to Cloudflare — this goes LIVE
+npm run build
+npx wrangler pages deploy dist --project-name <your-project> --branch <production-branch>
+```
+
+`<your-project>` is your site's project name in Cloudflare. `<production-branch>` is the
+branch the project was created with: `main` on a single-stage site, `production` on a
+two-stage one. Don't leave `--branch` out: without it, the upload can land as a preview
+instead of on the live site. If the command says you aren't logged in, run
+`npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
+run it again.
+
+---
+
 ## If something goes wrong
 
 - **Mistake already live?** Don't panic — in the **Cloudflare dashboard → your Pages
@@ -143,8 +171,8 @@ ones you're most likely to meet:
 - **"This branch isn't connected to GitHub yet"?** A brand-new site that has never been
   uploaded. Run `git push -u origin main` once, then ship.
 
-When in doubt, ask before you `npm run ship` / `git push` — those are the only two commands
-that change what the public sees.
+When in doubt, ask before you `npm run ship`, `git push` or the deploy command above — those
+are the only commands that change what the public sees.
 
 ---
 

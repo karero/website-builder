@@ -109,7 +109,9 @@ Ongoing deploys under (A): re-run
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
-Then continue with `search-console-setup` for GSC/Bing + Crawler Hints.
+The site's own copy of this command, for after handoff, is in `templates/PUBLISHING.md`,
+"Deploy by command": change the two together. Then continue with `search-console-setup`
+for GSC/Bing + Crawler Hints.
 
 ---
 
