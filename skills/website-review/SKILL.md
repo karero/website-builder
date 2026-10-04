@@ -96,10 +96,12 @@ recommendation, never to pick unasked.
   hand against this pass's checklist, or vendor the generic `double-knuth`
   skill from the website-builder suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
-- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
+- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
 - Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
-  pages OR `public/` assets (the manifest's fields are brackets too — no spec reads them).
+  pages OR `public/` assets. `placeholders.spec.ts` enforces this on the rendered pages and
+  the manifest; read for what it cannot see: other `public/` files, PDFs, text inside images,
+  and an entry still sitting in its `UNFILLED_UNTIL_LAUNCH` at launch (it only warns there).
 - **Freshness date matches the edit:** if the page's visible content changed and it carries a
   last-modified signal (a `dateModified`/"Updated" byline, an Article/BlogPosting JSON-LD date),
   that date is bumped to today. It silently drifts otherwise — stale in the visible byline, the

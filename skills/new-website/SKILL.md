@@ -182,7 +182,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 6 | Build: head metadata within limits, schema, llms.txt | **`website-seo-geo`** (+ `schema-markup`, `ai-seo`) |
 | 6 | Build: per-page OG share cards (`npm run og` → 1200×630 ≤300 KB, tested) | **`og-images`** |
 | 6 | Build: testimonials / Review schema from one data file (if the site has quotes) | **`website-testimonials`** |
-| 7 | QA: a11y (light+dark) / seo / navigation / anchors / orphans / images / tone / positioning / email / links | **`website-qa`** |
+| 7 | QA: a11y (light+dark) / seo / navigation / anchors / orphans / images / tone / positioning / placeholders / email / links | **`website-qa`** |
 | 8 | Performance: Lighthouse / PageSpeed for FCP & LCP | **`website-qa`** perf section (+ `seo-audit`) |
 | 9 | **Double-Knuth review** (correctness + cross-file consistency) | **`website-review`** |
 | 10 | Outgoing-link liveness sweep — **only if the site links out** (see §3a) | **`outgoing-link-audit`** |
@@ -276,9 +276,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `astro-i18n-setup`). **`'de'` flips the footer's privacy link to `/datenschutz`** —
    do the privacy→datenschutz swap in the SAME step (rename the in-repo
    draft `src/pages/_datenschutz.astro` per its header: page file,
-   `tests/_helpers.ts` PAGES, `public/llms.txt`, `OWN_CARD_EXEMPT` +
-   `POSITIONING_EXEMPT` in the specs) or every intermediate `npm test` fails
-   navigation on the footer link.
+   `tests/_helpers.ts` PAGES, `public/llms.txt`, `OWN_CARD_EXEMPT`,
+   `POSITIONING_EXEMPT` + `UNFILLED_UNTIL_LAUNCH` in the specs) or every
+   intermediate `npm test` fails navigation on the footer link.
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch. **Astro needs Node ≥22.12** — the overlay's `.nvmrc` pins
@@ -418,7 +418,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    only if the owner opted in at §2a; `website-story` copies it from its own
    `templates/story.md`.
 5. **Confirm green:** `npm run build && npm test` (the overlay passes the
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware suite out of the box). Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware suite out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
@@ -466,7 +466,12 @@ caches a 404 at the edge that only a manual dashboard purge clears. Verify on
 the hash deployment URL until Active, touch the bare canonical URL last, and
 hold Search Console Request Indexing until then.
 
-- [ ] All QA green: `npm test`.
+- [ ] All QA green: `npm test`, with **no "not ready to launch" warning**:
+      `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts` is empty. The starter
+      lists the privacy page, the imprint and the manifest there until their
+      `[BRACKET]` slots are filled; each entry comes out when its target is filled
+      (the test turns red until it does). An entry still listed at launch ships
+      that placeholder: the test only warns about a listed target.
 - [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
       is empty — merged-but-unpromoted work is invisibly unshipped. If not empty and it
       should ship: `npm run ship` (which also VERIFIES the live site serves the new build
@@ -490,8 +495,9 @@ hold Search Console Request Indexing until then.
       default). `tests/seo.spec.ts` enforces size/dimensions; WhatsApp drops previews over
       ~300 KB. Plus favicon/manifest icon set in place, and the manifest's
       `[BRACKET]` fields (name/short_name/description) filled in the site's
-      content language with `lang` set from `SITE.locale` — no spec reads the
-      manifest, so placeholder English there ships silently otherwise.
+      content language with `lang` set from `SITE.locale` — `placeholders.spec.ts`
+      catches a bracket left there, but no spec reads the manifest's language, so
+      English in a German site's manifest ships silently otherwise.
 - [ ] Imprint/legal + privacy pages present (EEAT trust + DE legal requirement).
       The starter ships a GDPR privacy draft (`src/pages/privacy.astro`): every
       `[BRACKET]` slot filled, the analytics section matching the real setup.
@@ -504,7 +510,7 @@ hold Search Console Request Indexing until then.
       MStV — required for providers established in Germany, whatever the
       site's language, and for sites targeting the German market; fill/delete
       per its header and section comments, which also cover Austrian/Swiss
-      adaptation and the five-piece removal for providers with no German
+      adaptation and the six-piece removal for providers with no German
       nexus).
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u

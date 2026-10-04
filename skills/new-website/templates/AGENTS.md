@@ -155,7 +155,9 @@ applies there; instead of steps 2 to 4, only this:
   If something is missing (a number, a year, a material, a name), write a placeholder
   and ask, **always in quotes** (in frontmatter an unquoted `[…]` breaks the build):
   `value: "[MISSING: year built]"`.
-  Placeholders must not go live; see the draft rule in §2.
+  Placeholders must not go live; see the draft rule in §2. The test
+  `tests/placeholders.spec.ts` reads the finished pages for them, and for filler
+  text and author notes (`TODO`).
 - Forbidden (the test `tests/tone.spec.ts` rejects it): the long dash (—), buzzwords
   and typical AI filler phrases, and in English any contraction. The full,
   language-specific list is in `tests/tone.spec.ts`; read it before writing copy.

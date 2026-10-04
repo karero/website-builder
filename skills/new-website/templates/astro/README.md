@@ -23,7 +23,7 @@ scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin 
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,email,links,llms-coverage,middleware}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
@@ -58,7 +58,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`
    (controller, date, analytics wording — see the comment block in that file).
 5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware out of the box. Then build pages
+   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already
@@ -85,6 +85,16 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > paid-ad landing page — llms.txt is public, listing one would expose it to AI
 > engines) go in `LLMS_EXEMPT` with a reason. Whether an entry's *wording* still
 > matches the page stays a `website-review` / `website-seo-geo` judgment item.
+
+> `placeholders.spec.ts` reads the **rendered** site for leftovers: each page's copy,
+> head metadata, alt texts, aria-labels and JSON-LD, plus the web manifest. It fails on
+> an unfilled `[SLOT]` (the `"[MISSING: …]"` content token and the starter's
+> `[BRACKET]` slots alike), filler text, an author note (`TODO`), an unrendered
+> template expression or a dummy name. The CI grep for `[MISSING:` is the fast
+> source-side half; this is the half that reads what a page serves. The starter's
+> privacy page, imprint and manifest are listed in its `UNFILLED_UNTIL_LAUNCH`, so
+> they are reported on every run instead of failing. That list empties itself (a
+> filled page fails until its entry is deleted) and must be empty at launch.
 
 ## Section anchors
 
