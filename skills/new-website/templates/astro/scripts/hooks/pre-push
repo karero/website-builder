@@ -4,8 +4,17 @@
 # test-driven contract (CI in .github/workflows/ runs the same checks).
 #
 # Wired automatically by the "prepare" script in package.json (npm install sets
-# core.hooksPath to scripts/hooks). The `check_seo.py` step runs only if that
-# file exists, so this same hook works whether SEO is a Python gate or seo.spec.ts.
+# core.hooksPath to scripts/hooks, when the site is the root of its git repo). The
+# `check_seo.py` step runs only if that file exists, so this same hook works whether
+# SEO is a Python gate or seo.spec.ts.
+#
+# The "prepare" line this hook expects in package.json:
+#   unset GIT_DIR GIT_WORK_TREE; git rev-parse --show-prefix 2>/dev/null | grep -q . || git config core.hooksPath scripts/hooks 2>/dev/null || true
+# An older line, one without `--show-prefix`, also rewired a BIGGER repo that the site
+# is a subfolder of, to a scripts/hooks that repo does not have; git then runs none of
+# that repo's hooks. To repair: put the line above into this site's package.json, and in
+# the bigger repo run `git config --unset core.hooksPath` (or set it back to that repo's
+# own hooks folder).
 #
 # Relax for ONE push:   git push --no-verify
 # Disable entirely:     git config --unset core.hooksPath

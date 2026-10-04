@@ -21,7 +21,8 @@ name: clean
 # someone pinned to another worktree of this repo (scripts/test_install_pin.sh), and the check
 # that the handoff zip's leak guard still fires on a leak too big for a pipe buffer
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
-# and blocks the right pushes (scripts/test_pre_push_hook.sh), and that the private-name check
+# and blocks the right pushes and is wired only where the site is the root of its repo
+# (scripts/test_pre_push_hook.sh), and that the private-name check
 # runs in a linked worktree too (scripts/test_clean_denylist.sh). And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
@@ -100,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check the site pre-push hook gates, skips and blocks the right pushes
+      - name: Check the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root
         run: bash scripts/test_pre_push_hook.sh
   clean-denylist:
     runs-on: ubuntu-latest
