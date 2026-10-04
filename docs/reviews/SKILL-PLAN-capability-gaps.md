@@ -198,20 +198,30 @@ when the interview says it needs a form that emails the owner, or later on reque
 | # | Given | When | Then |
 |---|---|---|---|
 | 1 | a contact page | a visitor sends name, email and a message | they see a thank-you in the form; the owner gets the message by email, and pressing Reply writes to the visitor |
-| 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops the form; if it is posted anyway, the function refuses it and names the field. Nothing is sent |
+| 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops the form; if it is posted anyway, the function refuses it and names the field. Nothing is sent. An ordinary address with an apostrophe (o'brien@…) is accepted |
 | 3 | a bot fills the field people never see | it submits | it gets the same thank-you; nothing is sent |
-| 4 | Cloudflare's mail service refuses the message, or cannot be reached | a visitor sends | the form says the message could not be sent, keeps what was typed, and shows the address to write to instead |
-| 5 | a site with the form | the tests run | red unless the privacy page carries the paragraph about the form |
-| 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success |
+| 4 | Cloudflare's mail service refuses the message, cannot be reached, or does not answer within ten seconds | a visitor sends | the form says the message could not be sent, in the line a screen reader reads out, keeps what was typed, and shows the address to write to instead. The owner's log shows Cloudflare's status and error codes, never the token or the message |
+| 5 | a site with the form | the tests run | red unless the privacy page carries the marked sentences about the form, and they name Cloudflare. Red too while the test file does not say which page has the form and which is the privacy page |
+| 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success. The log names the settings that are missing |
 | 7 | a name with a line break and "Bcc:" in it, or two addresses in the email field | it is sent | the line break is removed from the subject; the two addresses are refused |
-| 8 | a form on another website posts to this site's endpoint | it submits | refused |
-| 9 | a visitor whose browser runs no JavaScript | they send the form | they get a small page with the same answer, in the site's language |
+| 8 | a form on another website posts to this site's endpoint through a visitor's browser | it submits | refused, also when the other site hides where it comes from or uses http for the same name |
+| 9 | a visitor whose browser runs no JavaScript | they send the form | they get a small page with the same answer, in the site's language, and a link back to the form. The address to write to is always shown to them under the form |
 | 10 | a German site | the form is shown | German texts with no "du" or "Sie", so it fits either kind of site |
+| 11 | a visitor whose browser or password manager fills in fields by itself | they send a real message | it is sent: the hidden field has a name nothing fills in automatically. A dropped submission leaves a line in the owner's log |
+| 12 | a site with several languages | the form is put on a page without saying where the privacy page is | the build stops and says what to pass |
+| 13 | a visitor using only the keyboard | they tab through the form | name, email, message, send. The hidden field is never reached |
 
-Rows 1 to 9 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a scratch copy of the
-starter with the skill installed by its own steps: 14 form tests, and the full suite with
-the form in place (75 passed, 1 skip). 19 deliberate breakages of the function or the form
-were each caught by those tests.
+Rows 1 to 9, 11 and 13 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a scratch
+copy of the starter with the skill installed by its own steps: 18 form tests, and the full
+suite with the form in place (79 passed, 1 skip). 40 deliberate breakages of the function,
+the form or the privacy text were each caught by those tests. Row 10 was read against the
+tone rules by hand; row 12 is the component's own check and was not built into a
+several-language site.
+
+Rows 11 to 13, and much of rows 4 to 9, come from the review: the first version did not
+announce a failure to screen readers, left visitors without JavaScript with no address,
+logged nothing when Cloudflare refused a message, and used a hidden field named "website",
+which a browser may fill in for a real visitor.
 
 **Not verified, and why.** No real email has been sent: that needs a Cloudflare account
 with a domain onboarded for sending, which only an owner has. The skill's last step is

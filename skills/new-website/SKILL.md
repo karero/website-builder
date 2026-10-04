@@ -371,7 +371,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    the frozen handoff set.
 
    **Conditional setup skills** — run the matching line ONLY when the interview
-   selected it (they don't ship with a declared one-language, CMS-free site;
+   selected it (they don't ship with a declared one-language, CMS-free site without a form;
    a multilingual-PHASED site is single-locale at scaffold time and still
    gets astro-i18n-setup):
    ```bash

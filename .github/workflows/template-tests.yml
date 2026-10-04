@@ -156,7 +156,7 @@ jobs:
           sed -i "s|const PAGE = '';|const PAGE = '/';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/index.astro
           sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><ContactForm fallback="hello@example.com" /></section>\n</Base>|' src/pages/index.astro
-          sed -i 's|^</Base>|  <section class="wrap" data-privacy-contact-form><h2>Contact form</h2><p>When you send us a message through the contact form, we process your name, your email address and the message itself in order to answer you.</p></section>\n</Base>|' src/pages/privacy.astro
+          sed -i 's|^</Base>|  <section class="wrap"><p data-privacy-contact-form>Messages sent through the contact form on this website are delivered to our mailbox by Cloudflare, Inc., which acts as our processor. The website itself does not store them.</p></section>\n</Base>|' src/pages/privacy.astro
           grep -q "const PAGE = '/';" tests/forms.spec.ts && grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
           grep -q '<ContactForm fallback' src/pages/index.astro && grep -q 'import ContactForm' src/pages/index.astro && grep -q 'data-privacy-contact-form' src/pages/privacy.astro
           npm ci --no-audit --no-fund

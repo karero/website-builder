@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { decide, handle, sendViaCloudflare, LIMITS, type Env, type Message } from '../functions/api/contact';
+import { decide, handle, sendViaCloudflare, LIMITS, TRAP, type Env, type Message } from '../functions/api/contact';
 
 // Guards the contact form (the website-forms skill). `astro preview` never runs a
 // Cloudflare Pages Function, so the function is called directly, the way
@@ -7,21 +7,24 @@ import { decide, handle, sendViaCloudflare, LIMITS, type Env, type Message } fro
 // for the mail call. The browser tests then check what a visitor sees, with the
 // endpoint answered by the test. No test here sends a real email: that one check is
 // the owner's, once, on the deployed site (the skill's "Done means").
+//
+// This file comes with the form (install the skill's three files together), so both
+// addresses below have to be set: a form without its privacy text is the case this
+// spec exists to refuse.
 
-// The page that carries <ContactForm />, e.g. '/contact'. Empty = the browser tests skip.
+// The page that carries <ContactForm />, e.g. '/contact'.
 const PAGE = '';
-// The privacy page, e.g. '/privacy' or '/datenschutz'. Empty = that test skips.
+// The privacy page, e.g. '/privacy' or '/datenschutz'.
 const PRIVACY = '';
 
 const ENV: Env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc', CF_EMAIL_TOKEN: 'tok' };
-const GOOD = { name: 'Ada Lovelace', email: 'ada@example.org', message: 'Hello, do you have time in May?', website: '', lang: 'en' };
+const GOOD = { name: 'Ada Lovelace', email: 'ada@example.org', message: 'Hello, do you have time in May?', [TRAP]: '', lang: 'en' };
+const SITE_ORIGIN = 'https://site.example';
 
-function post(fields: Record<string, string>, headers: Record<string, string> = {}) {
-  return new Request('https://site.example/api/contact', {
-    method: 'POST',
-    headers: { accept: 'application/json', origin: 'https://site.example', ...headers },
-    body: new URLSearchParams(fields),
-  });
+function post(fields: Record<string, string>, headers: Record<string, string | null> = {}) {
+  const all: Record<string, string | null> = { accept: 'application/json', origin: SITE_ORIGIN, ...headers };
+  const sent = Object.fromEntries(Object.entries(all).filter((entry): entry is [string, string] => entry[1] !== null));
+  return new Request(`${SITE_ORIGIN}/api/contact`, { method: 'POST', headers: sent, body: new URLSearchParams(fields) });
 }
 // A stand-in for the mail call that records what it was asked to send.
 function recorder(result: boolean | Error = true) {
@@ -33,6 +36,26 @@ function recorder(result: boolean | Error = true) {
   };
   return { sent, send };
 }
+// What the function writes to its log while `run` executes: the owner's only way to
+// learn why a message did not go out.
+async function logged(run: () => Promise<unknown>): Promise<string> {
+  const lines: string[] = [];
+  const keep = { error: console.error, log: console.log };
+  console.error = (...args: unknown[]) => { lines.push(args.map(String).join(' ')); };
+  console.log = (...args: unknown[]) => { lines.push(args.map(String).join(' ')); };
+  try {
+    await run();
+  } finally {
+    console.error = keep.error;
+    console.log = keep.log;
+  }
+  return lines.join('\n');
+}
+
+test('contact — the install is complete: the form\'s page and the privacy page are named', () => {
+  expect(PAGE, 'set PAGE in tests/forms.spec.ts to the page that carries <ContactForm />').not.toBe('');
+  expect(PRIVACY, 'set PRIVACY in tests/forms.spec.ts to the privacy page').not.toBe('');
+});
 
 test('contact — a good message reaches the owner, who can answer the visitor directly', async () => {
   const { sent, send } = recorder();
@@ -44,6 +67,10 @@ test('contact — a good message reaches the owner, who can answer the visitor d
   expect(sent[0].subject).toContain('Ada Lovelace');
   expect(sent[0].text).toContain('Hello, do you have time in May?');
   expect(sent[0].text).toContain('ada@example.org');
+  // Addresses a browser accepts must not be refused here: an apostrophe is ordinary.
+  const again = recorder();
+  expect((await handle(post({ ...GOOD, email: "sean.o'brien@example.ie" }), ENV, again.send)).status).toBe(200);
+  expect(again.sent[0].reply_to).toBe("sean.o'brien@example.ie");
 });
 
 test('contact — a missing or malformed field is refused and nothing is sent', async () => {
@@ -56,7 +83,7 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
     [{ ...GOOD, email: 'ada@example.org\nBcc: eve@example.net' }, { email: 'invalid' }],
     [{ ...GOOD, name: 'x'.repeat(LIMITS.name + 1) }, { name: 'too_long' }],
     [{ ...GOOD, message: 'x'.repeat(LIMITS.message + 1) }, { message: 'too_long' }],
-    [{ name: '', email: 'nope', message: '', website: '', lang: 'en' }, { name: 'required', email: 'invalid', message: 'required' }],
+    [{ name: '', email: 'nope', message: '', [TRAP]: '', lang: 'en' }, { name: 'required', email: 'invalid', message: 'required' }],
   ];
   for (const [fields, expected] of cases) {
     const { sent, send } = recorder();
@@ -65,6 +92,12 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
     expect(await res.json()).toEqual({ ok: false, error: 'invalid', fields: expected });
     expect(sent, 'nothing may be sent').toHaveLength(0);
   }
+  // A message at the limit, with the CRLF line breaks a browser sends, is not too long.
+  const paragraphs = Array.from({ length: 100 }, () => 'x'.repeat(49)).join('\r\n');
+  expect(paragraphs.replace(/\r\n/g, '\n')).toHaveLength(LIMITS.message - 1);
+  const { sent, send } = recorder();
+  expect((await handle(post({ ...GOOD, message: paragraphs }), ENV, send)).status, 'CRLF counts once').toBe(200);
+  expect(sent).toHaveLength(1);
 });
 
 test('contact — a line break in the name cannot start a new mail header', async () => {
@@ -72,58 +105,92 @@ test('contact — a line break in the name cannot start a new mail header', asyn
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
   expect(sent).toHaveLength(1);
   expect(sent[0].subject).not.toMatch(/[\r\n]/);
+  // A long name with a two-unit character at the cut is not split in half.
+  const long = recorder();
+  // 21 characters of prefix and 98 of name put the two-unit character exactly on the cut.
+  await handle(post({ ...GOOD, name: 'x'.repeat(98) + '😀' }), ENV, long.send);
+  expect(long.sent[0].subject).not.toMatch(/[\uD800-\uDBFF]$/);
 });
 
 test('contact — a bot that fills the hidden field gets a thank-you and nothing is sent', async () => {
   const { sent, send } = recorder();
-  const res = await handle(post({ ...GOOD, website: 'https://spam.example' }), ENV, send);
+  let res!: Response;
+  const log = await logged(async () => { res = await handle(post({ ...GOOD, [TRAP]: 'https://spam.example' }), ENV, send); });
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ ok: true });
   expect(sent).toHaveLength(0);
+  // Logged, so an owner who suspects lost messages can see drops; without the text.
+  expect(log).toContain('dropped a submission');
+  expect(log).not.toContain('spam.example');
+  expect(log).not.toContain('Ada');
 });
 
 test('contact — when the mail service refuses or breaks, the visitor is told', async () => {
   for (const result of [false, new Error('network down')]) {
     const { send } = recorder(result);
-    const res = await handle(post(GOOD), ENV, send);
+    let res!: Response;
+    const log = await logged(async () => { res = await handle(post(GOOD), ENV, send); });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ ok: false, error: 'send_failed' });
+    expect(log, 'the log never carries what the visitor wrote').not.toContain('time in May');
   }
 });
 
-test('contact — a deployment without its settings says so instead of pretending', async () => {
+test('contact — a deployment without its settings says so, and its log names what is missing', async () => {
   for (const missing of ['CONTACT_TO', 'CONTACT_FROM', 'CF_ACCOUNT_ID', 'CF_EMAIL_TOKEN'] as const) {
     const { sent, send } = recorder();
-    const res = await handle(post(GOOD), { ...ENV, [missing]: undefined }, send);
+    let res!: Response;
+    const log = await logged(async () => { res = await handle(post(GOOD), { ...ENV, [missing]: undefined }, send); });
     expect(res.status, `${missing} missing`).toBe(503);
     expect(await res.json()).toEqual({ ok: false, error: 'not_configured' });
     expect(sent).toHaveLength(0);
+    expect(log).toContain(`not set on this deployment: ${missing}`);
   }
 });
 
-test('contact — a form on another site may not post here', async () => {
+test('contact — another website cannot post here through its visitors\' browsers', async () => {
+  for (const origin of ['https://elsewhere.example', 'http://site.example', 'https://site.example.evil.example', 'null']) {
+    const { sent, send } = recorder();
+    const res = await handle(post(GOOD, { origin }), ENV, send);
+    expect(res.status, `Origin: ${origin}`).toBe(403);
+    expect(sent, `Origin: ${origin}`).toHaveLength(0);
+  }
+  // No Origin header at all: not a browser's cross-site post. Let through, on purpose.
   const { sent, send } = recorder();
-  const res = await handle(post(GOOD, { origin: 'https://elsewhere.example' }), ENV, send);
-  expect(res.status).toBe(403);
-  expect(sent).toHaveLength(0);
+  expect((await handle(post(GOOD, { origin: null }), ENV, send)).status).toBe(200);
+  expect(sent).toHaveLength(1);
 });
 
 test('contact — without JavaScript the visitor gets a small page in the form\'s language', async () => {
   const { send } = recorder();
   const ok = await handle(post({ ...GOOD, lang: 'de-AT' }, { accept: 'text/html' }), ENV, send);
   expect(ok.headers.get('content-type')).toContain('text/html');
+  expect(ok.headers.get('x-content-type-options')).toBe('nosniff');
   const html = await ok.text();
   expect(html).toContain('<html lang="de">');
   expect(html).toContain('Danke.');
-  const bad = await handle(post({ ...GOOD, email: 'nope', lang: 'xx' }, { accept: 'text/html' }), ENV, send);
-  expect(bad.status).toBe(400);
-  expect(await bad.text()).toContain('<html lang="en">');
+  // A language the page does not know, or a word that names something built in.
+  for (const lang of ['xx', 'constructor', '__proto__']) {
+    const bad = await handle(post({ ...GOOD, email: 'nope', lang }, { accept: 'text/html' }), ENV, send);
+    expect(bad.status).toBe(400);
+    const page = await bad.text();
+    expect(page, lang).toContain('<html lang="en">');
+    expect(page, lang).not.toContain('undefined');
+  }
+  // A failure sends the visitor back to the form, where the address to write to is shown.
+  const failed = await handle(post(GOOD, { accept: 'text/html', referer: `${SITE_ORIGIN}/contact?from="x"&a=1` }), ENV, recorder(false).send);
+  const failedPage = await failed.text();
+  expect(failed.status).toBe(502);
+  expect(failedPage).toContain('address to write to');
+  expect(failedPage).toContain('<a href="/contact?from=%22x%22&amp;a=1">');
+  const elsewhere = await handle(post(GOOD, { accept: 'text/html', referer: 'https://elsewhere.example/page' }), ENV, recorder(false).send);
+  expect(await elsewhere.text(), 'a Referer from another site is not linked').toContain('<a href="/">');
   const { outcome } = await decide(post({ ...GOOD, email: 'nope' }), ENV, send);
   expect(outcome.body.fields).toEqual({ email: 'invalid' });
 });
 
-test('contact — the mail call asks Cloudflare the right way and believes only a real yes', async () => {
-  const message: Message = { to: 'owner@example.com', from: 'website@example.com', reply_to: 'ada@example.org', subject: 's', text: 't' };
+test('contact — the mail call asks Cloudflare the right way, believes only a real yes, and logs a refusal', async () => {
+  const message: Message = { to: 'owner@example.com', from: 'website@example.com', reply_to: 'ada@example.org', subject: 's', text: 'the visitor wrote this' };
   const env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc-1', CF_EMAIL_TOKEN: 'tok-1' };
   const calls: { url: string; init: RequestInit }[] = [];
   const answer = (status: number, body: unknown) => (async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -136,64 +203,93 @@ test('contact — the mail call asks Cloudflare the right way and believes only 
   expect(calls[0].init.method).toBe('POST');
   expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer tok-1');
   expect(JSON.parse(String(calls[0].init.body))).toEqual(message);
+  expect(calls[0].init.signal, 'the call gives up after a while instead of hanging').toBeInstanceOf(AbortSignal);
 
   expect(await sendViaCloudflare(message, env, answer(200, { success: true, result: { delivered: [], queued: ['owner@example.com'] } })), 'queued counts').toBe(true);
-  expect(await sendViaCloudflare(message, env, answer(200, { success: true, result: { delivered: [], queued: [], permanent_bounces: ['owner@example.com'] } })), 'a bounce is not a yes').toBe(false);
-  expect(await sendViaCloudflare(message, env, answer(200, { success: false, errors: [{ code: 10001 }], result: null })), 'success: false').toBe(false);
-  expect(await sendViaCloudflare(message, env, answer(403, { success: false })), 'a refused token').toBe(false);
-  expect(await sendViaCloudflare(message, env, answer(500, { success: true, result: { delivered: ['owner@example.com'] } })), 'an error status is never a yes').toBe(false);
-  expect(await sendViaCloudflare(message, env, answer(200, 'not json')), 'an answer that cannot be read').toBe(false);
+  const refusals: [string, number, unknown][] = [
+    ['a bounce is not a yes', 200, { success: true, result: { delivered: [], queued: [], permanent_bounces: ['owner@example.com'] } }],
+    ['success: false', 200, { success: false, errors: [{ code: 10001, message: 'email.sending.error.invalid_request_schema' }], result: null }],
+    ['a refused token', 403, { success: false, errors: [{ code: 10102, message: 'email.sending.error.authentication.forbidden' }] }],
+    ['an error status is never a yes', 500, { success: true, result: { delivered: ['owner@example.com'] } }],
+    ['an answer that cannot be read', 200, 'not json'],
+  ];
+  for (const [why, status, body] of refusals) {
+    let ok = true;
+    const log = await logged(async () => { ok = await sendViaCloudflare(message, env, answer(status, body)); });
+    expect(ok, why).toBe(false);
+    // What the owner reads when a message does not arrive: Cloudflare's status and
+    // its error codes, never the token and never the visitor's words.
+    expect(log, why).toContain(`"status":${status}`);
+    expect(log, why).not.toContain('tok-1');
+    expect(log, why).not.toContain('the visitor wrote this');
+  }
+  const refused = await logged(async () => { await sendViaCloudflare(message, env, answer(403, { success: false, errors: [{ code: 10102, message: 'email.sending.error.authentication.forbidden' }] })); });
+  expect(refused).toContain('10102');
+  expect(refused).toContain('authentication.forbidden');
 });
 
-test('contact — the form can be filled by keyboard and by screen reader', async ({ page }) => {
-  test.skip(!PAGE, 'PAGE is not set: name the page that carries <ContactForm />');
+test('contact — every field has a label, and the bot trap is out of everyone\'s way', async ({ page }) => {
+  test.skip(!PAGE, 'PAGE is not set');
   await page.goto(PAGE);
   const form = page.locator('#contact-form');
   await expect(form).toHaveCount(1);
-  for (const label of ['#contact-name', '#contact-email', '#contact-message']) {
-    await expect(page.locator(`label[for="${label.slice(1)}"]`), `a visible label for ${label}`).toBeVisible();
-    await expect(page.locator(label)).toHaveAttribute('required', '');
+  for (const id of ['contact-name', 'contact-email', 'contact-message']) {
+    await expect(page.locator(`label[for="${id}"]`), `a visible label for #${id}`).toBeVisible();
+    await expect(page.locator(`#${id}`)).toHaveAttribute('required', '');
   }
-  // The bot trap must stay out of everyone's way.
-  const trap = page.locator('#contact-website');
-  await expect(trap).toHaveAttribute('tabindex', '-1');
+  const trap = page.locator(`[name="${TRAP}"]`);
+  await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');
   await expect(trap).not.toBeInViewport();
+  // By keyboard: name, email, message, then on past the trap. Focus never lands on it.
+  await page.focus('#contact-name');
+  const visited: (string | null)[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    await page.keyboard.press('Tab');
+    visited.push(await page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName || null));
+  }
+  expect(visited.slice(0, 2)).toEqual(['contact-email', 'contact-message']);
+  expect(visited, 'the trap is not reachable by Tab').not.toContain('contact-leave-empty');
 });
 
-for (const [name, answer, expectSent] of [
-  ['sent', { status: 200, body: { ok: true } }, true],
-  ['not sent', { status: 502, body: { ok: false, error: 'send_failed' } }, false],
+for (const [name, answer, shows] of [
+  ['sent', { status: 200, body: { ok: true } }, { direct: false, cleared: true }],
+  ['not sent', { status: 502, body: { ok: false, error: 'send_failed' } }, { direct: true, cleared: false }],
+  ['refused by the function', { status: 400, body: { ok: false, error: 'invalid', fields: { email: 'invalid' } } }, { direct: true, cleared: false }],
+  ['lost on the way', null, { direct: true, cleared: false }],
 ] as const) {
-  test(`contact — what the visitor sees when the message is ${name}`, async ({ page }) => {
-    test.skip(!PAGE, 'PAGE is not set: name the page that carries <ContactForm />');
+  test(`contact — what the visitor sees and hears when the message is ${name}`, async ({ page }) => {
+    test.skip(!PAGE, 'PAGE is not set');
     let posted: string | null = null;
     await page.route('**/api/contact', async (route) => {
       posted = route.request().postData();
-      await route.fulfill({ status: answer.status, contentType: 'application/json', body: JSON.stringify(answer.body) });
+      if (answer === null) await route.abort('failed');
+      else await route.fulfill({ status: answer.status, contentType: 'application/json', body: JSON.stringify(answer.body) });
     });
     await page.goto(PAGE);
     await page.fill('#contact-name', 'Ada Lovelace');
     await page.fill('#contact-email', 'ada@example.org');
     await page.fill('#contact-message', 'Hello, do you have time in May?');
     await page.click('#contact-form button[type="submit"]');
-    const status = page.locator('[data-contact-status]');
-    const failed = page.locator('[data-contact-failed]');
-    if (expectSent) {
-      await expect(status).not.toBeEmpty();
-      await expect(failed).toBeHidden();
-      await expect(page.locator('#contact-message'), 'the form is cleared after sending').toHaveValue('');
+    // The answer is in the line a screen reader reads out, in every case.
+    const status = page.locator('#contact-form [role="status"]');
+    await expect(status).not.toBeEmpty();
+    await expect(status).not.toHaveText(/…$/);
+    const direct = page.locator('[data-contact-direct]');
+    if (shows.direct) {
+      await expect(direct, 'another way to reach the owner').toBeVisible();
+      await expect(direct.locator('a')).toHaveCount(1);
     } else {
-      await expect(failed, 'the visitor is told, and given another way').toBeVisible();
-      await expect(failed.locator('a')).toHaveCount(1);
-      await expect(page.locator('#contact-message'), 'what was typed is kept').toHaveValue('Hello, do you have time in May?');
+      await expect(direct).toBeHidden();
     }
+    await expect(page.locator('#contact-message')).toHaveValue(shows.cleared ? '' : 'Hello, do you have time in May?');
+    await expect(page.locator('#contact-form button[type="submit"]')).toBeEnabled();
     expect(posted, 'the form posted to the endpoint').toContain('Ada Lovelace');
   });
 }
 
 test('contact — an empty form is stopped in the browser, before anything is posted', async ({ page }) => {
-  test.skip(!PAGE, 'PAGE is not set: name the page that carries <ContactForm />');
+  test.skip(!PAGE, 'PAGE is not set');
   let posts = 0;
   await page.route('**/api/contact', async (route) => { posts += 1; await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
   await page.goto(PAGE);
@@ -202,11 +298,24 @@ test('contact — an empty form is stopped in the browser, before anything is po
   expect(posts).toBe(0);
 });
 
-test('contact — the privacy page says what happens to a message', async ({ page }) => {
-  test.skip(!PRIVACY, 'PRIVACY is not set: name the privacy page');
+test('contact — a visitor without JavaScript is shown the address to write to', async ({ request, baseURL }) => {
+  test.skip(!PAGE, 'PAGE is not set');
+  // The served HTML, as a browser without JavaScript gets it.
+  const html = await (await request.get(new URL(PAGE, baseURL!).href)).text();
+  const noscript = html.match(/<noscript>[\s\S]*?<\/noscript>/g)?.find((block) => block.includes('contact-form-direct')) ?? '';
+  expect(noscript, 'a <noscript> line with the fallback address inside the form').not.toBe('');
+  expect(noscript, 'the address, readable without JavaScript').toMatch(/\[[a-z]+\]/);
+});
+
+test('contact — the privacy page says what happens to a message sent through the form', async ({ page }) => {
+  test.skip(!PRIVACY, 'PRIVACY is not set');
   await page.goto(PRIVACY);
+  const marked = page.locator('[data-privacy-contact-form]');
   await expect(
-    page.locator('[data-privacy-contact-form]'),
-    `${PRIVACY} has a contact form to answer for: add the paragraph from the website-forms skill (marked data-privacy-contact-form)`,
+    marked,
+    `${PRIVACY} has a contact form to answer for: add the sentences from the website-forms skill, marked data-privacy-contact-form`,
   ).toHaveCount(1);
+  const text = ((await marked.textContent()) ?? '').trim();
+  expect(text.split(/\s+/).length, 'the marked text says something').toBeGreaterThanOrEqual(15);
+  expect(text, 'it names who delivers the message').toContain('Cloudflare');
 });

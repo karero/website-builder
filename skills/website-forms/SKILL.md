@@ -3,7 +3,7 @@ name: website-forms
 description: >
   Add a contact form to a new-website site: a form component, one Cloudflare Pages
   Function (functions/api/contact.ts) that mails each message to the owner through
-  Cloudflare's Email Service with the visitor as Reply-To, a privacy paragraph in
+  Cloudflare's Email Service with the visitor as Reply-To, the privacy sentences in
   English and German, and tests/forms.spec.ts with a submission test. Stores
   nothing; a hidden field drops bots; a failed send tells the visitor and shows
   another way to reach the owner. Works without JavaScript. Run when new-website
@@ -55,7 +55,7 @@ privacy page). Neither is built by this skill.
 |---|---|---|
 | `functions/api/contact.ts` | `contact.ts` | the endpoint `POST /api/contact`: checks, bot trap, the mail call |
 | `src/components/ContactForm.astro` | `ContactForm.astro` | the form; English and German built in |
-| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor sees, the privacy paragraph |
+| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor sees and hears, the privacy text |
 
 The templates are at `~/.claude/skills/website-forms/templates/` (Codex:
 `~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install all
@@ -65,15 +65,25 @@ three: the test imports the function.
 
 Explain what each one is for before asking for it. In order:
 
-1. **Onboard the domain for Email Sending** (Cloudflare dashboard → Email Service).
-   Cloudflare adds the DNS records that let it send mail for the domain; they can take
-   up to a day to be known everywhere.
+0. **Does this domain already send or receive mail** (a mailbox at the same domain, a
+   newsletter tool, an office suite)? Then its DNS already carries mail records, and
+   the next step adds more. Have the owner read the records Cloudflare proposes before
+   accepting them, and if anything about their existing mail is unclear, stop and let
+   whoever runs that mail look first: a wrong record here can make their ordinary mail
+   bounce. Which records Cloudflare adds was not checked when this skill was written.
+1. **Onboard the domain for Email Sending** (in the Cloudflare dashboard, under Email
+   Service). Cloudflare adds the DNS records that let it send mail for the domain; they
+   can take up to a day to be known everywhere.
 2. **Confirm the mailbox that should receive the messages** as a destination address.
    Cloudflare sends a confirmation mail to it; the owner clicks the link.
-3. **Create an API token** with the single permission *Email Sending: Edit*. It is a
-   password for sending mail in the owner's name: it goes into step 4 and nowhere else.
+3. **Create an API token** with the single permission *Email Sending: Edit* and no
+   other. It is a password for sending mail in the owner's name: it goes into step 4 and
+   nowhere else, not into the repo, not into a chat. If it was ever shown to anyone, the
+   owner deletes it and creates a new one.
 4. **Enter four values** on the Pages project → Settings → Variables and Secrets, for
-   **Production** (and for **Preview** too if the form should work on preview addresses):
+   **Production**. Only add them for **Preview** as well if the form has to work on
+   preview addresses: every branch deployment can then use the token, so everyone who can
+   push a branch can send mail with it.
 
    | Name | Value | Kind |
    |---|---|---|
@@ -98,64 +108,63 @@ address to write to instead. It never pretends.
    ---
    <ContactForm fallback="<the address visitors may write to>" />
    ```
-   `fallback` is shown, through `EmailLink`, when a message cannot be sent. Ask the owner
-   for it; it is usually the mailbox from §2. A **new** `/contact` page is a new page:
+   `fallback` is shown, through `EmailLink`, when a message cannot be sent, and always
+   to visitors without JavaScript. Ask the owner for it; it is usually the mailbox from §2. A **new** `/contact` page is a new page:
    work through `AGENTS.md` §6 (`PAGES`, `llms.txt`, share card, a link to it).
 3. Language: the form speaks the site's language (`SITE.locale`), or on a site with
    several languages the page's (`Astro.currentLocale`); `lang="de"` overrides. English
    and German are built in, with no form of address in German, so it fits a "du" site
    and a "Sie" site. Another language: add it to `TEXT` in the component and to `PLAIN`
    in the function. The tone rules apply (`tests/tone.spec.ts`).
-4. **Privacy page.** Add the paragraph from §4. A site with a contact form has to say
-   what happens to a message; `forms.spec.ts` fails without it.
+   - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
+     page of that page's language (`/de/privacy`, not `/datenschutz`). The component
+     stops the build if it is missing there, because it cannot know the site's routes.
+   - **A page in another language than the site's**, built with `<Base lang="de">`:
+     pass `lang="de"` (and `privacy`), or the form on it is in the site's language.
+4. **Privacy page.** Add the sentences from §4. A site with a contact form has to say
+   what happens to a message.
 5. In `tests/forms.spec.ts` set `PAGE` (the page with the form) and `PRIVACY` (the
-   privacy page).
+   privacy page). Both are required: the spec fails while either is empty, and fails
+   when the privacy page lacks the marked text or that text does not name Cloudflare.
 6. `npm run check && npm test`. Say in the pull request that it adds a file under
    `functions/` (`AGENTS.md` §5).
 
 `npm run dev` and `astro preview` do not run Pages Functions, so the form cannot send
 from a local machine: there the tests stand in for the endpoint. The real check is §5.
 
-## 4. The privacy paragraph
+## 4. The privacy text
 
-A baseline, not legal advice, like the kit's other legal drafts. Keep the
-`data-privacy-contact-form` marker: the test looks for it. Adapt the wording to what the
-owner really does with messages (who reads them, how long they are kept).
+A baseline, not legal advice, like the kit's other legal drafts. The starter's privacy
+page already has a section on contact by email (name, address, message, legal basis, how
+long it is kept). Do not add a second section beside it: **extend that one** with what is
+new about a form, and mark the added paragraph with `data-privacy-contact-form` (the test
+looks for it). Adapt the wording to what the owner really does with messages.
 
-English, for `privacy.astro`:
-
-```astro
-<section class="wrap" data-privacy-contact-form>
-  <h2>Contact form</h2>
-  <p>
-    When you send us a message through the contact form, we process your name, your
-    email address and the message itself in order to answer you (Art. 6(1)(b) GDPR
-    where your request concerns a contract or steps before one, otherwise
-    Art. 6(1)(f) GDPR: our interest in answering enquiries). The message is delivered
-    to our mailbox by Cloudflare, Inc., which acts as our processor. The website itself
-    does not store it. We keep the message for as long as answering it requires and
-    delete it afterwards, unless the law obliges us to keep it longer.
-  </p>
-</section>
-```
-
-German, for `datenschutz.astro`:
+English, in `privacy.astro`, at the end of "4. Contact by email":
 
 ```astro
-<section class="wrap" data-privacy-contact-form>
-  <h2>Kontaktformular</h2>
-  <p>
-    Wenn Sie uns über das Kontaktformular schreiben, verarbeiten wir Ihren Namen, Ihre
-    E-Mail-Adresse und Ihre Nachricht, um die Anfrage zu beantworten (Art. 6 Abs. 1
-    lit. b DSGVO, soweit die Anfrage einen Vertrag oder dessen Anbahnung betrifft, sonst
-    Art. 6 Abs. 1 lit. f DSGVO: unser Interesse, Anfragen zu beantworten). Die Nachricht
-    wird von Cloudflare, Inc. als unserem Auftragsverarbeiter an unser Postfach
-    zugestellt. Die Website selbst speichert sie nicht. Wir bewahren die Nachricht so
-    lange auf, wie es für die Bearbeitung erforderlich ist, und löschen sie danach,
-    sofern keine gesetzlichen Aufbewahrungspflichten bestehen.
-  </p>
-</section>
+<p data-privacy-contact-form>
+  Messages sent through the contact form on this website are delivered to our mailbox
+  by Cloudflare, Inc., which acts as our processor. The website itself does not store
+  them.
+</p>
 ```
+
+German, in the German privacy page (the starter's `_datenschutz.astro`, served as
+`datenschutz.astro` once the site adopted it), at the end of "4. Kontakt per E-Mail":
+
+```astro
+<p data-privacy-contact-form>
+  Nachrichten, die Sie über das Kontaktformular dieser Website senden, werden von
+  Cloudflare, Inc. als unserem Auftragsverarbeiter an unser Postfach zugestellt. Die
+  Website selbst speichert sie nicht.
+</p>
+```
+
+The German sentence says "Sie" because the starter's German privacy draft does; the form
+itself uses no form of address. A site whose privacy page has no such section (it was
+rewritten, or contact by email was removed): write the full statement first, covering
+what is processed, why, the legal basis and how long it is kept, then add this paragraph.
 
 ## 5. The first real message (the owner, on the deployed site)
 
@@ -167,9 +176,13 @@ site is deployed with the four settings:
 2. It arrives in the mailbox within a minute or two; pressing Reply addresses the
    visitor's address. Spam folder checked if it does not.
 3. It does not arrive, or the form says "could not be sent": have the owner open the
-   function's log for that deployment in the Cloudflare dashboard. A line ending "…is
-   not set on this deployment" names a missing setting from §2. Otherwise report Cloudflare's answer to
-   the owner as it is; do not guess.
+   function's log for that deployment in the Cloudflare dashboard, **then send the
+   message again** (the dashboard shows a function's log lines as they happen; start
+   it first). The function writes one of two lines. "not set on this deployment: …"
+   names the settings missing from §2. "Cloudflare did not accept the message: …"
+   carries Cloudflare's status and its error codes: report those to the owner as they
+   are, and look them up in Cloudflare's documentation; do not guess. Neither line
+   contains the token or what the visitor wrote.
 
 Only then is the form done.
 
@@ -177,9 +190,17 @@ Only then is the form done.
 
 - **No copy to the visitor, no auto-reply.** That needs Cloudflare's paid plan (§0).
 - **No storage, no list of past messages.** The mailbox is the record.
-- **One hidden field against bots, nothing more.** If spam gets through, the next step
-  is Cloudflare Turnstile on the form and a rate-limiting rule on `/api/contact`.
-  Neither is built here: say so when the owner reports spam.
+- **One hidden field against bots, nothing more.** It stops bots that fill in every
+  field of a page. A script that posts straight to `/api/contact` never sees the field
+  and is not stopped by it, nor by the check that keeps other websites from posting
+  here. If spam gets through, the next step is Cloudflare Turnstile on the form and a
+  rate-limiting rule on `/api/contact`. Neither is built here: say so when the owner
+  reports spam. Each dropped submission leaves a line in the function's log, without
+  its text, so an owner who suspects lost messages can see whether drops happen.
+- **Without JavaScript, the answer is a page of its own.** Reloading that page makes
+  the browser ask whether to send the form again.
+- **This repo's CI builds the English form only.** The German texts were read against
+  the tone rules by hand; a site in German runs them through its own suite.
 - **No file uploads, no newsletter sign-up.** Different problems (size limits, consent
   records); do not bend this form into them.
 

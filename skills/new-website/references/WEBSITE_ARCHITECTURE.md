@@ -97,7 +97,8 @@ need is the actual mistake.**
 (free), **unmetered bandwidth**. → You will *never* hit these at 50 pages. Effectively unlimited.
 
 ### Tier 2 — Static Astro + Cloudflare Pages Functions / Server Islands  ← light dynamic
-**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails,
+**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails
+(the `website-forms` skill builds exactly this),
 site search, live-stats widget, gated content, webhook receiver, proxy to hide an API key, light A/B.
 **How:** keep the site static; add `functions/*.ts` (Pages Functions) or Astro **server islands**
 for just the dynamic fragment. Add **Workers KV** for tiny state (flags, counters, cached responses).
