@@ -111,6 +111,7 @@ Feature → the high-value test to add:
 | Nav / CTA change | the expected links render and resolve; the CTA lands on the right page. |
 | Copy/brand rules | extend `tone.spec.ts` to ban the new off-brand phrasing. |
 | New/changed positioning | add the page's term to the `POSITIONING` map in `positioning.spec.ts`; the page must carry it in `<title>`/`<meta description>`/`<h1>` (see `website-positioning`). |
+| Public scorecard (`website-scorecard`) | copy that skill's `templates/scorecard.spec.ts` into `tests/` and set its `PAGE`: the page must show the numbers in `scorecard.json`, and the file must add up. |
 | Story-led home page (`website-story`) | copy that skill's `templates/story.spec.ts` into `tests/` and fill its `CONFIG` from the values listed at the end of `STORY.md` (the rest have defaults); `positioning.spec.ts` stays untouched. |
 | Exposed email/phone | it's rendered via `EmailLink` — assert the built HTML has **no plaintext `mailto:` or literal `@`-address** (crawler/spam protection; see `website-design-system`). |
 

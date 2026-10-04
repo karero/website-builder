@@ -1,0 +1,117 @@
+---
+// Publishes scorecard.json (written by `npm run scorecard`): what this site's own test
+// gate checked, when, and on which version. It also says, on every build, whether the
+// site has been edited since that run, so an old card cannot pass for a current one.
+// Place it on one page: <Scorecard />. No scorecard.json → it renders nothing.
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { SITE } from '../config';
+import { tested, sameState } from '../../scripts/scorecard.mjs';
+
+const file = join(process.cwd(), 'scorecard.json');
+const card = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+
+// Same ids as the tested commit for everything that builds or tests the site → the
+// card describes this build. Git unavailable in the build environment → say nothing
+// either way.
+let state: 'current' | 'edited' | 'unknown' = 'unknown';
+if (card) {
+  try {
+    state = sameState(tested(), card.tested) ? 'current' : 'edited';
+  } catch {
+    state = 'unknown';
+  }
+}
+
+// Copy follows the site's language like the layout's own chrome. The tone rules
+// apply here too: no long dash, no contraction. Unmapped languages get English.
+const TEXT = {
+  en: {
+    heading: 'Quality checks',
+    intro: 'This site is tested before a change goes live. The figures below come from its own test run.',
+    summary: (passed: number, pages: number) => `${passed} checks passed on ${pages} ${pages === 1 ? 'page' : 'pages'}.`,
+    skipped: (n: number) => `${n} not applicable yet.`,
+    tested: (date: string, version: string) => `Tested on ${date}, version ${version}.`,
+    current: 'The site has not been edited since.',
+    edited: 'The site has been edited since. A new test run is due.',
+    caption: 'Checks by area',
+    area: 'Area',
+    passed: 'Passed',
+    lighthouse: (date: string, strategy: string) => `Google Lighthouse (${strategy}), measured on ${date}:`,
+    scores: ['Performance', 'Accessibility', 'Best Practices', 'SEO'],
+    rerun: 'Run the test yourself',
+    areas: {
+      a11y: 'Accessibility', seo: 'Search and sharing data', navigation: 'Links between pages',
+      anchors: 'Links to sections', orphans: 'Every page reachable', images: 'Images',
+      tone: 'Wording', positioning: 'Positioning', placeholders: 'No leftover placeholders',
+      email: 'Email addresses protected', links: 'Retired links', 'llms-coverage': 'Page index for AI assistants',
+      middleware: 'Preview and domain rules', scorecard: 'This scorecard', story: 'Home page story', i18n: 'Languages',
+    } as Record<string, string>,
+  },
+  de: {
+    heading: 'Qualitätsprüfungen',
+    intro: 'Diese Website wird getestet, bevor eine Änderung online geht. Die Zahlen unten stammen aus ihrem eigenen Testlauf.',
+    summary: (passed: number, pages: number) => `${passed} Prüfungen bestanden auf ${pages} ${pages === 1 ? 'Seite' : 'Seiten'}.`,
+    skipped: (n: number) => `${n} noch nicht anwendbar.`,
+    tested: (date: string, version: string) => `Getestet am ${date}, Version ${version}.`,
+    current: 'Die Website wurde seitdem nicht geändert.',
+    edited: 'Die Website wurde seitdem geändert. Ein neuer Testlauf steht an.',
+    caption: 'Prüfungen nach Bereich',
+    area: 'Bereich',
+    passed: 'Bestanden',
+    lighthouse: (date: string, strategy: string) => `Google Lighthouse (${strategy}), gemessen am ${date}:`,
+    scores: ['Performance', 'Barrierefreiheit', 'Best Practices', 'SEO'],
+    rerun: 'Den Test selbst ausführen',
+    areas: {
+      a11y: 'Barrierefreiheit', seo: 'Daten für Suche und Teilen', navigation: 'Links zwischen den Seiten',
+      anchors: 'Links zu Abschnitten', orphans: 'Jede Seite ist erreichbar', images: 'Bilder',
+      tone: 'Sprache', positioning: 'Positionierung', placeholders: 'Keine vergessenen Platzhalter',
+      email: 'E-Mail-Adressen sind geschützt', links: 'Stillgelegte Links', 'llms-coverage': 'Seitenindex für KI-Assistenten',
+      middleware: 'Regeln für Vorschau und Domain', scorecard: 'Diese Übersicht', story: 'Geschichte der Startseite', i18n: 'Sprachen',
+    } as Record<string, string>,
+  },
+};
+const t = TEXT[SITE.locale.toLowerCase().split('-')[0] as keyof typeof TEXT] ?? TEXT.en;
+const lh = card?.lighthouse;
+const rerun = `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(SITE.url + '/')}`;
+---
+{card && (
+  <section class="scorecard" data-scorecard data-state={state}>
+    <h2>{t.heading}</h2>
+    <p>{t.intro}</p>
+    <p>
+      <strong data-scorecard-passed>{t.summary(card.passed, card.pages)}</strong>
+      {card.skipped > 0 && <span> {t.skipped(card.skipped)}</span>}
+    </p>
+    <p class="scorecard-meta">
+      <span data-scorecard-tested>{t.tested(card.generated, String(card.commit).slice(0, 7))}</span>
+      {state === 'current' && <span> {t.current}</span>}
+      {state === 'edited' && <strong data-scorecard-edited> {t.edited}</strong>}
+    </p>
+    <table>
+      <caption>{t.caption}</caption>
+      <thead><tr><th scope="col">{t.area}</th><th scope="col">{t.passed}</th></tr></thead>
+      <tbody>
+        {card.checks.map((c: { area: string; passed: number }) => (
+          <tr><th scope="row">{t.areas[c.area] ?? c.area}</th><td>{c.passed}</td></tr>
+        ))}
+      </tbody>
+    </table>
+    {lh && (
+      <p data-scorecard-lighthouse>
+        {t.lighthouse(lh.date, lh.strategy)}{' '}
+        {t.scores.map((label: string, i: number) => `${label} ${[lh.performance, lh.accessibility, lh.bestPractices, lh.seo][i]}`).join(', ')}.{' '}
+        <a href={rerun} rel="noopener">{t.rerun}</a>
+      </p>
+    )}
+  </section>
+)}
+
+<style>
+  .scorecard table { border-collapse: collapse; margin: 1rem 0; }
+  .scorecard caption { text-align: left; color: var(--muted); padding-bottom: 0.25rem; }
+  .scorecard th, .scorecard td { text-align: left; padding: 0.35rem 1.5rem 0.35rem 0; border-bottom: 1px solid var(--line); }
+  .scorecard tbody th { font-weight: 400; }
+  .scorecard td { font-variant-numeric: tabular-nums; }
+  .scorecard-meta { color: var(--muted); }
+</style>

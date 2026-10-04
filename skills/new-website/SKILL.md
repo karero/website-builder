@@ -57,7 +57,9 @@ homepage, plus the reduced-motion contract and the a11y-gate change that keep mo
 from silently hiding content. `website-motion` is never run by default: ask for it.
 `website-story` is an OPTIONAL story layer (the home page told as the customer's story:
 `STORY.md` + a seven-section home page map); it is offered once at §2a, right after
-positioning, and never runs unasked.
+positioning, and never runs unasked. `website-scorecard` is an OPTIONAL public scorecard
+(a section that shows what the site's own test gate checked, dated, plus the owner's
+Lighthouse scores); it runs only when the owner asks for it.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
@@ -309,7 +311,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    rule, who publishes) ships with single-owner defaults, not slots; `website-team-setup`
    rewrites it when a team forms. Non-English owner: translate `AGENTS.md` in-session
    like `PUBLISHING.md` — rules and commands intact.
-3. **Skills travel with the repo** — copy the twenty-four always-on skills in, plus any
+3. **Skills travel with the repo** — copy the twenty-five always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
    necessarily always **run**: `business-listings-setup` travels with every repo but
@@ -327,7 +329,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `sameAs` — gated per §4a), `website-motion` (optional polish — copied so
    the recipient can opt in later; it never runs on its own), `website-story`
    (optional story layer — same rule: copied, never runs unasked; offered once at §2a),
-   and `website-team-setup` (copied so the day a second person joins, the session that
+   `website-scorecard` (optional public scorecard — same rule: copied, never runs
+   unasked), and `website-team-setup` (copied so the day a second person joins, the session that
    sets up the team finds it; it never runs on its own either):
    `$SKILLS_ROOT` entries are often symlinks (e.g. a `make install` checkout
    symlinks each skill from this suite repo) — use `cp -RL` to dereference
@@ -358,6 +361,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
          "$SKILLS_ROOT"/business-listings-setup \
          "$SKILLS_ROOT"/website-motion \
          "$SKILLS_ROOT"/website-story \
+         "$SKILLS_ROOT"/website-scorecard \
          "$SKILLS_ROOT"/website-team-setup \
          "$PROJECT_SKILLS_DIR"/
    ```
