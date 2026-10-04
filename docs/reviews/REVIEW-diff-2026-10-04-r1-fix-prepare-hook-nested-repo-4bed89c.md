@@ -1,13 +1,14 @@
-# DIFF review — branch `fix/prepare-hook-nested-repo` — `prepare` wires the hook only at a repo's root
+# DIFF review — karero/website-builder#149 (branch `fix/prepare-hook-nested-repo`) — `prepare` wires the hook only at a repo's root
 
-Base `0d41e96` · depth: Light (a one-line script in the template's `package.json`, test cases, a CI step, doc sentences) · verdict: **the one BUG and every RISK and NIT from both rounds fixed and locally verified; round 2's own fixes were not re-reviewed; no outside seat has run.**
+Base `0d41e96` · depth: Normal, at the owner's request (the diff alone would be Light: a one-line script, test cases, a CI step, doc sentences) · verdict: **CLEAN with one waiver** — every BUG fixed; C1 (RISK) waived by the owner, with a follow-up · authority used: POST, WORKTREE-WRITE and BRANCH-COMMIT — this session opened the pull request and created the branch; GATED-THIS-DIFF — Codex saw `0d41e96...4c4ca10` in full, then the prose delta to the wording pass's head.
 
-**Gate this got, and why:** one fresh-eyes pass by a read-only sub-agent of the host model, because the diff is small. No outside reviewer (Codex, ollama-cloud) ran and the owner was not asked for data-release consent; that is the owner's call before merge.
+**Data release consent** (owner, in this session, quoted verbatim): "Yes to: Do you want the Codex pair on either change before merge? That needs your data-release consent." Read as naming Codex only, so ollama-cloud did not run: one outside seat, by that choice.
 
-| Round | Head | Artifact | Reviewer | seconds, tokens | BUG/RISK/NIT |
+| Round | Head | Artifact | Reviewers: CLI version, model, effort, sandbox | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `4bed89c` | full, `0d41e96...4bed89c` | fresh-eyes: host-family model, read-only sub-agent | 599 s, 154 479 | 1 / 3 / 2 |
 | 2 | `cbc7e57` | delta since `4bed89c` | the same sub-agent, resumed | 457 s, 185 275 | 0 / 2 / 2 — P1, P2, P4, P5, P6 verified fixed; P3 only partly |
+| 3 | `4c4ca10` | full, `0d41e96...4c4ca10` | codex-cli 0.159.3, gpt-6.1-sol, config effort, read-only (`--seat codex`) | 297 s, 53 452 | 0 / 1 / 0 |
 
 | id | Sev | Finding | Status | Evidence |
 |---|---|---|---|---|
@@ -22,4 +23,10 @@ Base `0d41e96` · depth: Light (a one-line script in the template's `package.jso
 | Q3 | NIT | `--unset` does not restore a hook folder the bigger repo used before | fixed: "or set it back to that repo's own hooks folder" | round-2 commit |
 | Q4 | NIT | A test comment implied every git hook hands down `GIT_DIR`; the primary checkout's hooks get none | fixed | round-2 commit |
 
-Not covered by any run: native Windows `cmd` (the line before this change used the same `2>/dev/null` and `true`), and the CI step on a real runner — the pull request's `template-tests` run settles that one.
+| C1 | RISK | codex, round 3: the `prepare` line is POSIX shell and the test forces `sh`; nothing shows it works where npm uses another shell (native Windows, which `SETUP.md` documents) | **waived** for this pull request — unchanged by it: the line it replaces used the same shell syntax | see Waivers |
+
+Waivers and deferrals: C1 — the owner, 2026-10-04, asked "Waive it for this PR and log a follow-up (my recommendation), or have me turn it into a Node script with a Windows CI job here?", answered: "1. do a follow-up (my recommendation)".
+
+Follow-ups: make `prepare` independent of the shell (a small Node script) and run it through real npm on a Windows runner (C1).
+
+Notes: rounds ended after round 3 (no BUG). Codex marked as unverifiable the test comment's claim that an install in the template is what disabled this repo's guard; it was not observed, and the comment and the pull request's description now say so. Wording pass: that comment is the only change since `4c4ca10` outside this file; its result is in the pull request's comment. The CI step added here ran green on the pull request (`template-tests`).

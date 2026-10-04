@@ -183,8 +183,9 @@ done
 # sh, in the site's folder, on every install. It may point git at scripts/hooks only where the
 # site is the root of its repo. Run from a site kept in a subfolder of a bigger repo, it used
 # to point that repo's hook folder at a scripts/hooks the repo does not have; git then runs no
-# hooks there at all and says nothing. That is how this toolkit's own commit guard went dead:
-# the template is such a subfolder here, and someone ran `npm install` in it.
+# hooks there at all and says nothing. This toolkit's own commit guard was dead with exactly
+# that setting: the template is such a subfolder here, and this line is the only thing in the
+# repo that writes the value. The install that set it was not observed.
 PKG="$HERE/../skills/new-website/templates/astro/package.json"
 prepare="$(sed -n 's/^ *"prepare": "\(.*\)",\{0,1\}$/\1/p' "$PKG")"
 check "package.json has a prepare line this test can read" yes "$([ -n "$prepare" ] && echo yes)"
