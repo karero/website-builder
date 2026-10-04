@@ -1,13 +1,17 @@
-# website-builder
+# Webcroft
 
-[![Latest release](https://img.shields.io/github/v/release/karero/website-builder?label=latest%20release&color=2ea44f)](https://github.com/karero/website-builder/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/karero/webcroft?label=latest%20release&color=2ea44f)](https://github.com/karero/webcroft/releases/latest)
 
-**Build a fast, mobile-friendly, SEO-ready website with help from an AI coding assistant.**
+**Build for search and AI.**
 
-website-builder is an open-source skill suite for **Claude Code**, **OpenAI Codex**, and
+Webcroft is an open-source suite of website skills for **Claude Code**, **OpenAI Codex**, and
 **Google Antigravity**. It turns a short brief into a complete website — content, mobile-first
 responsive design, SEO, accessibility checks, schema markup, tests, and launch support — on a
-modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages).
+modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages). After launch, it helps you
+keep improving SEO and GEO (how your site shows up in AI answers), week by week.
+
+> **Formerly website-builder.** Same project, new name. Old links and existing clones keep
+> working: GitHub redirects them here.
 
 You can use it even if you're not deeply technical. Whether you're a founder, a community
 organiser, a solo builder, a small team, or a developer, **the easiest way to start is to
@@ -58,11 +62,11 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 
 **Copy-paste starter prompt:**
 
-> I want to use the website-builder skill suite (https://github.com/karero/website-builder)
+> I want to use the Webcroft skill suite (https://github.com/karero/webcroft)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, tell me when to restart or
+> actually needed. Then install the Webcroft skills, tell me when to restart or
 > reopen you so the skills load, and continue from there — starting a fresh site by running
 > `new website` in a new, empty folder.
 
@@ -70,8 +74,8 @@ You don't have to memorise any of this — the assistant runs the real commands 
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
 below.)
 
-> 📦 **Prefer a download?** Grab the newest `website-builder.zip` from the
-> [Releases page](https://github.com/karero/website-builder/releases/latest) — each release
+> 📦 **Prefer a download?** Grab the newest `webcroft.zip` from the
+> [Releases page](https://github.com/karero/webcroft/releases/latest) — each release
 > also tells you, in plain language, what's new.
 
 ## What you need
@@ -109,7 +113,7 @@ Once you run `new website`, the assistant will:
 *If you already know your way around a terminal, here are the exact commands. Everything
 below is also what the AI assistant runs on your behalf.*
 
-This repository is the **single source of truth** for the website-builder skill suite — an
+This repository is the **single source of truth** for the Webcroft skill suite — an
 orchestrated set of agent skills that build a new website end-to-end (insights →
 positioning → content → SEO/GEO → design → QA → review → launch), on the house stack
 **Astro → GitHub → Cloudflare Pages**.
@@ -130,8 +134,8 @@ Console/API account). Then, **four steps**:
 
 ```bash
 # 1. Get the files, then cd into the folder — unzip the handoff zip, OR clone the repo:
-unzip website-builder.zip && cd website-builder
-#   from source instead:  git clone https://github.com/karero/website-builder.git && cd website-builder
+unzip webcroft.zip -d webcroft && cd webcroft
+#   from source instead:  git clone https://github.com/karero/webcroft.git && cd webcroft
 
 # 2. From that folder, install the skills globally. Claude only loads skills from
 #    ~/.claude/skills/, so this one command is the whole setup — no copying by hand.
@@ -155,7 +159,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 → design → QA → review → launch**. It also walks you through the one-time build tools
 (Node, git, `gh`, `wrangler`, image tools) the first time you actually build.
 
-> **Updating later:** git is the version — tagged [releases](https://github.com/karero/website-builder/releases)
+> **Updating later:** git is the version — tagged [releases](https://github.com/karero/webcroft/releases)
 > mark the human-readable milestones on top (see *Releases & versioning* below).
 > Skills are changed only in this repo (branch → edit → review → merge; never edit
 > `~/.claude/skills/` directly, those are symlinks into the repo). If you cloned,
@@ -192,16 +196,16 @@ allowlist), then sequences the sibling skills through **positioning → content 
 
 ### Releases & versioning
 
-Every version is a git tag + a [GitHub Release](https://github.com/karero/website-builder/releases)
+Every version is a git tag + a [GitHub Release](https://github.com/karero/webcroft/releases)
 whose notes are the human-readable "what's new", with the handoff zip attached as the
 download asset. Underneath, updates stay commit-based (`git pull`, `SUITE-VERSION`
 stamps, `whats-new`) — a release just names a milestone. Versions step by **0.01**
 (0.1 → 0.11 → 0.12 → …). To cut one:
 
 ```bash
-make smoke                        # clean-check + build + verify dist/website-builder.zip
-git tag -a v0.11 -m "website-builder 0.11" && git push origin v0.11
-gh release create v0.11 dist/website-builder.zip --title "0.11" --latest \
+make smoke                        # clean-check + build + verify dist/webcroft.zip
+git tag -a v0.11 -m "Webcroft 0.11" && git push origin v0.11
+gh release create v0.11 dist/webcroft.zip --title "0.11" --latest \
   --generate-notes                # or write the notes by hand
 ```
 
@@ -268,7 +272,7 @@ skills/            the suite skills (canonical)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
-  package.sh       build dist/website-builder.zip for handoff (+ verify its contents)
+  package.sh       build dist/webcroft.zip for handoff (+ verify its contents)
   whats-new.sh     skill changes since a project was scaffolded (--refresh re-copies them)
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
@@ -341,7 +345,7 @@ symlink, not a copy). Restart your session to pick up new/renamed skills.
 ### Hand it off
 
 ```bash
-make package     # → dist/website-builder.zip  (runs `make check` first)
+make package     # → dist/webcroft.zip  (runs `make check` first)
 ```
 
 A recipient unzips it and runs `scripts/install.sh` (Claude Code),

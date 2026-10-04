@@ -1,7 +1,7 @@
 # Getting started — the gentle version
 
 Never opened a terminal? Never installed a developer tool? **You're in the right place.**
-This page walks you through your very first website with website-builder, in plain
+This page walks you through your very first website with Webcroft, in plain
 language. You won't need to understand the whole toolchain — your AI assistant handles the
 technical parts and explains each step as it goes.
 
@@ -57,16 +57,16 @@ ask your assistant: *"Help me make a new empty folder for my website and open it
 
 Copy this into the chat and send it:
 
-> I want to use the website-builder skill suite (https://github.com/karero/website-builder)
+> I want to use the Webcroft skill suite (https://github.com/karero/webcroft)
 > to create a new website. Please guide me step by step in plain language.
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
-> actually needed. Then install the website-builder skills, tell me when to restart or
+> actually needed. Then install the Webcroft skills, tell me when to restart or
 > reopen you so the skills load, and continue from there — starting a fresh site by running
 > `new website` in a new, empty folder.
 
 The assistant will take it from there: it checks what's on your computer, installs the
-website-builder skills, and asks your approval before doing anything that changes your
+Webcroft skills, and asks your approval before doing anything that changes your
 system.
 
 ### 4. Answer its questions

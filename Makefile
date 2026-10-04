@@ -12,7 +12,7 @@ whats-new: ## skill changes since a project was scaffolded: make whats-new PROJE
 refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites local edits): make refresh PROJECT=<dir>
 	@bash scripts/whats-new.sh --refresh $(if $(PROJECT),"$(PROJECT)")
 
-package: check   ## build dist/website-builder.zip for handoff (runs check first)
+package: check   ## build dist/webcroft.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
 check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no pipe into an early-exit consumer (head, grep -q, …) under pipefail, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak, the site pre-push hook gating and blocking the right pushes, the private-name check running in a worktree too (each script's header says what it checks; the installer and hook tests need git, the claims-sweep test git and python3)
