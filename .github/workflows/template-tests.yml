@@ -75,7 +75,10 @@ jobs:
           sed -i "s|const PAGE = '';|const PAGE = '/';|" tests/scorecard.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport Scorecard from '../components/Scorecard.astro';|" src/pages/index.astro
           sed -i 's|^</Base>|  <div class="wrap"><Scorecard /></div>\n</Base>|' src/pages/index.astro
-          grep -q "const PAGE = '/';" tests/scorecard.spec.ts && grep -q '<Scorecard />' src/pages/index.astro && grep -q "import Scorecard" src/pages/index.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/scorecard.spec.ts
+          grep -q '<Scorecard />' src/pages/index.astro
+          grep -q "import Scorecard" src/pages/index.astro
           printf 'node_modules\ndist\n.astro\ntest-results\n' > .gitignore
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium

@@ -52,7 +52,7 @@ const t = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
 // With several languages the privacy page's address depends on the site's routes
 // (/de/privacy, not /datenschutz), which this component cannot know.
 if (!Astro.props.privacy && Astro.currentLocale) {
-  throw new Error('ContactForm: on a site with several languages, pass privacy="…" (the privacy page in this page\'s language).');
+  throw new Error('ContactForm: on a site with several languages, pass privacy="…" (the privacy page in this page\'s language), and give this language its own copy of tests/forms.spec.ts with its PAGE and PRIVACY (the website-forms skill, §3 step 5).');
 }
 const privacy = Astro.props.privacy ?? t.privacy;
 ---

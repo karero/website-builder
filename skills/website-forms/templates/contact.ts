@@ -53,9 +53,11 @@ const EMAIL = /^[^\s@<>",;:\\()[\]]+@[^\s@<>",;:\\()[\]]+\.[^\s@<>",;:\\()[\]]{2
 // characters, in their Unicode spelling. An address typed that way is refused too, and
 // its visitor is shown the address to write to.)
 const UNSEEN = /[\p{Cc}\p{Cf}]/u;
-// Whether a text holds anything a person can see: a name or a message made of spaces
-// and invisible characters only is an empty one.
-const visible = (text: string) => /[^\p{Cc}\p{Cf}\p{Z}]/u.test(text);
+// Whether a text holds more than spaces and characters that Unicode defines as not
+// shown (control, format and "default ignorable" characters, and the blank Braille
+// pattern): a name or a message made of those alone is an empty one. What a given
+// screen draws was not measured.
+const visible = (text: string) => /[^\p{Cc}\p{Cf}\p{Z}\p{Default_Ignorable_Code_Point}\u2800]/u.test(text);
 
 // The mail goes out through Cloudflare's own API. true only when Cloudflare says it
 // delivered or queued the message. Any other answer counts as a failure and is logged:

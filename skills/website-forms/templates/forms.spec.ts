@@ -6,8 +6,9 @@ import { decide, handle, onRequestPost, sendViaCloudflare, LIMITS, TRAP, type En
 // middleware.spec.ts calls the middleware: a request, the settings, and a stand-in
 // for the mail call. One test enters through onRequestPost, the export Cloudflare
 // calls, with the mail call's own fetch replaced. The browser tests then check what a
-// visitor sees, with the endpoint answered by the test. No test here sends a real email: that one check is
-// the owner's, once, on the deployed site (the skill's "Done means").
+// visitor sees, with the endpoint answered by the test. No test here sends a real
+// email: that one check is the owner's, once, on the deployed site (the skill's "Done
+// means").
 //
 // This file comes with the form (install the skill's three files together), so both
 // addresses below have to be set: a form without its privacy text is the case this
@@ -18,13 +19,12 @@ const PAGE = '';
 // The privacy page, e.g. '/privacy' or '/datenschutz'.
 const PRIVACY = '';
 
-// Words each of the form's sentences must contain, so that a thank-you can never be
-// shown for a failure. English and German are built in: add the words of any language
-// added to the component.
-const WORDS = {
-  'data-sent': /has been sent|wurde gesendet/,
-  'data-invalid': /not valid|ungültig/,
-  'data-failed': /could not be sent|konnte nicht gesendet/,
+// Words each of the form's sentences must contain, by language, so that a thank-you can
+// never be shown for a failure, nor one language's sentence in the other's place.
+// English and German are built in: add the words of any language added to the component.
+const WORDS: Record<string, Record<string, RegExp>> = {
+  en: { 'data-sent': /has been sent/, 'data-invalid': /not valid/, 'data-failed': /could not be sent/ },
+  de: { 'data-sent': /wurde gesendet/, 'data-invalid': /ungültig/, 'data-failed': /konnte nicht gesendet/ },
 };
 
 const ENV: Env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc', CF_EMAIL_TOKEN: 'tok' };
@@ -127,7 +127,10 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
     [{ ...GOOD, message: '   ' }, { message: 'required' }],
     [{ ...GOOD, name: '' }, { name: 'required' }],
     [{ ...GOOD, name: '\u200B\u200B' }, { name: 'required' }],
+    [{ ...GOOD, name: '\u034F\uFE0F' }, { name: 'required' }],
+    [{ ...GOOD, name: '\u3164\u2800' }, { name: 'required' }],
     [{ ...GOOD, message: '\u200B \u00A0' }, { message: 'required' }],
+    [{ ...GOOD, message: '\uFE0F\u034F' }, { message: 'required' }],
     [{ ...GOOD, email: '' }, { email: 'required' }],
     [{ ...GOOD, email: 'ada@example' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada@example.org, eve@example.net' }, { email: 'invalid' }],
@@ -172,7 +175,7 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
 test('contact — a line break in the name cannot start a new mail header', async () => {
   const { sent, send } = recorder();
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
-  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029x\u202Ey\u2066z' }), ENV, send);
+  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029x\u202A\u202B\u202C\u202D\u202Ey\u2066\u2067\u2068\u2069z' }), ENV, send);
   expect(sent).toHaveLength(2);
   for (const message of sent) {
     expect(message.subject).not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]/u);
@@ -210,9 +213,13 @@ test('contact — a bot that fills the hidden field gets a thank-you and nothing
   withFile.set(TRAP, new File(['x'], 'spam.txt'));
   for (const body of [twice, withFile]) {
     const again = recorder();
-    const answer = await handle(new Request(`${SITE_ORIGIN}/api/contact`, { method: 'POST', headers: { accept: 'application/json', origin: SITE_ORIGIN }, body }), ENV, again.send);
+    let answer!: Response;
+    const dropped = await logged(async () => {
+      answer = await handle(new Request(`${SITE_ORIGIN}/api/contact`, { method: 'POST', headers: { accept: 'application/json', origin: SITE_ORIGIN }, body }), ENV, again.send);
+    });
     expect(await answer.json()).toEqual({ ok: true });
     expect(again.sent, 'nothing is sent').toHaveLength(0);
+    expect(dropped).toContain('dropped a submission');
   }
 });
 
@@ -293,7 +300,8 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
       'data-failed': await (await handle(post({ ...GOOD, lang }, { accept: 'text/html' }), ENV, recorder(false).send)).text(),
     };
     for (const [is, answerPage] of Object.entries(pages)) {
-      for (const [name, words] of Object.entries(WORDS)) expect(words.test(answerPage), `${lang}: the ${is} page and the words for ${name}`).toBe(name === is);
+      expect(answerPage, `${lang}: the ${is} page`).toContain(`<html lang="${lang}">`);
+      for (const [name, words] of Object.entries(WORDS[lang])) expect(words.test(answerPage), `${lang}: the ${is} page and the words for ${name}`).toBe(name === is);
     }
   }
   // A language the page does not know, or a word that names something built in.
@@ -396,7 +404,9 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
   const sentences = await Promise.all(['data-sending', 'data-sent', 'data-invalid', 'data-failed'].map((name) => form.getAttribute(name)));
   expect(sentences.every((sentence) => sentence && sentence.trim() !== ''), 'four sentences').toBe(true);
   expect(new Set(sentences).size, 'four different sentences').toBe(4);
-  for (const [name, words] of Object.entries(WORDS)) expect(await form.getAttribute(name), name).toMatch(words);
+  const language = (await form.locator('input[name="lang"]').getAttribute('value')) ?? '';
+  expect(WORDS[language], `the words of the form's language ("${language}") are in WORDS`).toBeTruthy();
+  for (const [name, words] of Object.entries(WORDS[language] ?? {})) expect(await form.getAttribute(name), name).toMatch(words);
   const trap = page.locator(`[name="${TRAP}"]`);
   await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');

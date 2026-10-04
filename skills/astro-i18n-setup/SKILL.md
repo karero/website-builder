@@ -252,6 +252,11 @@ const isCardExempt = (p: string) =>
 (import `neutralPath` from `../src/config`; replace the two `OWN_CARD_EXEMPT.has(path)`
 call sites with `isCardExempt(path)`.)
 
+### A site with a contact form (`website-forms`)
+Each language's form page passes `privacy="…"` to `<ContactForm>` (the build stops
+without it) and gets its own copy of `tests/forms.spec.ts` with that language's `PAGE`
+and `PRIVACY`: one copy guards one form and one privacy page (`website-forms` §3).
+
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).
 Like every `tests/*.spec.ts`, that copy is frozen — after a `make refresh` reports

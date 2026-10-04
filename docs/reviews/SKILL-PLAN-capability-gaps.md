@@ -218,7 +218,7 @@ Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.s
 run on 2026-10-04 in a scratch copy of the starter with the skill installed by its own
 steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). One of
 the tests enters the function the way a deployment does, through the export Cloudflare
-calls, with only the network call underneath replaced. 81 deliberate breakages of the
+calls, with only the network call underneath replaced. 88 deliberate breakages of the
 function, the form or the privacy text were each caught by those tests. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default

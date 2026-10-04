@@ -125,7 +125,9 @@ preview address cannot send, and says so.
    in the function and to `WORDS` in the spec. The tone rules apply
    (`tests/tone.spec.ts`). The mail the owner receives is in English ("Website message
    from …", "Name:", "Email:"): two strings in the function, to change if the owner
-   wants them in another language.
+   wants them in another language. Two tests in the spec then need the same change:
+   the one that asserts the exact subject, and the one that cuts the subject at 120
+   characters, which counts on the 21 characters of the English prefix.
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
@@ -138,7 +140,8 @@ preview address cannot send, and says so.
    when the privacy page lacks the marked text or that text does not name Cloudflare.
    One copy of the spec guards one form and one privacy page: on a site with several
    languages, copy it once per language (`tests/forms.de.spec.ts`), each with that
-   language's `PAGE` and `PRIVACY`.
+   language's `PAGE` and `PRIVACY`. The same when a language is added later: the
+   form's build error for a missing `privacy` says so too.
 6. `npm run check && npm test`. Say in the pull request that it adds a file under
    `functions/` (`AGENTS.md` §5).
 
@@ -185,7 +188,7 @@ Nothing in the test suite sends a real email. The first real message is sent whe
 four settings are. With Production only (§2 step 4) that is the **live** address: on a
 single-stage site once the pull request is merged, on a two-stage site after
 `npm run ship`, on a site that is published by a deploy command after that command
-(`PUBLISHING.md`). A preview address then answers "could not be sent" and its log names
+(`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md` §A). A preview address then answers "could not be sent" and its log names
 all four settings. That is expected, not a fault, and no reason to enter the token for
 Preview.
 
@@ -205,8 +208,8 @@ Preview.
    | The log says | Which means | Do this |
    |---|---|---|
    | "not set on this deployment: …" | the settings it names are missing on this deployment | enter them (§2) and redeploy. On a preview address with Production-only settings this is expected |
-   | "Cloudflare did not accept the message: …" | Cloudflare's answer was not a clear yes. The line gives the HTTP status, how many errors Cloudflare named and their numeric codes, how many addresses bounced, and whether the answer could be read as an answer at all | report the status and the codes to the owner as they are and look them up in Cloudflare's documentation; do not guess. If the line says `"readable":false`, whether the message went out is not known: look in the mailbox. A status of 200 with no errors, nothing bounced and `"readable":true`: Cloudflare answered in a shape the function does not take for a yes. The message may have gone out: look in the mailbox, then hold Cloudflare's current REST reference against `sendViaCloudflare` in the function. `bounced` above 0: Cloudflare reports the destination address as bouncing; check `CONTACT_TO` and that the address was confirmed (§2 step 2) |
-   | "the mail call failed before an answer came: …" | the call to Cloudflare ended in an error, not an answer; whether the message went out is not known. The word after the colon is a hint, named as the test runner names such errors (Cloudflare's runtime was not observed): `TimeoutError` or `AbortError` for no answer within ten seconds, `TypeError` for a request that could not be made or a connection that failed, "another error" for anything else | look in the mailbox, then try once more a little later. The same line again: look at Cloudflare's status page. If that shows nothing, have the owner create a new token and enter the four settings afresh, then redeploy (in the test runner a line break or an invisible character inside the token causes exactly this line) |
+   | "Cloudflare did not accept the message: …" | Cloudflare's answer was not a clear yes. The line gives the HTTP status, how many errors Cloudflare named and their numeric codes, how many addresses bounced, and whether the answer could be read as an answer at all | report the status and the codes to the owner as they are and look them up in Cloudflare's documentation; do not guess. If the line says `"readable":false`, whether the message went out is not known: look in the mailbox. A status from 200 to 299 with no errors, nothing bounced and `"readable":true`: Cloudflare answered in a shape the function does not take for a yes. The message may have gone out: look in the mailbox, then hold Cloudflare's current REST reference against `sendViaCloudflare` in the function. `bounced` above 0: Cloudflare reports the destination address as bouncing; check `CONTACT_TO` and that the address was confirmed (§2 step 2) |
+   | "the mail call failed before an answer came: …" | the call to Cloudflare ended in an error, not an answer; whether the message went out is not known. The word after the colon is a hint, named as the test runner names such errors (Cloudflare's runtime was not observed): `TimeoutError` or `AbortError` for no answer within ten seconds, `TypeError` for a request that could not be made or a connection that failed, "another error" for anything else | look in the mailbox, then try once more a little later. The same line again: look at Cloudflare's status page and tell the owner what the line says. A timeout every time is nothing the site can fix. For the other kinds, with a status page that shows nothing, one thing worth trying is to enter the four settings afresh with a new token and redeploy: in the test runner a line break inside the token gives this line |
    | "refused a post that names another origin" | the browser said the form was posted from another address than the function's | open the form on the address being tested. For visitors without JavaScript the site's referrer policy can cause this (§6) |
    | "dropped a submission that filled the hidden field" | something filled the field no person sees. The form answered "sent" and nothing was sent | send again from another browser or a private window (§6) |
    | no line at all | the function wrote nothing. Either the post did not reach it, or the message went out (a sent message leaves no line), or a field was missing or not valid, which the form reports in a sentence of its own | look in the mailbox, then check that `functions/api/contact.ts` is in the deployed commit |
