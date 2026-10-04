@@ -13,7 +13,7 @@ it; a row is only as good as its evidence.
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built, verified locally, in review, not pushed | branch `feat/rendered-placeholder-gate`; no pull request yet |
+| A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built, reviewed, pull request open, not merged | karero/website-builder#145 |
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
 | A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
 | B | Proof: a test report each site can publish | scenarios only | — |

@@ -1,4 +1,4 @@
-# DIFF review — branch `feat/rendered-placeholder-gate` — a test that reads the rendered site for leftover placeholders
+# DIFF review — karero/website-builder#145 (branch `feat/rendered-placeholder-gate`) — a test that reads the rendered site for leftover placeholders
 
 Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, plus the documents that describe it) · verdict: **every BUG fixed and re-verified; F4 waived by the owner; one RISK (FR-6) closes when the pull request's `template-tests` run is green** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch; POST AUTHORITY — this session opens the pull request (the owner's instruction, quoted under "Waivers").
 
