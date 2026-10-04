@@ -46,6 +46,13 @@ jobs:
         # onboarding flow real recipients follow — see docs/reviews/REVIEW-plan-2026-07-16-astro7-upgrade-r1.md
         # for that known gap (tracked as a separate follow-up, not fixed by this change).
         run: npm ci --no-audit --no-fund
+      # The template is a subfolder of this repo, the way a site can sit inside a bigger
+      # repo. The install's "prepare" script must then leave this repo's git hooks alone:
+      # pointed at a scripts/hooks this repo does not have, git runs no hooks at all.
+      - name: The install left this repo's git hooks alone
+        run: |
+          v="$(git config --get core.hooksPath || true)"
+          [ -z "$v" ] || { echo "npm ci set core.hooksPath=$v in the enclosing repo"; exit 1; }
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run template test suite

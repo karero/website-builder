@@ -4,8 +4,9 @@
 # test-driven contract (CI in .github/workflows/ runs the same checks).
 #
 # Wired automatically by the "prepare" script in package.json (npm install sets
-# core.hooksPath to scripts/hooks). The `check_seo.py` step runs only if that
-# file exists, so this same hook works whether SEO is a Python gate or seo.spec.ts.
+# core.hooksPath to scripts/hooks, when the site is the root of its git repo). The
+# `check_seo.py` step runs only if that file exists, so this same hook works whether
+# SEO is a Python gate or seo.spec.ts.
 #
 # Relax for ONE push:   git push --no-verify
 # Disable entirely:     git config --unset core.hooksPath

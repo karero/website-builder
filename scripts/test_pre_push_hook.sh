@@ -11,6 +11,9 @@
 # cases pin what the gate does per push shape, per stdin kind and per shell, and that the
 # block refuses main whatever stdin git's pipe looks like.
 #
+# It also runs the "prepare" line that wires the hook (the template's package.json), to pin
+# that it touches git's hook folder only where the site is the root of its repo.
+#
 # Usage: bash scripts/test_pre_push_hook.sh
 set -u
 if ! command -v git >/dev/null 2>&1; then
@@ -172,6 +175,33 @@ for v in off on; do
     check "git, block off: ... and main is gone"              none "$(remote main)"
   fi
 done
+
+# The "prepare" line in the template's package.json is what wires the hook: npm runs it with
+# sh, in the site's folder, on every install. It may point git at scripts/hooks only where the
+# site is the root of its repo. Run from a site kept in a subfolder of a bigger repo, it used
+# to point that repo's hook folder at a scripts/hooks the repo does not have; git then runs no
+# hooks there at all and says nothing. That is how this toolkit's own commit guard went dead:
+# the template is such a subfolder here, and someone ran `npm install` in it.
+PKG="$HERE/../skills/new-website/templates/astro/package.json"
+prepare="$(sed -n 's/^ *"prepare": "\(.*\)",\{0,1\}$/\1/p' "$PKG")"
+check "package.json has a prepare line this test can read" yes "$([ -n "$prepare" ] && echo yes)"
+# The line is read with sed, not a JSON parser: an escape in it would be run as written.
+check "... and it holds no JSON escape" 0 "$(printf '%s\n' "$prepare" | grep -c '\\')"
+# prep <dir> — run the line as npm does; prints its exit status.
+prep() { (cd "$1" && sh -c "$prepare") >/dev/null 2>&1; echo "$?"; }
+hooks_path() { $git -C "$1" config --get core.hooksPath || echo unset; }
+
+$git init -q "$T/root-site"
+check "prepare, site at the root of its repo: exits 0"         0 "$(prep "$T/root-site")"
+check "prepare, ... and the hook folder is wired"              scripts/hooks "$(hooks_path "$T/root-site")"
+$git init -q "$T/big"; mkdir -p "$T/big/apps/site"
+check "prepare, site in a subfolder of a bigger repo: exits 0" 0 "$(prep "$T/big/apps/site")"
+check "prepare, ... and that repo's hooks are left alone"      unset "$(hooks_path "$T/big")"
+$git -C "$T/big" config core.hooksPath .githooks
+check "prepare, ... also when it has a hook folder: exits 0"   0 "$(prep "$T/big/apps/site")"
+check "prepare, ... and that folder stays in use"              .githooks "$(hooks_path "$T/big")"
+mkdir -p "$T/plain"
+check "prepare, folder outside any repo: exits 0"              0 "$(GIT_CEILING_DIRECTORIES="$T" prep "$T/plain")"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
