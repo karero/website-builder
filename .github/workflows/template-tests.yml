@@ -90,8 +90,8 @@ jobs:
           # An npm pointed at a shell of someone's choosing would pass here for the wrong reason.
           v="$(npm config get script-shell)"; echo "npm's script-shell setting: $v"
           case "$v" in null|undefined|'') ;; *) echo "::error::npm does not use the platform's own shell here"; exit 1 ;; esac
-      # The installs name no `shell:`, so each runs from the runner's own: PowerShell on
-      # Windows, which is what SETUP.md has a Windows user install from.
+      # The installs name no `shell:`, so each runs from the runner's default one: PowerShell
+      # on Windows.
       - name: npm install in the site that is the root of its repo
         working-directory: ${{ runner.temp }}/root-site
         run: npm install --no-audit --no-fund

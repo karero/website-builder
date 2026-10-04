@@ -140,19 +140,19 @@ git config --global fetch.prune true   # once per machine; use --local to scope 
 ### Pre-push quality gate (auto-wired by `npm install`)
 
 The `prepare` script in `package.json` (`node scripts/wire-hooks.mjs`) points
-`core.hooksPath` at `scripts/hooks`, so the
-shipped **`pre-push` hook** runs the build + tests and **blocks a push that's red** — the
-local enforcement of "fails → does not ship" (Cloudflare deploys independently of CI, so this
-is what makes that true on a direct-push workflow). It needs `npx playwright install chromium`
-(above). Relax for one push with `git push --no-verify`; disable with
-`git config --unset core.hooksPath`. See `website-qa` §1c — offer this choice, don't impose it.
+`core.hooksPath` at `scripts/hooks`, so the shipped **`pre-push` hook** runs the build + tests
+and **blocks a push that's red** — the local enforcement of "fails → does not ship" (Cloudflare
+deploys independently of CI, so this is what makes that true on a direct-push workflow). It
+needs `npx playwright install chromium` (above). Relax for one push with
+`git push --no-verify`; disable with `git config --unset core.hooksPath`. See `website-qa`
+§1c — offer this choice, don't impose it.
 `prepare` wires the hook only when the site is the root of its git repo. Kept in a subfolder
 of a bigger repo, it leaves that repo's hooks alone, and the gate does not run on push.
 It is a Node script, so it needs no particular shell: on Windows npm runs scripts through
-`cmd.exe` by default. An older `prepare` line calls `git config` itself; that is sh syntax, and nothing
-shows it works there. Such a line without `--show-prefix` also rewired the bigger repo, to a
-`scripts/hooks` that repo does not have; git then runs none of its hooks. The header of
-`scripts/hooks/pre-push` quotes the current line and says how to repair both.
+`cmd.exe` by default. An older `prepare` line calls `git config` itself; that is sh syntax,
+and nothing shows it works there. Such a line without `--show-prefix` also rewired the bigger
+repo, to a `scripts/hooks` that repo does not have; git then runs none of its hooks. The
+header of `scripts/hooks/pre-push` quotes the current line and says how to repair both.
 
 The hook also contains a commented-out **PR-only-main guard** (the `website-team-setup`
 skill enables it when a team forms and the plan offers no server-side ruleset): enable it when several people

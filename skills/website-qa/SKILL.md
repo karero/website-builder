@@ -125,9 +125,9 @@ a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `npm run build`, 
 (if present) and `npm test`, and **refuses the push if anything is red** — so a broken build
 never reaches the deploy branch. It's wired automatically: the `prepare` script in
 `package.json` (`node scripts/wire-hooks.mjs`, a line with no shell syntax) points
-`core.hooksPath` at `scripts/hooks` on `npm install` — when the site is
-the root of its git repo. In a subfolder of a bigger repo it leaves that repo's hooks alone,
-so the gate is not wired there; say so rather than assume it runs.
+`core.hooksPath` at `scripts/hooks` on `npm install` — when the site is the root of its git
+repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the gate is not
+wired there; say so rather than assume it runs.
 
 This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
 so without this hook a red test would still deploy. The hook is what makes "fails → does not

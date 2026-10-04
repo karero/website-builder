@@ -223,6 +223,7 @@ else
   $git init -q "$T/root-site"; site "$T/root-site"
   check "prepare, site at the root of its repo: exits 0"         0 "$(prep "$T/root-site")"
   check "prepare, ... and the hook folder is wired"              scripts/hooks "$(hooks_path "$T/root-site")"
+  check "prepare, ... without a word"                            "" "$(said "$T/root-site")"
   $git init -q "$T/big"; site "$T/big/apps/site"
   check "prepare, site in a subfolder of a bigger repo: exits 0" 0 "$(prep "$T/big/apps/site")"
   check "prepare, ... and that repo's hooks are left alone"      unset "$(hooks_path "$T/big")"
@@ -232,6 +233,11 @@ else
   # trust that.
   check "prepare, ... also run from a git hook (GIT_DIR set): exits 0" 0 "$(GIT_DIR="$T/big/.git" prep "$T/big/apps/site")"
   check "prepare, ... and that repo's hooks are still left alone" unset "$(hooks_path "$T/big")"
+  # A git started with --git-dir and --work-tree (a deploy hook's `git --work-tree=… checkout`)
+  # hands its hooks GIT_WORK_TREE=. as well. Dropping only one of the two still leaves git
+  # taking the site's folder for the top.
+  check "prepare, ... also with GIT_WORK_TREE handed down too: exits 0" 0 "$(GIT_DIR="$T/big/.git" GIT_WORK_TREE=. prep "$T/big/apps/site")"
+  check "prepare, ... and that repo's hooks are left alone with both set" unset "$(hooks_path "$T/big")"
   # The script asks git about the folder it sits in, not the one it was started from. Started
   # by hand from the top of the bigger repo, it must not take that top for the site.
   check "prepare, ... also started from the top of the bigger repo: exits 0" 0 "$(cd "$T/big" && node "apps/site/$wire" >/dev/null 2>&1; echo "$?")"
@@ -242,6 +248,13 @@ else
   site "$T/plain"
   check "prepare, folder outside any repo: exits 0"              0 "$(GIT_CEILING_DIRECTORIES="$T" prep "$T/plain")"
   check "prepare, ... and says nothing"                          "" "$(GIT_CEILING_DIRECTORIES="$T" said "$T/plain")"
+  # git is here and the site is the top of its repo, but git refuses the write: something
+  # else holds the lock on the repo's config. Still no failed install, and the one case
+  # that says a word, since the gate is off and nothing else would tell.
+  $git init -q "$T/locked"; site "$T/locked"; : >"$T/locked/.git/config.lock"
+  check "prepare, git refuses the write: exits 0"                0 "$(prep "$T/locked")"
+  check "prepare, ... and says the hook is not wired"            1 "$(said "$T/locked" | grep -c 'NOT wired')"
+  check "prepare, ... which it is not"                           unset "$(hooks_path "$T/locked")"
   # A machine without git: node alone, on a PATH that holds nothing, in a repo the script
   # would wire if it found git — so a repo left unwired shows git was really out of reach.
   $git init -q "$T/no-git"; site "$T/no-git"; mkdir -p "$T/empty"
