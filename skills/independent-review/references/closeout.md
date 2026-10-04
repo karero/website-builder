@@ -65,8 +65,7 @@ Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OP
 | Round | Head | Artifact (full / delta since <sha>) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 | id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction.
-Follow-ups: one line each. Notes: at most five lines (degraded seats, which seat verified when
-not the tooled one, a text-only seat's questions asked and confirmed, rounds past 3 and the BUG
+Follow-ups: one line each. Notes: at most five lines (degraded seats, rounds past 3 and the BUG
 that earned each, final full read, wording pass, stops).
 ```
 
@@ -105,9 +104,7 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      FAILED or was skipped in a link has a gap there. At least one cross-model seat must hold an
      unbroken chain. At Normal depth fresh-eyes' chain ends at round 1 by design: its round-1
      findings stay in the verdict, but it does not count toward the stamp for a later head and is
-     not re-run for one. The text-only seat's chain ends there too when the tooled seat runs a
-     DIFF's verification rounds alone (SKILL.md step 6).
-     **A prose-only link covers prose only:** if its segment turns out to
+     not re-run for one. **A prose-only link covers prose only:** if its segment turns out to
      contain code, the chain breaks there and that segment needs a full-scope round.
    - **Before posting,** re-read both values and stamp only if both match. If either moved,
      re-gate the new pair with **every seat the stamp relies on** (the seats with an unbroken

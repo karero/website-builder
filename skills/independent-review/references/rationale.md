@@ -439,7 +439,7 @@ found at round 14 by a fresh model reading the whole document, one wrong since r
 specs and High-depth changes end with one full read by a reviewer new to the artifact. None of
 the trails recorded time or tokens; the cost log exists so the next such review can.
 
-## Confirmed findings, tooled verification, record prose — the second backend reading
+## Confirmed findings, unseen text, record prose — the second backend reading
 
 Codified 2026-10-04 from the 51 trails the owner's backend repo wrote in the first eight days
 under the round budget, 221 passes. On 42 DIFF gates (one ten-stage trail left out), 94 passes
@@ -453,20 +453,22 @@ ran after the first, and 75 of them found no BUG.
   triage, and a round owed only by a fix that changed something. What this gives up: a wrongly
   refuted finding gets no reviewer's second look — which is why a refuted BUG goes to the owner
   with its evidence.
-- **A seat that cannot open the files, verifying a delta.** Share refuted, of the findings ruled
+- **A seat that cannot open the files.** Share refuted, of the findings ruled
   fixed or refuted: 4% each for Codex and for fresh-eyes (of 76 and of 118), and 45%, 66% and
   73% for the three text-only cloud seats (of 93, 303 and 11). 49 of the 94 later passes were
   one text-only seat alone (the tooled cross-model seat was out of quota on three of the eight
   days); they raised 85 RISKs and confirmed no code BUG. One three-round gate: 22 findings, 19
   refuted, and of its first round the trail says most were "this name may not exist" about code
-  outside the diff. Hence the tooled seat for a DIFF's verification rounds, and the text-only
-  prompt's rule that a concern about unseen text is a question. What this evidence does not
-  show: "refuted" is the author's own ruling; a text-only seat of another family was upheld on
-  18 of 19 findings, so the model matters as well as the tools; and whether the prompt rule
-  loses real findings is not measured. The Antigravity prompt is left as it is: its last fix
-  has not yet been seen working live (R-AGY-PROMPT in the open-findings tracker). PLAN gates
-  and High depth keep their seats: a plan puts the whole artifact in front of every seat, and
-  the High-depth trails were not read apart from the rest.
+  outside the diff. Hence the text-only prompt's rule that a concern about unseen text is a
+  question. What this evidence does not show: "refuted" is the author's own ruling;
+  Antigravity, which also reviews from the text alone, was upheld on 18 of 19 findings, so the
+  model matters as well as the tools; and whether the rule loses real findings is not measured,
+  at any depth or for plans. Antigravity's prompt is left as it is: its last fix has not yet
+  been seen working live (R-AGY-PROMPT in the open-findings tracker).
+  Not done here: sending a DIFF's verification rounds to the tooled seat alone. A draft of this
+  change did, and its final full read found that rule at odds, in three places, with the
+  per-seat chain the stamp relies on (closeout, clerk item 2). It needs the chain rule reworked
+  first, as a change of its own.
 - **Record prose draws findings.** Of the 26 later BUGs the trails describe, 16 were about
   sentences — changelog entries, comments, test-case wording, the review record — and 10 about
   code or tests. In one gate all four BUGs raised after the first pass were sentences in its
