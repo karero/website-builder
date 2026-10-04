@@ -58,15 +58,13 @@ jobs:
   # Base layout, the Playwright config and its JSON report) turns red here.
   scorecard-skill:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ runner.temp }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: A site from the starter, with the skill installed
+        working-directory: ${{ runner.temp }}
         run: |
           cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
           K="$GITHUB_WORKSPACE/skills/website-scorecard/templates"
