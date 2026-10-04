@@ -200,8 +200,10 @@ build finishes is it actually live at `<live-domain>`. After `npm run ship` prin
 it live on that result — no manual re-check needed. For a plain merge into `production` — or
 when ship reports it could not verify — confirm manually before announcing ("✅ now live
 at …"). On a **single-stage** site there is no preview: say plainly that the push **is
-going live now**. Deliver these announcements in the owner's language, like everything else
-you say to them.
+going live now**. On a site **not connected to GitHub** ("Deploy by command" above), a push
+builds nothing, not even a preview: say the change is saved on GitHub only, and goes live
+when the deploy command runs. Deliver these announcements in the owner's language, like
+everything else you say to them.
 
 **Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
 `main.<project>.pages.dev` (or, before go-live, the project alias `<project>.pages.dev` —
