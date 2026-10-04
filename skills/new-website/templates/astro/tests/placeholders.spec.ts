@@ -298,6 +298,8 @@ test('placeholders — the page reading reaches each surface it claims', async (
     <code>[IN CODE]</code> <pre>[IN PRE]</pre> <kbd>[IN KBD]</kbd> <samp>[IN SAMP]</samp>
     <p data-placeholder-exempt>[EXEMPT NOTE] <img alt="[EXEMPT ALT]" src="data:,"></p>
     <noscript>[IN NOSCRIPT]</noscript>
+    <style>.x::after { content: '[IN STYLE]'; }</style>
+    <script>window.note = '[IN SCRIPT]';</script>
     </body></html>`);
   const text = await readPage(page);
   const findings = scan(text);
@@ -314,7 +316,8 @@ test('placeholders — the page reading reaches each surface it claims', async (
   expect(findings.some((f) => f.label === 'author note'), '"prices" + "TODO" needs the spaced reading').toBe(true);
   const mustSkip = [
     ...notShown.map((t) => `UNSEEN ${t.toUpperCase()}`),
-    'IN CODE', 'IN PRE', 'IN KBD', 'IN SAMP', 'EXEMPT NOTE', 'EXEMPT ALT', 'IN NOSCRIPT',
+    'IN CODE', 'IN PRE', 'IN KBD', 'IN SAMP', 'EXEMPT NOTE', 'EXEMPT ALT', 'IN NOSCRIPT', 'IN STYLE',
+    'IN SCRIPT',
   ];
   expect(mustSkip.filter((m) => text.includes(m)), 'text that must stay out of the reading').toEqual([]);
 });
