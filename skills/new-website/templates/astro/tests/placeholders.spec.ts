@@ -77,10 +77,12 @@ const STATIC_FILES = ['/manifest.webmanifest'] as const;
 // a draft.
 const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/impressum', '/manifest.webmanifest']);
 
-// One line per distinct leftover: the same slot met in two readings of a page (see
-// the page test) is reported once.
-function scan(text: string): string[] {
-  const found = new Map<string, string>();
+// One finding per distinct leftover: the same slot met in two readings of a page (see
+// readPage) is reported once. `match` is the leftover itself, whitespace folded;
+// `line` is what a person reads, with the text around it.
+type Finding = { label: string; match: string; line: string };
+function scan(text: string): Finding[] {
+  const found = new Map<string, Finding>();
   for (const { label, re } of RULES) {
     for (const m of text.matchAll(re)) {
       const match = m[0].replace(/\s+/g, ' ');
@@ -89,7 +91,7 @@ function scan(text: string): string[] {
       if (found.has(key)) continue;
       const i = m.index ?? 0;
       const ctx = text.slice(Math.max(0, i - 25), i + Math.min(m[0].length, 160) + 25).replace(/\s+/g, ' ').trim();
-      found.set(key, `"${label}" → …${ctx}…`);
+      found.set(key, { label, match, line: `"${label}" → …${ctx}…` });
     }
   }
   return [...found.values()];
@@ -115,7 +117,7 @@ function unseenSlots(text: string): string[] {
 }
 
 function judge(target: string, text: string, listed = UNFILLED_UNTIL_LAUNCH.has(target)) {
-  const findings = scan(text);
+  const findings = scan(text).map((f) => f.line);
   const list = findings.map((f) => '  • ' + f).join('\n');
   if (!listed) {
     expect(
@@ -261,39 +263,59 @@ async function readPage(page: Page): Promise<string> {
   return [text, ...jsonLd.map((raw) => jsonStrings(raw) ?? raw)].join('\n');
 }
 
-// The reading itself, pinned in a real browser: every place a leftover can sit is
-// planted once, next to the places that must stay out of the reading.
-test('placeholders — the page reading reaches every surface', async ({ page }) => {
+// The reading itself, pinned in a real browser: one leftover planted on each surface
+// readPage reads, and one on each place it must leave out. Checked against the
+// matches themselves, not against the printed lines, whose context also shows
+// neighbouring text.
+test('placeholders — the page reading reaches each surface it claims', async ({ page }) => {
+  const shown = ['text', 'search', 'email', 'tel', 'url', 'submit', 'button', 'reset'];
+  // No slider here: the browser turns a range input's value into a number, so it
+  // cannot carry text either way.
+  const notShown = ['hidden', 'checkbox', 'radio', 'password'];
   await page.setContent(`<!doctype html><html lang="en"><head>
     <title>[TITLE SLOT]</title>
     <meta name="description" content="[DESCRIPTION SLOT]">
+    <meta property="og:title" content="[OG TITLE SLOT]">
+    <meta property="og:description" content="[OG DESCRIPTION SLOT]">
+    <meta name="twitter:title" content="[TWITTER TITLE SLOT]">
+    <meta name="twitter:description" content="[TWITTER DESCRIPTION SLOT]">
     <script type="application/ld+json">{"name":"\\u005bSCHEMA\\nSLOT\\u005d"}</script>
     </head><body>
-    <p>Call [<strong>BOLD SLOT</strong>] or visit [BROKEN
-       SLOT].</p>
+    <p>Call [<strong>BOLD SLOT</strong>] now.</p>
+    <p>Visit [BROKEN
+       SLOT] soon.</p>
     <p>Lo<em>rem</em> ipsum.</p>
     <span>prices</span><span>TODO</span>
     <details><summary>More</summary><p>[FOLDED SLOT]</p></details>
     <img alt="[ALT SLOT]" src="data:,">
-    <button aria-label="[LABEL SLOT]" title="[TITLE ATTRIBUTE SLOT]">Go</button>
+    <button aria-label="[LABEL SLOT]">Go</button>
+    <abbr title="[TITLE ATTRIBUTE SLOT]">x</abbr>
     <input placeholder="[HINT SLOT]">
-    <input type="submit" value="[BUTTON SLOT]">
+    ${shown.map((t) => `<input type="${t}" value="[VALUE OF ${t.toUpperCase()}]">`).join('\n')}
     <input id="late">
     <script>document.getElementById('late').value = '[SCRIPTED SLOT]';</script>
-    <input type="hidden" value="[HIDDEN FIELD]">
-    <input type="checkbox" value="[CHECKBOX VALUE]">
-    <code>[CODE SAMPLE]</code>
+    ${notShown.map((t) => `<input type="${t}" value="[UNSEEN ${t.toUpperCase()}]">`).join('\n')}
+    <code>[IN CODE]</code> <pre>[IN PRE]</pre> <kbd>[IN KBD]</kbd> <samp>[IN SAMP]</samp>
     <p data-placeholder-exempt>[EXEMPT NOTE] <img alt="[EXEMPT ALT]" src="data:,"></p>
+    <noscript>[IN NOSCRIPT]</noscript>
     </body></html>`);
   const text = await readPage(page);
-  const found = scan(text).join('\n');
+  const findings = scan(text);
+  const matched = (wanted: string) => findings.some((f) => f.match.replace(/[\[\] ]/g, '') === wanted.replace(/ /g, ''));
   const mustFind = [
-    'TITLE SLOT', 'DESCRIPTION SLOT', 'SCHEMA SLOT', 'BOLD SLOT', 'BROKEN SLOT', '"filler text"',
-    '"author note"', 'FOLDED SLOT', 'ALT SLOT', 'LABEL SLOT', 'TITLE ATTRIBUTE SLOT', 'HINT SLOT',
-    'BUTTON SLOT', 'SCRIPTED SLOT',
+    'TITLE SLOT', 'DESCRIPTION SLOT', 'OG TITLE SLOT', 'OG DESCRIPTION SLOT', 'TWITTER TITLE SLOT',
+    'TWITTER DESCRIPTION SLOT', 'SCHEMA SLOT', 'BOLD SLOT', 'BROKEN SLOT', 'FOLDED SLOT', 'ALT SLOT',
+    'LABEL SLOT', 'TITLE ATTRIBUTE SLOT', 'HINT SLOT', 'SCRIPTED SLOT',
+    ...shown.map((t) => `VALUE OF ${t.toUpperCase()}`),
   ];
-  expect(mustFind.filter((m) => !found.includes(m)), 'planted leftovers the reading missed').toEqual([]);
-  const mustSkip = ['HIDDEN FIELD', 'CHECKBOX VALUE', 'CODE SAMPLE', 'EXEMPT NOTE', 'EXEMPT ALT'];
+  expect(mustFind.filter((m) => !matched(m)), 'planted slots the reading missed').toEqual([]);
+  // The two leftovers that only one of the two readings can see.
+  expect(findings.some((f) => f.label === 'filler text'), '"Lo<em>rem</em> ipsum" needs the fused reading').toBe(true);
+  expect(findings.some((f) => f.label === 'author note'), '"prices" + "TODO" needs the spaced reading').toBe(true);
+  const mustSkip = [
+    ...notShown.map((t) => `UNSEEN ${t.toUpperCase()}`),
+    'IN CODE', 'IN PRE', 'IN KBD', 'IN SAMP', 'EXEMPT NOTE', 'EXEMPT ALT', 'IN NOSCRIPT',
+  ];
   expect(mustSkip.filter((m) => text.includes(m)), 'text that must stay out of the reading').toEqual([]);
 });
 

@@ -72,9 +72,9 @@ All fourteen were run on 2026-10-04 against a scratch copy of the starter, each 
 for the reason in the table, plus the whole suite and the type check on the untouched
 starter (61 passed, 0 type errors) and the German-only swap following
 `_datenschutz.astro`'s own header. The test also checks itself on every run: one test
-plants a leftover in every place the reading covers, inside a real browser, next to
-the places that must stay out; nine deliberate breakages of the test's own logic were
-each caught by it. Run without exemptions against a copy of one real
+plants a leftover on each place the reading covers, inside a real browser, next to
+the places that must stay out; 29 deliberate breakages of the test's own logic (one
+per place and per rule) were each caught and named by it. Run without exemptions against a copy of one real
 site built with the toolkit, the first version found two unfilled slots on each legal
 page and raised no false alarm.
 
