@@ -103,23 +103,24 @@ if [ ! -f "$DENYLIST_FILE" ]; then
 fi
 if [ -f "$DENYLIST_FILE" ]; then
   NAMES="$(grep -vE '^[[:space:]]*(#|$)' "$DENYLIST_FILE" | paste -sd'|' -)"
-  # karero/website-builder is this project's OWN public repo — self-links to it (README
-  # badges, clone instructions, the security policy) and its short form in issue and PR
-  # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
-  # reference, in lowercase, and not inside a longer name (other-karero/website-builder,
-  # karero/website-builder-x), then look again: dropping every line that held one also hid
-  # any private name beside it. One reference at a time, until none is left: a global
-  # replace consumes the character after one reference that the next needs before it
-  # (karero/website-builder,karero/website-builder). Binary-file lines pass through for
-  # filter_ignored. A scan error (g's "✗ scan error" block, first in its output) goes to
-  # report whole: the filter would compile the same broken pattern, fail too, and turn the
-  # error into a clean pass.
+  # karero/webcroft is this project's OWN public repo, and karero/website-builder is what it
+  # was called before the rename — self-links to either (README badges, clone instructions,
+  # the security policy) and the short form in issue and PR references (karero/webcroft#131)
+  # are the point, not a leak. The old name stays allowed for good: docs/reviews/ keeps its
+  # historical links, and docs/ is scanned. Blank out exactly that reference, in lowercase,
+  # and not inside a longer name (other-karero/webcroft, karero/webcroft-site), then look
+  # again: dropping every line that held one also hid any private name beside it. One
+  # reference at a time, until none is left: a global replace consumes the character after
+  # one reference that the next needs before it (karero/webcroft,karero/webcroft).
+  # Binary-file lines pass through for filter_ignored. A scan error (g's "✗ scan error"
+  # block, first in its output) goes to report whole: the filter would compile the same
+  # broken pattern, fail too, and turn the error into a clean pass.
   if [ -n "$NAMES" ]; then
     hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
       *) hits="$(printf '%s\n' "$hits" \
-           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
+           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/(webcroft|website-builder)(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\4#' -e 'ta' \
            | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
     report "personal/site identifier" "$hits"

@@ -8,8 +8,9 @@
 # Commits are made in worktrees, so the check was off exactly where it mattered: a client
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
 # checkout's list, that a copy with no git still skips (and says so), and that this repo's
-# own short name in an issue or PR reference is not a leak. The names are made up; the
-# real list never appears in this repo.
+# own short name in an issue or PR reference is not a leak, under the name it has now and
+# under the one it had before the rename. The names are made up; the real list never
+# appears in this repo.
 #
 # Usage: bash scripts/test_clean_denylist.sh
 set -u
@@ -57,14 +58,24 @@ expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
 
 # In the main checkout, where the list is read either way, so only the self-reference
 # allowance decides these cases.
-printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/website-builder\n' >"$R/docs/notes.md"
+printf 'fixed in karero/webcroft#131\nsee https://github.com/karero/webcroft.\ngit clone https://github.com/karero/webcroft.git\nkarero/webcroft karero/webcroft,karero/webcroft\n' >"$R/docs/notes.md"
 expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
-printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
+printf 'ran zorblequux; fixed in karero/webcroft#131\n' >"$R/docs/notes.md"
 expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
-printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
-expect "a longer name that starts like this repo: fails" 1 "website-builder-private" "$R"
-printf 'see other-karero/website-builder\n' >"$R/docs/notes.md"
+printf 'see karero/webcroft-site\n' >"$R/docs/notes.md"
+expect "a longer name that starts like this repo: fails" 1 "webcroft-site" "$R"
+printf 'see other-karero/webcroft\n' >"$R/docs/notes.md"
 expect "a longer name that ends like this repo: fails" 1 "other-karero" "$R"
+# The name the repo had before the rename stays allowed for good: docs/reviews/ keeps its
+# historical links and is scanned. Same four cases, plus old and new side by side.
+printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/webcroft\n' >"$R/docs/notes.md"
+expect "this repo's former name in a reference: passes" 0 "OK —" "$R"
+printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
+expect "a listed name beside a former-name self-reference: still fails" 1 "zorblequux" "$R"
+printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
+expect "a longer name that starts like the former name: fails" 1 "website-builder-private" "$R"
+printf 'see other-karero/website-builder\n' >"$R/docs/notes.md"
+expect "a longer name that ends like the former name: fails" 1 "other-karero" "$R"
 printf 'plain notes\n' >"$R/docs/notes.md"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
