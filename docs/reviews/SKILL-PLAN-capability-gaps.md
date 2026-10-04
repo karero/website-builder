@@ -205,18 +205,18 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success. The log names the settings that are missing |
 | 7 | a name with a line break and "Bcc:" in it, or two addresses in the email field | it is sent | the line break is removed from the subject; the two addresses are refused |
 | 8 | a form on another website posts to this site's endpoint through a visitor's browser | it submits | refused whenever the browser names where the post comes from, also when the other site hides its name or uses http for this site's name. A post that names no origin at all is let through on purpose, so that an older browser's visitor does not lose a message |
-| 9 | a visitor whose browser runs no JavaScript, or whose browser failed to load the form's script | they send the form | they get a small page with the same answer, in the site's language, and a link back to the form that cannot lead to another site. The address to write to is under the form for every visitor, always |
+| 9 | a visitor whose browser runs no JavaScript, or whose browser failed to load the form's script | they send the form | they get a small page with the same answer, in the site's language, and a link back that cannot lead to another site. The address to write to is under the form for every visitor, always |
 | 10 | a German site | the form is shown | German texts with no "du" or "Sie", so it fits either kind of site |
 | 11 | a visitor whose browser or password manager fills in fields by itself | they send a real message | it is sent unless that tool filled the hidden field too. The field's name and marking give it no reason to; that was not measured. A dropped submission leaves a line in the owner's log |
 | 12 | a site with several languages | the form is put on a page without saying where the privacy page is | the build stops and says what to pass |
 | 13 | a visitor using only the keyboard | they tab through the form | name, email, message, send. The hidden field is never reached |
 | 14 | a two-stage site with the four settings entered for the live site only | the owner tries the form on the preview address | "could not be sent", and the log names the four settings. The skill says this is expected and that the first real message is sent on the live address |
 | 15 | a script posts a file as the name, a name made of control characters, or a post of 200 KB | it arrives | refused; nothing is sent |
-| 16 | the owner tries their own form and reads "could not be sent" | they open the function's log and send again | one line says why: a setting is missing, Cloudflare refused (status and numeric codes), the call got no answer, or the post named another origin. No line at all means the function was not reached. The skill says what to do in each case |
+| 16 | the owner tries their own form and reads "could not be sent" | they open the function's log and send again | one line says why: a setting is missing, Cloudflare refused (status and numeric codes), the call got no answer, or the post named another origin. No line at all means the function did not refuse anything: the post never reached it, or the message went out and the answer was lost on the way back. The skill says what to do in each case |
 
 Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a
 scratch copy of the starter with the skill installed by its own steps: 19 form tests, and
-the full suite with the form in place (80 passed, 1 skip). 64 deliberate breakages of the
+the full suite with the form in place (80 passed, 1 skip). 68 deliberate breakages of the
 function, the form or the privacy text were each caught by those tests. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default

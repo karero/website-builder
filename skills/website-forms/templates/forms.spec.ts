@@ -17,6 +17,15 @@ const PAGE = '';
 // The privacy page, e.g. '/privacy' or '/datenschutz'.
 const PRIVACY = '';
 
+// Words each of the form's sentences must contain, so that a thank-you can never be
+// shown for a failure. English and German are built in: add the words of any language
+// added to the component.
+const WORDS = {
+  'data-sent': /has been sent|wurde gesendet/,
+  'data-invalid': /not valid|ungültig/,
+  'data-failed': /could not be sent|konnte nicht gesendet/,
+};
+
 const ENV: Env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc', CF_EMAIL_TOKEN: 'tok' };
 const GOOD = { name: 'Ada Lovelace', email: 'ada@example.org', message: 'Hello, do you have time in May?', [TRAP]: '', lang: 'en' };
 const SITE_ORIGIN = 'https://site.example';
@@ -83,6 +92,8 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
     [{ ...GOOD, email: 'ada@example.org\nBcc: eve@example.net' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada\u0000@example.org' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada\u0085@example.org' }, { email: 'invalid' }],
+    [{ ...GOOD, email: 'ada\u200B@example.org' }, { email: 'invalid' }],
+    [{ ...GOOD, email: 'ada@exam\u202Eple.org' }, { email: 'invalid' }],
     [{ ...GOOD, name: 'x'.repeat(LIMITS.name + 1) }, { name: 'too_long' }],
     [{ ...GOOD, message: 'x'.repeat(LIMITS.message + 1) }, { message: 'too_long' }],
     [{ name: '', email: 'nope', message: '', [TRAP]: '', lang: 'en' }, { name: 'required', email: 'invalid', message: 'required' }],
@@ -119,11 +130,11 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
 test('contact — a line break in the name cannot start a new mail header', async () => {
   const { sent, send } = recorder();
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
-  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F' }), ENV, send);
+  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029' }), ENV, send);
   expect(sent).toHaveLength(2);
   for (const message of sent) {
-    expect(message.subject).not.toMatch(/[\x00-\x1F\x7F-\x9F]/);
-    expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\x00-\x1F\x7F-\x9F]/);
+    expect(message.subject).not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}]/u);
+    expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}]/u);
   }
   // A name made of nothing else is no name.
   const none = recorder();
@@ -169,7 +180,11 @@ test('contact — when the mail service refuses or breaks, the visitor is told',
   // An error's name is text too: one outside the function's short list is not repeated.
   const named = new Error('x');
   named.name = 'Bearer tok refused for ada@example.org';
-  for (const result of [false, timeout, named]) {
+  // Nor is a name that reads as a known kind the first time and as something else the next.
+  const shifty = new Error('x');
+  let reads = 0;
+  Object.defineProperty(shifty, 'name', { get: () => (reads++ === 0 ? 'TypeError' : 'Bearer tok for ada@example.org') });
+  for (const result of [false, timeout, named, shifty]) {
     const { send } = recorder(result);
     let res!: Response;
     const log = await logged(async () => { res = await handle(post(GOOD), ENV, send); });
@@ -178,6 +193,7 @@ test('contact — when the mail service refuses or breaks, the visitor is told',
     // The log says what kind of error it was, and never what the visitor wrote.
     if (result === timeout) expect(log).toContain('the mail call failed before an answer came: TimeoutError');
     if (result === named) expect(log).toContain('the mail call failed before an answer came: another error');
+    if (result === shifty) expect(log).toContain('the mail call failed before an answer came: TypeError');
     expect(log).not.toContain('time in May');
     expect(log).not.toContain('ada@example.org');
     expect(log).not.toContain('Bearer');
@@ -319,6 +335,7 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
   const sentences = await Promise.all(['data-sending', 'data-sent', 'data-invalid', 'data-failed'].map((name) => form.getAttribute(name)));
   expect(sentences.every((sentence) => sentence && sentence.trim() !== ''), 'four sentences').toBe(true);
   expect(new Set(sentences).size, 'four different sentences').toBe(4);
+  for (const [name, words] of Object.entries(WORDS)) expect(await form.getAttribute(name), name).toMatch(words);
   const trap = page.locator(`[name="${TRAP}"]`);
   await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');
@@ -335,7 +352,9 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
 });
 
 // `says` names the form's data attribute that holds the sentence the visitor must get.
-// `answer` is what the endpoint returns; "lost" is a request that never gets an answer.
+// `answer` is what the endpoint returns; "lost" is a post that gets no answer: it never
+// arrived, or the answer was lost after the function had done its work. The browser
+// cannot tell the two apart, and says "could not be sent" for both.
 for (const [name, answer, says] of [
   ['sent', { status: 200, body: { ok: true } }, 'data-sent'],
   ['not sent', { status: 502, body: { ok: false, error: 'send_failed' } }, 'data-failed'],

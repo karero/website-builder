@@ -121,8 +121,9 @@ preview address cannot send, and says so.
 3. Language: the form speaks the site's language (`SITE.locale`), or on a site with
    several languages the page's (`Astro.currentLocale`); `lang="de"` overrides. English
    and German are built in, with no form of address in German, so it fits a "du" site
-   and a "Sie" site. Another language: add it to `TEXT` in the component and to `PLAIN`
-   in the function. The tone rules apply (`tests/tone.spec.ts`).
+   and a "Sie" site. Another language: add it to `TEXT` in the component, to `PLAIN`
+   in the function and to `WORDS` in the spec. The tone rules apply
+   (`tests/tone.spec.ts`).
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
@@ -189,31 +190,39 @@ Preview.
 3. It does not arrive, or the form says "could not be sent": have the owner open the
    function's log for that deployment in the Cloudflare dashboard, **then send the
    message again** (the dashboard shows a function's log lines as they happen; start
-   it first). The form says "could not be sent" in four cases, and the function writes
-   a line for each:
+   it first). When the function itself decides that a message cannot go out, it writes
+   one of four lines:
    - "not set on this deployment: …" names the settings missing from §2.
    - "Cloudflare did not accept the message: …" carries the HTTP status, how many
      errors Cloudflare named and their numeric codes. Report them to the owner as they
-     are, and look them up in Cloudflare's documentation; do not guess.
+     are, and look them up in Cloudflare's documentation; do not guess. A status of 200
+     with `"readable":false` means the answer broke off part-way: the message may have
+     gone out all the same, so look in the mailbox.
    - "refused a post that names another origin": the browser said the form was posted
      from another address than the one the function runs on. Open the form on the
      address being tested. For visitors without JavaScript the site's `Referrer-Policy`
      can cause this too (§6).
    - "the mail call failed before an answer came: …" means the call ended without an
-     answer from Cloudflare. `TimeoutError`: no answer within ten seconds; try again
-     later, and if it keeps happening, look at Cloudflare's status page. Anything else
-     (`TypeError`, "another error"): the call could not be made. That can be the
-     network, and it can be a setting that holds something that cannot be sent, most
-     often a token pasted with a line break in it. If a second try a little later ends
-     the same way, have the owner create a new token and enter the four settings again
-     (§2), then redeploy.
+     answer from Cloudflare. `TimeoutError` or `AbortError`: no answer within ten
+     seconds; try again later, and if it keeps happening, look at Cloudflare's status
+     page. Anything else (`TypeError`, "another error"): the call could not be made.
+     That can be the network, and it can be a setting that holds something that cannot
+     be sent, for example a token with a line break or an invisible character inside
+     it. If a second try a little later ends the same way, have the owner create a new
+     token and enter the four settings again (§2), then redeploy. These names are what
+     the test runner reports for such failures; what Cloudflare's runtime reports was
+     not observed. Read a name that fits neither group the same way: try again, then
+     check the settings.
 
    None of them contains the token or anything the visitor entered: only the status,
    numeric codes and counts, and the kind of error from a short fixed list are logged,
    never Cloudflare's error text.
 
-   No line at all while the form says "could not be sent": the function was not
-   reached. Check that `functions/api/contact.ts` is in the deployed commit.
+   No line at all while the form says "could not be sent": the function did not
+   decide that. Either the post never reached it (check that
+   `functions/api/contact.ts` is in the deployed commit), or it sent the message and
+   its answer was lost on the way back to the browser: look in the mailbox. A line
+   that is none of the four is an error inside the function: report it as it is.
 4. The form said "sent" and nothing arrived, with the log open: no line at all means
    Cloudflare accepted the message, so look in the spam folder and check that the
    destination address was confirmed (§2 step 2). The line "dropped a submission that
@@ -229,9 +238,9 @@ Only then is the form done.
 - **One hidden field against bots, nothing more.** It stops bots that fill in every
   field of a page. A script that posts straight to `/api/contact` never sees the field
   and is not stopped by it, nor by the check that refuses a post naming another
-  website as its origin. If spam gets through, the next step is Cloudflare Turnstile on the form and a
-  rate-limiting rule on `/api/contact`. Neither is built here: say so when the owner
-  reports spam. A real visitor whose browser or password manager fills the hidden
+  website as its origin. If spam gets through, the next step is Cloudflare Turnstile on
+  the form and a rate-limiting rule on `/api/contact`. Neither is built here: say so
+  when the owner reports spam. A real visitor whose browser or password manager fills the hidden
   field is dropped the same way: its name and `autocomplete="off"` give them no reason
   to, but that was not measured. So each dropped submission leaves a line in the
   function's log, without its text. The dashboard shows log lines only while the log is
@@ -242,8 +251,8 @@ Only then is the form done.
 - **Not with `Referrer-Policy: no-referrer`.** Under that policy a browser posts a plain
   form with `Origin: null` (seen in Chromium), which the function refuses, so visitors
   without JavaScript could not send. The starter's policy
-  (`strict-origin-when-cross-origin`) is fine; look at `public/_headers` on a site that
-  changed it.
+  (`strict-origin-when-cross-origin`) is fine; on a site that changed it, look at
+  `public/_headers` and for a `<meta name="referrer">` in the layout.
 - **This repo's CI builds the English form only.** The German texts were read against
   the tone rules by hand; a site in German runs them through its own suite.
 - **No file uploads, no newsletter sign-up.** Different problems (size limits, consent

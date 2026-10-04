@@ -48,8 +48,9 @@ const MAX_BODY_BYTES = 100_000;
 // One address, nothing that could start a second header or a second recipient. An
 // apostrophe is allowed (o'brien@…): the address travels as a JSON value, not a header line.
 const EMAIL = /^[^\s@<>",;:\\()[\]]+@[^\s@<>",;:\\()[\]]+\.[^\s@<>",;:\\()[\]]{2,}$/;
-// Characters nobody types: no place in an address, a name or a subject line.
-const CONTROL = /[\x00-\x1F\x7F-\x9F]/;
+// Characters nobody sees: control characters and invisible format characters have no
+// place in an address.
+const UNSEEN = /[\p{Cc}\p{Cf}]/u;
 
 // The mail goes out through Cloudflare's own API. true only when Cloudflare says it
 // delivered or queued the message. Any other answer counts as a failure and is logged:
@@ -134,9 +135,9 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
     return { outcome: { status: 200, body: { ok: true } }, lang };
   }
 
-  // The name goes into the subject line: a line break or any other control character
-  // in it becomes a space.
-  const name = field('name').replace(/[\x00-\x1F\x7F-\x9F]+/g, ' ').trim();
+  // The name goes into the subject line: a line break of any kind, or any other control
+  // character in it, becomes a space.
+  const name = field('name').replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').trim();
   const email = field('email');
   // Browsers send a textarea's line breaks as CRLF; count them as the one character
   // the visitor typed, or a long message with many paragraphs fails the limit.
@@ -145,7 +146,7 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
   if (!name) fields.name = 'required';
   else if (name.length > LIMITS.name) fields.name = 'too_long';
   if (!email) fields.email = 'required';
-  else if (email.length > LIMITS.email || !EMAIL.test(email) || CONTROL.test(email)) fields.email = 'invalid';
+  else if (email.length > LIMITS.email || !EMAIL.test(email) || UNSEEN.test(email)) fields.email = 'invalid';
   if (!message) fields.message = 'required';
   else if (message.length > LIMITS.message) fields.message = 'too_long';
   if (Object.keys(fields).length) return { outcome: { status: 400, body: { ok: false, error: 'invalid', fields } }, lang };
@@ -172,8 +173,10 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
   } catch (err) {
     // The kind of error, and only one from the short list above (TimeoutError: no answer
     // in time). Never its text, and never a name outside the list: either can repeat
-    // what was sent, as Cloudflare's error texts can.
-    const kind = err instanceof Error && KINDS.includes(err.name) ? err.name : 'another error';
+    // what was sent, as Cloudflare's error texts can. The name is read once, and what
+    // is logged is the list's own entry, not what the error said.
+    const name: unknown = err instanceof Error ? err.name : null;
+    const kind = KINDS.find((known) => known === name) ?? 'another error';
     console.error('contact form: the mail call failed before an answer came: ' + kind);
   }
   return { outcome: sent ? { status: 200, body: { ok: true } } : { status: 502, body: { ok: false, error: 'send_failed' } }, lang };
