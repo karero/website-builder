@@ -13,12 +13,9 @@ left its owner unable to say which steps were finished.)
 
 **The HOST agent runs this check itself** (the same orchestrating agent named throughout
 this skill, e.g. in the clerk procedure — not item 3's "Fresh-eyes host-agent pass",
-which is one specific reviewer seat), before the external pair goes out. Two different
-reviewers are structurally unable to do it, for two different reasons: the fresh-eyes
-seat receives only the artifact, per the Reviewer stack, and has no repo access at
-all; the external pair (Codex, ollama) does have repo access but is never asked this
-question — it's a precondition on the plan, not a content-review prompt, so nothing in
-either tool's instructions would surface it.
+which is one specific reviewer seat), before the external pair goes out. No reviewer
+seat will do it: the question is a precondition on the plan, not part of the
+content-review prompt, so nothing in any seat's instructions would surface it.
 
 Two questions. **Does the plan, or a sibling document it names, have a place where each
 step's state is recorded?** And **does every state claiming progress or completion carry

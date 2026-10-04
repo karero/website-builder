@@ -406,7 +406,7 @@ Before delta verification rounds (2026-09-26), a re-gate had to send every seat 
 `(base, head)` pair, because the stamp certifies that reviewers saw that pair. With delta rounds,
 closeout's chain rule carries that guarantee instead: round 1 saw `base...h1` in full and each
 later round saw exactly the delta from the previous head, with the merge-base unchanged. A moved
-base breaks the chain, which is why SKILL.md step 6 falls back to a full round then.
+base breaks the chain, which is why SKILL.md step 6 bridges it with a merge link.
 
 The cost log (`scripts/review_log.sh`) exists because the depths and effort levels were set from
 a handful of trails, not from measurements. It records seconds and tokens per seat per round —
