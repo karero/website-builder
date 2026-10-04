@@ -16,7 +16,7 @@ it; a row is only as good as its evidence.
 | A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built and reviewed | karero/website-builder#145, the pull request that carries this row |
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
 | A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
-| B | Proof: a scorecard each site can publish (`website-scorecard`) | built, verified locally, not yet reviewed or merged | branch `feat/website-scorecard`; no pull request yet |
+| B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter and by a CI job that installs it | the pull request that carries this row |
 | C | Forms: contact form with a submission test | scenarios only; delivery path decided 2026-10-04 (a function with Cloudflare's own email sending, availability to confirm) | — |
 | D | Import: bring an existing site under the gate | scenarios only | — |
 | E | Install: one-line install, marketplace listing | blocked on the name (decision row 2026-10-04) | — |
@@ -163,9 +163,17 @@ that a site adds when its owner wants to show the results. Never run unasked.
 | 10 | no scorecard file | the site is built | the section is not rendered; its test skips and says why |
 | 11 | a test file is so broken it cannot run | `npm run scorecard` | treated as red: nothing is written |
 | 12 | an old card that is wrong (its own check fails) | `npm run scorecard` | the new card is written anyway; a wrong card cannot block its own repair |
+| 13 | the card file is damaged (not readable) | the site is built, the tests run, `npm run scorecard` | the page shows no card, the test says the file cannot be read, and the command writes a new one |
+| 14 | "30 February" or a day in the future as the date of the PageSpeed run | the scores are recorded | refused, with the reason |
+| 15 | a page is edited on the author's machine and not yet committed | the site is built there | the section already says "edited since" |
+| 16 | a test is accidentally marked to run alone | `npm run scorecard` | treated as red: nothing is written |
+| 17 | a site with several languages, or `<Scorecard lang="de" />` on an English site | the section is shown | it speaks the page's language |
 
-All twelve were run on 2026-10-04 in a scratch copy of the starter with the skill installed
-by its own steps; with the card in place the full suite passes (64 passed, 1 skip).
+All seventeen were run on 2026-10-04 in a scratch copy of the starter with the skill
+installed by its own steps (row 17: the `lang` override; a full several-language site was
+not built); with the card in place the full suite passes (64 passed, 1 skip). The first
+commit's message says "ten scenarios": two more were added before it was amended, and rows
+13 to 17 come from the review.
 
 Decided while building, and why:
 - **Lighthouse scores are typed in, not fetched.** Google's PageSpeed API refused an
@@ -177,9 +185,9 @@ Decided while building, and why:
   public page should not carry a red card the push check would have stopped anyway.
 
 Open: which sites the toolkit's own site may name (each owner's consent). That is for
-the toolkit's site, not for this skill. Not built: a job in this repo's CI that installs
-the skill into the starter and runs it; today only the author's runs cover the three
-template files, as for `website-story`'s test.
+the toolkit's site, not for this skill. This repo's CI now installs the skill into the
+starter and runs it (`template-tests`, job `scorecard-skill`), so a change to the starter
+that breaks the three template files turns red here.
 
 ## C. Forms
 

@@ -9,10 +9,12 @@ on:
   push:
     paths:
       - 'skills/new-website/templates/astro/**'
+      - 'skills/website-scorecard/**'
       - '.github/workflows/template-tests.yml'
   pull_request:
     paths:
       - 'skills/new-website/templates/astro/**'
+      - 'skills/website-scorecard/**'
       - '.github/workflows/template-tests.yml'
 
 defaults:
@@ -48,3 +50,43 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run template test suite
         run: npm test
+
+  # The website-scorecard skill ships three files that live in a SITE, never in the
+  # starter, so the job above does not run them. This builds a site from the starter,
+  # installs the skill the way its SKILL.md §2 says, writes a card and runs the suite
+  # with it. A starter change that breaks those files (they lean on src/config.ts, the
+  # Base layout, the Playwright config and its JSON report) turns red here.
+  scorecard-skill:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the skill installed
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          K="$GITHUB_WORKSPACE/skills/website-scorecard/templates"
+          cp "$K/scorecard.mjs" scripts/ && cp "$K/Scorecard.astro" src/components/ && cp "$K/scorecard.spec.ts" tests/
+          npm pkg set scripts.scorecard="node scripts/scorecard.mjs"
+          sed -i "s|const PAGE = '';|const PAGE = '/';|" tests/scorecard.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport Scorecard from '../components/Scorecard.astro';|" src/pages/index.astro
+          sed -i 's|^</Base>|  <div class="wrap"><Scorecard /></div>\n</Base>|' src/pages/index.astro
+          grep -q "const PAGE = '/';" tests/scorecard.spec.ts && grep -q '<Scorecard />' src/pages/index.astro && grep -q "import Scorecard" src/pages/index.astro
+          printf 'node_modules\ndist\n.astro\ntest-results\n' > .gitignore
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          git init -q && git add -A && git -c user.name=ci -c user.email=ci@example.invalid commit -q -m "a site with the scorecard skill"
+      - name: Type check, write the card, run the suite with it
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm run check
+          npm run scorecard
+          git add scorecard.json && git -c user.name=ci -c user.email=ci@example.invalid commit -q -m "scorecard"
+          npm run scorecard -- --lighthouse 90,91,92,93 --date 2026-01-01
+          git add scorecard.json && git -c user.name=ci -c user.email=ci@example.invalid commit -q -m "scores"
+          npm test
+          grep -q 'data-state="current"' dist/index.html

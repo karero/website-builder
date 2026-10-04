@@ -5,36 +5,38 @@
 //       Runs the whole suite against a production build and writes scorecard.json.
 //       Refuses when files are uncommitted (the card must describe a commit) and
 //       writes nothing when a test fails: a card never shows a red run as green.
-//   npm run scorecard -- --lighthouse 98,100,100,100 [--date 2026-10-04] [--strategy mobile]
-//       Records the four scores of a PageSpeed Insights run (Performance,
-//       Accessibility, Best Practices, SEO) that the owner made on the LIVE site.
-//       They are typed in, not fetched: Google's API refused an unkeyed request
-//       ("quota exceeded") when this was written, and a key is one more thing to
-//       set up. The card links to the same test so anyone can re-run it.
+//   npm run scorecard -- --lighthouse <performance>,<accessibility>,<best-practices>,<seo> [--date YYYY-MM-DD] [--strategy mobile|desktop]
+//       Records the four scores of a PageSpeed Insights run that the owner made on
+//       the LIVE site. They are typed in, not fetched: Google's API refused an
+//       unkeyed request ("quota exceeded") when this was written, and a key is one
+//       more thing to set up. The card links to the same test so anyone can re-run it.
 //
-// The card records which commit it tested and the git id of everything that builds or
-// tests the site (TESTED below). The component compares those ids with the build's own
-// and says so when the site has been edited since. Nothing fails on an outdated card; it just stops claiming
-// to describe the current site.
+// The card records which commit it tested and the git id of the paths listed in
+// TESTED. The component compares those ids with the build's own and says so when the
+// site has been edited since. Nothing fails on an outdated card; it just stops
+// claiming to describe the current site.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const FILE = 'scorecard.json';
-// Everything that decides what the site serves or what the suite checks. A change to
-// any of these after the run means the card no longer describes the site. Documents
-// (README, the content guide) and scorecard.json itself are deliberately not here.
+// The paths that decide what the site serves or what the suite checks. A change to
+// any of them after the run means the card no longer describes the site. Not here on
+// purpose: documents (README, the content guide), scorecard.json itself, and CI
+// workflows. A site with further root files that shape the build adds them here.
 export const TESTED = [
   'src', 'public', 'tests', 'functions', 'scripts', 'astro.config.mjs', 'package.json',
-  'package-lock.json', 'playwright.config.ts', 'tsconfig.json',
+  'package-lock.json', 'playwright.config.ts', 'tsconfig.json', '.nvmrc',
 ];
+const LIGHTHOUSE = ['performance', 'accessibility', 'bestPractices', 'seo'];
+
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 
 // path → git object id at HEAD, for the TESTED paths that exist. Throws without git.
 export function tested() {
-  const out = execFileSync('git', ['ls-tree', 'HEAD', '--', ...TESTED], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  return Object.fromEntries(out.trim().split('\n').filter(Boolean).map((line) => {
+  return Object.fromEntries(git('ls-tree', 'HEAD', '--', ...TESTED).split('\n').filter(Boolean).map((line) => {
     const [meta, path] = line.split('\t');
     return [path, meta.split(' ')[2]];
   }));
@@ -45,10 +47,33 @@ export function sameState(a, b) {
   const keys = new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})]);
   return keys.size > 0 && [...keys].every((k) => a?.[k] === b?.[k]);
 }
-const LIGHTHOUSE = ['performance', 'accessibility', 'bestPractices', 'seo'];
+
+// What the page may say about a card: 'current' (the TESTED paths are as tested, and
+// nothing in them is uncommitted), 'edited', or 'unknown' when git cannot answer.
+export function stateOf(card) {
+  try {
+    const uncommitted = git('status', '--porcelain', '--', ...TESTED) !== '';
+    return !uncommitted && sameState(tested(), card?.tested) ? 'current' : 'edited';
+  } catch {
+    return 'unknown';
+  }
+}
+
+// scorecard.json as { card, broken }. A file that is not valid JSON is `broken`, never
+// an exception: the page then shows no card, the spec fails with the reason, and
+// `npm run scorecard` can still write a new one.
+export function loadCard(file = FILE) {
+  if (!existsSync(file)) return { card: null, broken: false };
+  try {
+    const card = JSON.parse(readFileSync(file, 'utf8'));
+    return card && typeof card === 'object' && Array.isArray(card.checks) ? { card, broken: false } : { card: null, broken: true };
+  } catch {
+    return { card: null, broken: true };
+  }
+}
 
 // Playwright's JSON report → one row per spec file. `expected` is a pass; a test that
-// was skipped is counted, never hidden; `unexpected` and `flaky` make the run red.
+// was skipped is counted, never hidden; anything else makes the run red.
 export function summarize(report) {
   const rows = new Map();
   const walk = (suite, file) => {
@@ -73,30 +98,37 @@ export function summarize(report) {
   return { checks, passed: total('passed'), skipped: total('skipped'), failed: total('failed') };
 }
 
-// "98,100,100,100" → the four scores, or a reason it is not usable.
-export function parseLighthouse(scores, date, strategy = 'mobile') {
+// Today in the machine's own time zone, as YYYY-MM-DD (toISOString would be UTC, a day
+// off late in the evening).
+export function today(now = new Date()) {
+  const two = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+}
+
+// "98,100,100,100" → the four scores, or a reason it is not usable. The date has to be
+// a real day (not 30 February) that is not in the future.
+export function parseLighthouse(scores, date, strategy = 'mobile', notAfter = today()) {
   const values = String(scores).split(',').map((s) => s.trim());
   if (values.length !== 4 || values.some((v) => !/^\d{1,3}$/.test(v) || Number(v) > 100)) {
     return { error: 'give four whole numbers from 0 to 100: performance,accessibility,best practices,seo' };
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date))) {
-    return { error: `the date of the run must look like 2026-10-04, got "${date}"` };
-  }
+  const real = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00Z`))
+    && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
+  if (!real) return { error: `the date of the run must be a real day written like 2026-10-04, got "${date}"` };
+  if (date > notAfter) return { error: `the date of the run (${date}) is in the future` };
   if (!['mobile', 'desktop'].includes(strategy)) return { error: 'the strategy is mobile or desktop' };
   return { value: { date, strategy, ...Object.fromEntries(LIGHTHOUSE.map((k, i) => [k, Number(values[i])])) } };
 }
 
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
-const today = () => new Date().toISOString().slice(0, 10);
 const fail = (msg) => { console.error('✗ ' + msg); process.exit(1); };
-const readCard = () => (existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : null);
 const writeCard = (card) => writeFileSync(FILE, JSON.stringify(card, null, 2) + '\n');
 
 function recordLighthouse(argv) {
   const opt = (name, fallback) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : fallback);
   const parsed = parseLighthouse(opt('--lighthouse', ''), opt('--date', today()), opt('--strategy', 'mobile'));
   if (parsed.error) fail(parsed.error);
-  const card = readCard();
+  const { card, broken } = loadCard();
+  if (broken) fail(`${FILE} cannot be read. Run "npm run scorecard" to write a new one, then record the scores again.`);
   if (!card) fail(`${FILE} does not exist yet. Run "npm run scorecard" first.`);
   writeCard({ ...card, lighthouse: parsed.value });
   console.log(`✓ Lighthouse scores of ${parsed.value.date} recorded in ${FILE}. Commit it.`);
@@ -115,17 +147,23 @@ function runSuite() {
   }
   const dir = mkdtempSync(join(tmpdir(), 'scorecard-'));
   const out = join(dir, 'report.json');
-  console.log('Running the whole test suite against a production build…');
-  // CI is cleared so the run is the one a developer sees; retries would hide a flaky test.
-  // SCORECARD_RUN makes tests/scorecard.spec.ts sit this run out: it checks the card
-  // that is about to be replaced, and a card that is wrong must not block its own repair.
+  console.log('Running the whole test suite against a production build. This takes a minute or two…');
+  // CI is cleared so the run is the one a developer sees: retries would hide a flaky
+  // test. --forbid-only does what the cleared CI no longer does: a stray test.only
+  // must not shrink the run. SCORECARD_RUN makes tests/scorecard.spec.ts sit this run
+  // out: it checks the card that is about to be replaced, and a card that is wrong
+  // must not block its own repair.
   const env = { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: out, SCORECARD_RUN: '1' };
   delete env.CI;
-  const run = spawnSync('npx', ['playwright', 'test', '--reporter=json'], { env, stdio: 'ignore' });
-  if (!existsSync(out)) fail(`The test run produced no report (exit ${run.status}). Run "npm test" to see why.`);
-  const report = JSON.parse(readFileSync(out, 'utf8'));
+  let run, report;
+  try {
+    run = spawnSync('npx', ['playwright', 'test', '--reporter=json', '--forbid-only'], { env, stdio: 'ignore' });
+    report = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')) : null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  if (!report) fail(`The test run produced no report (exit ${run.status}). Run "npm test" to see why.`);
   const result = summarize(report);
-  rmSync(dir, { recursive: true, force: true });
   // A spec file that fails to load has no failed test, only an error: red all the same.
   if (result.failed > 0 || run.status !== 0 || (report.errors ?? []).length > 0) {
     const red = result.checks.filter((r) => r.failed).map((r) => `${r.area} (${r.failed})`).join(', ');
@@ -135,7 +173,7 @@ function runSuite() {
   const suite = existsSync('tests/TESTS-VERSION')
     ? (readFileSync('tests/TESTS-VERSION', 'utf8').match(/^suite_commit: (\S+)/m)?.[1] ?? null)
     : null;
-  const previous = readCard();
+  const previous = loadCard();
   writeCard({
     generated: today(),
     commit: git('rev-parse', 'HEAD'),
@@ -145,12 +183,15 @@ function runSuite() {
     skipped: result.skipped,
     checks: result.checks.map(({ area, passed, skipped }) => ({ area, passed, skipped })),
     ...(suite ? { suite } : {}),
-    ...(previous?.lighthouse ? { lighthouse: previous.lighthouse } : {}),
+    ...(previous.card?.lighthouse ? { lighthouse: previous.card.lighthouse } : {}),
   });
   console.log(`✓ ${result.passed} checks passed${result.skipped ? `, ${result.skipped} not applicable` : ''}. Written to ${FILE}. Commit it.`);
+  if (previous.broken) console.log('  The old file could not be read, so its Lighthouse scores are gone. Record them again if the site had any.');
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Run only when started as a script (not when the component or the spec imports it).
+// realpath: Node hands over the path as typed, which may be a symlink.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const argv = process.argv.slice(2);
   if (argv.includes('--lighthouse')) recordLighthouse(argv);
   else runSuite();

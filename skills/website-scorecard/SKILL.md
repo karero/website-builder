@@ -16,8 +16,8 @@ description: >
 
 # Website scorecard
 
-A site built with this kit runs a test gate before it changes. This skill lets
-the owner **show** that: one section on one page, generated from a real test run, dated,
+A site built with this kit carries a test gate. This skill lets the owner **show**
+what it found: one section on one page, generated from a real test run, dated,
 and honest about its age. It is optional and it is the owner's decision. Never add it
 unasked: a public page that reports on the site's quality is a statement the owner makes.
 
@@ -25,9 +25,9 @@ unasked: a public page that reports on the site's quality is a statement the own
 
 Say it in the owner's language, in plain words:
 
-> Your site is checked automatically before changes go live: accessibility, links,
-> search data, wording and more. I can add a short "Quality checks" section to one page that
-> shows those results, with the date and the version they were measured on. If you have
+> Your site comes with automatic checks: accessibility, links, search data, wording
+> and more. I can add a short "Quality checks" section to one page that shows the
+> results of a run, with the date and the version they were measured on. If you have
 > run Google's PageSpeed test on the live site, its four scores go next to it, with a
 > link so any visitor can run the same test. If the site is edited later, the section
 > says so by itself until we run the checks again. Do you want that, and on which page?
@@ -48,7 +48,7 @@ Options: **Yes, on `<page>`** / **No (default)**. No answer means no.
 |---|---|---|
 | `scripts/scorecard.mjs` | `scorecard.mjs` | runs the suite and writes the card |
 | `src/components/Scorecard.astro` | `Scorecard.astro` | renders the card; English and German built in |
-| `tests/scorecard.spec.ts` | `scorecard.spec.ts` | the page shows the file's numbers; the file adds up |
+| `tests/scorecard.spec.ts` | `scorecard.spec.ts` | the page shows the file's numbers; the file adds up. Needs the script: install all three, never this file alone |
 | `scorecard.json` (project root) | written by the script | the card itself, committed like any other file |
 
 The templates are at `~/.claude/skills/website-scorecard/templates/` (Codex:
@@ -70,8 +70,11 @@ The templates are at `~/.claude/skills/website-scorecard/templates/` (Codex:
    page for it is a new page: work through `AGENTS.md` §6 (`PAGES`, `llms.txt`, share
    card, a link to it).
 4. In `tests/scorecard.spec.ts` set `PAGE` to that page's address (`'/about'`).
-5. Site in a language other than English or German: add its texts to `TEXT` in the
-   component, next to `en` and `de`. The tone rules apply to them (`tests/tone.spec.ts`).
+5. Language. The section speaks the site's one language (`SITE.locale`), or on a site
+   with several languages (`astro-i18n-setup`) the language of the page it is on
+   (`Astro.currentLocale`); `<Scorecard lang="de" />` overrides both. English and German
+   are built in. Any other language: add its texts to `TEXT` in the component, next to
+   `en` and `de`. The tone rules apply to them (`tests/tone.spec.ts`).
 6. Commit. The working tree has to be clean for the next step.
 
 ## 3. Generate the card
@@ -88,7 +91,7 @@ git add scorecard.json && git commit -m "scorecard: test run of <date>"
   positioning check, until terms are declared). It is not hidden.
 - The card's own spec is left out of its numbers, and sits out while a new card is
   written: the card is about the site, and a wrong card must not block its own repair.
-- A test file that cannot even load counts as red.
+- A test file that cannot even load counts as red, and so does a stray `test.only`.
 
 Then `npm test` once more: with the file present, `scorecard.spec.ts` now checks the
 page against it.
@@ -103,9 +106,12 @@ the owner to set up. Ask the owner, as `website-qa` §2 does:
 > four numbers at the top: Performance, Accessibility, Best Practices, SEO.
 
 ```bash
-npm run scorecard -- --lighthouse 98,100,100,100 --date 2026-10-04   # the day of the run
+# the owner's four numbers, in this order, and the day of the run
+npm run scorecard -- --lighthouse <performance>,<accessibility>,<best-practices>,<seo> --date <YYYY-MM-DD>
 git add scorecard.json && git commit -m "scorecard: Lighthouse scores of <date>"
 ```
+
+A desktop run: add `--strategy desktop`. The date must be a real day, not in the future.
 
 Record what the owner measured, exactly. The section links to the same test for the
 site's own address, so a visitor who re-runs it sees whether the numbers hold. Never
@@ -118,12 +124,19 @@ The section goes live the way every change does: pull request, green checks, mer
 and on a two-stage site `npm run ship` (`PUBLISHING.md`). Say which address shows it,
 preview or live.
 
+Then **look at the published page once.** It should say "The site has not been edited
+since." If it says neither that nor "edited since", the host's build has no git and
+the section cannot tell its own age there: tell the owner, so they know to refresh the
+card after changes without that reminder.
+
 ## 6. Keeping it honest
 
-- The card records the commit it tested and the git id of everything that builds or
-  tests the site: `src/`, `public/`, `tests/`, `functions/`, `scripts/`, the Astro,
-  Playwright and TypeScript configs and the package files. On every build the component
-  compares them with the build's own. Same → "The site has not been edited since."
+- The card records the commit it tested and the git id of the paths in `TESTED`
+  (`scripts/scorecard.mjs`): `src/`, `public/`, `tests/`, `functions/`, `scripts/`, the
+  Astro, Playwright and TypeScript configs, the package files and `.nvmrc`. A site with
+  other root files that shape the build adds them to that list. On every build the
+  component compares those ids with the build's own, and counts uncommitted edits to
+  those paths as edits. Same → "The site has not been edited since."
   Different → "The site has been edited since. A new test run is due." Build without
   git → it says neither. A change to a document (the README, the content guide) does
   not count.
@@ -145,6 +158,7 @@ preview or live.
 ## Done means
 
 The owner said yes and chose the page; `scorecard.json` is committed from a green run;
-the page shows the same numbers (`scorecard.spec.ts` green with `PAGE` set); Lighthouse
-scores are either the owner's own measurement or absent; the owner knows the section
+the page shows the same numbers (`scorecard.spec.ts` green with `PAGE` set); the
+published page says whether the site was edited since, or the owner knows it cannot;
+Lighthouse scores are either the owner's own measurement or absent; the owner knows the section
 will say when it is out of date, and how to refresh it.
