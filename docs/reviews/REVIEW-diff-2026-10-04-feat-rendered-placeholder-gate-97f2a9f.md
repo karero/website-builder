@@ -1,6 +1,6 @@
 # DIFF review — karero/website-builder#145 (branch `feat/rendered-placeholder-gate`) — a test that reads the rendered site for leftover placeholders
 
-Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, plus the documents that describe it) · verdict: **every BUG fixed and re-verified; F4 waived by the owner; one RISK (FR-6) closes when the pull request's `template-tests` run is green** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch; POST AUTHORITY — this session opens the pull request (the owner's instruction, quoted under "Waivers").
+Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, plus the documents that describe it) · verdict: **CLEAN** — every BUG fixed and re-verified, F4 waived by the owner, FR-6 closed by the pull request's own `template-tests` run; two comments posted on the pull request (raw output, then the stamped verdict) · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch; POST AUTHORITY — this session opens the pull request (the owner's instruction, quoted under "Waivers").
 
 **Data release consent** (owner, in this session, quoted verbatim). For Codex and ollama-cloud: "Codex + ollama-cloud (Recommended)". For Antigravity: "use antigravity as the second reviewer". The repo has no standing consent; both are session-scoped.
 
@@ -38,7 +38,7 @@ Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, pl
 | FR-2 | RISK | fresh-eyes | full read | Retrofit with an empty list skips the only check that sees the old lower-case slot | fixed · externally_reverified r6 | `8bb01f5`, `website-review` |
 | FR-4 | BUG | fresh-eyes | full read | Rules flagged genuine copy (Spanish "TODO", "Type your text here", "sample copy", "Mustertext") | fixed except "XXX", kept with the collision named · externally_reverified r6 | `8bb01f5` |
 | FR-5 | RISK | fresh-eyes | full read | Lower-case slots passed on finished pages | fixed for brackets opening with a slot word · externally_reverified r6 | `8bb01f5` |
-| FR-6 | RISK | fresh-eyes full read, codex r6 | full read | "Green out of the box" has no run a reviewer could see | open until the pull request's `template-tests` run reports | author's runs: 61 passed locally and with CI set |
+| FR-6 | RISK | fresh-eyes full read, codex r6 | full read | "Green out of the box" has no run a reviewer could see | closed: the pull request's `template-tests` run passed at `55d53e4` (same code as round 7's head) | https://github.com/karero/website-builder/actions/runs/37203847504 |
 | FR-7 | BUG | fresh-eyes | full read | The template rule stopped at a line break, against its comment | fixed · externally_reverified r6 | `8bb01f5` |
 | FR-8 | BUG | fresh-eyes | full read | One slot split by markup was reported twice; ALLOWLIST missed the spaced spelling | fixed in two steps (see R6-1) · externally_reverified r7 | `8bb01f5`, `6f59bfd` |
 | FR-9…12 | NIT | fresh-eyes | full read | README step 4; "not read" lists; a decision row for the example values; the 404 message and the shared input-type list | fixed · externally_reverified r6 | `8bb01f5` |
