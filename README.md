@@ -10,8 +10,9 @@ responsive design, SEO, accessibility checks, schema markup, tests, and launch s
 modern, privacy-friendly stack (Astro → GitHub → Cloudflare Pages). After launch, it helps you
 keep improving SEO and GEO (how your site shows up in AI answers), week by week.
 
-> **Formerly website-builder.** Same project, new name. Old links and existing clones keep
-> working: GitHub redirects them here.
+> **Formerly website-builder.** Same project, new name. GitHub redirects old repository links
+> and existing clones here. To point a clone at the new address, run
+> `git remote set-url origin https://github.com/karero/webcroft.git`.
 
 You can use it even if you're not deeply technical. Whether you're a founder, a community
 organiser, a solo builder, a small team, or a developer, **the easiest way to start is to

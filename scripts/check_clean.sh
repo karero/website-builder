@@ -108,8 +108,10 @@ if [ -f "$DENYLIST_FILE" ]; then
   # the security policy) and the short form in issue and PR references (karero/webcroft#131)
   # are the point, not a leak. The old name stays allowed for good: docs/reviews/ keeps its
   # historical links, and docs/ is scanned. Blank out exactly that reference, in lowercase,
-  # and not inside a longer name (other-karero/webcroft, karero/webcroft-site), then look
-  # again: dropping every line that held one also hid any private name beside it. One
+  # and not inside a longer name (other-karero/webcroft, karero/webcroft-site,
+  # karero/webcroft..x), then look again: dropping every line that held one also hid any
+  # private name beside it. What stands in front is not checked beyond that: any host or
+  # path is accepted, because the badge URL (.../release/karero/webcroft) needs it. One
   # reference at a time, until none is left: a global replace consumes the character after
   # one reference that the next needs before it (karero/webcroft,karero/webcroft).
   # Binary-file lines pass through for filter_ignored. A scan error (g's "✗ scan error"
@@ -120,7 +122,7 @@ if [ -f "$DENYLIST_FILE" ]; then
     case "$hits" in
       "✗ scan error"*) ;;
       *) hits="$(printf '%s\n' "$hits" \
-           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/(webcroft|website-builder)(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\4#' -e 'ta' \
+           | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/(webcroft|website-builder)(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_.-]|\.?$)#\1SELF-REPO\4#' -e 'ta' \
            | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
     report "personal/site identifier" "$hits"

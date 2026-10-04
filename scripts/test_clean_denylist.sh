@@ -66,6 +66,12 @@ printf 'see karero/webcroft-site\n' >"$R/docs/notes.md"
 expect "a longer name that starts like this repo: fails" 1 "webcroft-site" "$R"
 printf 'see other-karero/webcroft\n' >"$R/docs/notes.md"
 expect "a longer name that ends like this repo: fails" 1 "other-karero" "$R"
+printf 'see karero/webcroft..private\n' >"$R/docs/notes.md"
+expect "a longer name joined by two dots: fails" 1 "webcroft..private" "$R"
+# The character after a reference must survive the blanking: without it the next word runs
+# into the placeholder and a listed name there is no longer a word of its own.
+printf 'see karero/webcroft zorblequux\n' >"$R/docs/notes.md"
+expect "a listed name right after a self-reference: still fails" 1 "zorblequux" "$R"
 # The name the repo had before the rename stays allowed for good: docs/reviews/ keeps its
 # historical links and is scanned. Same four cases, plus old and new side by side.
 printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/webcroft\n' >"$R/docs/notes.md"
@@ -76,6 +82,10 @@ printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
 expect "a longer name that starts like the former name: fails" 1 "website-builder-private" "$R"
 printf 'see other-karero/website-builder\n' >"$R/docs/notes.md"
 expect "a longer name that ends like the former name: fails" 1 "other-karero" "$R"
+printf 'see karero/website-builder..private\n' >"$R/docs/notes.md"
+expect "a longer former name joined by two dots: fails" 1 "website-builder..private" "$R"
+printf 'see karero/website-builder zorblequux\n' >"$R/docs/notes.md"
+expect "a listed name right after a former-name self-reference: still fails" 1 "zorblequux" "$R"
 printf 'plain notes\n' >"$R/docs/notes.md"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
