@@ -5,8 +5,8 @@ description: >
   Function (functions/api/contact.ts) that mails each message to the owner through
   Cloudflare's Email Service with the visitor as Reply-To, the privacy sentences in
   English and German, and tests/forms.spec.ts with a submission test. Stores
-  nothing; a hidden field drops bots; a failed send tells the visitor and shows
-  another way to reach the owner. Works without JavaScript. Run when new-website
+  nothing; a hidden field drops bots; a failed send tells the visitor, and the
+  owner's address is always shown under the form. Works without JavaScript. Run when new-website
   Q2 = "a form that emails you", or later when the owner asks for a form. Needs the
   domain's DNS at Cloudflare and four settings only the owner can create. Trigger
   phrases: "contact form", "add a form", "enquiry form", "form that emails me",
@@ -55,7 +55,7 @@ privacy page). Neither is built by this skill.
 |---|---|---|
 | `functions/api/contact.ts` | `contact.ts` | the endpoint `POST /api/contact`: checks, bot trap, the mail call |
 | `src/components/ContactForm.astro` | `ContactForm.astro` | the form; English and German built in |
-| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor sees and hears, the privacy text |
+| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out), the privacy text |
 
 The templates are at `~/.claude/skills/website-forms/templates/` (Codex:
 `~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install all
@@ -70,7 +70,10 @@ Explain what each one is for before asking for it. In order:
    the next step adds more. Have the owner read the records Cloudflare proposes before
    accepting them, and if anything about their existing mail is unclear, stop and let
    whoever runs that mail look first: a wrong record here can make their ordinary mail
-   bounce. Which records Cloudflare adds was not checked when this skill was written.
+   bounce. Have them write down the domain's current MX and TXT records before they
+   start, so there is something to go back to. Which records Cloudflare adds, and
+   whether it shows them before it writes them, was not checked when this skill was
+   written.
 1. **Onboard the domain for Email Sending** (in the Cloudflare dashboard, under Email
    Service). Cloudflare adds the DNS records that let it send mail for the domain; they
    can take up to a day to be known everywhere.
@@ -82,8 +85,8 @@ Explain what each one is for before asking for it. In order:
    owner deletes it and creates a new one.
 4. **Enter four values** on the Pages project → Settings → Variables and Secrets, for
    **Production**. Only add them for **Preview** as well if the form has to work on
-   preview addresses: every branch deployment can then use the token, so everyone who can
-   push a branch can send mail with it.
+   preview addresses: the code of every branch deployment can then read the token, so
+   everyone who can push a branch can take it and send mail with it.
 
    | Name | Value | Kind |
    |---|---|---|
@@ -95,8 +98,10 @@ Explain what each one is for before asking for it. In order:
    A new deployment picks them up; an empty commit is enough to trigger one, as for
    `CANONICAL_URL` (`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`).
 
-Until all four are set the form answers every visitor with "could not be sent" and the
-address to write to instead. It never pretends.
+Until all four are set the form answers every visitor with "could not be sent" and
+points to the address under the form. It never pretends. The same is true of every
+deployment the settings were not entered for: with Production only, the form on a
+preview address cannot send, and says so.
 
 ## 3. Install (on a branch, as a pull request: `AGENTS.md` §2)
 
@@ -108,9 +113,11 @@ address to write to instead. It never pretends.
    ---
    <ContactForm fallback="<the address visitors may write to>" />
    ```
-   `fallback` is shown, through `EmailLink`, when a message cannot be sent, and always
-   to visitors without JavaScript. Ask the owner for it; it is usually the mailbox from §2. A **new** `/contact` page is a new page:
-   work through `AGENTS.md` §6 (`PAGES`, `llms.txt`, share card, a link to it).
+   `fallback` is always shown under the form, through `EmailLink`: a visitor has
+   another way to write whatever happens to the form (a failed send, a script that did
+   not load, a browser without JavaScript). Ask the owner for it; it is usually the
+   mailbox from §2. A **new** `/contact` page is a new page: work through `AGENTS.md`
+   §6 (`PAGES`, `llms.txt`, share card, a link to it).
 3. Language: the form speaks the site's language (`SITE.locale`), or on a site with
    several languages the page's (`Astro.currentLocale`); `lang="de"` overrides. English
    and German are built in, with no form of address in German, so it fits a "du" site
@@ -168,21 +175,36 @@ what is processed, why, the legal basis and how long it is kept, then add this p
 
 ## 5. The first real message (the owner, on the deployed site)
 
-Nothing in the test suite sends a real email. After the pull request is merged and the
-site is deployed with the four settings:
+Nothing in the test suite sends a real email. The first real message is sent where the
+four settings are. With Production only (§2 step 4) that is the **live** address: on a
+single-stage site once the pull request is merged, on a two-stage site after
+`npm run ship`. A preview address then answers "could not be sent" and its log names
+all four settings. That is expected, not a fault, and no reason to enter the token for
+Preview.
 
-1. The owner opens the form on the deployed address, preview or live (say which), and
-   sends a message from an address that is **not** the destination mailbox.
+1. The owner opens the form on that address (say which it is) and sends a message from
+   an address that is **not** the destination mailbox.
 2. It arrives in the mailbox within a minute or two; pressing Reply addresses the
    visitor's address. Spam folder checked if it does not.
 3. It does not arrive, or the form says "could not be sent": have the owner open the
    function's log for that deployment in the Cloudflare dashboard, **then send the
    message again** (the dashboard shows a function's log lines as they happen; start
-   it first). The function writes one of two lines. "not set on this deployment: …"
-   names the settings missing from §2. "Cloudflare did not accept the message: …"
-   carries Cloudflare's status and its error codes: report those to the owner as they
-   are, and look them up in Cloudflare's documentation; do not guess. Neither line
-   contains the token or what the visitor wrote.
+   it first). The function writes one of three lines:
+   - "not set on this deployment: …" names the settings missing from §2.
+   - "Cloudflare did not accept the message: …" carries the HTTP status and
+     Cloudflare's numeric error codes. Report them to the owner as they are, and look
+     them up in Cloudflare's documentation; do not guess.
+   - "the mail call failed before an answer came: …" means Cloudflare could not be
+     reached, or (`TimeoutError`) did not answer within ten seconds. Try again later;
+     if it keeps happening, look at Cloudflare's status page.
+
+   None of them contains the token or anything the visitor entered: only the status,
+   the numeric codes and the kind of error are logged, never Cloudflare's error text.
+4. The form said "sent" and nothing arrived, with the log open: no line at all means
+   Cloudflare accepted the message, so look in the spam folder and check that the
+   destination address was confirmed (§2 step 2). The line "dropped a submission that
+   filled the hidden field" means the owner's own browser or password manager filled the
+   field no person sees (§6): send again from another browser or a private window.
 
 Only then is the form done.
 
@@ -195,8 +217,12 @@ Only then is the form done.
   and is not stopped by it, nor by the check that keeps other websites from posting
   here. If spam gets through, the next step is Cloudflare Turnstile on the form and a
   rate-limiting rule on `/api/contact`. Neither is built here: say so when the owner
-  reports spam. Each dropped submission leaves a line in the function's log, without
-  its text, so an owner who suspects lost messages can see whether drops happen.
+  reports spam. A real visitor whose browser or password manager fills the hidden
+  field is dropped the same way: its name and `autocomplete="off"` give them no reason
+  to, but that was not measured. So each dropped submission leaves a line in the
+  function's log, without its text. The dashboard shows log lines only while the log is
+  open: an owner who suspects lost messages opens it and sends again from the browser
+  in question.
 - **Without JavaScript, the answer is a page of its own.** Reloading that page makes
   the browser ask whether to send the form again.
 - **This repo's CI builds the English form only.** The German texts were read against

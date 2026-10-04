@@ -5,9 +5,10 @@
 //
 //   <ContactForm fallback="hello@your-domain.example" />
 //
-// `fallback`: the address a visitor can write to when sending fails. Shown through
-//             EmailLink (never as plain text in the HTML): when a send fails, and
-//             always to visitors without JavaScript. Required.
+// `fallback`: the address a visitor can write to instead. Always shown under the form,
+//             through EmailLink (never as plain text in the HTML), so there is another
+//             way to reach the owner whatever happens to the form: a failed send, a
+//             script that did not load, a browser without JavaScript. Required.
 // `privacy`:  the privacy page's address. Default on a site with one language:
 //             /privacy, or /datenschutz in German. On a site with several languages
 //             there is no safe default, so it has to be passed.
@@ -32,9 +33,8 @@ const TEXT = {
     sending: 'Sending…',
     sent: 'Thank you. The message has been sent.',
     invalid: 'Some details are missing or not valid. Please check the fields.',
-    failed: 'The message could not be sent.',
-    direct: 'Please write to us directly:',
-    noscript: 'If the form does not work, write to us directly:',
+    failed: 'The message could not be sent. Please write to the address shown below.',
+    direct: 'Or write to us directly:',
   },
   de: {
     name: 'Name', email: 'E-Mail-Adresse', message: 'Nachricht', send: 'Nachricht senden',
@@ -44,9 +44,8 @@ const TEXT = {
     sending: 'Wird gesendet…',
     sent: 'Danke. Die Nachricht wurde gesendet.',
     invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte die Felder prüfen.',
-    failed: 'Die Nachricht konnte nicht gesendet werden.',
-    direct: 'Bitte direkt schreiben:',
-    noscript: 'Falls das Formular nicht funktioniert, bitte direkt schreiben:',
+    failed: 'Die Nachricht konnte nicht gesendet werden. Bitte an die unten stehende Adresse schreiben.',
+    direct: 'Oder direkt per E-Mail schreiben:',
   },
 };
 const t = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
@@ -73,19 +72,20 @@ const privacy = Astro.props.privacy ?? t.privacy;
   </p>
   <!-- Not for people: hidden from sight, from the keyboard and from screen readers.
        A bot that fills every field fills this one, and its message is dropped. The
-       name says nothing a browser or a password manager would fill in for a visitor
-       (keep it in step with TRAP in functions/api/contact.ts). -->
+       name and autocomplete="off" give a browser or a password manager no reason to
+       fill it in for a visitor; whether one does anyway was not measured, which is why
+       the function logs every drop (keep the name in step with TRAP in
+       functions/api/contact.ts). -->
   <p class="contact-form-trap" aria-hidden="true">
     <label for="contact-leave-empty">{t.trap}</label>
     <input id="contact-leave-empty" name="leave_empty" type="text" tabindex="-1" autocomplete="off" />
   </p>
   <p class="contact-form-note">{t.note} <a href={privacy}>{t.privacyLink}</a></p>
   <p><button type="submit">{t.send}</button></p>
-  <!-- The answer, read out by screen readers when it changes. -->
+  <!-- The answer: the line a screen reader is told to read out when it changes. -->
   <p class="contact-form-status" role="status" aria-live="polite" data-contact-status></p>
-  <p class="contact-form-direct" data-contact-direct hidden>{t.direct} <EmailLink address={fallback} /></p>
-  <!-- Without JavaScript nothing can reveal the line above, so it is always there. -->
-  <noscript><p class="contact-form-direct">{t.noscript} <EmailLink address={fallback} /></p></noscript>
+  <!-- Always there, never hidden: nothing has to work for a visitor to find it. -->
+  <p class="contact-form-direct" data-contact-direct>{t.direct} <EmailLink address={fallback} /></p>
 </form>
 
 <script>
@@ -96,11 +96,9 @@ const privacy = Astro.props.privacy ?? t.privacy;
   const form = document.getElementById('contact-form') as HTMLFormElement | null;
   if (form) {
     const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
-    const direct = form.querySelector<HTMLElement>('[data-contact-direct]')!;
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      direct.hidden = true;
       status.textContent = form.dataset.sending ?? '';
       button.disabled = true;
       let outcome: { ok?: boolean; error?: string } = {};
@@ -109,9 +107,11 @@ const privacy = Astro.props.privacy ?? t.privacy;
           method: 'POST',
           body: new FormData(form),
           headers: { Accept: 'application/json' },
-          signal: AbortSignal.timeout(15000),
+          // Give up after 15 seconds. A browser that cannot do that waits as long as it likes.
+          signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined,
         });
-        outcome = await res.json();
+        // An answer that is not the function's (null, a number) counts as a failure below.
+        outcome = (await res.json()) ?? {};
       } catch {
         outcome = { ok: false, error: 'send_failed' };
       }
@@ -121,11 +121,9 @@ const privacy = Astro.props.privacy ?? t.privacy;
         status.textContent = form.dataset.sent ?? '';
         return;
       }
-      // Not sent. Say so in the announced line, keep what was typed, and show another
-      // way to reach us: also when the function found a field it does not accept,
-      // since the browser saw nothing wrong with it.
+      // Not sent. Say so in the announced line and keep what was typed. The failure
+      // sentence points to the address under the form.
       status.textContent = (outcome.error === 'invalid' ? form.dataset.invalid : form.dataset.failed) ?? '';
-      direct.hidden = false;
     });
   }
 </script>

@@ -200,34 +200,44 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 1 | a contact page | a visitor sends name, email and a message | they see a thank-you in the form; the owner gets the message by email, and pressing Reply writes to the visitor |
 | 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops the form; if it is posted anyway, the function refuses it and names the field. Nothing is sent. An ordinary address with an apostrophe (o'brien@…) is accepted |
 | 3 | a bot fills the field people never see | it submits | it gets the same thank-you; nothing is sent |
-| 4 | Cloudflare's mail service refuses the message, cannot be reached, or does not answer within ten seconds | a visitor sends | the form says the message could not be sent, in the line a screen reader reads out, keeps what was typed, and shows the address to write to instead. The owner's log shows Cloudflare's status and error codes, never the token or the message |
+| 4 | Cloudflare's mail service refuses the message, cannot be reached, or does not answer within ten seconds | a visitor sends | the form says the message could not be sent and points to the address under it, in the line a screen reader is told to read out, and keeps what was typed. The owner's log shows the status and Cloudflare's numeric error codes, never the token, the message, the visitor's address, or any text Cloudflare or the runtime wrote |
 | 5 | a site with the form | the tests run | red unless the privacy page carries the marked sentences about the form, and they name Cloudflare. Red too while the test file does not say which page has the form and which is the privacy page |
 | 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success. The log names the settings that are missing |
 | 7 | a name with a line break and "Bcc:" in it, or two addresses in the email field | it is sent | the line break is removed from the subject; the two addresses are refused |
 | 8 | a form on another website posts to this site's endpoint through a visitor's browser | it submits | refused, also when the other site hides where it comes from or uses http for the same name |
-| 9 | a visitor whose browser runs no JavaScript | they send the form | they get a small page with the same answer, in the site's language, and a link back to the form. The address to write to is always shown to them under the form |
+| 9 | a visitor whose browser runs no JavaScript, or whose browser failed to load the form's script | they send the form | they get a small page with the same answer, in the site's language, and a link back to the form that cannot lead to another site. The address to write to is under the form for every visitor, always |
 | 10 | a German site | the form is shown | German texts with no "du" or "Sie", so it fits either kind of site |
-| 11 | a visitor whose browser or password manager fills in fields by itself | they send a real message | it is sent: the hidden field has a name nothing fills in automatically. A dropped submission leaves a line in the owner's log |
+| 11 | a visitor whose browser or password manager fills in fields by itself | they send a real message | it is sent unless that tool filled the hidden field too. The field's name and marking give it no reason to; that was not measured. A dropped submission leaves a line in the owner's log |
 | 12 | a site with several languages | the form is put on a page without saying where the privacy page is | the build stops and says what to pass |
 | 13 | a visitor using only the keyboard | they tab through the form | name, email, message, send. The hidden field is never reached |
+| 14 | a two-stage site with the four settings entered for the live site only | the owner tries the form on the preview address | "could not be sent", and the log names the four settings. The skill says this is expected and that the first real message is sent on the live address |
+| 15 | a script posts a file as the name, a name made of control characters, or a post of 200 KB | it arrives | refused; nothing is sent |
 
-Rows 1 to 9, 11 and 13 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a scratch
-copy of the starter with the skill installed by its own steps: 18 form tests, and the full
-suite with the form in place (79 passed, 1 skip). 40 deliberate breakages of the function,
-the form or the privacy text were each caught by those tests. Row 10 was read against the
-tone rules by hand; row 12 is the component's own check and was not built into a
-several-language site.
+Rows 1 to 9, 11, 13 and 15 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a
+scratch copy of the starter with the skill installed by its own steps: 19 form tests, and
+the full suite with the form in place (80 passed, 1 skip). 53 deliberate breakages of the
+function, the form or the privacy text were each caught by those tests. Row 10 was read
+against the tone rules by hand. Row 12 was tried in a scratch site with English and German
+routes: the build stops on whichever page leaves the privacy address out, the default
+language's included, and with it the German page gets the German form. Row 14 is the
+skill's text, not a test.
 
-Rows 11 to 13, and much of rows 4 to 9, come from the review: the first version did not
+Rows 11 to 15, and much of rows 4 to 9, come from the review: the first version did not
 announce a failure to screen readers, left visitors without JavaScript with no address,
 logged nothing when Cloudflare refused a message, and used a hidden field named "website",
-which a browser may fill in for a real visitor.
+which a browser may fill in for a real visitor. The second round found that the log could
+carry the token inside an error text, and that the link back to the form could be made to
+point at another site.
 
 **Not verified, and why.** No real email has been sent: that needs a Cloudflare account
 with a domain onboarded for sending, which only an owner has. The skill's last step is
 that first real message, and the form is not done before it. The function also has not
 run inside Cloudflare's own runtime, only in the test runner; the pieces it uses (form
-data, fetch, responses) are standard in both.
+data, fetch, responses) are standard in both. That Cloudflare's build accepts the
+function file was read in its source, not run: it makes a route for each export named
+like a request handler and skips the rest. Nobody listened with a screen reader: the
+tests check the text of the line a screen reader is told to read out. Nobody measured
+what browsers and password managers fill in by themselves.
 
 Decided while building, and why:
 - **A token and Cloudflare's web API, not a binding.** Cloudflare's documentation lists no
@@ -238,6 +248,10 @@ Decided while building, and why:
 - **A hidden field against bots, nothing more.** Turnstile and a rate limit are the next
   step if spam arrives; the skill says so and does not build them.
 - **It works without JavaScript.** A plain form post gets a small page back.
+- **The owner's address is always shown under the form.** The first version showed it only
+  after a failed send, which left a visitor with nothing when the form's script did not
+  load. Shown always, nothing has to work for a visitor to find it. The address is in the
+  page either way, in a form crawlers do not read as an address.
 
 ## D. Import
 
