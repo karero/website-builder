@@ -658,11 +658,13 @@ def _send(method, url, headers, payload, all_keys, deadline):
             time.sleep(delay * (attempt + 1))
             continue
         if r.status_code != 200:
+            # An error answer is no reply, so it stays out of the run's cost (an assumption: no
+            # OpenRouter record seen here shows a charge for one).
             fatal = 400 <= r.status_code < 500 and r.status_code not in (408, 429)   # 408 = timeout
             raise EngineError(_error_line(r, all_keys), fatal=fatal, status=r.status_code)
         try:
             return r.json()
-        except ValueError:
+        except (ValueError, RecursionError):      # RecursionError: nested too deep to read
             # A reply came back, so it may have been charged: on OpenRouter it counts as "cost unknown".
             raise EngineError("unexpected response: not JSON", billed=True) from None
     raise EngineError("HTTP 429: rate limited after retries")

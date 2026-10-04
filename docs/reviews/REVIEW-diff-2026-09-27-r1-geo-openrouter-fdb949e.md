@@ -80,6 +80,12 @@ Claude verifier that reverted each fix in a scratch copy. Codex was out of quota
   limit: that OpenRouter charges for an unusable reply is not proven here, which is why such a
   reply counts as "cost unknown" rather than priced; the comments now say "may have been
   charged".
+  **Round 3 (Codex, verify):** the round-2 fixes landed (checked by replay, and the test fails
+  on the earlier code). 1 BUG fixed: a reply nested too deep to read raised `RecursionError`
+  past `_send`, and that run printed no cost line; it is caught with `ValueError` now, in the
+  same test. The RISK repeats round 2's: also stated in the code that an HTTP error counting as
+  uncharged is an assumption. "Every shape error" in round 2 meant the ones `call_engine`
+  catches; the coverage claim is bounded to the cases the test replays.
 
 ## Final state
 

@@ -448,16 +448,16 @@ class ViaOpenRouter(GeoTestCase):
                                                     "content": "Bäckerei", "annotations": [
                                                         {"type": "url_citation", "url_citation": None}]}}]})
         stub.engine_reply("gemini", "", raw="not json at all")
+        # Codex round 3: nested too deep to read raised RecursionError, and no cost line came out.
+        stub.engine_reply("openai", "", raw="[" * 10000 + "0" + "]" * 10000)
         stub.engine_reply("perplexity", "", raw={"model": "m", "choices": {"unexpected": {}}})
         rc, out = self.cli()
         self.assertEqual(rc, 1, out)
-        self.assertIn("openai", {r["engine"] for r in self.history() if int(r["ok"] or 0)})
         calls = {e: sum(1 for h in self.posts() if h[3]["model"] == m)
                  for e, m in geo_check.OPENROUTER_MODELS.items()}
-        total = calls["anthropic"] * 0.25 + calls["openai"] * 0.0012
-        priced = calls["anthropic"] + calls["openai"]
-        self.assertIn(f"cost of this run via OpenRouter: ${total:.3f} ({priced} replies; "
-                      f"cost unknown for {calls['gemini'] + calls['perplexity']} more)", out)
+        unknown = calls["gemini"] + calls["openai"] + calls["perplexity"]
+        self.assertIn(f"cost of this run via OpenRouter: ${calls['anthropic'] * 0.25:.3f} "
+                      f"({calls['anthropic']} replies; cost unknown for {unknown} more)", out)
 
     def test_searched_follows_the_reply_s_own_search_counter(self):
         base = {"choices": [{"finish_reason": "stop", "message": {"content": "An answer.", "annotations": []}}]}
