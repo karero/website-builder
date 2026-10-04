@@ -96,10 +96,14 @@ recommendation, never to pick unasked.
   hand against this pass's checklist, or vendor the generic `double-knuth`
   skill from the website-builder suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
-- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
+- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it. `placeholders.spec.ts` goes in with its `UNFILLED_UNTIL_LAUNCH` as shipped, on a launched site too: the first run names each entry to delete, and its check for lower-case slots, which runs on listed pages only, finds the one older starters carried on the privacy page.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
 - Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
-  pages OR `public/` assets (the manifest's fields are brackets too — no spec reads them).
+  pages OR `public/` assets. `placeholders.spec.ts` enforces this on the rendered pages and
+  the manifest; read for what it cannot see: pages outside `PAGES` (the 404 page, noindex
+  pages), other `public/` files (`llms.txt` and its own slots included), PDFs, text inside
+  images, the starter's example values, and an entry still sitting in its
+  `UNFILLED_UNTIL_LAUNCH` at launch (it only warns there).
 - **Freshness date matches the edit:** if the page's visible content changed and it carries a
   last-modified signal (a `dateModified`/"Updated" byline, an Article/BlogPosting JSON-LD date),
   that date is bumped to today. It silently drifts otherwise — stale in the visible byline, the

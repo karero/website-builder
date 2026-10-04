@@ -295,6 +295,12 @@ always apply, and English-specific rules layer on top for `lang` starting `en`, 
 specific rules layer on top for `lang` starting `de` — other languages get only the
 universal rules. No change needed.
 
+`tests/placeholders.spec.ts` iterates `PAGES`, so it covers each locale's pages with no
+change. One edit, before launch only: a second locale's legal page built from one of the kit's drafts
+(`/de/privacy` from `_datenschutz.astro`) carries `[BRACKET]` slots until the owner
+fills them, so add its route to `UNFILLED_UNTIL_LAUNCH` next to `/privacy`. That is
+the one case in which the list may grow; on a launched site, fill the slots instead.
+
 ## Regional German (DACH)
 
 Default to bare **`de`** for one German variant — it targets every German-speaking

@@ -12,12 +12,14 @@
 //      privacy.astro (one privacy page per site, at the German URL).
 //   2. Swap '/privacy' for '/datenschutz' in: tests/_helpers.ts PAGES,
 //      Base.astro's footer link (label "Datenschutz"), tests/seo.spec.ts
-//      OWN_CARD_EXEMPT, tests/positioning.spec.ts POSITIONING_EXEMPT — and in
+//      OWN_CARD_EXEMPT, tests/positioning.spec.ts POSITIONING_EXEMPT,
+//      tests/placeholders.spec.ts UNFILLED_UNTIL_LAUNCH — and in
 //      public/llms.txt replace the whole line with its German form:
 //      "- [Datenschutz](https://<domain>/datenschutz): Datenschutzerklärung (DSGVO)."
 //      Also update the README's privacy.astro mentions (docs, not gates).
 //   3. Fill every [BRACKET] slot; make section 3 match the real analytics
-//      setup (or delete it); adjust the date.
+//      setup (or delete it); adjust the date. Then delete '/datenschutz' from
+//      UNFILLED_UNTIL_LAUNCH (the test turns red until you do).
 //   MULTILINGUAL site via astro-i18n-setup: do NOT use this file's URL —
 //   your German privacy page lives at the locale-prefixed route
 //   (/de/privacy); use this text as its content.
@@ -89,7 +91,7 @@ import { SITE } from '../config';
     <p>
       Zur Nutzungsanalyse setzen wir <strong>Plausible Analytics</strong> ein,
       ein datenschutzfreundliches Messwerkzeug
-      [selbst gehostet auf unserem eigenen Server / betrieben für uns als
+      [AUSWÄHLEN: selbst gehostet auf unserem eigenen Server / betrieben für uns als
       Auftragsverarbeiter von Plausible Insights OÜ, Västriku tn 2, 50403
       Tartu, Estland (EU)].
       Es arbeitet ohne Cookies und speichert keine personenbezogenen Daten, verfolgt

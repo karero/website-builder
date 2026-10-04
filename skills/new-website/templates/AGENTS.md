@@ -11,8 +11,9 @@ Live: [LIVE_URL] · Preview: [PREVIEW_URL]
      (collaborators, rights level, merge rule, who publishes). Owner writes in another
      language? Translate this file in-session, keep every rule, keep the commands
      verbatim — and if you translate the placeholder token "[MISSING: …]" (§2, §4),
-     change the grep pattern in .github/workflows/ci.yml to the same word, or the CI
-     gate never fires. CLAUDE.md imports this file, so Codex and Claude Code follow
+     change the grep pattern in .github/workflows/ci.yml and DRAFT_TOKEN in
+     tests/placeholders.spec.ts to the same word, or the CI gate never fires and a
+     draft branch cannot be pushed. CLAUDE.md imports this file, so Codex and Claude Code follow
      the same rules. -->
 
 Several people and several AI assistants may work on this site, sometimes at the same
@@ -88,7 +89,10 @@ applies there; instead of steps 2 to 4, only this:
   - Codex in the cloud: the person creates the pull request with the "Create PR"
     button (see the cloud case in §1).
   - If `"[MISSING: …]"` placeholders are still in it: open the pull request as a
-    **draft** and list the places in the description.
+    **draft** and list the places in the description. On your own computer the tests
+    print a warning for each one and still pass, so the branch can be pushed; on
+    GitHub the check stays red until they are filled. Any other leftover (an unfilled
+    slot, filler text, a `TODO`) fails the tests everywhere.
 - **Merging on GitHub:** a pull request may be merged, with the "Merge pull request"
   button on GitHub, only when
   - the automatic checks on GitHub are green (green tick on the pull request; while
@@ -155,7 +159,9 @@ applies there; instead of steps 2 to 4, only this:
   If something is missing (a number, a year, a material, a name), write a placeholder
   and ask, **always in quotes** (in frontmatter an unquoted `[…]` breaks the build):
   `value: "[MISSING: year built]"`.
-  Placeholders must not go live; see the draft rule in §2.
+  Placeholders must not go live; see the draft rule in §2. The test
+  `tests/placeholders.spec.ts` reads the finished pages for them, and for filler
+  text and author notes (`TODO`).
 - Forbidden (the test `tests/tone.spec.ts` rejects it): the long dash (—), buzzwords
   and typical AI filler phrases, and in English any contraction. The full,
   language-specific list is in `tests/tone.spec.ts`; read it before writing copy.
@@ -192,6 +198,9 @@ For everyone, the owner included:
   pages.
 - Tests may be **extended** (e.g. a new page in `PAGES`). Never weaken, delete or
   disable a test just to get green. If a test fails: fix the cause or report it.
+- Deleting a page's entry from `UNFILLED_UNTIL_LAUNCH` in
+  `tests/placeholders.spec.ts` once that page is filled belongs to filling it, at
+  every rights level. The test asks for it.
 - Changes to `.github/`, `scripts/`, `functions/`, `public/_headers`,
   `astro.config.mjs`, `package.json` or `AGENTS.md` affect tests, the server or
   publishing. Say so explicitly in the pull request.
