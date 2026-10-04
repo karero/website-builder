@@ -102,13 +102,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # The test's "prepare" cases need node and npm, and without them it skips those cases
-      # and still exits 0. On an image that stopped carrying node, this job would stay green
-      # and test less.
+      # and still exits 0. A zip recipient gets that skip; this job must not, or it would stay
+      # green and test less. So it brings node, and stops if either is missing.
       - uses: actions/setup-node@v4
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: Check the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax
-        run: bash scripts/test_pre_push_hook.sh
+        run: |
+          command -v node
+          command -v npm
+          bash scripts/test_pre_push_hook.sh
   clean-denylist:
     runs-on: ubuntu-latest
     steps:

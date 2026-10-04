@@ -87,9 +87,16 @@ jobs:
             (cd "$site" && npm pkg delete dependencies devDependencies)
           done
           git init -q root-site && git init -q big
-          # An npm pointed at a shell of someone's choosing would pass here for the wrong reason.
-          v="$(npm config get script-shell)"; echo "npm's script-shell setting: $v"
-          case "$v" in null|undefined|'') ;; *) echo "::error::npm does not use the platform's own shell here"; exit 1 ;; esac
+          # Which shell npm hands a script line to here, measured: cmd.exe puts its own path in
+          # place of %ComSpec%, sh prints the word as written. A Windows leg whose npm used sh
+          # would pass the checks below for the wrong reason.
+          mkdir probe && (cd probe && npm init -y >/dev/null && npm pkg set scripts.probe='echo %ComSpec%')
+          probe="$(cd probe && npm run --silent probe)"; echo "npm's script shell, given 'echo %ComSpec%', says: $probe"
+          case "$RUNNER_OS:$probe" in
+            Windows:*%*) echo "::error::on Windows npm did not hand the script to cmd.exe"; exit 1 ;;
+            Windows:*cmd.exe*|Linux:%ComSpec%|macOS:%ComSpec%) ;;
+            *) echo "::error::npm's script shell gave an answer this job does not know"; exit 1 ;;
+          esac
       # The installs name no `shell:`, so each runs from the runner's default one: PowerShell
       # on Windows.
       - name: npm install in the site that is the root of its repo
