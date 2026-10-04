@@ -17,7 +17,7 @@ it; a row is only as good as its evidence.
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
 | A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
-| C | Forms: contact form with a submission test | scenarios only; delivery path decided 2026-10-04 (a function with Cloudflare's own email sending, availability to confirm) | — |
+| C | Forms: a contact form with a submission test (`website-forms`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change. Not yet sent a real email: that needs an owner's Cloudflare account | the pull request that carries this row, and its `forms-skill` check |
 | D | Import: bring an existing site under the gate | scenarios only | — |
 | E | Install: one-line install, marketplace listing | blocked on the name (decision row 2026-10-04) | — |
 
@@ -191,16 +191,43 @@ that breaks the three template files turns red here.
 
 ## C. Forms
 
+Built as the opt-in skill `website-forms`: one small function on the site's own
+Cloudflare account, a form component, a privacy paragraph and a test. Copied into a site
+when the interview says it needs a form that emails the owner, or later on request.
+
 | # | Given | When | Then |
 |---|---|---|---|
-| 1 | a contact page | a visitor sends name, email and a message | they see a thank-you on the page; the owner gets the message and can reply to the visitor directly |
-| 2 | an empty message or a malformed email | the visitor presses send | a clear error next to the field; nothing is sent |
-| 3 | a bot fills the hidden field | it submits | it sees the same thank-you; nothing is sent |
-| 4 | the mail service is down | a visitor sends | they are told it did not arrive and shown another way to reach the owner; no message is lost silently |
-| 5 | a site with a form | the tests run | the privacy page must name the form and what happens to the data |
+| 1 | a contact page | a visitor sends name, email and a message | they see a thank-you in the form; the owner gets the message by email, and pressing Reply writes to the visitor |
+| 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops the form; if it is posted anyway, the function refuses it and names the field. Nothing is sent |
+| 3 | a bot fills the field people never see | it submits | it gets the same thank-you; nothing is sent |
+| 4 | Cloudflare's mail service refuses the message, or cannot be reached | a visitor sends | the form says the message could not be sent, keeps what was typed, and shows the address to write to instead |
+| 5 | a site with the form | the tests run | red unless the privacy page carries the paragraph about the form |
+| 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success |
+| 7 | a name with a line break and "Bcc:" in it, or two addresses in the email field | it is sent | the line break is removed from the subject; the two addresses are refused |
+| 8 | a form on another website posts to this site's endpoint | it submits | refused |
+| 9 | a visitor whose browser runs no JavaScript | they send the form | they get a small page with the same answer, in the site's language |
+| 10 | a German site | the form is shown | German texts with no "du" or "Sie", so it fits either kind of site |
 
-The submission test calls the function directly, as `middleware.spec.ts` does, because
-`astro preview` runs no functions.
+Rows 1 to 9 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a scratch copy of the
+starter with the skill installed by its own steps: 14 form tests, and the full suite with
+the form in place (75 passed, 1 skip). 19 deliberate breakages of the function or the form
+were each caught by those tests.
+
+**Not verified, and why.** No real email has been sent: that needs a Cloudflare account
+with a domain onboarded for sending, which only an owner has. The skill's last step is
+that first real message, and the form is not done before it. The function also has not
+run inside Cloudflare's own runtime, only in the test runner; the pieces it uses (form
+data, fetch, responses) are standard in both.
+
+Decided while building, and why:
+- **A token and Cloudflare's web API, not a binding.** Cloudflare's documentation lists no
+  email binding for Pages Functions. The owner creates the token and enters it as a
+  secret; the assistant never sees it.
+- **Mail goes to the owner only.** Sending to a mailbox confirmed in the account is free
+  on every plan; a copy to the visitor would need Cloudflare's paid plan.
+- **A hidden field against bots, nothing more.** Turnstile and a rate limit are the next
+  step if spam arrives; the skill says so and does not build them.
+- **It works without JavaScript.** A plain form post gets a small page back.
 
 ## D. Import
 

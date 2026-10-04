@@ -1,0 +1,117 @@
+---
+// Contact form (the website-forms skill). Posts to functions/api/contact.ts, which
+// mails the message to the site owner. Works without JavaScript (a plain form post
+// gets a small page back); with JavaScript the answer appears in place.
+//
+//   <ContactForm fallback="hello@your-domain.example" />
+//
+// `fallback`: the address shown, through EmailLink, when sending fails, so a visitor
+//             is never left without a way to reach the owner. Required.
+// `privacy`:  the privacy page's address. Default: /privacy, or /datenschutz in German.
+// `lang`:     overrides the language (default: the page's locale on a site with several
+//             languages, else the site's one language).
+import { SITE } from '../config';
+import EmailLink from './EmailLink.astro';
+
+interface Props { fallback: string; privacy?: string; lang?: string }
+const { fallback } = Astro.props;
+const language = (Astro.props.lang ?? Astro.currentLocale ?? (SITE as { locale?: string }).locale ?? 'en').toLowerCase().split('-')[0];
+
+// The tone rules apply to these texts too: no long dash, no contraction, and no form
+// of address in German, so the form fits a "du" site and a "Sie" site alike.
+const TEXT = {
+  en: {
+    name: 'Name', email: 'Email address', message: 'Message', send: 'Send message',
+    note: 'What you enter here is sent to us by email and used only to answer you.',
+    privacyLink: 'Privacy policy', privacy: '/privacy',
+    sending: 'Sending…',
+    sent: 'Thank you. The message has been sent.',
+    invalid: 'Some details are missing or not valid. Please check the fields.',
+    failed: 'The message could not be sent. Please write to us directly:',
+  },
+  de: {
+    name: 'Name', email: 'E-Mail-Adresse', message: 'Nachricht', send: 'Nachricht senden',
+    note: 'Die Angaben werden per E-Mail an uns gesendet und nur für die Antwort verwendet.',
+    privacyLink: 'Datenschutzerklärung', privacy: '/datenschutz',
+    sending: 'Wird gesendet…',
+    sent: 'Danke. Die Nachricht wurde gesendet.',
+    invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte die Felder prüfen.',
+    failed: 'Die Nachricht konnte nicht gesendet werden. Bitte direkt schreiben:',
+  },
+};
+const t = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
+const privacy = Astro.props.privacy ?? t.privacy;
+---
+<form id="contact-form" class="contact-form" method="post" action="/api/contact" data-sending={t.sending} data-sent={t.sent} data-invalid={t.invalid}>
+  <input type="hidden" name="lang" value={language} />
+  <p>
+    <label for="contact-name">{t.name}</label>
+    <input id="contact-name" name="name" type="text" autocomplete="name" required maxlength="100" />
+  </p>
+  <p>
+    <label for="contact-email">{t.email}</label>
+    <input id="contact-email" name="email" type="email" autocomplete="email" required maxlength="254" />
+  </p>
+  <p>
+    <label for="contact-message">{t.message}</label>
+    <textarea id="contact-message" name="message" rows="6" required maxlength="5000"></textarea>
+  </p>
+  <!-- Not for people: hidden from sight, from the keyboard and from screen readers.
+       A bot that fills every field fills this one, and its message is dropped. -->
+  <p class="contact-form-trap" aria-hidden="true">
+    <label for="contact-website">Website</label>
+    <input id="contact-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+  </p>
+  <p class="contact-form-note">{t.note} <a href={privacy}>{t.privacyLink}</a></p>
+  <p><button type="submit">{t.send}</button></p>
+  <p class="contact-form-status" role="status" aria-live="polite" data-contact-status></p>
+  <p class="contact-form-failed" data-contact-failed hidden>{t.failed} <EmailLink address={fallback} /></p>
+</form>
+
+<script>
+  // With JavaScript the answer appears in the form itself. Without it the browser
+  // posts the form and the function answers with a small page. Empty or malformed
+  // fields never get this far: the browser's own validation stops them first.
+  const form = document.getElementById('contact-form') as HTMLFormElement | null;
+  if (form) {
+    const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
+    const failed = form.querySelector<HTMLElement>('[data-contact-failed]')!;
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      failed.hidden = true;
+      status.textContent = form.dataset.sending ?? '';
+      button.disabled = true;
+      let outcome: { ok?: boolean; error?: string } = {};
+      try {
+        const res = await fetch(form.action, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+        outcome = await res.json();
+      } catch {
+        outcome = { ok: false, error: 'send_failed' };
+      }
+      button.disabled = false;
+      if (outcome.ok) {
+        form.reset();
+        status.textContent = form.dataset.sent ?? '';
+      } else if (outcome.error === 'invalid') {
+        status.textContent = form.dataset.invalid ?? '';
+      } else {
+        // Not sent: say so, keep what was typed, and show another way to reach us.
+        status.textContent = '';
+        failed.hidden = false;
+      }
+    });
+  }
+</script>
+
+<style>
+  .contact-form label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+  .contact-form input[type='text'], .contact-form input[type='email'], .contact-form textarea {
+    width: 100%; max-width: 36rem; padding: 0.5rem; font: inherit; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--muted); border-radius: 6px;
+  }
+  .contact-form button { font: inherit; padding: 0.6rem 1.2rem; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
+  .contact-form button[disabled] { opacity: 0.6; cursor: default; }
+  .contact-form-note { color: var(--muted); max-width: 36rem; }
+  .contact-form-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+</style>

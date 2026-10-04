@@ -94,7 +94,9 @@ non-expert can answer, and record the answers in the project `README.md`.
      static** (~90% of sites).
    - Exactly one small server task — a form that emails you, site search,
      hiding a third-party API key, one live widget (e.g. a next-event box fed
-     by an API) → **Tier 2** (one Pages Function or server island).
+     by an API) → **Tier 2** (one Pages Function or server island). A contact
+     form that emails the owner: run **`website-forms`** (it checks first
+     whether the site meets what Cloudflare's email sending needs).
    - State per user — accounts/login, a database, checkout, user-generated
      content → **Tier 3** (SSR + D1). Rare; challenge the requirement first.
 
@@ -373,6 +375,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    a multilingual-PHASED site is single-locale at scaffold time and still
    gets astro-i18n-setup):
    ```bash
+   # If Q2 = "a form that emails you" (a contact form):
+   cp -RL "$SKILLS_ROOT"/website-forms "$PROJECT_SKILLS_DIR"/
    # If Q3 = "non-technical editor" (Keystatic):
    cp -RL "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
    # If Q4 = "2+ languages at launch" OR "multilingual, one language first"

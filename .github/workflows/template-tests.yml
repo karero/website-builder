@@ -10,11 +10,13 @@ on:
     paths:
       - 'skills/new-website/templates/astro/**'
       - 'skills/website-scorecard/**'
+      - 'skills/website-forms/**'
       - '.github/workflows/template-tests.yml'
   pull_request:
     paths:
       - 'skills/new-website/templates/astro/**'
       - 'skills/website-scorecard/**'
+      - 'skills/website-forms/**'
       - '.github/workflows/template-tests.yml'
 
 defaults:
@@ -131,3 +133,36 @@ jobs:
           sed -i 's|<p>Contact:|<p>FIXME</p><p>Contact:|' src/pages/index.astro && grep -q 'FIXME' src/pages/index.astro
           refused "a failing test"
           [ -z "$(git status --porcelain)" ]
+
+  # The website-forms skill, like the scorecard, ships files that live in a SITE. This
+  # builds a site from the starter, installs the skill the way its SKILL.md §3 says
+  # (the function, the component, the test, the form on a page, the privacy paragraph),
+  # and runs the type check and the whole suite. No email is sent: the tests stand in
+  # for Cloudflare's mail call.
+  forms-skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the skill installed
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          K="$GITHUB_WORKSPACE/skills/website-forms/templates"
+          mkdir -p functions/api
+          cp "$K/contact.ts" functions/api/ && cp "$K/ContactForm.astro" src/components/ && cp "$K/forms.spec.ts" tests/
+          sed -i "s|const PAGE = '';|const PAGE = '/';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><ContactForm fallback="hello@example.com" /></section>\n</Base>|' src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap" data-privacy-contact-form><h2>Contact form</h2><p>When you send us a message through the contact form, we process your name, your email address and the message itself in order to answer you.</p></section>\n</Base>|' src/pages/privacy.astro
+          grep -q "const PAGE = '/';" tests/forms.spec.ts && grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
+          grep -q '<ContactForm fallback' src/pages/index.astro && grep -q 'import ContactForm' src/pages/index.astro && grep -q 'data-privacy-contact-form' src/pages/privacy.astro
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Type check and the whole suite, with the form in place
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm run check
+          npm test
