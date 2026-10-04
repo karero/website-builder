@@ -1,6 +1,8 @@
 ---
 // GDPR (EU 2016/679) privacy page draft. Before launch:
 //   1. Fill every [BRACKET] slot. The controller is whoever legally runs the site.
+//      Then delete '/privacy' from UNFILLED_UNTIL_LAUNCH in
+//      tests/placeholders.spec.ts (the test turns red until you do).
 //   2. Make section 3 match reality: pick the self-hosted OR cloud Plausible
 //      wording, or delete the analytics paragraphs entirely if the site ships
 //      without analytics (then also trim the meta description below).
@@ -68,7 +70,7 @@ import { SITE } from '../config';
     <p>
       To understand how the site is used, we run <strong>Plausible
       Analytics</strong>, a privacy-friendly measurement tool
-      [self-hosted on our own server / operated for us by Plausible Insights
+      [CHOOSE ONE: self-hosted on our own server / operated for us by Plausible Insights
       O&Uuml;, V&auml;striku tn 2, 50403 Tartu, Estonia (EU)]. It is cookieless
       and stores no personal data. It does not track you across websites or
       over time, and no data is shared with third parties. Visitor IP addresses

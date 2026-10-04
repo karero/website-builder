@@ -88,8 +88,8 @@ content or design change), and confirm they want it now rather than later.
    `dist/sitemap-index.xml`) still generates, with the expected URL count.
 
 8. **Run the full test suite.** `npm test`. A pass here does NOT substitute for steps 3–6 —
-   none of the a11y/seo/navigation/anchors/orphans/images/tone/positioning/email/links/
-   llms-coverage/middleware specs do visual-regression or before/after diffing, so they structurally
+   none of the a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/
+   links/llms-coverage/middleware specs do visual-regression or before/after diffing, so they structurally
    cannot catch the whitespace-collapse or entity-escaping risks above.
 
 9. **Using Keystatic as a CMS?** Its Astro integration's compatibility with Astro 7 hasn't

@@ -7,12 +7,15 @@
 // linked from EVERY page (the Base.astro footer does this).
 // Before launch:
 //   1. Fill every [BRACKET] slot. Each section's comment says who needs it —
-//      delete sections that do not apply, never ship an empty bracket.
+//      delete sections that do not apply, never ship an empty bracket. Then
+//      delete '/impressum' from UNFILLED_UNTIL_LAUNCH in
+//      tests/placeholders.spec.ts (the test turns red until you do).
 //   2. Provider NOT established in Germany and NOT targeting the German
-//      market? Delete all five pieces: this page, the footer link in
+//      market? Delete all six pieces: this page, the footer link in
 //      src/layouts/Base.astro, the tests/_helpers.ts PAGES entry, the
-//      public/llms.txt line, and the OWN_CARD_EXEMPT entry in
-//      tests/seo.spec.ts. Austrian providers: adapt to § 5 ECG + § 25
+//      public/llms.txt line, the OWN_CARD_EXEMPT entry in
+//      tests/seo.spec.ts, and the UNFILLED_UNTIL_LAUNCH entry in
+//      tests/placeholders.spec.ts. Austrian providers: adapt to § 5 ECG + § 25
 //      MedienG (Firmenbuch, WKO membership); Swiss providers: Art. 3 Abs. 1
 //      lit. s UWG — the German statute headings below are not theirs.
 //   3. A solid baseline, not legal advice. When in doubt, have it reviewed.

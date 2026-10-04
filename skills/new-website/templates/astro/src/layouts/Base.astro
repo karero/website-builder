@@ -177,9 +177,10 @@ const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
     <!-- Every page links the privacy policy (GDPR: reachable from anywhere). -->
     <!-- Providers established in Germany or targeting the German market:
          § 5 DDG requires the Impressum reachable from every page too. Neither
-         applies? Delete all five pieces: this link, src/pages/impressum.astro,
-         its tests/_helpers.ts PAGES entry, its public/llms.txt line, and its
-         OWN_CARD_EXEMPT entry in tests/seo.spec.ts. -->
+         applies? Delete all six pieces: this link, src/pages/impressum.astro,
+         its tests/_helpers.ts PAGES entry, its public/llms.txt line, its
+         OWN_CARD_EXEMPT entry in tests/seo.spec.ts, and its
+         UNFILLED_UNTIL_LAUNCH entry in tests/placeholders.spec.ts. -->
     <footer class="site-footer">
       <a href={chrome.privacyHref}>{chrome.privacyLabel}</a>
       <a href="/impressum">Impressum</a>

@@ -1,6 +1,6 @@
 name: CI
 # Runs astro check (strict TS) + the full quality harness (a11y / seo / navigation /
-# images / tone / positioning / email / links) against a production build. A red check blocks the
+# images / tone / positioning / placeholders / email / links) against a production build. A red check blocks the
 # merge — the point. Needs a committed package-lock.json (npm ci).
 # node-version 22: Astro requires Node >=22.12 (keep in sync with .nvmrc and package.json's engines).
 on:
@@ -28,10 +28,11 @@ jobs:
       # Content placeholders must never merge (AGENTS.md §2/§4): a missing fact is
       # written as "[MISSING: …]" so it can be found, and this is where it is found.
       # Runs before the build so it fails in ~1s. Template [BRACKET] slots (privacy
-      # page, manifest) are a scaffold-time convention checked by the launch
-      # checklist, not here.
+      # page, manifest) are checked on the rendered site by
+      # tests/placeholders.spec.ts, not here.
       # Translated site (AGENTS.md uses e.g. "[FEHLT: …]")? Put that token in the
-      # pattern below, or the gate greps for a word nobody writes.
+      # pattern below and in DRAFT_TOKEN in tests/placeholders.spec.ts, or the gate
+      # greps for a word nobody writes.
       # Two guards, two jobs: the folder loop names a missing folder in plain words;
       # the `case` reads grep's tri-state exit (0 found, 1 nothing, >=2 error such as
       # an unreadable file) so an error cannot pass as "nothing found" — grep may have

@@ -2,7 +2,7 @@
 name: website-qa
 description: >
   The pre-launch QA gate for a new site: run the basic tests (a11y light+dark +
-  seo + navigation + anchors + orphans + images + tone + positioning + email + links), fix to green, then handle technical SEO /
+  seo + navigation + anchors + orphans + images + tone + positioning + placeholders + email + links), fix to green, then handle technical SEO /
   performance — ask the user to run a
   Lighthouse / PageSpeed Insights test and act on First Contentful Paint (FCP)
   and Largest Contentful Paint (LCP). Use before launch (steps 7–8 of the
@@ -62,6 +62,19 @@ cosmetics; red → green → commit.
   route has no entry and isn't in `POSITIONING_EXEMPT` — an un-positioned content page is a
   lost opportunity, surfaced rather than silent. This is a mechanical string check, not a
   judgment read — for "does the offer actually read clearly", see `website-positioning-check`.
+- `placeholders.spec.ts` — leftovers a visitor could read. Reads each page's rendered
+  copy, `<head>` metadata, alt texts, aria-labels and JSON-LD, plus the web manifest,
+  for an unfilled `[SLOT]` (the `"[MISSING: …]"` content token and the starter's
+  `[BRACKET]` slots alike), filler text, an author note (`TODO`), an unrendered
+  template expression or a dummy name. The CI grep for `[MISSING:` is the fast
+  source-side half; this is the half that reads what a page serves. The starter's
+  privacy page, imprint and manifest sit in `UNFILLED_UNTIL_LAUNCH` and are
+  **reported, not failed**, until filled; a filled target fails until its entry is
+  deleted, so the list empties itself and must be empty at launch (`new-website` §4).
+  A `"[MISSING: …]"` on a page only warns on your own machine, so a draft branch can
+  be pushed, and fails in CI. Not read: the 404 page, `llms.txt`, and the starter's
+  example values (the name `Example`, `hello@example.com`); those stay a
+  launch-checklist item.
 - `email.spec.ts` — no plaintext (harvestable) email address in the served HTML
   (addresses go through `<EmailLink>`, which obfuscates; the `website-design-system` rule).
 - `links.spec.ts` — offline outgoing-link guard: no `STALE_DOMAINS` (domains you've

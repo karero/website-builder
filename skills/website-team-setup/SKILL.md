@@ -388,8 +388,11 @@ pull request). Walk the owner through it with these warnings ahead of each click
    Then plant one: a scratch branch with the site's own token (`"[MISSING: probe]"`,
    or `"[FEHLT: probe]"` on that German site) in any page, push it and open a **draft**
    pull request from it (the kit's CI runs on pushes only for `main` and `production`,
-   so a pushed branch alone starts no check), watch the check turn red, then close the
-   pull request and delete the branch. A gate that has never fired is a hypothesis, and a gate
+   so a pushed branch alone starts no check), watch the check turn red **at the step
+   `No unfilled "[MISSING:" placeholders`**, then close the pull request and delete the
+   branch. Red only later, at `npm test`, is `tests/placeholders.spec.ts` speaking: the
+   grep step is missing or greps for another word. A push the hook refuses means the
+   site's token is not the one in that spec's `DRAFT_TOKEN`; set it there too. A gate that has never fired is a hypothesis, and a gate
    probed with the wrong token proves the wrong thing.
 9. **Direct-upload project already exists (deploy path A).** A git-connected Pages
    project is a *different project type*; Cloudflare cannot convert one into the
