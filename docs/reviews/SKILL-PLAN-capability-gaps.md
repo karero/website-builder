@@ -82,7 +82,7 @@ passing for the reason in the table, plus the whole suite (61 passed, on the aut
 machine and with CI set), the type check, and the German-only swap following
 `_datenschutz.astro`'s own header. The test also checks itself on every run: its rules
 and verdicts are pinned by example, and one test plants a leftover on each place the
-reading covers, inside a real browser, next to the places that must stay out. 46
+reading covers, inside a real browser, next to the places that must stay out. 51
 deliberate breakages of the test's own logic were each caught and named by it. Run
 without exemptions against a copy of one real site built with the toolkit, the first
 version found two unfilled slots on each legal page and raised no false alarm.

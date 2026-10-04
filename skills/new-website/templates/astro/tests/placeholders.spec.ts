@@ -106,14 +106,18 @@ const SHOWN_AS_TEXT = ['text', 'search', 'email', 'tel', 'url', 'submit', 'butto
 // placeholder and keep the pull request a draft.
 const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/impressum', '/manifest.webmanifest']);
 
-// One spelling per leftover: whitespace folded, no space just inside the brackets. So
-// "[ BOLD SLOT ]" (a slot whose middle is in bold, read with its text nodes spaced)
-// and "[BOLD SLOT]" are the same finding, and one ALLOWLIST entry covers both.
-const fold = (s: string) => s.replace(/\s+/g, ' ').replace(/\[ /g, '[').replace(/ \]/g, ']');
-const allowed = (match: string) => [...ALLOWLIST].some((a) => fold(a).toLowerCase() === match.toLowerCase());
+// A leftover is the same leftover however it is spaced. The page copy is read twice
+// (see readPage), and markup inside a slot puts spaces into one of the two readings:
+// "[BO<b>LD</b> SLOT]" is "[BOLD SLOT]" in one and "[BO LD SLOT]" in the other. So
+// findings, ALLOWLIST and DRAFT_TOKEN are compared with all whitespace removed
+// (squash); fold is only how a match is printed.
+const fold = (s: string) => s.replace(/\s+/g, ' ');
+const squash = (s: string) => s.replace(/\s+/g, '');
+const allowed = (match: string) => [...ALLOWLIST].some((a) => squash(a).toLowerCase() === squash(match).toLowerCase());
 
-// One finding per distinct leftover. `match` is the leftover itself, folded; `line` is
-// what a person reads, with the text around it. `lang` is the page's <html lang>.
+// One finding per distinct leftover, in the spelling met first. `match` is the leftover
+// itself, folded; `line` is what a person reads, with the text around it. `lang` is
+// the page's <html lang>.
 type Finding = { label: string; match: string; line: string };
 function scan(text: string, lang = ''): Finding[] {
   const primary = lang.toLowerCase().split('-')[0];
@@ -123,7 +127,7 @@ function scan(text: string, lang = ''): Finding[] {
     for (const m of text.matchAll(re)) {
       const match = fold(m[0]);
       if (allowed(match)) continue;
-      const key = `${label}|${match}`;
+      const key = `${label}|${squash(match)}`;
       if (found.has(key)) continue;
       const i = m.index ?? 0;
       const ctx = text.slice(Math.max(0, i - 25), i + Math.min(m[0].length, 160) + 25).replace(/\s+/g, ' ').trim();
@@ -134,7 +138,9 @@ function scan(text: string, lang = ''): Finding[] {
 }
 
 function unseenSlots(text: string): string[] {
-  return [...new Set([...text.matchAll(UNSEEN_SLOT)].map((m) => fold(m[0])))].filter((u) => !allowed(u));
+  const seen = new Map<string, string>();
+  for (const m of text.matchAll(UNSEEN_SLOT)) if (!seen.has(squash(m[0]))) seen.set(squash(m[0]), fold(m[0]));
+  return [...seen.values()].filter((u) => !allowed(u));
 }
 
 // The text inside a JSON document, decoded: in the raw file a line break is the two
@@ -183,7 +189,7 @@ function verdict(target: string, text: string, { listed, ci, lang }: Where): { f
       warn: `${target} is not ready to launch, ${all.length} leftover(s) to fill:\n${bullets(all.slice(0, 3).map((f) => f.line))}${more}`,
     };
   }
-  const drafts = ci ? [] : all.filter((f) => DRAFT_TOKEN.test(f.match));
+  const drafts = ci ? [] : all.filter((f) => DRAFT_TOKEN.test(squash(f.match)));
   const blocking = all.filter((f) => !drafts.includes(f));
   return {
     fail: blocking.length
@@ -267,15 +273,17 @@ test('placeholders — the rules catch leftovers and pass genuine copy', () => {
   expect(scan('TODO: precios', 'es').length, 'a Spanish "TODO:" is still a note').toBe(1);
   expect(scan('VER TODO', 'en').length, 'an English "TODO" is a note').toBe(1);
 
-  // One finding per leftover, however it is spaced; and ALLOWLIST ignores case and that spacing.
-  expect(scan('Call [ BOLD SLOT ] or [BOLD SLOT] or [BOLD\nSLOT]').map((f) => f.match)).toEqual(['[BOLD SLOT]']);
-  expect(unseenSlots('as [the team] said')).toEqual(['[the team]']);
-  ALLOWLIST.add('[PDF]').add('[The Team]');
+  // One finding per leftover, however it is spaced; and ALLOWLIST ignores case and spacing.
+  expect(scan('Call [BOLD SLOT] or [ BOLD SLOT ] or [BOLD\nSLOT] or [BO LD SLOT]').map((f) => f.match),
+    'one finding per leftover, whatever its spacing').toEqual(['[BOLD SLOT]']);
+  expect(scan('Download [ PDF ] or [P DF]').length, 'a "[PDF]" is a finding until it is allow-listed').toBe(1);
+  expect(unseenSlots('as [the team] and [the  team] said')).toEqual(['[the team]']);
+  ALLOWLIST.add('[pdf]').add('[The Team]');
   try {
-    expect(scan('Download [ pdf ]'), 'ALLOWLIST must cover a rule match').toEqual([]);
+    expect(scan('Download [ PDF ] or [P DF]'), 'ALLOWLIST must cover a rule match').toEqual([]);
     expect(unseenSlots('as [the team] said'), 'ALLOWLIST must cover the lower-case check').toEqual([]);
   } finally {
-    ALLOWLIST.delete('[PDF]');
+    ALLOWLIST.delete('[pdf]');
     ALLOWLIST.delete('[The Team]');
   }
 
@@ -290,6 +298,7 @@ test('placeholders — the rules catch leftovers and pass genuine copy', () => {
   expect(verdict('/x', 'Built in [MISSING: year].', local).fail, 'a draft placeholder must not fail locally').toBeNull();
   expect(verdict('/x', 'Built in [MISSING: year].', local).warn, 'a draft placeholder must be reported').not.toBeNull();
   expect(verdict('/x', 'Built in [MISSING: year].', inCi).fail, 'a draft placeholder must fail in CI').not.toBeNull();
+  expect(verdict('/x', 'Built in [MIS SING: year].', local).fail, 'a draft placeholder split by markup is still one').toBeNull();
   expect(verdict('/x', '[MISSING: year] FIXME', local).fail, 'another leftover beside it must still fail').not.toBeNull();
   expect(verdict('/x', 'Baujahr [FEHLT: Jahr]', local).fail, 'a token this file does not know is a plain slot').not.toBeNull();
   // A listed target: leftovers only warn, a filled one may not stay listed, and it may
@@ -326,10 +335,11 @@ async function readPage(page: Page): Promise<{ text: string; lang: string }> {
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
     const nodes: string[] = [];
     while (walker.nextNode()) nodes.push(walker.currentNode.nodeValue ?? '');
-    // Two readings of the same copy, because neither is safe alone. Spaced: one
-    // block's last word never fuses with the next block's first ("pricesTODO").
-    // Fused: a word or slot split by inline markup stays whole ("Lo<em>rem</em>").
-    const copy = [nodes.join(' '), nodes.join('')];
+    // Two readings of the same copy, because neither is safe alone. Fused: a word or
+    // slot split by inline markup stays whole ("Lo<em>rem</em>"). Spaced: one block's
+    // last word never fuses with the next block's first ("pricesTODO"). Fused comes
+    // first, so a leftover both readings see is printed in its unbroken spelling.
+    const copy = [nodes.join(''), nodes.join(' ')];
     // Same <head> surfaces as tone.spec.ts: user-facing in SERPs and share cards.
     const metaSel = [
       'meta[name="description"]',
@@ -363,6 +373,10 @@ test('placeholders — the page reading reaches each surface it claims', async (
   // No slider here: the browser turns a range input's value into a number, so it
   // cannot carry text either way.
   const notShown = ['hidden', 'checkbox', 'radio', 'password'];
+  // Named here on purpose, not taken from SHOWN_AS_TEXT: dropping a type from the
+  // reader must fail this test. A type added to the reader is planted as well.
+  const mustShow = ['text', 'search', 'email', 'tel', 'url', 'submit', 'button', 'reset'];
+  const shown = [...new Set([...mustShow, ...SHOWN_AS_TEXT])];
   await page.setContent(`<!doctype html><html lang="en-GB"><head>
     <title>[TITLE SLOT]</title>
     <meta name="description" content="[DESCRIPTION SLOT]">
@@ -373,6 +387,7 @@ test('placeholders — the page reading reaches each surface it claims', async (
     <script type="application/ld+json">{"name":"\\u005bSCHEMA\\nSLOT\\u005d"}</script>
     </head><body>
     <p>Call [<strong>BOLD SLOT</strong>] now.</p>
+    <p>Ask [IN<strong>NER</strong> SLOT] too.</p>
     <p>Visit [BROKEN
        SLOT] soon.</p>
     <p>Lo<em>rem</em> ipsum.</p>
@@ -382,7 +397,7 @@ test('placeholders — the page reading reaches each surface it claims', async (
     <button aria-label="[LABEL SLOT]">Go</button>
     <abbr title="[TITLE ATTRIBUTE SLOT]">x</abbr>
     <input placeholder="[HINT SLOT]">
-    ${SHOWN_AS_TEXT.map((t) => `<input type="${t}" value="[VALUE OF ${t.toUpperCase()}]">`).join('\n')}
+    ${shown.map((t) => `<input type="${t}" value="[VALUE OF ${t.toUpperCase()}]">`).join('\n')}
     <input id="late">
     <script>document.getElementById('late').value = '[SCRIPTED SLOT]';</script>
     ${notShown.map((t) => `<input type="${t}" value="[UNSEEN ${t.toUpperCase()}]">`).join('\n')}
@@ -397,11 +412,13 @@ test('placeholders — the page reading reaches each surface it claims', async (
   const findings = scan(text, lang);
   const mustFind = [
     'TITLE SLOT', 'DESCRIPTION SLOT', 'OG TITLE SLOT', 'OG DESCRIPTION SLOT', 'TWITTER TITLE SLOT',
-    'TWITTER DESCRIPTION SLOT', 'SCHEMA SLOT', 'BOLD SLOT', 'BROKEN SLOT', 'FOLDED SLOT', 'ALT SLOT',
-    'LABEL SLOT', 'TITLE ATTRIBUTE SLOT', 'HINT SLOT', 'SCRIPTED SLOT',
-    ...SHOWN_AS_TEXT.map((t) => `VALUE OF ${t.toUpperCase()}`),
+    'TWITTER DESCRIPTION SLOT', 'SCHEMA SLOT', 'BOLD SLOT', 'INNER SLOT', 'BROKEN SLOT', 'FOLDED SLOT',
+    'ALT SLOT', 'LABEL SLOT', 'TITLE ATTRIBUTE SLOT', 'HINT SLOT', 'SCRIPTED SLOT',
+    ...shown.map((t) => `VALUE OF ${t.toUpperCase()}`),
   ];
-  expect(mustFind.filter((m) => !findings.some((f) => f.match === `[${m}]`)), 'planted slots the reading missed').toEqual([]);
+  const hits = (m: string) => findings.filter((f) => squash(f.match) === squash(`[${m}]`)).length;
+  expect(mustFind.filter((m) => hits(m) !== 1), 'planted slots not found exactly once').toEqual([]);
+  expect(findings.find((f) => squash(f.match) === '[INNERSLOT]')?.match, 'printed in its unbroken spelling').toBe('[INNER SLOT]');
   // The two leftovers that only one of the two readings can see.
   expect(findings.some((f) => f.label === 'filler text'), '"Lo<em>rem</em> ipsum" needs the fused reading').toBe(true);
   expect(findings.some((f) => f.label === 'author note'), '"prices" + "TODO" needs the spaced reading').toBe(true);
