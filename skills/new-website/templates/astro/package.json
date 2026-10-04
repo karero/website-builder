@@ -17,7 +17,7 @@
     "test:ui": "playwright test --ui",
     "check": "astro check",
     "astro": "astro",
-    "prepare": "unset GIT_DIR GIT_WORK_TREE; git rev-parse --show-prefix 2>/dev/null | grep -q . || git config core.hooksPath scripts/hooks 2>/dev/null || true"
+    "prepare": "node scripts/wire-hooks.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",

@@ -58,6 +58,72 @@ jobs:
       - name: Run template test suite
         run: npm test
 
+  # "prepare" runs on every `npm install`, through the shell npm hands scripts to: by default
+  # sh on Linux and macOS, cmd.exe on Windows. The line it used to be was sh syntax, and no
+  # check here ran it on Windows. So this runs a real install on all three: in a site that is
+  # the root of its repo, in one kept in a subfolder of a bigger repo, and in a folder with
+  # no repo around it, then reads back what git was told. The sites carry the starter's
+  # package.json without its packages: "prepare" needs none of them, and the install then
+  # takes a second.
+  prepare-any-shell:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Three folders from the starter (a repo's root, a subfolder of a bigger repo, no repo)
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          T="$GITHUB_WORKSPACE/skills/new-website/templates/astro"
+          for site in root-site big/apps/site plain; do
+            mkdir -p "$site/scripts"
+            cp "$T/package.json" "$site/" && cp "$T/scripts/wire-hooks.mjs" "$site/scripts/"
+            (cd "$site" && npm pkg delete dependencies devDependencies)
+          done
+          git init -q root-site && git init -q big
+          # Which shell npm hands a script line to here, measured: cmd.exe puts its own path in
+          # place of %ComSpec%, sh prints the word as written. A Windows leg whose npm used sh
+          # would pass the checks below for the wrong reason.
+          mkdir probe && (cd probe && npm init -y >/dev/null && npm pkg set scripts.probe='echo %ComSpec%')
+          probe="$(cd probe && npm run --silent probe)"; echo "npm's script shell, given 'echo %ComSpec%', says: $probe"
+          case "$RUNNER_OS:$probe" in
+            Windows:*%*) echo "::error::on Windows npm did not hand the script to cmd.exe"; exit 1 ;;
+            Windows:*cmd.exe*|Linux:%ComSpec%|macOS:%ComSpec%) ;;
+            *) echo "::error::npm's script shell gave an answer this job does not know"; exit 1 ;;
+          esac
+      # The installs name no `shell:`, so each runs from the runner's default one: PowerShell
+      # on Windows.
+      - name: npm install in the site that is the root of its repo
+        working-directory: ${{ runner.temp }}/root-site
+        run: npm install --no-audit --no-fund
+      - name: npm install in the site kept in a subfolder
+        working-directory: ${{ runner.temp }}/big/apps/site
+        run: npm install --no-audit --no-fund
+      # A git hook that runs the install can hand it GIT_DIR; see scripts/wire-hooks.mjs.
+      - name: The same install, with the GIT_DIR a git hook hands down
+        working-directory: ${{ runner.temp }}/big/apps/site
+        env:
+          GIT_DIR: ${{ runner.temp }}/big/.git
+        run: npm install --no-audit --no-fund
+      - name: npm install in a folder with no repo around it
+        working-directory: ${{ runner.temp }}/plain
+        run: npm install --no-audit --no-fund
+      - name: The root site's hook is wired, the bigger repo's hooks are left alone
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          root="$(git -C root-site config --local --get core.hooksPath || true)"
+          big="$(git -C big config --local --get core.hooksPath || true)"
+          echo "root-site: core.hooksPath=${root:-unset}, big: core.hooksPath=${big:-unset}"
+          [ "$root" = scripts/hooks ] || { echo "::error::the install did not wire the site at its repo's root"; exit 1; }
+          [ -z "$big" ] || { echo "::error::an install in a subfolder set core.hooksPath=$big in the bigger repo"; exit 1; }
+
   # The website-scorecard skill ships three files that live in a SITE, never in the
   # starter, so the job above does not run them. This builds a site from the starter,
   # installs the skill the way its SKILL.md §2 says, writes a card and runs the suite
