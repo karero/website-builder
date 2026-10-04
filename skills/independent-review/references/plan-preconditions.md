@@ -1,6 +1,6 @@
 # PLAN gate preconditions — the full reasoning
 
-Read from SKILL.md's "PLAN gate preconditions" section, which summarizes the two
+Read from SKILL.md's "PLAN gate preconditions" section, which summarizes the three
 checks; this file carries the complete rationale, scope, and — just as important —
 what each check does NOT establish. "Procedure step N", "the Reviewer stack", and
 "item 3" (a Reviewer-stack entry) below refer to SKILL.md; "the clerk procedure"
@@ -13,12 +13,9 @@ left its owner unable to say which steps were finished.)
 
 **The HOST agent runs this check itself** (the same orchestrating agent named throughout
 this skill, e.g. in the clerk procedure — not item 3's "Fresh-eyes host-agent pass",
-which is one specific reviewer seat), before the external pair goes out. Two different
-reviewers are structurally unable to do it, for two different reasons: the fresh-eyes
-seat receives only the artifact, per the Reviewer stack, and has no repo access at
-all; the external pair (Codex, ollama) does have repo access but is never asked this
-question — it's a precondition on the plan, not a content-review prompt, so nothing in
-either tool's instructions would surface it.
+which is one specific reviewer seat), before the external pair goes out. No reviewer
+seat will do it: the question is a precondition on the plan, not part of the
+content-review prompt, so nothing in any seat's instructions would surface it.
 
 Two questions. **Does the plan, or a sibling document it names, have a place where each
 step's state is recorded?** And **does every state claiming progress or completion carry
@@ -67,3 +64,25 @@ the verification round on the result — Procedure step 6 still applies in full;
 defers that round, it never replaces it. Re-reviewing a moving target is how a plan
 reaches round seven, and every round after the first grades a document that is no longer
 the plan.
+
+## 3. Is what the plan implements gated first?
+
+(Codified 2026-10-04. One feature's implementation plan cleared ten review passes before its
+requirements document existed; that document's own gate then recorded where it differed from the
+plan.)
+
+A plan says how; a requirements or spec document says what. When the two are separate documents,
+gate the "what" first. Its gate moves decisions, and each one that moves makes part of an
+already-reviewed plan describe something nobody will build.
+
+**The host checks this itself**, like the other two: does the plan name a requirements or spec
+document, and has that document passed its own gate as it stands — a trail with a clean
+verdict (PLAN, or DIFF if it was reviewed as a change), and no change to the document after the
+head that trail names? If not, tell the owner before round 1 and let them choose — gate the
+requirements first, or go on knowing the plan's rounds may be paid again. Going on is the
+owner's call, not a failure of the gate.
+
+**What this does not cover.** A plan that carries its own requirements is one document and one
+gate. A plan whose first step is "write the requirements" has none to gate yet: say so to the
+owner in the same way, since the rest of that plan is reviewed against requirements that do not
+exist.

@@ -40,6 +40,10 @@ skip silently. With a config diff, send the code that reads the config too.
    test-run link — never an ephemeral CI URL). If not: a host RISK in the trail, kept OUT of what
    the external pair sees, prior-findings list included.
 2. The plan's own decisions are settled. Close open decisions before spending a round.
+3. What the plan implements is gated first: where the requirements or spec are a separate
+   document, that document has passed its own gate as it stands now, before the plan's round 1.
+   If it has not, ask the owner before round 1: gate it first, or go on knowing the plan's
+   rounds may be paid twice.
 
 ## Reviewer stack
 
@@ -112,11 +116,18 @@ Codex's effort for any run.
    effort from the depth row first — at High, `CODEX_EFFORT=config` on EVERY round, or a
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
-   directory; depth and round only feed the cost log). Type is auto-detected
+   directory; depth and round feed the cost log, and a run with no `--depth` says so). Type is
+   auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
    `git diff <base>...HEAD -- . ':(exclude)docs/reviews/'` (the trail still ships in the PR;
-   reviewers auditing it cost rounds). Over 117 KB: split it. Output: one section per attempted
+   reviewers auditing it cost rounds). For a DIFF gate at Normal or High depth, write the
+   change's record prose — its changelog entry, a tracker's status row — after the last round:
+   in a round its sentences draw findings that cost rounds. It is then read once, by the wording
+   pass (step 6) or, where no round had a substantive BUG, by the prose-only re-gate the stamp
+   needs (closeout, clerk item 2). An entry carrying commands or config is not prose: it goes in
+   with the change.
+   Over 117 KB: split it. Output: one section per attempted
    reviewer (its review, or a `— FAILED` section with the error and remedy), then a `reviewers:`
    and a `timings:` line. Exit 0 means at least one reviewer counted, not the pair — read the
    reviewers line. Exit 4 = none counted = gate FAIL, never clean. Read reviewer output from the
@@ -148,6 +159,10 @@ Codex's effort for any run.
    An existing annotation in the artifact (a code comment, a plan note) closes a re-raised
    finding only if its reasoning covers what this reviewer raised — then it can back a refutation,
    or a waiver that traces to a real prior owner decision. Otherwise the finding is new signal.
+
+   UNVERIFIABLE entries are questions, not findings, whichever seat lists them: look where an
+   entry points, and make it a finding only if the look confirms it. They take no disposition;
+   the round's row in the trail gives how many were asked and how many confirmed.
 5. **Enforce the verdict** — the skill's job, never the exit code. Every confirmed BUG is fixed
    (one exception below); every RISK/NIT is fixed, refuted, waived or follow-up. No blanket waivers.
    - **Evidence.** Fixed and refuted both need evidence that fits the claim: run, reproduce or
@@ -169,6 +184,16 @@ Codex's effort for any run.
      re-verified".
 6. **Iterate — fix, then re-review WHAT CHANGED.** A *verification round* checks the fixes, not
    the whole change again.
+
+   **At Normal and High depth, a round after the first is owed only by a fix that changed what
+   runs or what someone acts on** — code, test logic, configuration, a requirement, a decision,
+   an instruction someone follows. Count after triage (step 5): when a round's findings call for
+   no such fix — each BUG refuted or deferred under step 5, each RISK refuted, waived or a
+   follow-up — no further round is owed (stop condition (a2)); the final full read where one is
+   due, the wording pass and closeout still follow. A fix that leaves the meaning for a builder
+   unchanged (the test under "A substantive BUG", below) is wording and goes to the wording
+   pass. A refuted BUG gets no reviewer's second look this way, so name it to the owner with its
+   evidence before the gate closes (step 8).
    - **Artifact.** DIFF: `git diff <last-reviewed-head>..HEAD -- . ':(exclude)docs/reviews/'`.
      After a merge of the base or a rebase, the **merge link** instead, not a full round: what
      changed in the change's own files since the last review, merge effects included, plus any
@@ -200,8 +225,9 @@ Codex's effort for any run.
    unchanged, comments, the review record, test wording or tightening an assertion on a test that
    already fails on wrong behaviour.
 
-   **Stop conditions.** (a) Clean — done. **(a2) Zero BUG and zero in-scope RISK is clean**
-   (deferred BUGs and follow-ups don't count): stop; fix or refute its NITs without another round,
+   **Stop conditions.** (a) Clean — done. **(a2) A round with no BUG and no in-scope RISK that
+   calls for a fix is clean** (refuted findings, waived RISKs, deferred BUGs and follow-ups call
+   for none): stop; fix or refute its NITs without another round,
    recording fixed NITs as `locally_verified`, "closing edits not externally re-verified". Judge by
    the BUG/RISK series, not the NIT column. (b) The round budget, below. (c) Budget or credits run
    out: stop iterating once every BUG is fixed, refuted or deferred and every RISK/NIT is fixed,
@@ -209,7 +235,8 @@ Codex's effort for any run.
    a fix is legitimate only under step 5; a waiver is granted or refused, never put off. These
    conditions decide whether to run another round, nothing else — the marker's rule is closeout's.
 
-   **The round budget (6(b)).** Rounds 1–3 run as needed. **After round 3, a round is earned only
+   **The round budget (6(b)).** Round 1 always runs; rounds 2–3 run when owed (above).
+   **After round 3, a round is earned only
    by the previous round finding a substantive BUG** — however many, rising or falling: a chain of
    fixes that each expose the next real defect is the gate working. A round without one ends the
    rounds: open RISK/NIT go to the owner as ONE decision (fix locally — `locally_verified`, "not
@@ -253,9 +280,10 @@ Codex's effort for any run.
    owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
-8. **Keep the owner in the loop.** Between rounds: what was found, fixed and pending, the BUG/RISK
-   trend, what the round cost (the `timings:` line; the host seats' duration and tokens) and
-   any follow-ups. The owner may stop, waive, redirect, or run a manual round (a first-class seat
+8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
+   fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost
+   (the `timings:` line; the host seats' duration and tokens) and any follow-ups.
+   The owner may stop, waive, redirect, or run a manual round (a first-class seat
    in the trail, not a cross-model one). Never run rounds silently back-to-back. Once the pair and
    fresh-eyes have reported, offer — don't run — a `--with-antigravity` round or a stronger
    same-family pass.

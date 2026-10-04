@@ -452,6 +452,16 @@ for m in "" stub-agy-model; do
   check "$name: not told the false 'You have NO tools'" not_in "$T/$name.marks/agy-prompt" "You have NO tools"
   check "$name: ollama, which really has no tools, still gets the text-only prompt" \
     grep -qF -- "You have NO tools" "$T/$name.marks/ollama-prompt"
+  # 2026-10-04: the ollama seat is told that a concern about text it was not given is a
+  # question. Codex can go and look, so it must not be told to hold back. agy reviews from the
+  # text too, but its prompt stays as it is until its last fix is seen working (R-AGY-PROMPT).
+  check "$name: the text-only prompt makes unseen text a question" \
+    grep -qF -- "A BUG or RISK quotes the line of the diff that shows it" "$T/$name.marks/ollama-prompt"
+  check "$name: ...and says a missing fix is named, where there is no line to quote" \
+    grep -qF -- "the prior finding whose fix the diff lacks" "$T/$name.marks/ollama-prompt"
+  check "$name: codex is not given that rule" \
+    not_in "$T/$name.marks/codex-prompt" "A BUG or RISK quotes the line"
+  check "$name: nor is agy" not_in "$T/$name.marks/agy-prompt" "A BUG or RISK quotes the line"
   check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
   check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
   # These pin the directory agy is LAUNCHED in, not an access boundary: its tools run elsewhere
@@ -686,6 +696,12 @@ check "seat ollama: only ollama ran" sh -c '[ -e "$1/ollama-ran" ] && [ ! -e "$1
 check "seat ollama: the summary names it alone" has seatollama.out "reviewers: ollama-cloud OK"
 check "seat ollama: the one-reviewer note says it was asked for" has seatollama.out "--seat ollama was requested"
 check "seat ollama: ...and when one reviewer is right" has seatollama.out "any other round needs the standard pair"
+# A run without --depth says so, on stdout and stderr; a run with it does not (2026-10-04: 27 of
+# 51 trails in one repo named no depth).
+check "depth: a run without --depth is told to state one" has seatollama.out "depth: not stated"
+check "depth: ...on stderr too" has seatollama.err "depth: not stated"
+check "depth: a run with --depth is not, on either stream" \
+  sh -c '! grep -qF "depth: not stated" "$1/costlog.out" "$1/costlog.err"' _ "$T"
 run seatfirst bash "$SCRIPT" "$T/change.diff" --seat codex --first-success
 check "seat: with --first-success exits 2" rc_is seatfirst 2
 run seatwithagy WITH_ANTIGRAVITY=1 bash "$SCRIPT" "$T/change.diff" --seat ollama

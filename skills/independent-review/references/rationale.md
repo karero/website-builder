@@ -406,7 +406,7 @@ Before delta verification rounds (2026-09-26), a re-gate had to send every seat 
 `(base, head)` pair, because the stamp certifies that reviewers saw that pair. With delta rounds,
 closeout's chain rule carries that guarantee instead: round 1 saw `base...h1` in full and each
 later round saw exactly the delta from the previous head, with the merge-base unchanged. A moved
-base breaks the chain, which is why SKILL.md step 6 falls back to a full round then.
+base breaks the chain, which is why SKILL.md step 6 bridges it with a merge link.
 
 The cost log (`scripts/review_log.sh`) exists because the depths and effort levels were set from
 a handful of trails, not from measurements. It records seconds and tokens per seat per round —
@@ -438,3 +438,44 @@ reread untouched text, while two specs' most important late bugs sat in exactly 
 found at round 14 by a fresh model reading the whole document, one wrong since round 1), plans,
 specs and High-depth changes end with one full read by a reviewer new to the artifact. None of
 the trails recorded time or tokens; the cost log exists so the next such review can.
+
+## Confirmed findings, unseen text, record prose — the second backend reading
+
+Codified 2026-10-04 from the 51 trails the owner's backend repo wrote in the first eight days
+under the round budget, 221 passes. On 42 DIFF gates (one ten-stage trail left out), 94 passes
+ran after the first, and 75 of them found no BUG.
+
+- **Raised is not confirmed.** Of the 327 RISKs ruled fixed or refuted, 187 were refuted. In the
+  26 gates whose first pass found no BUG, the 44 passes that followed found two code BUGs, both
+  in one gate and both in fixes that had changed code, and one test BUG, in the first round of a
+  redesign. Under this rule each of those rounds still runs. Stop condition (a2) read "zero BUG
+  and zero in-scope RISK" and did not say whether a refuted RISK counts. Hence the count after
+  triage, and a round owed only by a fix that changed something. What this gives up: a wrongly
+  refuted finding gets no reviewer's second look — which is why a refuted BUG goes to the owner
+  with its evidence.
+- **A seat that cannot open the files.** Share refuted, of the findings ruled
+  fixed or refuted: 4% each for Codex and for fresh-eyes (of 76 and of 118), and 45%, 66% and
+  73% for the three text-only cloud seats (of 93, 303 and 11). 49 of the 94 later passes were
+  one text-only seat alone (the tooled cross-model seat was out of quota on three of the eight
+  days); they raised 85 RISKs and confirmed no code BUG. One three-round gate: 22 findings, 19
+  refuted, and of its first round the trail says most were "this name may not exist" about code
+  outside the diff. Hence the text-only prompt's rule that a concern about unseen text is a
+  question. What this evidence does not show: "refuted" is the author's own ruling;
+  Antigravity, which also reviews from the text alone, was upheld on 18 of 19 findings, so the
+  model matters as well as the tools; and whether the rule loses real findings is not measured,
+  at any depth or for plans. Antigravity's prompt is left as it is: its last fix has not yet
+  been seen working live (R-AGY-PROMPT in the open-findings tracker).
+  Not done here: sending a DIFF's verification rounds to the tooled seat alone. A draft of this
+  change did, and its final full read found that rule at odds, in three places, with the
+  per-seat chain the stamp relies on (closeout, clerk item 2). It needs the chain rule reworked
+  first, as a change of its own.
+- **Record prose draws findings.** Of the 26 later BUGs the trails describe, 16 were about
+  sentences — changelog entries, comments, test-case wording, the review record — and 10 about
+  code or tests. In one gate all four BUGs raised after the first pass were sentences in its
+  changelog entry. Hence the entry is written after the last round and read once, by the wording
+  pass.
+- **A plan gated before its requirements.** `plan-preconditions.md` §3 has the incident.
+
+Where the numbers come from: the trails, read partly by a model whose extraction was checked by
+hand on two trails and against a parser on 17. Timings were recorded for part of the passes only.
+The cost log held nothing: on the owner's machine its directory was not writable.
