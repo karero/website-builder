@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { PAGES } from './_helpers';
 
 // Leftover guardrail on the RENDERED site: a placeholder, or a note the author wrote
@@ -28,7 +28,9 @@ const RULES: { label: string; re: RegExp }[] = [
   // assistants leave behind ("[Your Name]"). "[1]", "[A]", "[sic]" and EmailLink's
   // "[at]" do not match. Genuine bracketed text that starts with a capital ("[PDF]",
   // an editor's note in a quote) does: ALLOWLIST it or mark it [data-placeholder-exempt].
-  { label: 'unfilled [SLOT]', re: /\[\s*\p{Lu}\s*[^\]\s][^\]]{0,300}\]/gu },
+  // No length limit: a long "[MISSING: …]" is still one. The price is that a bracket
+  // opened with a capital and never closed runs on to the next "]"; that is worth a look too.
+  { label: 'unfilled [SLOT]', re: /\[\s*\p{Lu}\s*[^\]\s][^\]]*\]/gu },
   { label: 'filler text', re: /\b(?:lorem\s+ipsum|dolor\s+sit\s+amet)\b/gi },
   // Case-sensitive: "todo" in running prose is a word, "TODO" is a note.
   { label: 'author note', re: /\b(?:TODO|FIXME|XXX)\b/g },
@@ -86,7 +88,7 @@ function scan(text: string): string[] {
       const key = `${label}|${match}`;
       if (found.has(key)) continue;
       const i = m.index ?? 0;
-      const ctx = text.slice(Math.max(0, i - 25), i + m[0].length + 25).replace(/\s+/g, ' ').trim();
+      const ctx = text.slice(Math.max(0, i - 25), i + Math.min(m[0].length, 160) + 25).replace(/\s+/g, ' ').trim();
       found.set(key, `"${label}" → …${ctx}…`);
     }
   }
@@ -106,6 +108,12 @@ function jsonStrings(raw: string): string | null {
   }
 }
 
+function unseenSlots(text: string): string[] {
+  return [...text.matchAll(UNSEEN_SLOT)]
+    .map((m) => m[0].replace(/\s+/g, ' '))
+    .filter((u) => !ALLOWLIST.has(u.toLowerCase()));
+}
+
 function judge(target: string, text: string, listed = UNFILLED_UNTIL_LAUNCH.has(target)) {
   const findings = scan(text);
   const list = findings.map((f) => '  • ' + f).join('\n');
@@ -117,12 +125,12 @@ function judge(target: string, text: string, listed = UNFILLED_UNTIL_LAUNCH.has(
     ).toEqual([]);
     return;
   }
-  const unseen = [...text.matchAll(UNSEEN_SLOT)].map((m) => m[0].replace(/\s+/g, ' '));
+  const unseen = unseenSlots(text);
   expect(
     unseen,
     `${target} carries bracketed text the slot rule cannot see, because it starts with a ` +
       `lower-case letter. A slot: start it with a capital word ("[CHOOSE ONE: …]"). Genuine ` +
-      `text: mark it [data-placeholder-exempt].\n` + unseen.map((u) => '  • ' + u).join('\n'),
+      `text: ALLOWLIST it or mark it [data-placeholder-exempt].\n` + unseen.map((u) => '  • ' + u).join('\n'),
   ).toEqual([]);
   expect(
     findings.length,
@@ -143,6 +151,7 @@ function judge(target: string, text: string, listed = UNFILLED_UNTIL_LAUNCH.has(
 test('placeholders — the rules catch leftovers and pass genuine copy', () => {
   const leftovers = [
     'Built in [MISSING: year built].',
+    `[MISSING: ${'a long note the author left for later '.repeat(12)}]`,
     'Baujahr: [FEHLT: Baujahr]',
     'Last updated: [DATE].',
     '[LEGAL NAME INCL. FORM, e.g. Beispiel GmbH]',
@@ -189,6 +198,15 @@ test('placeholders — the rules catch leftovers and pass genuine copy', () => {
     () => judge('/x', 'Hosted [DATE] [self-hosted on our own server / operated for us]', true),
     'a lower-case slot on a listed target must fail',
   ).toThrow();
+  // ALLOWLIST covers that check too. In a manifest it is the only way out: a JSON file
+  // has no element to mark as exempt.
+  expect(unseenSlots('as [the team] said')).toEqual(['[the team]']);
+  ALLOWLIST.add('[the team]');
+  try {
+    expect(unseenSlots('as [the team] said')).toEqual([]);
+  } finally {
+    ALLOWLIST.delete('[the team]');
+  }
 });
 
 test('placeholders — UNFILLED_UNTIL_LAUNCH names only checked targets', () => {
@@ -201,48 +219,88 @@ test('placeholders — UNFILLED_UNTIL_LAUNCH names only checked targets', () => 
   ).toEqual([]);
 });
 
+// Everything a page serves that a visitor, a search engine or a share card can read.
+async function readPage(page: Page): Promise<string> {
+  const { text, jsonLd } = await page.evaluate(() => {
+    const exempt = 'code, pre, kbd, samp, [data-placeholder-exempt]';
+    const body = document.body.cloneNode(true) as HTMLElement;
+    body.querySelectorAll(`script, style, noscript, ${exempt}`).forEach((el) => el.remove());
+    // Text nodes, not innerText: content the layout hides (a closed <details>, a
+    // collapsed menu) is still served and still indexed.
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    const nodes: string[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode.nodeValue ?? '');
+    // Two readings of the same copy, because neither is safe alone. Spaced: one
+    // block's last word never fuses with the next block's first ("pricesTODO").
+    // Fused: a word or slot split by inline markup stays whole ("Lo<em>rem</em>").
+    const copy = [nodes.join(' '), nodes.join('')];
+    // Same <head> surfaces as tone.spec.ts: user-facing in SERPs and share cards.
+    const metaSel = [
+      'meta[name="description"]',
+      'meta[property="og:title"]', 'meta[property="og:description"]',
+      'meta[name="twitter:title"]', 'meta[name="twitter:description"]',
+    ];
+    const meta = [document.title, ...metaSel.map((s) => document.querySelector(s)?.getAttribute('content') ?? '')];
+    // Attributes a visitor reads or hears, and what a form field shows: its current
+    // value (as set in the HTML or by the page's own scripts), for the input types
+    // that display it as text. A checkbox's, a hidden field's or a slider's value is
+    // never on screen.
+    const shownAsText = ['text', 'search', 'email', 'tel', 'url', 'submit', 'button', 'reset'];
+    const attrs = Array.from(document.querySelectorAll('[alt], [aria-label], [title], [placeholder], input'))
+      .filter((el) => !el.closest(exempt))
+      .flatMap((el) => [
+        el.getAttribute('alt'), el.getAttribute('aria-label'), el.getAttribute('title'),
+        el.getAttribute('placeholder'),
+        el instanceof HTMLInputElement && shownAsText.includes(el.type) ? el.value : null,
+      ].map((v) => v ?? ''));
+    const jsonLd = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+      .map((el) => el.textContent ?? '');
+    return { text: [...meta, ...copy, ...attrs].join('\n'), jsonLd };
+  });
+  // JSON-LD that does not parse is seo.spec.ts's failure; here it is still read, raw.
+  return [text, ...jsonLd.map((raw) => jsonStrings(raw) ?? raw)].join('\n');
+}
+
+// The reading itself, pinned in a real browser: every place a leftover can sit is
+// planted once, next to the places that must stay out of the reading.
+test('placeholders — the page reading reaches every surface', async ({ page }) => {
+  await page.setContent(`<!doctype html><html lang="en"><head>
+    <title>[TITLE SLOT]</title>
+    <meta name="description" content="[DESCRIPTION SLOT]">
+    <script type="application/ld+json">{"name":"\\u005bSCHEMA\\nSLOT\\u005d"}</script>
+    </head><body>
+    <p>Call [<strong>BOLD SLOT</strong>] or visit [BROKEN
+       SLOT].</p>
+    <p>Lo<em>rem</em> ipsum.</p>
+    <span>prices</span><span>TODO</span>
+    <details><summary>More</summary><p>[FOLDED SLOT]</p></details>
+    <img alt="[ALT SLOT]" src="data:,">
+    <button aria-label="[LABEL SLOT]" title="[TITLE ATTRIBUTE SLOT]">Go</button>
+    <input placeholder="[HINT SLOT]">
+    <input type="submit" value="[BUTTON SLOT]">
+    <input id="late">
+    <script>document.getElementById('late').value = '[SCRIPTED SLOT]';</script>
+    <input type="hidden" value="[HIDDEN FIELD]">
+    <input type="checkbox" value="[CHECKBOX VALUE]">
+    <code>[CODE SAMPLE]</code>
+    <p data-placeholder-exempt>[EXEMPT NOTE] <img alt="[EXEMPT ALT]" src="data:,"></p>
+    </body></html>`);
+  const text = await readPage(page);
+  const found = scan(text).join('\n');
+  const mustFind = [
+    'TITLE SLOT', 'DESCRIPTION SLOT', 'SCHEMA SLOT', 'BOLD SLOT', 'BROKEN SLOT', '"filler text"',
+    '"author note"', 'FOLDED SLOT', 'ALT SLOT', 'LABEL SLOT', 'TITLE ATTRIBUTE SLOT', 'HINT SLOT',
+    'BUTTON SLOT', 'SCRIPTED SLOT',
+  ];
+  expect(mustFind.filter((m) => !found.includes(m)), 'planted leftovers the reading missed').toEqual([]);
+  const mustSkip = ['HIDDEN FIELD', 'CHECKBOX VALUE', 'CODE SAMPLE', 'EXEMPT NOTE', 'EXEMPT ALT'];
+  expect(mustSkip.filter((m) => text.includes(m)), 'text that must stay out of the reading').toEqual([]);
+});
+
 for (const path of PAGES) {
   test(`placeholders — no leftover on ${path}`, async ({ page }) => {
     await page.goto(path);
-    const { text, jsonLd } = await page.evaluate(() => {
-      const exempt = 'code, pre, kbd, samp, [data-placeholder-exempt]';
-      const body = document.body.cloneNode(true) as HTMLElement;
-      body.querySelectorAll(`script, style, noscript, ${exempt}`).forEach((el) => el.remove());
-      // Text nodes, not innerText: content the layout hides (a closed <details>, a
-      // collapsed menu) is still served and still indexed.
-      const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-      const nodes: string[] = [];
-      while (walker.nextNode()) nodes.push(walker.currentNode.nodeValue ?? '');
-      // Two readings of the same copy, because neither is safe alone. Spaced: one
-      // block's last word never fuses with the next block's first ("pricesTODO").
-      // Fused: a word or slot split by inline markup stays whole ("Lo<em>rem</em>").
-      const copy = [nodes.join(' '), nodes.join('')];
-      // Same <head> surfaces as tone.spec.ts: user-facing in SERPs and share cards.
-      const metaSel = [
-        'meta[name="description"]',
-        'meta[property="og:title"]', 'meta[property="og:description"]',
-        'meta[name="twitter:title"]', 'meta[name="twitter:description"]',
-      ];
-      const meta = [document.title, ...metaSel.map((s) => document.querySelector(s)?.getAttribute('content') ?? '')];
-      // Attributes a visitor reads or hears. An input's value only where the browser
-      // shows it (a button's label, a prefilled field), not on a checkbox or hidden field.
-      const attrs = Array.from(document.querySelectorAll('[alt], [aria-label], [title], [placeholder], input[value]'))
-        .filter((el) => !el.closest(exempt))
-        .flatMap((el) => {
-          const type = (el.getAttribute('type') ?? 'text').toLowerCase();
-          const shown = el.tagName === 'INPUT' && !['hidden', 'checkbox', 'radio'].includes(type);
-          return [
-            el.getAttribute('alt'), el.getAttribute('aria-label'), el.getAttribute('title'),
-            el.getAttribute('placeholder'), shown ? el.getAttribute('value') : null,
-          ].map((v) => v ?? '');
-        });
-      const jsonLd = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
-        .map((el) => el.textContent ?? '');
-      return { text: [...meta, ...copy, ...attrs].join('\n'), jsonLd };
-    });
-    // JSON-LD that does not parse is seo.spec.ts's failure; here it is still read, raw.
-    const structured = jsonLd.map((raw) => jsonStrings(raw) ?? raw);
-    judge(path, [text, ...structured].join('\n'));
+    judge(path, await readPage(page));
   });
 }
 
