@@ -72,6 +72,14 @@ Claude verifier that reverted each fix in a scratch copy. Codex was out of quota
   variable name and a comment fixed; refuted: the cost summary already skips missing prices, an
   unreadable reply reaches that point only after a successful answer (so "cost unknown" is the
   honest label), and the test does run the command line. Codex was out of quota.
+  **Round 2, 2026-10-04 (Codex; ollama hit its quota):** 2 BUG, 1 RISK. Fixed: a malformed reply
+  that carries a price kept losing it (now read before the answer is parsed); a 200 reply that
+  is not JSON, and `choices` of an unexpected shape (`KeyError`), dropped out of the cost line
+  (both now count as "cost unknown", and every shape error is caught in `call_engine`). One
+  command-line test covers all three and fails on the round-1 code. RISK, kept as a stated
+  limit: that OpenRouter charges for an unusable reply is not proven here, which is why such a
+  reply counts as "cost unknown" rather than priced; the comments now say "may have been
+  charged".
 
 ## Final state
 

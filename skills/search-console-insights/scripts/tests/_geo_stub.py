@@ -107,8 +107,9 @@ class _H(BaseHTTPRequestHandler):
                 return self._send(500, '{"error": {"message": "no stub for this model"}}')
             if spec.get("status", 200) != 200:
                 return self._send(spec["status"], spec["body"] or '{"error": {"message": "stubbed failure"}}')
-            if spec.get("raw") is not None:       # a reply given verbatim (cut off, empty, …)
-                return self._send(200, json.dumps(spec["raw"]))
+            if spec.get("raw") is not None:       # a reply given verbatim (cut off, empty, …);
+                raw = spec["raw"]                  # a str is sent as is (e.g. not JSON at all)
+                return self._send(200, raw if isinstance(raw, str) else json.dumps(raw))
             return self._send(200, json.dumps(_router_payload(spec, body)))
         engine = _engine_of(self.path)
         if STATE.get("delay", {}).get(engine):

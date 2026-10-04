@@ -598,8 +598,8 @@ class EngineError(Exception):
         self.fatal = fatal
         self.status = status   # the HTTP status, when the failure was an HTTP answer
         self.cost = cost       # what the call cost even though its answer is unusable (OpenRouter)
-        # A reply came back but can't be used (cut off, empty, unreadable): it was charged all the
-        # same, so it counts in the run's cost, as "cost unknown" when the reply gives no price.
+        # A reply came back but can't be used (cut off, empty, unreadable): it may have been charged,
+        # so it counts in the run's cost, as "cost unknown" when the reply gives no price.
         # A price in the reply is proof of the charge, so it sets this too.
         self.billed = billed or cost is not None
 
@@ -663,7 +663,8 @@ def _send(method, url, headers, payload, all_keys, deadline):
         try:
             return r.json()
         except ValueError:
-            raise EngineError("unexpected response: not JSON") from None
+            # A reply came back, so it may have been charged: on OpenRouter it counts as "cost unknown".
+            raise EngineError("unexpected response: not JSON", billed=True) from None
     raise EngineError("HTTP 429: rate limited after retries")
 
 
@@ -686,16 +687,22 @@ def call_engine(engine, mode, question, cfg, key, all_keys, deadline, route="dir
                 "GET", f"{base}/search", {},
                 {"engine": "google_ai_overview", "page_token": ov["page_token"], "api_key": key},
                 all_keys, deadline), all_keys)
+    # The price is read on its own first, so a reply too malformed to read still keeps it.
+    usage = data.get("usage") if isinstance(data, dict) else None
+    reply_cost = usage.get("cost") if isinstance(usage, dict) else None
+    reply_cost = reply_cost if isinstance(reply_cost, (int, float)) and not isinstance(reply_cost, bool) else None
     try:
         if route == "openrouter":
             text, model, sources, searched, cost = _openrouter_parse(data or {})
         else:
             text, model, sources, searched = parse_response(engine, data or {})
-    except (ValueError, AttributeError, TypeError) as e:
-        raise EngineError(f"unexpected response shape: {type(e).__name__}", billed=True) from None
+    except (ValueError, AttributeError, TypeError, KeyError, IndexError) as e:
+        # Any shape we don't expect is a failed call, never a crash of the whole run.
+        raise EngineError(f"unexpected response shape: {type(e).__name__}",
+                          cost=reply_cost if route == "openrouter" else None, billed=True) from None
     # Provider JSON is outside input: only strings go on to be counted, so a malformed
     # citation (an object where a URL should be) can't crash the run after the call.
-    # A reply we can't use was still billed on OpenRouter: its cost goes with the error.
+    # A reply we can't use may still have been charged on OpenRouter: its price goes with the error.
     if not isinstance(text, str):
         raise EngineError("unexpected response shape: answer is not text", cost=cost, billed=True)
     # A snippet cut mid-emoji arrives as a lone surrogate, which can't be written as UTF-8.
