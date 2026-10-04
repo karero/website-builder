@@ -281,8 +281,9 @@ the date and why it is on — keep the rest of that comment: it says why the blo
 stay above the build steps. The hook's comments, its header and this one, are the
 **source of truth for what bypasses the block**: `ALLOW_MAIN_PUSH=1`, the deliberate
 override (above the block); `git push --no-verify` and unsetting `core.hooksPath`
-(header); and a clone that never ran `npm install`, since the `prepare` script is what
-wires the hook. Commit that in the setup pull request. Then
+(header); a clone that never ran `npm install`, since the `prepare` script is what
+wires the hook; and a site that is not the root of its git repo, where `prepare` leaves
+the hook unwired. Commit that in the setup pull request. Then
 tell the owner, and write into `AGENTS.md` §2, what it is: a **local convention**,
 with the bypasses quoted from the hook's comments, not from memory. `PUBLISHING.md`
 tells the owner to push to `main` directly (to publish on a single-stage site, to
@@ -313,7 +314,7 @@ git commit --allow-empty -m "push-block check (never pushed)"
 # `set -e` a bare failing push would abort before the cleanup line runs. Only the
 # hook's own message counts as "blocked": a push can fail for other reasons.
 if out="$(git push --dry-run origin HEAD:main 2>&1)"; then
-  echo "NOT blocked — the hook is not active in this clone (npm install run? hooksPath set?)"
+  echo "NOT blocked — the hook is not active in this clone (npm install run? hooksPath set? site at the root of its repo?)"
 elif grep -qF "Direct push to 'main' blocked" <<<"$out"; then
   echo "blocked as expected"
 else

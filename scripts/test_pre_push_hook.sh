@@ -26,6 +26,9 @@ T="$(mktemp -d "${TMPDIR:-/tmp}/pre-push-test.XXXXXX")"
 trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 unset ALLOW_MAIN_PUSH
+# A git hook exports GIT_DIR (and friends) to what it runs. Inherited here, they would aim the
+# throwaway repos' git commands at the caller's repo.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false"
 fails=0
 check() { if [ "$2" = "$3" ]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s (expected %s, got %s)\n' "$1" "$2" "$3"; fails=$((fails+1)); fi; }
@@ -189,7 +192,7 @@ check "package.json has a prepare line this test can read" yes "$([ -n "$prepare
 check "... and it holds no JSON escape" 0 "$(printf '%s\n' "$prepare" | grep -c '\\')"
 # prep <dir> — run the line as npm does; prints its exit status.
 prep() { (cd "$1" && sh -c "$prepare") >/dev/null 2>&1; echo "$?"; }
-hooks_path() { $git -C "$1" config --get core.hooksPath || echo unset; }
+hooks_path() { $git -C "$1" config --local --get core.hooksPath || echo unset; }
 
 $git init -q "$T/root-site"
 check "prepare, site at the root of its repo: exits 0"         0 "$(prep "$T/root-site")"
@@ -197,6 +200,11 @@ check "prepare, ... and the hook folder is wired"              scripts/hooks "$(
 $git init -q "$T/big"; mkdir -p "$T/big/apps/site"
 check "prepare, site in a subfolder of a bigger repo: exits 0" 0 "$(prep "$T/big/apps/site")"
 check "prepare, ... and that repo's hooks are left alone"      unset "$(hooks_path "$T/big")"
+# A git hook that runs `npm install` (post-merge, post-checkout) hands it GIT_DIR — an absolute
+# one in a linked worktree. Git then takes the current folder for the top of the working tree,
+# so "am I in a subfolder?" answers no. The line must not trust that.
+check "prepare, ... also run from a git hook (GIT_DIR set): exits 0" 0 "$(GIT_DIR="$T/big/.git" prep "$T/big/apps/site")"
+check "prepare, ... and that repo's hooks are still left alone" unset "$(hooks_path "$T/big")"
 $git -C "$T/big" config core.hooksPath .githooks
 check "prepare, ... also when it has a hook folder: exits 0"   0 "$(prep "$T/big/apps/site")"
 check "prepare, ... and that folder stays in use"              .githooks "$(hooks_path "$T/big")"

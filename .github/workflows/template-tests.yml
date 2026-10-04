@@ -51,7 +51,7 @@ jobs:
       # pointed at a scripts/hooks this repo does not have, git runs no hooks at all.
       - name: The install left this repo's git hooks alone
         run: |
-          v="$(git config --get core.hooksPath || true)"
+          v="$(git config --local --get core.hooksPath || true)"
           [ -z "$v" ] || { echo "npm ci set core.hooksPath=$v in the enclosing repo"; exit 1; }
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
