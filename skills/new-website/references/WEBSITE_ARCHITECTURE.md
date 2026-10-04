@@ -203,7 +203,8 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 1. **How many pages, and what content types?** (flat pages vs. repeated collections → Content Collections.)
 2. **Any dynamic/backend features?** → pick the tier:
    - None → **Tier 1** static.
-   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands).
+   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands;
+     a contact form that emails the owner: the **`website-forms`** skill).
    - Accounts / DB / checkout / per-request SSR → **Tier 3** (Workers + D1) — or off-platform if it
      trips a Part-3 escape hatch.
 3. **Who edits content after launch?** You/Claude Code (default, no CMS) vs. non-technical client

@@ -157,8 +157,12 @@ jobs:
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/index.astro
           sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><ContactForm fallback="hello@example.com" /></section>\n</Base>|' src/pages/index.astro
           sed -i 's|^</Base>|  <section class="wrap"><p data-privacy-contact-form>Messages sent through the contact form on this website are delivered to our mailbox by Cloudflare, Inc., which acts as our processor. The website itself does not store them.</p></section>\n</Base>|' src/pages/privacy.astro
-          grep -q "const PAGE = '/';" tests/forms.spec.ts && grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
-          grep -q '<ContactForm fallback' src/pages/index.astro && grep -q 'import ContactForm' src/pages/index.astro && grep -q 'data-privacy-contact-form' src/pages/privacy.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/forms.spec.ts
+          grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
+          grep -q '<ContactForm fallback' src/pages/index.astro
+          grep -q 'import ContactForm' src/pages/index.astro
+          grep -q 'data-privacy-contact-form' src/pages/privacy.astro
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: Type check and the whole suite, with the form in place

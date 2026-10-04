@@ -1,11 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { decide, handle, sendViaCloudflare, LIMITS, TRAP, type Env, type Message } from '../functions/api/contact';
+import { decide, handle, onRequestPost, sendViaCloudflare, LIMITS, TRAP, type Env, type Message } from '../functions/api/contact';
 
 // Guards the contact form (the website-forms skill). `astro preview` never runs a
 // Cloudflare Pages Function, so the function is called directly, the way
 // middleware.spec.ts calls the middleware: a request, the settings, and a stand-in
-// for the mail call. The browser tests then check what a visitor sees, with the
-// endpoint answered by the test. No test here sends a real email: that one check is
+// for the mail call. One test enters through onRequestPost, the export Cloudflare
+// calls, with the mail call's own fetch replaced. The browser tests then check what a
+// visitor sees, with the endpoint answered by the test. No test here sends a real email: that one check is
 // the owner's, once, on the deployed site (the skill's "Done means").
 //
 // This file comes with the form (install the skill's three files together), so both
@@ -68,10 +69,13 @@ test('contact — the install is complete: the form\'s page and the privacy page
 
 test('contact — a good message reaches the owner, who can answer the visitor directly', async () => {
   const { sent, send } = recorder();
-  const res = await handle(post(GOOD), ENV, send);
+  let res!: Response;
+  const log = await logged(async () => { res = await handle(post(GOOD), ENV, send); });
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ ok: true });
   expect(sent).toHaveLength(1);
+  // A sent message leaves no line in the log: the skill reads "no line" that way.
+  expect(log).toBe('');
   expect(sent[0]).toMatchObject({ to: 'owner@example.com', from: 'website@example.com', reply_to: 'ada@example.org' });
   expect(sent[0].subject).toContain('Ada Lovelace');
   expect(sent[0].text).toContain('Hello, do you have time in May?');
@@ -82,10 +86,48 @@ test('contact — a good message reaches the owner, who can answer the visitor d
   expect(again.sent[0].reply_to).toBe("sean.o'brien@example.ie");
 });
 
+test('contact — the entry point Cloudflare calls sends through the real mail call', async () => {
+  // Every other test hands the function a stand-in for the mail call. This one enters
+  // the way a deployment does: onRequestPost, the settings, and the mail call itself.
+  // Only the fetch underneath is replaced, so that nothing leaves the machine.
+  const real = globalThis.fetch;
+  const calls: { url: string; init: RequestInit }[] = [];
+  let status = 200;
+  globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    const body = status === 200 ? { success: true, result: { delivered: ['owner@example.com'] } } : { success: false, errors: [{ code: 10102 }] };
+    return new Response(JSON.stringify(body), { status });
+  }) as typeof fetch;
+  try {
+    const sent = await onRequestPost({ request: post(GOOD), env: ENV });
+    expect(sent.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('https://api.cloudflare.com/client/v4/accounts/acc/email/sending/send');
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+    expect(JSON.parse(String(calls[0].init.body))).toMatchObject({ to: 'owner@example.com', reply_to: 'ada@example.org' });
+    // Cloudflare says no: the visitor is told, through the same entry point.
+    status = 403;
+    let answer!: Response;
+    await logged(async () => { answer = await onRequestPost({ request: post(GOOD), env: ENV }); });
+    expect(answer.status).toBe(502);
+    expect(await answer.json()).toEqual({ ok: false, error: 'send_failed' });
+    expect(calls).toHaveLength(2);
+    // Without its settings the entry point calls nobody.
+    const log = await logged(async () => { answer = await onRequestPost({ request: post(GOOD), env: {} }); });
+    expect(answer.status).toBe(503);
+    expect(log).toContain('not set on this deployment');
+    expect(calls).toHaveLength(2);
+  } finally {
+    globalThis.fetch = real;
+  }
+});
+
 test('contact — a missing or malformed field is refused and nothing is sent', async () => {
   const cases: [Record<string, string>, Record<string, string>][] = [
     [{ ...GOOD, message: '   ' }, { message: 'required' }],
     [{ ...GOOD, name: '' }, { name: 'required' }],
+    [{ ...GOOD, name: '\u200B\u200B' }, { name: 'required' }],
+    [{ ...GOOD, message: '\u200B \u00A0' }, { message: 'required' }],
     [{ ...GOOD, email: '' }, { email: 'required' }],
     [{ ...GOOD, email: 'ada@example' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada@example.org, eve@example.net' }, { email: 'invalid' }],
@@ -130,12 +172,14 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
 test('contact — a line break in the name cannot start a new mail header', async () => {
   const { sent, send } = recorder();
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
-  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029' }), ENV, send);
+  await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029x\u202Ey\u2066z' }), ENV, send);
   expect(sent).toHaveLength(2);
   for (const message of sent) {
-    expect(message.subject).not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}]/u);
-    expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}]/u);
+    expect(message.subject).not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]/u);
+    expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]/u);
   }
+  // Each run of such characters became one space, wherever it stood in the name.
+  expect(sent[1].subject).toBe('Website message from Ada  Love lace Bcc: eve x y z');
   // A name made of nothing else is no name.
   const none = recorder();
   expect((await handle(post({ ...GOOD, name: '\u0000\u0001' }), ENV, none.send)).status).toBe(400);
@@ -177,6 +221,8 @@ test('contact — when the mail service refuses or breaks, the visitor is told',
   // with a line break in it comes back inside the "invalid header value" error.
   const timeout = new Error('"Bearer tok" is an invalid header value; gave up sending "Hello, do you have time in May?" for ada@example.org');
   timeout.name = 'TimeoutError';
+  const aborted = new Error('x');
+  aborted.name = 'AbortError';
   // An error's name is text too: one outside the function's short list is not repeated.
   const named = new Error('x');
   named.name = 'Bearer tok refused for ada@example.org';
@@ -184,7 +230,7 @@ test('contact — when the mail service refuses or breaks, the visitor is told',
   const shifty = new Error('x');
   let reads = 0;
   Object.defineProperty(shifty, 'name', { get: () => (reads++ === 0 ? 'TypeError' : 'Bearer tok for ada@example.org') });
-  for (const result of [false, timeout, named, shifty]) {
+  for (const result of [false, timeout, aborted, named, shifty]) {
     const { send } = recorder(result);
     let res!: Response;
     const log = await logged(async () => { res = await handle(post(GOOD), ENV, send); });
@@ -192,6 +238,7 @@ test('contact — when the mail service refuses or breaks, the visitor is told',
     expect(await res.json()).toEqual({ ok: false, error: 'send_failed' });
     // The log says what kind of error it was, and never what the visitor wrote.
     if (result === timeout) expect(log).toContain('the mail call failed before an answer came: TimeoutError');
+    if (result === aborted) expect(log).toContain('the mail call failed before an answer came: AbortError');
     if (result === named) expect(log).toContain('the mail call failed before an answer came: another error');
     if (result === shifty) expect(log).toContain('the mail call failed before an answer came: TypeError');
     expect(log).not.toContain('time in May');
@@ -238,6 +285,17 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
   const html = await ok.text();
   expect(html).toContain('<html lang="de">');
   expect(html).toContain('Danke.');
+  // Each answer is the sentence for what happened and no other, in both languages built in.
+  for (const lang of ['en', 'de']) {
+    const pages: Record<string, string> = {
+      'data-sent': await (await handle(post({ ...GOOD, lang }, { accept: 'text/html' }), ENV, recorder().send)).text(),
+      'data-invalid': await (await handle(post({ ...GOOD, lang, email: 'nope' }, { accept: 'text/html' }), ENV, recorder().send)).text(),
+      'data-failed': await (await handle(post({ ...GOOD, lang }, { accept: 'text/html' }), ENV, recorder(false).send)).text(),
+    };
+    for (const [is, answerPage] of Object.entries(pages)) {
+      for (const [name, words] of Object.entries(WORDS)) expect(words.test(answerPage), `${lang}: the ${is} page and the words for ${name}`).toBe(name === is);
+    }
+  }
   // A language the page does not know, or a word that names something built in.
   for (const lang of ['xx', 'constructor', '__proto__']) {
     const bad = await handle(post({ ...GOOD, email: 'nope', lang }, { accept: 'text/html' }), ENV, send);
@@ -278,7 +336,10 @@ test('contact — the mail call asks Cloudflare the right way, believes only a r
     return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
   }) as typeof fetch;
 
-  expect(await sendViaCloudflare(message, env, answer(200, { success: true, result: { delivered: ['owner@example.com'], queued: [], permanent_bounces: [] } }))).toBe(true);
+  let yes = false;
+  const quiet = await logged(async () => { yes = await sendViaCloudflare(message, env, answer(200, { success: true, result: { delivered: ['owner@example.com'], queued: [], permanent_bounces: [] } })); });
+  expect(yes).toBe(true);
+  expect(quiet, 'a yes leaves no line').toBe('');
   expect(calls[0].url).toBe('https://api.cloudflare.com/client/v4/accounts/acc-1/email/sending/send');
   expect(calls[0].init.method).toBe('POST');
   expect((calls[0].init.headers as Record<string, string>).Authorization).toBe('Bearer tok-1');
@@ -397,6 +458,8 @@ test('contact — an empty form is stopped in the browser, before anything is po
   await page.goto(PAGE);
   await page.click('#contact-form button[type="submit"]');
   await expect(page.locator('#contact-name:invalid')).toHaveCount(1);
+  // The form's script writes "Sending…" the moment a submission starts: it never did.
+  await expect(page.locator('#contact-form [role="status"]')).toBeEmpty();
   expect(posts).toBe(0);
 });
 

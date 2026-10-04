@@ -123,7 +123,9 @@ preview address cannot send, and says so.
    and German are built in, with no form of address in German, so it fits a "du" site
    and a "Sie" site. Another language: add it to `TEXT` in the component, to `PLAIN`
    in the function and to `WORDS` in the spec. The tone rules apply
-   (`tests/tone.spec.ts`).
+   (`tests/tone.spec.ts`). The mail the owner receives is in English ("Website message
+   from …", "Name:", "Email:"): two strings in the function, to change if the owner
+   wants them in another language.
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
@@ -134,6 +136,9 @@ preview address cannot send, and says so.
 5. In `tests/forms.spec.ts` set `PAGE` (the page with the form) and `PRIVACY` (the
    privacy page). Both are required: the spec fails while either is empty, and fails
    when the privacy page lacks the marked text or that text does not name Cloudflare.
+   One copy of the spec guards one form and one privacy page: on a site with several
+   languages, copy it once per language (`tests/forms.de.spec.ts`), each with that
+   language's `PAGE` and `PRIVACY`.
 6. `npm run check && npm test`. Say in the pull request that it adds a file under
    `functions/` (`AGENTS.md` §5).
 
@@ -179,7 +184,8 @@ what is processed, why, the legal basis and how long it is kept, then add this p
 Nothing in the test suite sends a real email. The first real message is sent where the
 four settings are. With Production only (§2 step 4) that is the **live** address: on a
 single-stage site once the pull request is merged, on a two-stage site after
-`npm run ship`. A preview address then answers "could not be sent" and its log names
+`npm run ship`, on a site that is published by a deploy command after that command
+(`PUBLISHING.md`). A preview address then answers "could not be sent" and its log names
 all four settings. That is expected, not a fault, and no reason to enter the token for
 Preview.
 
@@ -187,47 +193,28 @@ Preview.
    an address that is **not** the destination mailbox.
 2. It arrives in the mailbox within a minute or two; pressing Reply addresses the
    visitor's address. Spam folder checked if it does not.
-3. It does not arrive, or the form says "could not be sent": have the owner open the
-   function's log for that deployment in the Cloudflare dashboard, **then send the
-   message again** (the dashboard shows a function's log lines as they happen; start
-   it first). When the function itself decides that a message cannot go out, it writes
-   one of four lines:
-   - "not set on this deployment: …" names the settings missing from §2.
-   - "Cloudflare did not accept the message: …" carries the HTTP status, how many
-     errors Cloudflare named and their numeric codes. Report them to the owner as they
-     are, and look them up in Cloudflare's documentation; do not guess. A status of 200
-     with `"readable":false` means the answer broke off part-way: the message may have
-     gone out all the same, so look in the mailbox.
-   - "refused a post that names another origin": the browser said the form was posted
-     from another address than the one the function runs on. Open the form on the
-     address being tested. For visitors without JavaScript the site's `Referrer-Policy`
-     can cause this too (§6).
-   - "the mail call failed before an answer came: …" means the call ended without an
-     answer from Cloudflare. `TimeoutError` or `AbortError`: no answer within ten
-     seconds; try again later, and if it keeps happening, look at Cloudflare's status
-     page. Anything else (`TypeError`, "another error"): the call could not be made.
-     That can be the network, and it can be a setting that holds something that cannot
-     be sent, for example a token with a line break or an invisible character inside
-     it. If a second try a little later ends the same way, have the owner create a new
-     token and enter the four settings again (§2), then redeploy. These names are what
-     the test runner reports for such failures; what Cloudflare's runtime reports was
-     not observed. Read a name that fits neither group the same way: try again, then
-     check the settings.
+3. It does not arrive, or the form says "could not be sent": look in the mailbox first.
+   The form says "could not be sent" whenever it did not get a clear yes, and the
+   message can have gone out all the same. Then have the owner open the function's log
+   for that deployment in the Cloudflare dashboard and **send the message again** (the
+   dashboard shows a function's log lines as they happen; start it first). Read the
+   line that appears literally. None of the function's lines carries the token or
+   anything the visitor entered: only the names of settings, the status, numeric codes
+   and counts, and the kind of error from a short fixed list.
 
-   None of them contains the token or anything the visitor entered: only the status,
-   numeric codes and counts, and the kind of error from a short fixed list are logged,
-   never Cloudflare's error text.
-
-   No line at all while the form says "could not be sent": the function did not
-   decide that. Either the post never reached it (check that
-   `functions/api/contact.ts` is in the deployed commit), or it sent the message and
-   its answer was lost on the way back to the browser: look in the mailbox. A line
-   that is none of the four is an error inside the function: report it as it is.
-4. The form said "sent" and nothing arrived, with the log open: no line at all means
-   Cloudflare accepted the message, so look in the spam folder and check that the
-   destination address was confirmed (§2 step 2). The line "dropped a submission that
-   filled the hidden field" means the owner's own browser or password manager filled the
-   field no person sees (§6): send again from another browser or a private window.
+   | The log says | Which means | Do this |
+   |---|---|---|
+   | "not set on this deployment: …" | the settings it names are missing on this deployment | enter them (§2) and redeploy. On a preview address with Production-only settings this is expected |
+   | "Cloudflare did not accept the message: …" | Cloudflare's answer was not a clear yes. The line gives the HTTP status, how many errors Cloudflare named and their numeric codes, how many addresses bounced, and whether the answer could be read as an answer at all | report the status and the codes to the owner as they are and look them up in Cloudflare's documentation; do not guess. If the line says `"readable":false`, whether the message went out is not known: look in the mailbox. A status of 200 with no errors, nothing bounced and `"readable":true`: Cloudflare answered in a shape the function does not take for a yes. The message may have gone out: look in the mailbox, then hold Cloudflare's current REST reference against `sendViaCloudflare` in the function. `bounced` above 0: Cloudflare reports the destination address as bouncing; check `CONTACT_TO` and that the address was confirmed (§2 step 2) |
+   | "the mail call failed before an answer came: …" | the call to Cloudflare ended in an error, not an answer; whether the message went out is not known. The word after the colon is a hint, named as the test runner names such errors (Cloudflare's runtime was not observed): `TimeoutError` or `AbortError` for no answer within ten seconds, `TypeError` for a request that could not be made or a connection that failed, "another error" for anything else | look in the mailbox, then try once more a little later. The same line again: look at Cloudflare's status page. If that shows nothing, have the owner create a new token and enter the four settings afresh, then redeploy (in the test runner a line break or an invisible character inside the token causes exactly this line) |
+   | "refused a post that names another origin" | the browser said the form was posted from another address than the function's | open the form on the address being tested. For visitors without JavaScript the site's referrer policy can cause this (§6) |
+   | "dropped a submission that filled the hidden field" | something filled the field no person sees. The form answered "sent" and nothing was sent | send again from another browser or a private window (§6) |
+   | no line at all | the function wrote nothing. Either the post did not reach it, or the message went out (a sent message leaves no line), or a field was missing or not valid, which the form reports in a sentence of its own | look in the mailbox, then check that `functions/api/contact.ts` is in the deployed commit |
+   | any other line | it is not one of the function's own | report it as it is |
+4. The form said "sent" and nothing arrived: look in the spam folder and check that the
+   destination address was confirmed (§2 step 2). Then open the log and send again. No
+   line means Cloudflare accepted the message. The "dropped a submission" line means
+   the owner's own browser or password manager filled the hidden field: see the table.
 
 Only then is the form done.
 
@@ -240,12 +227,12 @@ Only then is the form done.
   and is not stopped by it, nor by the check that refuses a post naming another
   website as its origin. If spam gets through, the next step is Cloudflare Turnstile on
   the form and a rate-limiting rule on `/api/contact`. Neither is built here: say so
-  when the owner reports spam. A real visitor whose browser or password manager fills the hidden
-  field is dropped the same way: its name and `autocomplete="off"` give them no reason
-  to, but that was not measured. So each dropped submission leaves a line in the
-  function's log, without its text. The dashboard shows log lines only while the log is
-  open: an owner who suspects lost messages opens it and sends again from the browser
-  in question.
+  when the owner reports spam. A real visitor whose browser or password manager fills
+  the hidden field is dropped the same way: its name and `autocomplete="off"` give
+  them no reason to, but that was not measured. So each dropped submission leaves a
+  line in the function's log, without its text. The dashboard shows log lines only
+  while the log is open: an owner who suspects lost messages opens it and sends again
+  from the browser in question.
 - **Without JavaScript, the answer is a page of its own.** Reloading that page makes
   the browser ask whether to send the form again.
 - **Not with `Referrer-Policy: no-referrer`.** Under that policy a browser posts a plain

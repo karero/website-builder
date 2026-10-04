@@ -212,11 +212,13 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 13 | a visitor using only the keyboard | they tab through the form | name, email, message, send. The hidden field is never reached |
 | 14 | a two-stage site with the four settings entered for the live site only | the owner tries the form on the preview address | "could not be sent", and the log names the four settings. The skill says this is expected and that the first real message is sent on the live address |
 | 15 | a script posts a file as the name, a name made of control characters, or a post of 200 KB | it arrives | refused; nothing is sent |
-| 16 | the owner tries their own form and reads "could not be sent" | they open the function's log and send again | one line says why: a setting is missing, Cloudflare refused (status and numeric codes), the call got no answer, or the post named another origin. No line at all means the function did not refuse anything: the post never reached it, or the message went out and the answer was lost on the way back. The skill says what to do in each case |
+| 16 | the owner tries their own form and reads "could not be sent" | they open the function's log and send again | the mailbox first: "could not be sent" means no clear yes, and the message can have gone out all the same. Then one line says why: a setting is missing, Cloudflare's answer was not a clear yes (status and numeric codes), the call ended in an error, or the post named another origin. No line at all means the function wrote nothing: the post never reached it, or the message went out, or the form reported a field as missing or not valid. The skill has one table: what each line means and what to do |
 
-Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`, run on 2026-10-04 in a
-scratch copy of the starter with the skill installed by its own steps: 19 form tests, and
-the full suite with the form in place (80 passed, 1 skip). 68 deliberate breakages of the
+Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`,
+run on 2026-10-04 in a scratch copy of the starter with the skill installed by its own
+steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). One of
+the tests enters the function the way a deployment does, through the export Cloudflare
+calls, with only the network call underneath replaced. 81 deliberate breakages of the
 function, the form or the privacy text were each caught by those tests. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default
@@ -230,7 +232,11 @@ which a browser may fill in for a real visitor. The second round found that the 
 carry the token inside an error text, and that the link back to the form could be made to
 point at another site. The third found that the form could say "could not be sent" while
 the log said nothing, and that the advice for one log line pointed the owner at Cloudflare
-when the cause can be a badly pasted token.
+when the cause can be a badly pasted token. The fourth and fifth found sentences in the
+troubleshooting text that claimed more than the code shows; that text is now one table,
+one row for each line the function can write. A reader who had seen none of it then read
+the whole change once and found that no test entered the function through the export
+Cloudflare calls.
 
 **Not verified, and why.** No real email has been sent: that needs a Cloudflare account
 with a domain onboarded for sending, which only an owner has. The skill's last step is

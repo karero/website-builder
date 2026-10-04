@@ -49,8 +49,13 @@ const MAX_BODY_BYTES = 100_000;
 // apostrophe is allowed (o'brien@…): the address travels as a JSON value, not a header line.
 const EMAIL = /^[^\s@<>",;:\\()[\]]+@[^\s@<>",;:\\()[\]]+\.[^\s@<>",;:\\()[\]]{2,}$/;
 // Characters nobody sees: control characters and invisible format characters have no
-// place in an address.
+// place in an address. (A few domain names carry a joiner, one of the format
+// characters, in their Unicode spelling. An address typed that way is refused too, and
+// its visitor is shown the address to write to.)
 const UNSEEN = /[\p{Cc}\p{Cf}]/u;
+// Whether a text holds anything a person can see: a name or a message made of spaces
+// and invisible characters only is an empty one.
+const visible = (text: string) => /[^\p{Cc}\p{Cf}\p{Z}]/u.test(text);
 
 // The mail goes out through Cloudflare's own API. true only when Cloudflare says it
 // delivered or queued the message. Any other answer counts as a failure and is logged:
@@ -135,19 +140,20 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
     return { outcome: { status: 200, body: { ok: true } }, lang };
   }
 
-  // The name goes into the subject line: a line break of any kind, or any other control
-  // character in it, becomes a space.
-  const name = field('name').replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ').trim();
+  // The name goes into the subject line: a line break of any kind, any other control
+  // character, and the characters that turn the direction of the text around become a
+  // space. Other format characters stay: some names are written with joiners.
+  const name = field('name').replace(/[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]+/gu, ' ').trim();
   const email = field('email');
   // Browsers send a textarea's line breaks as CRLF; count them as the one character
   // the visitor typed, or a long message with many paragraphs fails the limit.
   const message = field('message').replace(/\r\n/g, '\n');
   const fields: Record<string, string> = {};
-  if (!name) fields.name = 'required';
+  if (!visible(name)) fields.name = 'required';
   else if (name.length > LIMITS.name) fields.name = 'too_long';
   if (!email) fields.email = 'required';
   else if (email.length > LIMITS.email || !EMAIL.test(email) || UNSEEN.test(email)) fields.email = 'invalid';
-  if (!message) fields.message = 'required';
+  if (!visible(message)) fields.message = 'required';
   else if (message.length > LIMITS.message) fields.message = 'too_long';
   if (Object.keys(fields).length) return { outcome: { status: 400, body: { ok: false, error: 'invalid', fields } }, lang };
 
@@ -175,8 +181,8 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
     // in time). Never its text, and never a name outside the list: either can repeat
     // what was sent, as Cloudflare's error texts can. The name is read once, and what
     // is logged is the list's own entry, not what the error said.
-    const name: unknown = err instanceof Error ? err.name : null;
-    const kind = KINDS.find((known) => known === name) ?? 'another error';
+    const thrown: unknown = err instanceof Error ? err.name : null;
+    const kind = KINDS.find((known) => known === thrown) ?? 'another error';
     console.error('contact form: the mail call failed before an answer came: ' + kind);
   }
   return { outcome: sent ? { status: 200, body: { ok: true } } : { status: 502, body: { ok: false, error: 'send_failed' } }, lang };
@@ -184,20 +190,21 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
 
 // What a visitor without JavaScript reads after sending. No form of address, so it
 // fits a "du" site and a "Sie" site alike. On a failure it sends them back to the
-// form, where the address to write to is always shown.
+// form, where the address to write to is always shown, and by the browser's own Back
+// button: the link under the sentence loads the page afresh.
 const PLAIN: Record<string, { title: string; sent: string; invalid: string; failed: string; back: string }> = {
   en: {
     title: 'Contact',
     sent: 'Thank you. The message has been sent.',
-    invalid: 'Some details are missing or not valid. Please go back and check them.',
-    failed: 'The message could not be sent. Please go back: the address to write to is shown with the form.',
+    invalid: 'Some details are missing or not valid. Please use the Back button of the browser and check them.',
+    failed: 'The message could not be sent. Please use the Back button of the browser: the address to write to is shown with the form.',
     back: 'Back to the website',
   },
   de: {
     title: 'Kontakt',
     sent: 'Danke. Die Nachricht wurde gesendet.',
-    invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte zurückgehen und prüfen.',
-    failed: 'Die Nachricht konnte nicht gesendet werden. Bitte zurückgehen: Die Adresse für eine direkte Nachricht steht beim Formular.',
+    invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte mit der Zurück-Taste des Browsers zurückgehen und prüfen.',
+    failed: 'Die Nachricht konnte nicht gesendet werden. Bitte mit der Zurück-Taste des Browsers zurückgehen: Die Adresse für eine direkte Nachricht steht beim Formular.',
     back: 'Zurück zur Website',
   },
 };
