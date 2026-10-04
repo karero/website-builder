@@ -82,8 +82,8 @@ already-reviewed plan describe something nobody will build.
 document, and has that document passed its own gate as it stands — a trail with a clean
 verdict (PLAN, or DIFF if it was reviewed as a change), and no change to the document after the
 head that trail names? If not, tell the owner before round 1 and let them choose — gate the
-requirements first, or go on knowing the plan's rounds may be paid again. Going on is the owner's call, not a failure of the
-gate.
+requirements first, or go on knowing the plan's rounds may be paid again. Going on is the
+owner's call, not a failure of the gate.
 
 **What this does not cover.** A plan that carries its own requirements is one document and one
 gate. A plan whose first step is "write the requirements" has none to gate yet: say so to the
