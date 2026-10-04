@@ -1,6 +1,6 @@
 # DIFF review — branch `feat/rendered-placeholder-gate` — a test that reads the rendered site for leftover placeholders
 
-Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, plus the documents that describe it) · verdict: see the last round below · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch; POST AUTHORITY — this session opens the pull request (the owner's instruction, quoted under "Waivers").
+Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, plus the documents that describe it) · verdict: **every BUG fixed and re-verified; F4 waived by the owner; one RISK (FR-6) closes when the pull request's `template-tests` run is green** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch; POST AUTHORITY — this session opens the pull request (the owner's instruction, quoted under "Waivers").
 
 **Data release consent** (owner, in this session, quoted verbatim). For Codex and ollama-cloud: "Codex + ollama-cloud (Recommended)". For Antigravity: "use antigravity as the second reviewer". The repo has no standing consent; both are session-scoped.
 
@@ -13,6 +13,7 @@ Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, pl
 | 5 | `4ae606c` | delta since `6f2aee0` | codex, medium, read-only | 89 s, 35 491 | 0 / 0 / 0 |
 | full read | `c72d59f` | full, `259a1bb...c72d59f` | antigravity (`agy`, CLI default model, unconfirmed), plan mode, told not to use tools · fresh-eyes: the host's own model, read-only sub-agent, no shared context · ollama-cloud **FAILED** again (429) | antigravity 224 s · fresh-eyes 982 s, 280 280 | antigravity 0 / 0 / 2 · fresh-eyes 4 / 4 / 5 |
 | 6 | `8bb01f5` | delta since `4ae606c` (codex's last seen head) | codex, medium, read-only | 331 s, 67 278 | 1 / 3 / 0 |
+| 7 | `6f59bfd` | delta since `8bb01f5` | codex, medium, read-only | 163 s, 46 381 | 0 / 1 re-raised (FR-6) / 0 — "No new BUG or NIT findings." |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -39,14 +40,14 @@ Base `259a1bb` · depth: Normal (a new test that gates every scaffolded site, pl
 | FR-5 | RISK | fresh-eyes | full read | Lower-case slots passed on finished pages | fixed for brackets opening with a slot word · externally_reverified r6 | `8bb01f5` |
 | FR-6 | RISK | fresh-eyes full read, codex r6 | full read | "Green out of the box" has no run a reviewer could see | open until the pull request's `template-tests` run reports | author's runs: 61 passed locally and with CI set |
 | FR-7 | BUG | fresh-eyes | full read | The template rule stopped at a line break, against its comment | fixed · externally_reverified r6 | `8bb01f5` |
-| FR-8 | BUG | fresh-eyes | full read | One slot split by markup was reported twice; ALLOWLIST missed the spaced spelling | fixed in two steps (see R6-1) | `8bb01f5`, then the next commit |
+| FR-8 | BUG | fresh-eyes | full read | One slot split by markup was reported twice; ALLOWLIST missed the spaced spelling | fixed in two steps (see R6-1) · externally_reverified r7 | `8bb01f5`, `6f59bfd` |
 | FR-9…12 | NIT | fresh-eyes | full read | README step 4; "not read" lists; a decision row for the example values; the 404 message and the shared input-type list | fixed · externally_reverified r6 | `8bb01f5` |
 | FR-13 | NIT | fresh-eyes | full read | Pre-existing: a partial list in a `seo.spec.ts` comment, a possibly stale exemption entry | not introduced here, no effect on behaviour; left | — |
 | AG-1 | NIT | antigravity | full read | ALLOWLIST entries in original case never matched | fixed · externally_reverified r6 | `8bb01f5` |
 | AG-2 | NIT | antigravity | full read | `new URL(file, baseURL!)` asserts baseURL | refuted: the form `email.spec.ts` uses; the kit's config always sets it (verified r6) | `playwright.config.ts` |
-| R6-1 | BUG | codex | 6 | Markup inside a word still gave two spellings of one slot, so ALLOWLIST and the draft token missed one | fixed · locally_verified | the commit after `8bb01f5`: compared with all whitespace removed |
-| R6-2 | RISK | codex | 6 | Two self-checks could not fail: `[ pdf ]` matched no rule; the fixture borrowed the reader's input-type list | fixed · locally_verified | same commit: `[ PDF ]` asserted as a finding first; the types named in the fixture |
-| R6-3 | RISK | codex | 6 | The waiver was claimed without the owner's words in this trail | fixed | "Waivers" below |
+| R6-1 | BUG | codex | 6 | Markup inside a word still gave two spellings of one slot, so ALLOWLIST and the draft token missed one | fixed · locally_verified · externally_reverified r7 | `6f59bfd`: compared with all whitespace removed |
+| R6-2 | RISK | codex | 6 | Two self-checks could not fail: `[ pdf ]` matched no rule; the fixture borrowed the reader's input-type list | fixed · locally_verified · externally_reverified r7 | `6f59bfd`: `[ PDF ]` asserted as a finding first; the types named in the fixture |
+| R6-3 | RISK | codex | 6 | The waiver was claimed without the owner's words in this trail | fixed · externally_reverified r7 | "Waivers" below |
 
 **Waivers.** F4, and with it the same gap for a content placeholder pushed straight to `main`: the owner, in this session on 2026-10-04, after being shown both options (waive until the publish gate, or build a hard stop now): "waive it, push the branch and open the PR". Endpoint: plan step A2, the publish gate (`docs/reviews/SKILL-PLAN-capability-gaps.md`).
 
