@@ -79,14 +79,36 @@ jobs:
           printf 'node_modules\ndist\n.astro\ntest-results\n' > .gitignore
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
-          git init -q && git add -A && git -c user.name=ci -c user.email=ci@example.invalid commit -q -m "a site with the scorecard skill"
+          git init -q && git config user.name ci && git config user.email ci@example.invalid
+          git add -A && git commit -q -m "a site with the scorecard skill"
       - name: Type check, write the card, run the suite with it
         working-directory: ${{ runner.temp }}/site
         run: |
           npm run check
           npm run scorecard
-          git add scorecard.json && git -c user.name=ci -c user.email=ci@example.invalid commit -q -m "scorecard"
+          git add scorecard.json && git commit -q -m "scorecard"
           npm run scorecard -- --lighthouse 90,91,92,93 --date 2026-01-01
-          git add scorecard.json && git -c user.name=ci -c user.email=ci@example.invalid commit -q -m "scores"
+          git add scorecard.json && git commit -q -m "scores"
           npm test
           grep -q 'data-state="current"' dist/index.html
+      # The three ways a run has to be refused, each against a real Playwright report:
+      # the script's own arithmetic is pinned in its spec, this pins what Playwright
+      # hands it. Each case is committed (the script wants a clean tree), must make
+      # `npm run scorecard` fail, must leave scorecard.json alone, and is then undone.
+      - name: A red run writes no card
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          before="$(sha256sum scorecard.json)"
+          refused() {
+            git add -A && git commit -q -m "$1"
+            if npm run scorecard; then echo "::error::$1: the run was accepted"; exit 1; fi
+            [ "$(sha256sum scorecard.json)" = "$before" ] || { echo "::error::$1: scorecard.json changed"; exit 1; }
+            git reset -q --hard HEAD~1
+          }
+          printf 'this is not typescript (((\n' > tests/broken.spec.ts
+          refused "a spec file that cannot load"
+          sed -i '0,/^  test(/s//  test.only(/' tests/links.spec.ts && grep -q '^  test.only(' tests/links.spec.ts
+          refused "a stray test.only"
+          sed -i 's|<p>Contact:|<p>FIXME</p><p>Contact:|' src/pages/index.astro && grep -q 'FIXME' src/pages/index.astro
+          refused "a failing test"
+          [ -z "$(git status --porcelain)" ]

@@ -16,7 +16,7 @@ it; a row is only as good as its evidence.
 | A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built and reviewed | karero/website-builder#145, the pull request that carries this row |
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
 | A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
-| B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter and by a CI job that installs it | the pull request that carries this row |
+| B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
 | C | Forms: contact form with a submission test | scenarios only; delivery path decided 2026-10-04 (a function with Cloudflare's own email sending, availability to confirm) | — |
 | D | Import: bring an existing site under the gate | scenarios only | — |
 | E | Install: one-line install, marketplace listing | blocked on the name (decision row 2026-10-04) | — |

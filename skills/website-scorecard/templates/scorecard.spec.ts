@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { SITE } from '../src/config';
 import { loadCard, parseLighthouse, sameState, stateOf, summarize, today } from '../scripts/scorecard.mjs';
 
 // Guards the published scorecard (the website-scorecard skill): the page shows the
@@ -83,9 +84,10 @@ test('scorecard — the page shows the numbers in the file', async ({ page }) =>
 
   // Every figure on the page against the file: the totals, each area, the date, the version.
   const whole = (n: number) => new RegExp(`(^|\\D)${n}(\\D|$)`);
-  const summary = section.locator('[data-scorecard-summary]');
-  await expect(summary).toHaveText(whole(card.passed));
-  await expect(summary).toHaveText(whole(card.pages));
+  // The summary names the checks first and the pages second, in both built-in
+  // languages. A language added to the component with another order: adapt this line.
+  const figures = ((await section.locator('[data-scorecard-summary]').textContent()) ?? '').match(/\d+/g)?.map(Number) ?? [];
+  expect(figures, 'the summary: checks passed, then pages').toEqual([card.passed, card.pages]);
   await expect(section.locator('[data-scorecard-skipped]')).toHaveCount(card.skipped > 0 ? 1 : 0);
   if (card.skipped > 0) await expect(section.locator('[data-scorecard-skipped]')).toHaveText(whole(card.skipped));
   await expect(section.locator('[data-scorecard-tested]')).toContainText(card.generated);
@@ -103,7 +105,11 @@ test('scorecard — the page shows the numbers in the file', async ({ page }) =>
     // The four scores, in the order the page lists them.
     const shown = ((await lighthouse.textContent()) ?? '').split(':').slice(1).join(':').match(/\d+/g)?.map(Number) ?? [];
     expect(shown.slice(0, 4), 'the four Lighthouse scores').toEqual([performance, accessibility, bestPractices, seo]);
-    await expect(lighthouse.locator('a')).toHaveAttribute('href', new RegExp(`form_factor=${strategy}$`));
+    // The link re-runs the same test: PageSpeed, this site's address, the same device class.
+    const href = new URL((await lighthouse.locator('a').getAttribute('href')) ?? 'about:blank');
+    expect([href.origin, href.pathname], 'the re-run link opens PageSpeed').toEqual(['https://pagespeed.web.dev', '/analysis']);
+    expect(href.searchParams.get('url'), 'the re-run link tests this site').toBe(SITE.url + '/');
+    expect(href.searchParams.get('form_factor'), 'the re-run link uses the same device class').toBe(strategy);
   }
 
   // What the page says about the card's age, against the same question asked here.

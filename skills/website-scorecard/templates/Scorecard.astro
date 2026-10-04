@@ -69,7 +69,9 @@ const language = (Astro.props.lang ?? Astro.currentLocale ?? (SITE as { locale?:
 const t = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
 const lh = card?.lighthouse;
 const lhScores = lh ? [lh.performance, lh.accessibility, lh.bestPractices, lh.seo] : [];
-// The same test, for this site's own address and the same device class.
+// The same test, for this site's own address and the same device class. Observed on
+// 2026-10-04: this address starts a PageSpeed run for `url` with the Mobile or the
+// Desktop tab selected as `form_factor` says.
 const rerun = lh ? `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(SITE.url + '/')}&form_factor=${lh.strategy}` : '';
 ---
 {card && (
