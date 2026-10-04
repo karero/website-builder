@@ -1,4 +1,4 @@
-# DIFF review — branch `feat/website-scorecard` — an optional public scorecard skill
+# DIFF review — karero/website-builder#148 (branch `feat/website-scorecard`) — an optional public scorecard skill
 
 Base `4bddcad` · depth: Normal (a new skill whose script and component run in sites, plus a CI job) · verdict: **every BUG fixed and re-verified; no open finding except one RISK that only a real run can settle, which the pull request's `scorecard-skill` check does** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the worktree and the branch; POST AUTHORITY — this session opens the pull request, on the owner's instruction in this session: "push it and open the PR once the review is clean", then "merge it once the checks are green".
 
@@ -11,6 +11,7 @@ Base `4bddcad` · depth: Normal (a new skill whose script and component run in s
 | 3 | `eb4e989` | delta since `28f4d65` | codex, medium, read-only | 167 s, 51 015 | 0 / 1 new + 2 re-raised / 0 |
 | re-gate | `a63a5d6` | delta since `eb4e989` (one workflow step) | codex, medium, read-only | 163 s, 70 135 | 0 / 1 / 0 |
 | re-gate | `80af978` | delta since `a63a5d6` (three lines of that step) | codex, medium, read-only | 157 s, 33 517 | 0 / 1 re-raised (T2) / 0 |
+| re-gate | `32c2d9c` | delta since `80af978` (the workflow fix, X1) | codex, medium, read-only | 65 s, 22 881 | 0 / 0 new / 0 — the fix verified as written; acceptance by GitHub is shown by the run |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -34,6 +35,7 @@ Base `4bddcad` · depth: Normal (a new skill whose script and component run in s
 | T4 | RISK | codex | 2, 3 | The Cloudflare facts had no citation, then no checked contents | supported by the source, below | — |
 | U1 | RISK | codex | 3 | No check of the card against counts the script did not produce | fixed · externally_reverified re-gate | `a63a5d6` |
 | V1 | RISK | codex | re-gate | The CI step counted source lines to know the card's own tests | fixed · externally_reverified re-gate | `80af978` |
+| X1 | BUG | GitHub Actions, first push of the branch | The changed workflow file was rejected ("workflow file issue"): the new job's `defaults` used the `runner` context, which is not allowed there. Neither the new job nor the starter's own suite ran on the pull request, while every other check was green | fixed · externally_reverified re-gate (structure); accepted by GitHub at `32c2d9c` (both jobs started) | `32c2d9c`. Found by looking for the two checks by name, not by the check count |
 
 **Evidence for T3** (the author, a browser, 2026-10-04). `https://pagespeed.web.dev/analysis?url=<page>&form_factor=desktop` became `https://pagespeed.web.dev/analysis/<page-slug>/<run-id>?form_factor=desktop`, with the tab "Desktop" `aria-selected="true"` and "Mobile" `false`, and the requested page in the address field. The same address with `form_factor=mobile` selected "Mobile". The reviewers work without network and could not repeat it.
 
@@ -43,4 +45,4 @@ Waivers and deferrals: none.
 
 Follow-ups: each round marked the author's runs UNVERIFIABLE, since the starter's packages are not installed in the reviewers' checkout: 17 scenarios in a scratch copy of the starter, 12 deliberate breakages each caught by the skill's own test, the full suite with the card in place (64 passed, 1 pre-existing skip), type check, `make check`. The CI job added here repeats the core of them on every change. The scripts and each round's raw reviewer output are kept, untracked, in the main checkout under `docs/local/review-raw-website-scorecard/` until the pull request comment carries them.
 
-Notes: one outside seat (Codex, unbroken chain from round 1 to `80af978`) and a fresh-eyes pass in round 1; ollama-cloud at its weekly limit, so the pair was degraded, not chosen. Round 3 found no substantive BUG, so the rounds ended there; the two later Codex passes are re-gates of small deltas to one workflow step, needed so the reviewed head and the pushed head carry the same code. The cost log could not be written from this session; the table above is the record.
+Notes: the reviewers and a local YAML parser all passed the workflow that GitHub rejected (X1): none of them is GitHub's own validation, and only the missing checks on the pull request showed it. One outside seat (Codex, unbroken chain from round 1 to `80af978`) and a fresh-eyes pass in round 1; ollama-cloud at its weekly limit, so the pair was degraded, not chosen. Round 3 found no substantive BUG, so the rounds ended there; the two later Codex passes are re-gates of small deltas to one workflow step, needed so the reviewed head and the pushed head carry the same code. The cost log could not be written from this session; the table above is the record.
