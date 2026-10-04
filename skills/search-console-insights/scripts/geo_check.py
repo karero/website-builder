@@ -74,7 +74,8 @@ KEY_VARS = {e: ("SERPAPI_KEY" if e in SERP_ENGINES else f"GEO_{e.upper()}_API_KE
 CHAT_ENGINES = [e for e in ENGINES if e not in SERP_ENGINES]
 # The default route: one OpenRouter key and one prepaid balance for all four chat assistants.
 # OpenRouter uses each provider's OWN web search for these models ("native"), so "ChatGPT with
-# web search on" is still ChatGPT's search. A direct provider key is used only without it.
+# web search on" is still ChatGPT's search. A direct provider key is used without it, or for the
+# assistants GEO_DIRECT_ENGINES names (below).
 ROUTER_VAR = "GEO_OPENROUTER_API_KEY"
 SAMPLES = {"broad": 3, "narrow": 3, "branded": 1}
 SLOTS = list(SAMPLES)
@@ -144,8 +145,9 @@ def load_keys() -> dict:
 
 
 # Chat assistants the owner sends through their own key even with OpenRouter set, e.g.
-# GEO_DIRECT_ENGINES=gemini,perplexity: Gemini's "from memory" column, and Perplexity's search
-# with the site's country, both of which OpenRouter can't give.
+# GEO_DIRECT_ENGINES=gemini,perplexity: Gemini on a free direct key instead of paid credit, and
+# Perplexity with a "from memory" column and the site's country sent with its search, neither of
+# which this tool can get through OpenRouter.
 DIRECT_VAR = "GEO_DIRECT_ENGINES"
 
 
@@ -1390,7 +1392,9 @@ def show_keys() -> int:
     direct = direct_engines()
     if direct:
         unknown = sorted(direct - set(CHAT_ENGINES))
-        print(f"  {DIRECT_VAR:<24} {', '.join(sorted(direct & set(CHAT_ENGINES))) or '—'} use their own key"
+        named = [e for e in CHAT_ENGINES if e in direct]
+        own = [e for e in named if route_for(e, keys, router)[0] == "direct"]
+        print(f"  {DIRECT_VAR:<24} {', '.join(named) or '—'} named; using their own key: {', '.join(own) or 'none'}"
               + (f"  ⚠ not a chat assistant: {', '.join(unknown)}" if unknown else ""))
     for var in dict.fromkeys(KEY_VARS.values()):          # SERPAPI_KEY serves two engines
         engines = [e for e in ENGINES if KEY_VARS[e] == var]

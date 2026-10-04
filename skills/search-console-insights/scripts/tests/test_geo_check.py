@@ -373,6 +373,7 @@ class ViaOpenRouter(GeoTestCase):
         self.assertEqual(routes, {"gemini": "direct", "perplexity": "direct", "openai": "openrouter", "anthropic": "openrouter"})
         rc, out = self.cli_bare("--keys")
         self.assertIn("set ✓, used instead of OpenRouter", out)
+        self.assertIn("gemini, perplexity named; using their own key: gemini, perplexity", out)
         self.assertIn("set, not used: OpenRouter is set", out)    # the OpenAI key
 
     def test_direct_engine_without_its_key_stays_on_openrouter(self):
@@ -381,6 +382,8 @@ class ViaOpenRouter(GeoTestCase):
         self.assertFalse([h for h in self.posts() if h[1] != "/api/v1/chat/completions"])
         rc, out = self.cli_bare("--keys")
         self.assertIn("named in GEO_DIRECT_ENGINES, so OpenRouter is used until a key is added", out)
+        # The summary line must not claim a key that is not there (Codex, PR #152 round 1).
+        self.assertIn("perplexity named; using their own key: none", out)
 
     def test_no_credit_stops_the_whole_route_after_one_call(self):
         stub.STATE["engines"].clear()

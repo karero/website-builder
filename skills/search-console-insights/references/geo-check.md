@@ -48,7 +48,8 @@ by default.
   `GEO_PERPLEXITY_API_KEY`) are only used when there is no OpenRouter key, or for the assistants
   named in `GEO_DIRECT_ENGINES` (for example `GEO_DIRECT_ENGINES=gemini,perplexity`: those two
   use their own keys, ChatGPT and Claude stay on OpenRouter; a named assistant without its own key
-  stays on OpenRouter). The report says which route each assistant went through, and a switch
+  stays on OpenRouter). Reasons to name one: Gemini's free direct key instead of paid credit, and
+  Perplexity's "from memory" column plus the site's country sent with its search. The report says which route each assistant went through, and a switch
   between routes is marked in the trend.
 - **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
   pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
