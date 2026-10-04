@@ -16,8 +16,8 @@ it; a row is only as good as its evidence.
 | A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built and reviewed | karero/website-builder#145, the pull request that carries this row |
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
 | A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
-| B | Proof: a test report each site can publish | scenarios only | — |
-| C | Forms: contact form with a submission test | scenarios only; delivery path open (decision row 2026-10-04) | — |
+| B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
+| C | Forms: contact form with a submission test | scenarios only; delivery path decided 2026-10-04 (a function with Cloudflare's own email sending, availability to confirm) | — |
 | D | Import: bring an existing site under the gate | scenarios only | — |
 | E | Install: one-line install, marketplace listing | blocked on the name (decision row 2026-10-04) | — |
 
@@ -146,14 +146,48 @@ Candidates, each a hard test unless noted:
 
 ## B. Proof
 
+Built as the opt-in skill `website-scorecard`: a script, a page component and a test
+that a site adds when its owner wants to show the results. Never run unasked.
+
 | # | Given | When | Then |
 |---|---|---|---|
-| 1 | a site whose tests are green | the owner asks for a test report | a dated report: which checks ran, on how many pages, the commit they ran on. Nothing is published |
-| 2 | a red or partly skipped run | the same | the report says so; it never shows a failed run as passed |
-| 3 | the owner agrees to be shown | they publish it | the report is reachable at a stable address on their site, and the toolkit's own site can link to it |
+| 1 | a site whose tests are green, everything committed | the owner asks for a scorecard and `npm run scorecard` runs | a file with the result: 61 checks passed on 3 pages, by area, with the date and the tested version. Nothing is public until the change is merged like any other |
+| 2 | uncommitted changes | the same command | it refuses: the card has to describe a commit |
+| 3 | one test is red | the same command | it writes nothing, names the area, and stops |
+| 4 | a test that does not apply yet (no positioning terms declared) | the same command | counted and shown as "1 not applicable yet", not hidden |
+| 5 | the owner ran Google's PageSpeed test on the live site on 4 October: 98, 100, 100, 100 | the scores are recorded | the section shows them with that date and a link to run the same test |
+| 6 | three numbers instead of four, or a score of 101 | the scores are recorded | refused, with the reason |
+| 7 | the card is on the site, and a page or a setting of the site is edited afterwards | the site is built again | the section says "The site has been edited since. A new test run is due." An edit to a document such as the README does not count |
+| 8 | a German site | the section is shown | German text, which passes the tone and placeholder checks |
+| 9 | a build environment without git | the site is built | results and date are shown; it claims neither "edited" nor "not edited" |
+| 10 | no scorecard file | the site is built | the section is not rendered; its test skips and says why |
+| 11 | a test file is so broken it cannot run | `npm run scorecard` | treated as red: nothing is written |
+| 12 | an old card that is wrong (its own check fails) | `npm run scorecard` | the new card is written anyway; a wrong card cannot block its own repair |
+| 13 | the card file is damaged (not readable) | the site is built, the tests run, `npm run scorecard` | the page shows no card, the test says the file cannot be read, and the command writes a new one |
+| 14 | "30 February" or a day in the future as the date of the PageSpeed run | the scores are recorded | refused, with the reason |
+| 15 | a page is edited on the author's machine and not yet committed | the site is built there | the section already says "edited since" |
+| 16 | a test is accidentally marked to run alone | `npm run scorecard` | treated as red: nothing is written |
+| 17 | a site with several languages, or `<Scorecard lang="de" />` on an English site | the section is shown | it speaks the page's language |
 
-Open: which sites may be named (each owner's consent), and whether performance numbers
-from PageSpeed belong in it.
+All seventeen were run on 2026-10-04 in a scratch copy of the starter with the skill
+installed by its own steps (row 17: the `lang` override; a full several-language site was
+not built); with the card in place the full suite passes (64 passed, 1 skip). The first
+commit's message says "ten scenarios": two more were added before it was amended, and rows
+13 to 17 come from the review.
+
+Decided while building, and why:
+- **Lighthouse scores are typed in, not fetched.** Google's PageSpeed API refused an
+  unkeyed request with "quota exceeded" when tried. The section links to the same test,
+  so anyone can check the numbers.
+- **An old card is labelled, not forbidden.** Forcing a new run after every edit would
+  put a step on every change. The label keeps it honest without that.
+- **A red run writes nothing**, where the earlier scenario said "the report says so". A
+  public page should not carry a red card the push check would have stopped anyway.
+
+Open: which sites the toolkit's own site may name (each owner's consent). That is for
+the toolkit's site, not for this skill. This repo's CI now installs the skill into the
+starter and runs it (`template-tests`, job `scorecard-skill`), so a change to the starter
+that breaks the three template files turns red here.
 
 ## C. Forms
 

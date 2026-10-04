@@ -9,10 +9,12 @@ on:
   push:
     paths:
       - 'skills/new-website/templates/astro/**'
+      - 'skills/website-scorecard/**'
       - '.github/workflows/template-tests.yml'
   pull_request:
     paths:
       - 'skills/new-website/templates/astro/**'
+      - 'skills/website-scorecard/**'
       - '.github/workflows/template-tests.yml'
 
 defaults:
@@ -48,3 +50,84 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run template test suite
         run: npm test
+
+  # The website-scorecard skill ships three files that live in a SITE, never in the
+  # starter, so the job above does not run them. This builds a site from the starter,
+  # installs the skill the way its SKILL.md §2 says, writes a card and runs the suite
+  # with it. A starter change that breaks those files (they lean on src/config.ts, the
+  # Base layout, the Playwright config and its JSON report) turns red here.
+  scorecard-skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the skill installed
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          K="$GITHUB_WORKSPACE/skills/website-scorecard/templates"
+          cp "$K/scorecard.mjs" scripts/ && cp "$K/Scorecard.astro" src/components/ && cp "$K/scorecard.spec.ts" tests/
+          npm pkg set scripts.scorecard="node scripts/scorecard.mjs"
+          sed -i "s|const PAGE = '';|const PAGE = '/';|" tests/scorecard.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport Scorecard from '../components/Scorecard.astro';|" src/pages/index.astro
+          sed -i 's|^</Base>|  <div class="wrap"><Scorecard /></div>\n</Base>|' src/pages/index.astro
+          grep -q "const PAGE = '/';" tests/scorecard.spec.ts && grep -q '<Scorecard />' src/pages/index.astro && grep -q "import Scorecard" src/pages/index.astro
+          printf 'node_modules\ndist\n.astro\ntest-results\n' > .gitignore
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          git init -q && git config user.name ci && git config user.email ci@example.invalid
+          git add -A && git commit -q -m "a site with the scorecard skill"
+      - name: Type check, write the card, run the suite with it
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm run check
+          npm run scorecard
+          git add scorecard.json && git commit -q -m "scorecard"
+          npm run scorecard -- --lighthouse 90,91,92,93 --date 2026-01-01
+          git add scorecard.json && git commit -q -m "scores"
+          npm test
+          grep -q 'data-state="current"' dist/index.html
+      # The card's totals against Playwright's own summary, from a second run with another
+      # reporter: the script reads the JSON report, this reads the lines Playwright
+      # prints. So a change in the JSON report's shape that made the script miscount
+      # turns red here. The card leaves out its own spec, whose tests all sit that run out.
+      - name: The card's totals are Playwright's totals
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          out="$(SCORECARD_RUN=1 CI= npx playwright test --reporter=line 2>&1 | tail -n 8)"
+          echo "$out"
+          passed="$(printf '%s\n' "$out" | sed -n 's/^ *\([0-9][0-9]*\) passed.*/\1/p')"
+          skipped="$(printf '%s\n' "$out" | sed -n 's/^ *\([0-9][0-9]*\) skipped.*/\1/p')"
+          # How many tests the card's own spec has, asked of Playwright rather than counted
+          # in the source, so reformatting that file cannot change the answer.
+          own="$(npx playwright test tests/scorecard.spec.ts --list 2>&1 | sed -n 's/^Total: \([0-9][0-9]*\) tests\{0,1\} in .*/\1/p')"
+          node -e '
+            const card = JSON.parse(require("fs").readFileSync("scorecard.json", "utf8"));
+            const [passed, skipped, own] = process.argv.slice(1).map(Number);
+            const line = `card: ${card.passed} passed, ${card.skipped} skipped. Playwright: ${passed} passed, ${skipped} skipped, ${own} of them the tests of the card itself.`;
+            if (!(passed > 0) || !(own > 0) || card.passed !== passed || card.skipped !== skipped - own) { console.error("::error::" + line); process.exit(1); }
+            console.log("agree. " + line);
+          ' "$passed" "$skipped" "$own"
+      # The three ways a run has to be refused, each against a real Playwright report:
+      # the script's own arithmetic is pinned in its spec, this pins what Playwright
+      # hands it. Each case is committed (the script wants a clean tree), must make
+      # `npm run scorecard` fail, must leave scorecard.json alone, and is then undone.
+      - name: A red run writes no card
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          before="$(sha256sum scorecard.json)"
+          refused() {
+            git add -A && git commit -q -m "$1"
+            if npm run scorecard; then echo "::error::$1: the run was accepted"; exit 1; fi
+            [ "$(sha256sum scorecard.json)" = "$before" ] || { echo "::error::$1: scorecard.json changed"; exit 1; }
+            git reset -q --hard HEAD~1
+          }
+          printf 'this is not typescript (((\n' > tests/broken.spec.ts
+          refused "a spec file that cannot load"
+          sed -i '0,/^  test(/s//  test.only(/' tests/links.spec.ts && grep -q '^  test.only(' tests/links.spec.ts
+          refused "a stray test.only"
+          sed -i 's|<p>Contact:|<p>FIXME</p><p>Contact:|' src/pages/index.astro && grep -q 'FIXME' src/pages/index.astro
+          refused "a failing test"
+          [ -z "$(git status --porcelain)" ]

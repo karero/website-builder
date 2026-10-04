@@ -257,6 +257,9 @@ skills/            the suite skills (canonical)
   website-story    (optional story layer — the home page as the customer's story:
                    STORY.md + an opt-in story.spec.ts; offered once after positioning,
                    copied to every site, never runs unasked)
+  website-scorecard   (optional public scorecard — a dated section showing what the
+                   site's own test gate checked, plus the owner's Lighthouse scores;
+                   copied to every site, never runs unasked)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
@@ -323,10 +326,11 @@ A site with one language, a developer-edited repo and a single owner runs none o
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Three more skills are optional in a different way: `website-motion`, `website-story` and
-`website-positioning-check` are **copied into every site** so the recipient can use them
-later, but **never run unless asked** (`website-story` is offered once, after positioning,
-with a plain-language explanation; the other two only on request).
+Four more skills are optional in a different way: `website-motion`, `website-story`,
+`website-scorecard` and `website-positioning-check` are **copied into every site** so the
+recipient can use them later, but **never run unless asked** (`website-story` is offered
+once, after positioning, with a plain-language explanation; the other three only on
+request).
 
 ### Use it locally
 
