@@ -147,10 +147,9 @@ is what makes that true on a direct-push workflow). It needs `npx playwright ins
 `git config --unset core.hooksPath`. See `website-qa` §1c — offer this choice, don't impose it.
 `prepare` wires the hook only when the site is the root of its git repo. Kept in a subfolder
 of a bigger repo, it leaves that repo's hooks alone, and the gate does not run on push.
-A site scaffolded before 2026-10 has an older `prepare` line that did rewire the bigger repo,
-to a `scripts/hooks` that repo does not have — git then runs none of its hooks. To repair:
-copy the current `prepare` line into the site's `package.json` (that file is the site's own,
-no refresh replaces it), and run `git config --unset core.hooksPath` in the bigger repo.
+An older `prepare` line — one without `--show-prefix` — did rewire the bigger repo, to a
+`scripts/hooks` that repo does not have; git then runs none of its hooks. The header of
+`scripts/hooks/pre-push` quotes the current line and says how to repair that.
 
 The hook also contains a commented-out **PR-only-main guard** (the `website-team-setup`
 skill enables it when a team forms and the plan offers no server-side ruleset): enable it when several people

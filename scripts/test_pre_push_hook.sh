@@ -190,6 +190,8 @@ prepare="$(sed -n 's/^ *"prepare": "\(.*\)",\{0,1\}$/\1/p' "$PKG")"
 check "package.json has a prepare line this test can read" yes "$([ -n "$prepare" ] && echo yes)"
 # The line is read with sed, not a JSON parser: an escape in it would be run as written.
 check "... and it holds no JSON escape" 0 "$(printf '%s\n' "$prepare" | grep -c '\\')"
+# The hook's header quotes the line, so a site that has only the hook can repair an old one.
+check "... and the hook's header quotes that same line" yes "$(grep -qF -- "$prepare" "$HOOK" && echo yes)"
 # prep <dir> — run the line as npm does; prints its exit status.
 prep() { (cd "$1" && sh -c "$prepare") >/dev/null 2>&1; echo "$?"; }
 hooks_path() { $git -C "$1" config --local --get core.hooksPath || echo unset; }
@@ -200,9 +202,10 @@ check "prepare, ... and the hook folder is wired"              scripts/hooks "$(
 $git init -q "$T/big"; mkdir -p "$T/big/apps/site"
 check "prepare, site in a subfolder of a bigger repo: exits 0" 0 "$(prep "$T/big/apps/site")"
 check "prepare, ... and that repo's hooks are left alone"      unset "$(hooks_path "$T/big")"
-# A git hook that runs `npm install` (post-merge, post-checkout) hands it GIT_DIR — an absolute
-# one in a linked worktree. Git then takes the current folder for the top of the working tree,
-# so "am I in a subfolder?" answers no. The line must not trust that.
+# A git hook that runs `npm install` (post-merge, post-checkout) can hand it GIT_DIR: in a
+# linked worktree git exports an absolute one to its hooks. Git then takes the current folder
+# for the top of the working tree, so "am I in a subfolder?" answers no. The line must not
+# trust that.
 check "prepare, ... also run from a git hook (GIT_DIR set): exits 0" 0 "$(GIT_DIR="$T/big/.git" prep "$T/big/apps/site")"
 check "prepare, ... and that repo's hooks are still left alone" unset "$(hooks_path "$T/big")"
 $git -C "$T/big" config core.hooksPath .githooks
