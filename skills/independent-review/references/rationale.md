@@ -439,7 +439,7 @@ found at round 14 by a fresh model reading the whole document, one wrong since r
 specs and High-depth changes end with one full read by a reviewer new to the artifact. None of
 the trails recorded time or tokens; the cost log exists so the next such review can.
 
-## Confirmed findings, tooled verification, record prose, requirements first — the second backend reading
+## Confirmed findings, tooled verification, record prose — the second backend reading
 
 Codified 2026-10-04 from the 51 trails the owner's backend repo wrote in the first eight days
 under the round budget, 221 passes. On 42 DIFF gates (one ten-stage trail left out), 94 passes
@@ -448,11 +448,11 @@ ran after the first, and 75 of them found no BUG.
 - **Raised is not confirmed.** Of the 327 RISKs ruled fixed or refuted, 187 were refuted. In the
   26 gates whose first pass found no BUG, the 44 passes that followed found two code BUGs, both
   in one gate and both in fixes that had changed code, and one test BUG, in the first round of a
-  redesign. This rule keeps all three rounds. Stop condition (a2) read "zero BUG and zero
-  in-scope RISK" and did not say whether a refuted RISK counts. Hence the count after triage,
-  and a round owed only by a fix that changed something. What this gives up: a wrongly refuted
-  finding gets no reviewer's second look — which is why a refuted BUG goes to the owner with its
-  evidence.
+  redesign. Under this rule each of those rounds still runs. Stop condition (a2) read "zero BUG
+  and zero in-scope RISK" and did not say whether a refuted RISK counts. Hence the count after
+  triage, and a round owed only by a fix that changed something. What this gives up: a wrongly
+  refuted finding gets no reviewer's second look — which is why a refuted BUG goes to the owner
+  with its evidence.
 - **A seat that cannot open the files, verifying a delta.** Share refuted, of the findings ruled
   fixed or refuted: 4% each for Codex and for fresh-eyes (of 76 and of 118), and 45%, 66% and
   73% for the three text-only cloud seats (of 93, 303 and 11). 49 of the 94 later passes were
@@ -463,9 +463,10 @@ ran after the first, and 75 of them found no BUG.
   prompt's rule that a concern about unseen text is a question. What this evidence does not
   show: "refuted" is the author's own ruling; a text-only seat of another family was upheld on
   18 of 19 findings, so the model matters as well as the tools; and whether the prompt rule
-  loses real findings is not measured. PLAN gates and High depth keep their seats: a plan puts
-  the whole artifact in front of every seat, and the High-depth trails were not read apart from
-  the rest.
+  loses real findings is not measured. The Antigravity prompt is left as it is: its last fix
+  has not yet been seen working live (R-AGY-PROMPT in the open-findings tracker). PLAN gates
+  and High depth keep their seats: a plan puts the whole artifact in front of every seat, and
+  the High-depth trails were not read apart from the rest.
 - **Record prose draws findings.** Of the 26 later BUGs the trails describe, 16 were about
   sentences — changelog entries, comments, test-case wording, the review record — and 10 about
   code or tests. In one gate all four BUGs raised after the first pass were sentences in its

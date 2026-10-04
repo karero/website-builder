@@ -115,7 +115,7 @@ while [ $# -gt 0 ]; do
              case "$1" in codex|ollama|agy) SEAT="$1" ;;
                *) echo "bad value for --seat: $1 (codex, ollama or agy)" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac; shift ;;
-    --depth|--round) # recorded in the cost log only (review_log.sh); they change nothing else
+    --depth|--round) # recorded in the cost log (review_log.sh); a run with no --depth says so
              [ $# -gt 0 ] || { echo "$a needs a value" >&2; echo "$USAGE" >&2; exit 2; }
              case "$a:$1" in
                --depth:light|--depth:normal|--depth:high) DEPTH="$1" ;;
@@ -412,7 +412,8 @@ load-bearing component claims are therefore UNVERIFIABLE here: collect those ent
 UNVERIFIABLE heading — only the ones that matter — and do not count them as findings. The same
 holds for whatever depends on text you were not given — whether a name exists, what a caller
 passes, what the rest of a file holds: an UNVERIFIABLE entry saying what to look at, not a BUG or
-RISK. A BUG or RISK quotes the line of the ${TYPE} that shows it.
+RISK. A BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification round names
+the prior finding whose fix the ${TYPE} lacks.
 ${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}

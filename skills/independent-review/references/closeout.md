@@ -65,7 +65,8 @@ Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OP
 | Round | Head | Artifact (full / delta since <sha>) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
 | id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction.
-Follow-ups: one line each. Notes: at most five lines (degraded seats, rounds past 3 and the BUG
+Follow-ups: one line each. Notes: at most five lines (degraded seats, which seat verified when
+not the tooled one, a text-only seat's questions asked and confirmed, rounds past 3 and the BUG
 that earned each, final full read, wording pass, stops).
 ```
 
@@ -90,9 +91,7 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
    `<!-- independent-review:consolidated sha=<full commit SHA> -->` — invisible when rendered,
    present in the API body — where the SHA is the **head of the `(base, head)` pair the reviewers
    saw**. A CI gate can then check for a review *of the commit being merged*; don't drop the SHA
-   or reword the fixed text, and a later push is *meant* to invalidate the stamp. Where such a
-   gate runs on every push, a head pushed to the open PR/MR before its comment exists fails it:
-   push a head there once it is reviewed and its comment is ready to post.
+   or reword the fixed text, and a later push is *meant* to invalidate the stamp.
    - **Seen pair.** Fetch the target ref first (a stale ref makes both values wrong and the
      re-check matches them anyway), then record `git merge-base <target> HEAD` and
      `git rev-parse HEAD`. **A verification chain counts as seeing the pair:** round 1 saw
@@ -107,7 +106,8 @@ credentials, deliberately, because they are untrusted. The host is the clerk.
      unbroken chain. At Normal depth fresh-eyes' chain ends at round 1 by design: its round-1
      findings stay in the verdict, but it does not count toward the stamp for a later head and is
      not re-run for one. The text-only seat's chain ends there too when the tooled seat runs a
-     DIFF's verification rounds alone (SKILL.md step 6). **A prose-only link covers prose only:** if its segment turns out to
+     DIFF's verification rounds alone (SKILL.md step 6).
+     **A prose-only link covers prose only:** if its segment turns out to
      contain code, the chain breaks there and that segment needs a full-scope round.
    - **Before posting,** re-read both values and stamp only if both match. If either moved,
      re-gate the new pair with **every seat the stamp relies on** (the seats with an unbroken

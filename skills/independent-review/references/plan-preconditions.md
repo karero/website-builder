@@ -79,9 +79,10 @@ gate the "what" first. Its gate moves decisions, and each one that moves makes p
 already-reviewed plan describe something nobody will build.
 
 **The host checks this itself**, like the other two: does the plan name a requirements or spec
-document, and has that document a clean PLAN gate (a trail whose verdict says so)? If it has
-not, tell the owner before round 1 and let them choose — gate the requirements first, or go on
-knowing the plan's rounds may be paid again. Going on is the owner's call, not a failure of the
+document, and has that document passed its own gate as it stands — a trail with a clean
+verdict (PLAN, or DIFF if it was reviewed as a change), and no change to the document after the
+head that trail names? If not, tell the owner before round 1 and let them choose — gate the
+requirements first, or go on knowing the plan's rounds may be paid again. Going on is the owner's call, not a failure of the
 gate.
 
 **What this does not cover.** A plan that carries its own requirements is one document and one

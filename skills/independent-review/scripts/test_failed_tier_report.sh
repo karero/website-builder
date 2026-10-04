@@ -452,11 +452,15 @@ for m in "" stub-agy-model; do
   check "$name: not told the false 'You have NO tools'" not_in "$T/$name.marks/agy-prompt" "You have NO tools"
   check "$name: ollama, which really has no tools, still gets the text-only prompt" \
     grep -qF -- "You have NO tools" "$T/$name.marks/ollama-prompt"
-  # 2026-10-04: only the seat that cannot open files is told that a concern about text it was
-  # not given is a question. Codex can go and look, so it must not be told to hold back.
+  # 2026-10-04: the ollama seat is told that a concern about text it was not given is a
+  # question. Codex can go and look, so it must not be told to hold back. agy reviews from the
+  # text too, but its prompt stays as it is until its last fix is seen working (R-AGY-PROMPT).
   check "$name: the text-only prompt makes unseen text a question" \
-    grep -qF -- "A BUG or RISK quotes the line of the diff that shows it." "$T/$name.marks/ollama-prompt"
-  check "$name: codex is not given that rule" not_in "$T/$name.marks/codex-prompt" "A BUG or RISK quotes the line"
+    grep -qF -- "A BUG or RISK quotes the line of the diff that shows it" "$T/$name.marks/ollama-prompt"
+  check "$name: ...and keeps a missing fix a finding in a verification round" \
+    grep -qF -- "the prior finding whose fix the diff lacks" "$T/$name.marks/ollama-prompt"
+  check "$name: codex is not given that rule" \
+    not_in "$T/$name.marks/codex-prompt" "A BUG or RISK quotes the line"
   check "$name: nor is agy" not_in "$T/$name.marks/agy-prompt" "A BUG or RISK quotes the line"
   check "$name: not the MODE-line prompt" not_in "$T/$name.marks/agy-prompt" "MODE: INSPECTED"
   check "$name: the artifact is in the prompt" grep -qF -- "+retry on HTTP 429 after a pause" "$T/$name.marks/agy-prompt"
