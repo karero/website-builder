@@ -28,7 +28,7 @@ jobs:
       # Content placeholders must never merge (AGENTS.md §2/§4): a missing fact is
       # written as "[MISSING: …]" so it can be found, and this is where it is found.
       # Runs before the build so it fails in ~1s. Template [BRACKET] slots (privacy
-      # page, manifest) and every other leftover are checked on the rendered site by
+      # page, manifest) are checked on the rendered site by
       # tests/placeholders.spec.ts, not here.
       # Translated site (AGENTS.md uses e.g. "[FEHLT: …]")? Put that token in the
       # pattern below, or the gate greps for a word nobody writes.

@@ -94,7 +94,9 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > source-side half; this is the half that reads what a page serves. The starter's
 > privacy page, imprint and manifest are listed in its `UNFILLED_UNTIL_LAUNCH`, so
 > they are reported on every run instead of failing. That list empties itself (a
-> filled page fails until its entry is deleted) and must be empty at launch.
+> filled page fails until its entry is deleted) and must be empty at launch. It has no
+> rule for the starter's example values (the name `Example`, `hello@example.com`):
+> replacing those stays a human check.
 
 ## Section anchors
 

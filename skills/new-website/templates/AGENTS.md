@@ -194,6 +194,9 @@ For everyone, the owner included:
   pages.
 - Tests may be **extended** (e.g. a new page in `PAGES`). Never weaken, delete or
   disable a test just to get green. If a test fails: fix the cause or report it.
+- Deleting a page's entry from `UNFILLED_UNTIL_LAUNCH` in
+  `tests/placeholders.spec.ts` once that page is filled belongs to filling it, at
+  every rights level. The test asks for it.
 - Changes to `.github/`, `scripts/`, `functions/`, `public/_headers`,
   `astro.config.mjs`, `package.json` or `AGENTS.md` affect tests, the server or
   publishing. Say so explicitly in the pull request.

@@ -96,7 +96,7 @@ recommendation, never to pick unasked.
   hand against this pass's checklist, or vendor the generic `double-knuth`
   skill from the website-builder suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
-- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it.)
+- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it; on a launched site `placeholders.spec.ts` starts with `UNFILLED_UNTIL_LAUNCH` empty.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
 - Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
   pages OR `public/` assets. `placeholders.spec.ts` enforces this on the rendered pages and

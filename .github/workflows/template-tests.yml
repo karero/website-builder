@@ -1,6 +1,6 @@
 name: template-tests
-# Runs the scaffolded Astro template's own Playwright suite (a11y / seo / navigation /
-# images / tone / email / links / positioning) against a production build, so a change to
+# Runs the scaffolded Astro template's own Playwright suite (every spec in its tests/
+# folder) against a production build, so a change to
 # the template can't silently ship a regression. In particular it exercises the seo.spec
 # indexability guard (open robots.txt + llms.txt present), which the repo's only other
 # workflow (`clean`, a PII/secrets scan) never touches. CI is set by Actions, so the

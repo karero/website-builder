@@ -471,7 +471,10 @@ hold Search Console Request Indexing until then.
       lists the privacy page, the imprint and the manifest there until their
       `[BRACKET]` slots are filled; each entry comes out when its target is filled
       (the test turns red until it does). An entry still listed at launch ships
-      that placeholder: the test only warns about a listed target.
+      that placeholder: the test only warns about a listed target. And an empty
+      list is not the whole check: the spec has no rule for the starter's example
+      values, so read the home page and both legal pages once for the name
+      `Example` and the address `hello@example.com`.
 - [ ] **Nothing left unshipped** (two-stage sites): `git log origin/production..origin/main`
       is empty — merged-but-unpromoted work is invisibly unshipped. If not empty and it
       should ship: `npm run ship` (which also VERIFIES the live site serves the new build

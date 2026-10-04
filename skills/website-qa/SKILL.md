@@ -71,6 +71,8 @@ cosmetics; red → green → commit.
   privacy page, imprint and manifest sit in `UNFILLED_UNTIL_LAUNCH` and are
   **reported, not failed**, until filled; a filled target fails until its entry is
   deleted, so the list empties itself and must be empty at launch (`new-website` §4).
+  It has no rule for the starter's example values (the name `Example`,
+  `hello@example.com`); those stay a launch-checklist item.
 - `email.spec.ts` — no plaintext (harvestable) email address in the served HTML
   (addresses go through `<EmailLink>`, which obfuscates; the `website-design-system` rule).
 - `links.spec.ts` — offline outgoing-link guard: no `STALE_DOMAINS` (domains you've

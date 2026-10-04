@@ -13,7 +13,7 @@ it; a row is only as good as its evidence.
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built, verified locally, not yet reviewed or merged | branch `feat/rendered-placeholder-gate` |
+| A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built, verified locally, in review, not pushed | branch `feat/rendered-placeholder-gate`; no pull request yet |
 | A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
 | A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
 | B | Proof: a test report each site can publish | scenarios only | — |
@@ -62,24 +62,38 @@ were left to the launch checklist.
 | 7 | the entry is deleted | green; the privacy page is checked for good from now on |
 | 8 | a German site renames `/privacy` to `/datenschutz` and forgets the list | red: the list names a page that is not checked |
 | 9 | the manifest file is removed while still listed | red until the entry is deleted |
+| 10 | a form field's hint says "[YOUR NAME]" and the send button is labelled "TODO" | red, naming both |
+| 11 | filler text with a line break in it shows up only in the structured data | red |
+| 12 | a slot is partly in bold, another is broken across two lines, "Lorem ipsum" is partly in italics | red, naming all three |
+| 13 | the manifest file is damaged (not valid JSON) | red: "not checked", instead of passing as "nothing found" |
+| 14 | a site scaffolded earlier, whose privacy page still has a slot that starts with a small letter; the owner fills every slot the test reports | red: the page carries a slot the test cannot see |
 
-All nine were run on 2026-10-04 against a scratch copy of the starter, each failing for
-the reason in the table, plus the whole suite and the type check on the untouched
+All fourteen were run on 2026-10-04 against a scratch copy of the starter, each failing
+for the reason in the table, plus the whole suite and the type check on the untouched
 starter (60 passed, 0 type errors) and the German-only swap following
-`_datenschutz.astro`'s own header. Every bracket slot the starter serves (4 on the
-privacy page, 17 on the imprint, 4 in the German draft, 3 in the manifest) is matched
-by the rule. Run without exemptions against a copy of one real site built with the
-toolkit, it found two unfilled slots on each legal page and raised no false alarm.
+`_datenschutz.astro`'s own header. Run without exemptions against a copy of one real
+site built with the toolkit, the first version found two unfilled slots on each legal
+page and raised no false alarm.
+
+Rows 10 to 14 come from the review. So does a correction: the starter itself served
+two slots that start with a small letter (the analytics hosting choice on the privacy
+page and in the German draft), which the rule could not see. Both now start with a
+capital word, and while a page is still listed the test fails on any slot of that
+shape, so the same gap cannot open again unnoticed.
 
 Known limits, on purpose:
 - A target still listed at launch only produces a warning. The list empties itself as
   pages are filled, and the launch checklist requires it empty, but nothing blocks a
-  launch with an entry left.
+  launch with an entry left. Closing that belongs with A2 (the publish step is where a
+  hard stop can live). Open: the owner's call whether that is acceptable until then.
+- The starter's own example values (the name "Example", `hello@example.com` on the
+  home page and both legal pages) are not caught. A rule for the example address is
+  possible, but it would put the home page on the exemption list from the first
+  commit; not built without the owner's decision.
 - The rule for slots is "an opening bracket followed by a capital letter". Genuine
   text of that shape (a "[PDF]" label, an editor's note in a quote) has to be
   allow-listed by the site.
-- Not read: other files in `public/`, PDFs, text inside images, the starter's own
-  example copy and `example.com` addresses.
+- Not read: other files in `public/`, PDFs, text inside images.
 
 ### A2. The publish gate holds on GitHub's side (not built)
 
