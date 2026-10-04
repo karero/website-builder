@@ -102,12 +102,14 @@ jobs:
           echo "$out"
           passed="$(printf '%s\n' "$out" | sed -n 's/^ *\([0-9][0-9]*\) passed.*/\1/p')"
           skipped="$(printf '%s\n' "$out" | sed -n 's/^ *\([0-9][0-9]*\) skipped.*/\1/p')"
-          own="$(grep -c "^test('" tests/scorecard.spec.ts)"
+          # How many tests the card's own spec has, asked of Playwright rather than counted
+          # in the source, so reformatting that file cannot change the answer.
+          own="$(npx playwright test tests/scorecard.spec.ts --list 2>&1 | sed -n 's/^Total: \([0-9][0-9]*\) tests\{0,1\} in .*/\1/p')"
           node -e '
             const card = JSON.parse(require("fs").readFileSync("scorecard.json", "utf8"));
             const [passed, skipped, own] = process.argv.slice(1).map(Number);
             const line = `card: ${card.passed} passed, ${card.skipped} skipped. Playwright: ${passed} passed, ${skipped} skipped, ${own} of them the tests of the card itself.`;
-            if (!(passed > 0) || card.passed !== passed || card.skipped !== skipped - own) { console.error("::error::" + line); process.exit(1); }
+            if (!(passed > 0) || !(own > 0) || card.passed !== passed || card.skipped !== skipped - own) { console.error("::error::" + line); process.exit(1); }
             console.log("agree. " + line);
           ' "$passed" "$skipped" "$own"
       # The three ways a run has to be refused, each against a real Playwright report:
