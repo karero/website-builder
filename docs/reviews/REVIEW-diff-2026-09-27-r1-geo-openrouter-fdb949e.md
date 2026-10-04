@@ -86,6 +86,13 @@ Claude verifier that reverted each fix in a scratch copy. Codex was out of quota
   same test. The RISK repeats round 2's: also stated in the code that an HTTP error counting as
   uncharged is an assumption. "Every shape error" in round 2 meant the ones `call_engine`
   catches; the coverage claim is bounded to the cases the test replays.
+  **Round 4 (Codex, verify):** no BUG or NIT; the round-3 fix verified. The billing RISK came up a
+  third time and cannot be settled by code review: which failed calls OpenRouter charges for.
+  Kept as a stated limit. What is counted: an unusable reply as "cost unknown" (never a made-up
+  price), an HTTP error as uncharged, and an HTTP 200 error envelope (`{"error": …}`) as an
+  unusable reply. **Settling observation:** after a weekly run with a failure, compare the run's
+  cost line with OpenRouter's Activity page. 4 rounds, 11 findings on this follow-up
+  (1: 0/2/3 ollama; 2: 2/1/0 Codex; 3: 1/1/0; 4: 0/1/0).
 
 ## Final state
 
