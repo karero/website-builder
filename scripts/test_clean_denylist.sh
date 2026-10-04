@@ -73,7 +73,8 @@ expect "a longer name joined by two dots: fails" 1 "webcroft..private" "$R"
 printf 'see karero/webcroft zorblequux\n' >"$R/docs/notes.md"
 expect "a listed name right after a self-reference: still fails" 1 "zorblequux" "$R"
 # The name the repo had before the rename stays allowed for good: docs/reviews/ keeps its
-# historical links and is scanned. Same four cases, plus old and new side by side.
+# historical links and is scanned. The same cases again, with old and new side by side in
+# the first.
 printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/webcroft\n' >"$R/docs/notes.md"
 expect "this repo's former name in a reference: passes" 0 "OK —" "$R"
 printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
