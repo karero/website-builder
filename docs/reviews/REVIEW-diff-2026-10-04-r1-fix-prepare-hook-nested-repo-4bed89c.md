@@ -9,6 +9,7 @@ Base `0d41e96` · depth: Normal, at the owner's request (the diff alone would be
 | 1 | `4bed89c` | full, `0d41e96...4bed89c` | fresh-eyes: host-family model, read-only sub-agent | 599 s, 154 479 | 1 / 3 / 2 |
 | 2 | `cbc7e57` | delta since `4bed89c` | the same sub-agent, resumed | 457 s, 185 275 | 0 / 2 / 2 — P1, P2, P4, P5, P6 verified fixed; P3 only partly |
 | 3 | `4c4ca10` | full, `0d41e96...4c4ca10` | codex-cli 0.159.3, gpt-6.1-sol, config effort, read-only (`--seat codex`) | 297 s, 53 452 | 0 / 1 / 0 |
+| wording pass | `e4f0835` | delta since `4c4ca10`: comment text in one shell test | codex-cli 0.159.3, gpt-6.1-sol, medium effort, read-only (`--seat codex`) | 123 s, 26 621 | 0 / 0 / 0 |
 
 | id | Sev | Finding | Status | Evidence |
 |---|---|---|---|---|
@@ -29,4 +30,4 @@ Waivers and deferrals: C1 — the owner, 2026-10-04, asked "Waive it for this PR
 
 Follow-ups: make `prepare` independent of the shell (a small Node script) and run it through real npm on a Windows runner (C1).
 
-Notes: rounds ended after round 3 (no BUG). Codex marked as unverifiable the test comment's claim that an install in the template is what disabled this repo's guard; it was not observed, and the comment and the pull request's description now say so. Wording pass: that comment is the only change since `4c4ca10` outside this file; its result is in the pull request's comment. The CI step added here ran green on the pull request (`template-tests`).
+Notes: rounds ended after round 3 (no BUG). Codex marked as unverifiable the test comment's claim that an install in the template is what disabled this repo's guard; it was not observed, and the comment and the pull request's description now say so. Wording pass (Codex, on `e4f0835`): that comment is the only change since `4c4ca10` outside this file — "No BUG/RISK/NIT findings"; it confirmed the diff holds no code hunk. Not a round. The CI step added here ran green on the pull request (`template-tests`).
