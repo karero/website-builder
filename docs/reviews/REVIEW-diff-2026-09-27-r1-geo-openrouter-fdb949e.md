@@ -64,8 +64,35 @@ Claude verifier that reverted each fix in a scratch copy. Codex was out of quota
   prints its own cost.
 - **Declined (fresh-eyes NIT), old Perplexity "knows you" lines in the trend:** the trend is the
   history, and each line carries its dates; the report page already hides them (O3).
-- **Left as a follow-up:** a cut-off reply that carries no price is not counted as "cost unknown":
-  the check cannot tell it from an unbilled error without more detail from OpenRouter.
+- **Follow-up, fixed after release (2026-09-30, owner: "yes"):** a cut-off reply that carries no
+  price was left out of the cost line. A reply that came back but cannot be used (cut off, empty,
+  unreadable) is now marked as charged (`EngineError.billed`) and counts as "cost unknown" when it
+  has no price; an HTTP error is no reply and stays out. A test through the command line pins
+  both (it fails on the previous code). Reviewed by ollama-cloud, 1 round, 0 / 2 / 3: the
+  variable name and a comment fixed; refuted: the cost summary already skips missing prices, an
+  unreadable reply reaches that point only after a successful answer (so "cost unknown" is the
+  honest label), and the test does run the command line. Codex was out of quota.
+  **Round 2, 2026-10-04 (Codex; ollama hit its quota):** 2 BUG, 1 RISK. Fixed: a malformed reply
+  that carries a price kept losing it (now read before the answer is parsed); a 200 reply that
+  is not JSON, and `choices` of an unexpected shape (`KeyError`), dropped out of the cost line
+  (both now count as "cost unknown", and every shape error is caught in `call_engine`). One
+  command-line test covers all three and fails on the round-1 code. RISK, kept as a stated
+  limit: that OpenRouter charges for an unusable reply is not proven here, which is why such a
+  reply counts as "cost unknown" rather than priced; the comments now say "may have been
+  charged".
+  **Round 3 (Codex, verify):** the round-2 fixes landed (checked by replay, and the test fails
+  on the earlier code). 1 BUG fixed: a reply nested too deep to read raised `RecursionError`
+  past `_send`, and that run printed no cost line; it is caught with `ValueError` now, in the
+  same test. The RISK repeats round 2's: also stated in the code that an HTTP error counting as
+  uncharged is an assumption. "Every shape error" in round 2 meant the ones `call_engine`
+  catches; the coverage claim is bounded to the cases the test replays.
+  **Round 4 (Codex, verify):** no BUG or NIT; the round-3 fix verified. The billing RISK came up a
+  third time and cannot be settled by code review: which failed calls OpenRouter charges for.
+  Kept as a stated limit. What is counted: an unusable reply as "cost unknown" (never a made-up
+  price), an HTTP error as uncharged, and an HTTP 200 error envelope (`{"error": …}`) as an
+  unusable reply. **Settling observation:** after a weekly run with a failure, compare the run's
+  cost line with OpenRouter's Activity page. 4 rounds, 11 findings on this follow-up
+  (1: 0/2/3 ollama; 2: 2/1/0 Codex; 3: 1/1/0; 4: 0/1/0).
 
 ## Final state
 
