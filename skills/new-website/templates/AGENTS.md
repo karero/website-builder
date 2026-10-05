@@ -21,9 +21,10 @@ Several people and several AI assistants may work on this site, sometimes at the
 time. The rules below stop anyone from working on a stale state or overwriting someone
 else's work. If a rule is unclear or does not fit the situation: ask, do not improvise.
 
-**Language.** This file is in English on every site. Everything you say to the
-person (reports, questions, pull request descriptions) is in the language they write
-in. The language of the site's own texts is set in §4, independent of that.
+**Language.** Keep this file in English when you edit it: agents read it, and it
+points at skills that are English too. Reply to the person (reports, questions, pull
+request descriptions) in the language they write in. The language of the site's own
+texts is set in §4, independent of that.
 
 ## 1. At the start of EVERY session: get the latest state (mandatory)
 
