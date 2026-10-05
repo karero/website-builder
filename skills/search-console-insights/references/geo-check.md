@@ -45,8 +45,12 @@ by default.
 
 - **With an OpenRouter key, it is used for all four chat assistants.** Direct keys
   (`GEO_GEMINI_API_KEY`, `GEO_OPENAI_API_KEY`, `GEO_ANTHROPIC_API_KEY`,
-  `GEO_PERPLEXITY_API_KEY`) are only used when there is no OpenRouter key. The report says which
-  route each assistant went through, and a switch between routes is marked in the trend.
+  `GEO_PERPLEXITY_API_KEY`) are only used when there is no OpenRouter key, or for the assistants
+  named in `GEO_DIRECT_ENGINES` (for example `GEO_DIRECT_ENGINES=gemini,perplexity`: those two
+  use their own keys, ChatGPT and Claude stay on OpenRouter; a named assistant without its own key
+  stays on OpenRouter). Reasons to name one: Gemini's free direct key instead of paid credit, and
+  Perplexity's "from memory" column plus the site's country sent with its search. The report says which route each assistant went through, and a switch
+  between routes is marked in the trend.
 - **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
   pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
   barely matters, because its questions name the place ("… in Munich-Schwabing"). A business that
@@ -158,9 +162,11 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
    1. aistudio.google.com → **Get API key** → **Create API key**; pick the project AI Studio already
       created (usually "Gemini API").
    2. In the EU/UK/Switzerland: **Set up billing** for that project (see the EU note).
-   3. Paste it after `GEO_GEMINI_API_KEY=`. With an OpenRouter key set, OpenRouter is used instead.
+   3. Paste it after `GEO_GEMINI_API_KEY=`. With an OpenRouter key set, OpenRouter is used instead,
+      unless `GEO_DIRECT_ENGINES` names gemini.
 
-   **Direct keys per provider (advanced; only used without an OpenRouter key)**: OpenAI
+   **Direct keys per provider (advanced; used without an OpenRouter key, or for the assistants
+   `GEO_DIRECT_ENGINES` names)**: OpenAI
    (platform.openai.com → Billing → API keys → Create, restricted to "Model capabilities: Write"),
    Anthropic (console.anthropic.com → Billing → API Keys), Perplexity (perplexity.ai → Settings →
    API). Each needs its own prepaid credit. The only reason to prefer them: Perplexity's "from

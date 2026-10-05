@@ -357,6 +357,34 @@ class ViaOpenRouter(GeoTestCase):
         self.assertIn("set, not used: OpenRouter is set", out)
         self.assertIn("not needed: OpenRouter is set", out)
 
+    def test_direct_engines_bypass_openrouter_only_for_those_named(self):
+        # The owner wants Gemini and Perplexity on their own keys (Gemini's "from memory"
+        # column; Perplexity's country-aware search) and the other two on OpenRouter.
+        os.environ["GEO_DIRECT_ENGINES"] = "gemini, Perplexity"
+        os.environ["GEO_GEMINI_API_KEY"] = "test-gemini-placeholder"
+        os.environ["GEO_PERPLEXITY_API_KEY"] = "test-perplexity-placeholder"
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY        # set but not named: stays on OpenRouter
+        self.cli()
+        direct = {stub._engine_of(h[1]) for h in self.posts() if h[1] != "/api/v1/chat/completions"}
+        self.assertEqual(direct, {"gemini", "perplexity"})
+        routed = {h[3]["model"].split("/")[0] for h in self.posts() if h[1] == "/api/v1/chat/completions"}
+        self.assertEqual(routed, {"openai", "anthropic"})
+        routes = {r["engine"]: r["route"] for r in self.history()}
+        self.assertEqual(routes, {"gemini": "direct", "perplexity": "direct", "openai": "openrouter", "anthropic": "openrouter"})
+        rc, out = self.cli_bare("--keys")
+        self.assertIn("set ✓, used instead of OpenRouter", out)
+        self.assertIn("gemini, perplexity named; using their own key: gemini, perplexity", out)
+        self.assertIn("set, not used: OpenRouter is set", out)    # the OpenAI key
+
+    def test_direct_engine_without_its_key_stays_on_openrouter(self):
+        os.environ["GEO_DIRECT_ENGINES"] = "perplexity"
+        self.cli()
+        self.assertFalse([h for h in self.posts() if h[1] != "/api/v1/chat/completions"])
+        rc, out = self.cli_bare("--keys")
+        self.assertIn("named in GEO_DIRECT_ENGINES, so OpenRouter is used until a key is added", out)
+        # The summary line must not claim a key that is not there (Codex, PR #152 round 1).
+        self.assertIn("perplexity named; using their own key: none", out)
+
     def test_no_credit_stops_the_whole_route_after_one_call(self):
         stub.STATE["engines"].clear()
         stub.STATE["router_error"] = {"status": 402, "body": '{"error": {"message": "Insufficient credits. Add more using https://openrouter.ai/credits", "code": 402}}'}
