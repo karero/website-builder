@@ -105,7 +105,8 @@
 #                                    thinking and return no text; the seat then fails and says
 #                                    to raise this.
 #   MELIOUS_BASE_URL (https://api.melious.ai/v1)  the OpenAI-style API root.
-#   MELIOUS_API_TIMEOUT (1800)       seconds before the melious call is given up.
+#   MELIOUS_API_TIMEOUT (3600)       seconds before the melious call is given up (a review at
+#                                    the default budget took 1624 s on 2026-10-05).
 
 set -uo pipefail
 
@@ -937,7 +938,7 @@ run_melious() {
   # The Authorization header reaches curl on stdin (`-H @-`, curl 7.55+): printf is a builtin, so
   # the key is in no process's argv and in no file, not even for an interrupted run.
   code="$(if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key"; fi \
-    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-3600}" -o "$resp" -w '%{http_code}' \
     -H @- -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
     --data-binary @"$body" "$url/chat/completions" 2>>"$RAW_DIR/melious.err")"; rc=$?
   key=""
@@ -945,7 +946,7 @@ run_melious() {
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
     WHY="curl exit $rc"; return 1
   fi
-  perl -MJSON::PP -e '
+  perl -MJSON::PP -MEncode -e '
     my ($file, $code, $tok, $mark, $full) = @ARGV;
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $raw = do { local $/; <$f> } // "";
@@ -977,7 +978,8 @@ run_melious() {
       $finish = $ch->{finish_reason} if defined $ch->{finish_reason};
     }
     # The reply as it came, before any check or trim, on every path that has one (melious.full).
-    if (length $c && open my $fh, ">:encoding(UTF-8)", $full) { print $fh $c; close $fh }
+    my $saved = 0;
+    if (length $c && open my $fh, ">:encoding(UTF-8)", $full) { $saved = (print $fh $c) && close $fh }
     if (!$n) { print STDERR "Error: HTTP $code: no stream chunks in the reply: ", $quote->($raw), "\n"; exit 3 }
     if (!$done && !defined $finish) { print STDERR "Error: HTTP $code: the stream ended without a finish reason or [DONE] — a truncated review\n"; exit 4 }
     # No bare numbers in these messages: QUOTA_RE reads any free-standing 429 as a rate limit.
@@ -1014,11 +1016,11 @@ run_melious() {
       my $before = substr($c, 0, $end); $before =~ s/^$wrap\Q$mark\E$wrap\r?$//mg;
       if ($before =~ /\S/) {
         my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
-        $note = "(text before the final-review marker dropped, $kb; the full reply is in melious.full)\n\n";
+        $note = "(text before the final-review marker dropped, $kb" . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
       }
       $c = $after; $kept_whole = 0; last;
     }
-    if ($kept_whole && length($c) > 65536) {
+    if ($kept_whole && length(Encode::encode("UTF-8", $c)) > 65536) {   # bytes, as the guide says
       $note = "(no usable final-review marker, and the reply is large: it may hold leaked reasoning ahead of the review; read it from the end)\n\n";
     }
     binmode STDOUT, ":encoding(UTF-8)";

@@ -125,7 +125,7 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
 - **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
   names no default.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
-  27 KB diff, and finished at 96000 in 296-656 s, inside the 1800 s `MELIOUS_API_TIMEOUT`). A
+  27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
   model whose output cap is lower answers with an error, quoted in the FAILED section: lower the
   budget for it. A reasoning model can still spend all of it thinking and return no text; the
   seat fails and says so. Raise it and run again.
@@ -137,7 +137,7 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
   that has findings after it (Markdown around the marker is fine; a marker repeated at the end
   or quoted after the review does not count); the section then says how much was dropped, and
   the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
-  reply is kept; when it is large, the section warns that it may hold leaked reasoning: read
+  reply is kept; when it is over 64 KB, the section warns that it may hold leaked reasoning: read
   it from the end. The seat and its tests build think tags at runtime, so this repo's files carry none.
 - **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
   or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with

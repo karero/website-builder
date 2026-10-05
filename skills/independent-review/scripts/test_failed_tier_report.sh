@@ -213,6 +213,9 @@ case "$url" in
       nochunks) printf '%s\n' 'upstream said 429 busy, retry 1500 ms' >"$out"; printf 200 ;;
       # Reasoning leaked into the reply: the trace mentions the marker inline and once as a line
       # of its own (a draft), then the real marker line and the answer.
+      leaknofull) mkdir -p "$REVIEW_RAW_DIR/melious.full"; MELIOUS_STUB=leak; ;;
+    esac
+    case "${MELIOUS_STUB:-ok}" in
       leak)   printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Let me think. I will write === FINAL REVIEW === before the answer.\n=== FINAL REVIEW ===\n- BUG: draft finding, superseded\nMore thinking about the retry loop.\n"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{"content":"=== FINAL REVIEW ===\n- BUG: the real finding\n- NIT: two"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
@@ -883,6 +886,9 @@ run mleak PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=
 check "mleak: the answer after the LAST marker line is the review" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: the real finding" "$1" && ! grep -qF "draft finding" "$1" && ! grep -qF "Let me think" "$1"' _ "$T/mleak.out"
 check "mleak: the section says text was dropped" has mleak.out "text before the final-review marker dropped"
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
+# The stub puts a directory where melious.full goes, after the startup purge: the write fails.
+run mleaknofull PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mleaknofull: the note does not promise a melious.full it could not write" sh -c 'grep -qF "the full reply could not be saved" "$1" && ! grep -qF "is in melious.full" "$1" && grep -qF "BUG: the real finding" "$1"' _ "$T/mleaknofull.out"
 run mbig PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
 run mmarkdup PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --seat melious
