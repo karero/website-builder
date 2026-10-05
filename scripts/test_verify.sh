@@ -3,8 +3,8 @@
 # test_verify.sh — drives the site template's scripts/verify.mjs (`npm run verify`, and what
 # the pre-push hook runs) with a stubbed `npm`.
 #
-# Why it exists: verify.mjs decides when to reinstall packages (only when package-lock.json
-# differs from the last install it made), hides `npm run check`'s output unless it fails, and
+# Why it exists: verify.mjs decides when to reinstall packages (only when package.json or
+# package-lock.json differs from the last install it made), hides `npm run check`'s output unless it fails, and
 # must stop at the first red step. A wrong guess in the install step means tests run against
 # stale packages, or a full `npm ci` on every push; neither shows as a red test. These cases
 # pin which npm commands run, in which order, from which folder, and what each exit means.
