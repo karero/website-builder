@@ -124,6 +124,67 @@ jobs:
           [ "$root" = scripts/hooks ] || { echo "::error::the install did not wire the site at its repo's root"; exit 1; }
           [ -z "$big" ] || { echo "::error::an install in a subfolder set core.hooksPath=$big in the bigger repo"; exit 1; }
 
+  # scripts/verify.mjs has a Windows-only branch: started directly (the pre-push hook), it finds
+  # npm on PATH, which on Windows is npm.cmd, and Node starts a .cmd only through a shell; run as
+  # `npm run verify`, it takes npm's own entry from npm_execpath, here a C:\ path with
+  # backslashes. Nothing else exercises either. This builds a site from the starter at the root
+  # of its own repo, so the install wires the hook, and runs verify both ways, then pushes
+  # through the hook: a green change goes through, a tone violation is refused.
+  verify-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, at the root of its own repo, with a bare origin
+        shell: bash
+        run: |
+          S="$RUNNER_TEMP/site"
+          cp -r skills/new-website/templates/astro "$S"
+          cd "$S"
+          git init -q
+          git config user.name ci && git config user.email ci@example.invalid
+          git add -A && git commit -qm "site"
+          git init -q --bare "$RUNNER_TEMP/origin.git"
+          git remote add origin "$RUNNER_TEMP/origin.git"
+          git push -q origin HEAD:refs/heads/main
+      # The default shell, PowerShell, as a Windows user would run these.
+      - name: npm ci (its prepare script wires the pre-push hook)
+        working-directory: ${{ runner.temp }}/site
+        run: npm ci --no-audit --no-fund
+      - name: Playwright's browser
+        working-directory: ${{ runner.temp }}/site
+        run: npx playwright install chromium
+      - name: verify.mjs started directly (npm.cmd from PATH, through a shell; first run installs)
+        working-directory: ${{ runner.temp }}/site
+        run: node scripts/verify.mjs
+      - name: npm run verify (npm's own npm-cli.js under a C:\ path); the second run does not reinstall
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: |
+          npm run verify 2>&1 | tee verify2.log
+          grep -q "verify: all green" verify2.log
+          if grep -q "installing the exact packages" verify2.log; then echo "::error::the second run reinstalled"; exit 1; fi
+      - name: The pre-push hook runs verify (a green push goes through, a red one is refused)
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: |
+          [ "$(git config --get core.hooksPath)" = scripts/hooks ] || { echo "::error::npm ci did not wire the hook"; exit 1; }
+          base="$(git rev-parse HEAD)"
+          git switch -q -c content/green
+          git commit -q --allow-empty -m "green"
+          git push origin content/green 2>&1 | tee push-green.log
+          grep -q "pre-push gate passed" push-green.log
+          git ls-remote --exit-code origin refs/heads/content/green >/dev/null
+          git switch -q -c content/red "$base"
+          sed -i 's/This starter page exists/This seamless starter page exists/' src/pages/index.astro
+          git diff --quiet && { echo "::error::the tone violation was not written"; exit 1; }
+          git commit -qam "red"
+          if git push origin content/red 2>&1 | tee push-red.log; then echo "::error::a push with a tone violation went through"; exit 1; fi
+          grep -q "verify: npm test failed" push-red.log
+          if git ls-remote --exit-code origin refs/heads/content/red >/dev/null; then echo "::error::the red branch reached origin"; exit 1; fi
+
   # The website-scorecard skill ships three files that live in a SITE, never in the
   # starter, so the job above does not run them. This builds a site from the starter,
   # installs the skill the way its SKILL.md §2 says, writes a card and runs the suite

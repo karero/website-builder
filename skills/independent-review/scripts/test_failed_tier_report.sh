@@ -53,6 +53,7 @@ if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; the
   exit 1
 fi
 [ -n "${MELIOUS_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-melious-key"
+[ -n "${OLLAMA_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-ollama-key"
 case "${CODEX_STUB:-ok}" in
   ok)   printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two' ;;
   auth) # codex echoes the reviewed artifact into stderr — here one that mentions
@@ -102,6 +103,7 @@ case "$1" in
         fi
         if [ "$1" = --hidethinking ]; then : >"$STUB_MARKS/ollama-hidethinking"; shift; fi
         : >"$STUB_MARKS/ollama-ran"; printf '%s\n' "$1" >"$STUB_MARKS/ollama-model"
+        [ -n "${OLLAMA_API_KEY:-}" ] && printf '%s\n' "$OLLAMA_API_KEY" >"$STUB_MARKS/ollama-cli-key"
         printf '%s\n' "$2" >"$STUB_MARKS/ollama-prompt" ;;
 esac
 case "${OLLAMA_STUB:-ok}" in
@@ -177,12 +179,13 @@ while [ $# -gt 0 ]; do
 done
 printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
 cp "$body" "$STUB_MARKS/curl-body"
+printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv-any"
+# Is the key anywhere on disk while the call is in flight (an interrupt here would leave it)?
+if [ -n "${STUB_KEY:-}" ] && grep -rqF -- "$STUB_KEY" "$REVIEW_RAW_DIR" 2>/dev/null; then : >"$STUB_MARKS/key-on-disk"; fi
 case "$url" in
   *melious*|*/chat/completions)
     # The melious seat: OpenAI-style server-sent events. argv is kept, to show the key is not in it.
     printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv"
-    # Is the key anywhere on disk while the call is in flight (an interrupt here would leave it)?
-    if [ -n "${STUB_KEY:-}" ] && grep -rqF -- "$STUB_KEY" "$REVIEW_RAW_DIR" 2>/dev/null; then : >"$STUB_MARKS/key-on-disk"; fi
     case "${MELIOUS_STUB:-ok}" in
       ok)     printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"- BUG: melious "}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{"content":"finding one\n- NIT: two"}}]}' '' \
@@ -208,6 +211,16 @@ case "$url" in
                 printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"- BUG: kept first\\n- NIT: two\\n${TO}unfinished, I could not read it\"}}]}" '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       nochunks) printf '%s\n' 'upstream said 429 busy, retry 1500 ms' >"$out"; printf 200 ;;
+      # Reasoning leaked into the reply: the trace mentions the marker inline and once as a line
+      # of its own (a draft), then the real marker line and the answer.
+      leak)   printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Let me think. I will write === FINAL REVIEW === before the answer.\n=== FINAL REVIEW ===\n- BUG: draft finding, superseded\nMore thinking about the retry loop.\n"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{"content":"=== FINAL REVIEW ===\n- BUG: the real finding\n- NIT: two"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      bignomark) x=$(printf '%70000s' '' | tr ' ' x)
+                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\"}}]}" '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      markend) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: before the marker\n- NIT: two\n=== FINAL REVIEW ===\n"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       think)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me think about the retry loop at length"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       length) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: first finding\n- RISK: cut"}}]}' '' \
@@ -702,9 +715,15 @@ check "api: the model without its :cloud suffix, streamed, carrying the artifact
 check "api: no key set, no Authorization header sent" not_in "$T/api.marks/curl-hdr" "Authorization"
 check "api: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s \(750 tokens\)$' "$T/api.out"
 check "api: tokens in the cost log" awk -F'\t' '$8=="ollama-cloud" && $12=="750" && $13=="OK" {f=1} END {exit !f}' "$T/api.tsv"
-run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
-check "apikey: the key rides in the header file" grep -qxF "Authorization: Bearer stub-secret" "$T/apikey.marks/curl-hdr"
-check "apikey: and the file is gone afterwards" [ ! -e "$T/apikey.raw/ollama.hdr" ]
+run clikey CODEX_STUB=ok OLLAMA_STUB=ok OLLAMA_API_KEY=cli-secret bash "$SCRIPT" "$T/change.diff"
+check "clikey: the ollama CLI still gets OLLAMA_API_KEY" grep -qxF "cli-secret" "$T/clikey.marks/ollama-cli-key"
+check "clikey: codex, running beside it, does not" test ! -e "$T/clikey.marks/codex-saw-ollama-key"
+run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret STUB_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
+check "apikey: the key reaches curl as a header" grep -qxF "Authorization: Bearer stub-secret" "$T/apikey.marks/curl-hdr"
+check "apikey: on stdin (-H @-), not from a file" grep -qF -- "-H @-" "$T/apikey.marks/curl-argv-any"
+check "apikey: the key is nowhere on disk during the call" test ! -e "$T/apikey.marks/key-on-disk"
+check "apikey: no header file afterwards either" [ ! -e "$T/apikey.raw/ollama.hdr" ]
+check "apikey: codex never sees OLLAMA_API_KEY" test ! -e "$T/apikey.marks/codex-saw-ollama-key"
 check "apikey: never in any output" sh -c '! grep -rqF stub-secret "$1/apikey.out" "$1/apikey.err" "$1/apikey.raw"' _ "$T"
 run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "api429: read as quota" has api429.out "ollama-cloud FAILED (HTTP 429; quota/rate limit: wait or add credits)"
@@ -850,9 +869,18 @@ check "mok: header names the seat and model" has mok.out "## Independent review 
 check "mok: the streamed pieces are joined" has mok.out "- BUG: melious finding one"
 check "mok: summary counts it" has mok.out "reviewers: melious OK"
 check "mok: one-seat note, as for any --seat run" has mok.out "--seat melious was requested"
+check "mok: no marker, small reply: kept whole, no note" sh -c '! grep -qF "final-review marker" "$1" && ! grep -qF "leaked reasoning" "$1"' _ "$T/mok.out"
+run mleak PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=leak bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mleak: the answer after the LAST marker line is the review" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: the real finding" "$1" && ! grep -qF "draft finding" "$1" && ! grep -qF "Let me think" "$1"' _ "$T/mleak.out"
+check "mleak: the section says text was dropped" has mleak.out "text before the final-review marker dropped"
+check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
+run mbig PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
+run mmarkend PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mmarkend: a marker with nothing after it: the reply is kept whole" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: before the marker" "$1"' _ "$T/mmarkend.out"
 check "mok: api.melious.ai, /v1/chat/completions" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mok.marks/curl-url"
-check "mok: model, stream, default budget and the text-only prompt" \
-  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-m" && $j->{stream} && $j->{max_tokens} == 48000 && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mok.marks/curl-body"
+check "mok: model, stream, default budget, the text-only prompt and the marker ask" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-m" && $j->{stream} && $j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /after a line that holds exactly === FINAL REVIEW ===/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mok.marks/curl-body"
 check "mok: the key reaches curl as a header, on stdin" grep -qxF "Authorization: Bearer $MK" "$T/mok.marks/curl-hdr"
 check "mok: curl reads that header from stdin" grep -qF -- "-H @-" "$T/mok.marks/curl-argv"
 check "mok: the key is not on curl's command line" not_in "$T/mok.marks/curl-argv" "$MK"
@@ -962,13 +990,17 @@ class H(http.server.BaseHTTPRequestHandler):
         self.rfile.read(int(self.headers.get("Content-Length", 0)))
         with open(sys.argv[2], "a") as f:
             f.write("auth=%s\n" % self.headers.get("Authorization"))
-        self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
-        self.wfile.write(b'data: {"choices":[{"index":0,"delta":{"content":"- BUG: real curl\\n- NIT: two"}}]}\n\n'
-                         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+        self.send_response(200); self.end_headers()
+        if self.path.endswith("/api/chat"):   # the ollama API: NDJSON
+            self.wfile.write(b'{"message":{"content":"- BUG: real curl ollama\\n- NIT: two"},"done":false}\n'
+                             b'{"message":{"content":""},"done":true,"prompt_eval_count":5,"eval_count":5}\n')
+        else:                                 # melious: server-sent events
+            self.wfile.write(b'data: {"choices":[{"index":0,"delta":{"content":"- BUG: real curl\\n- NIT: two"}}]}\n\n'
+                             b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
     def log_message(self, *a): pass
 s = http.server.HTTPServer(("127.0.0.1", 0), H)
 open(sys.argv[1], "w").write(str(s.server_address[1]))
-for _ in range(2): s.handle_request()
+for _ in range(3): s.handle_request()
 PY
   python3 "$T/echo.py" "$T/echo.port" "$T/echo.log" & echo_pid=$!
   i=0; while [ ! -s "$T/echo.port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
@@ -977,11 +1009,15 @@ PY
     MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
   run mrealnokey PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m \
     MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+  run oreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 OLLAMA_TRANSPORT=api OLLAMA_MODEL=stub-local \
+    OLLAMA_HOST="127.0.0.1:$(cat "$T/echo.port")" OLLAMA_API_KEY=real-ollama-key bash "$SCRIPT" "$T/change.diff" --seat ollama
   kill "$echo_pid" 2>/dev/null; wait "$echo_pid" 2>/dev/null
   check "mreal: real curl, keyed: counted" has mreal.out "reviewers: melious OK"
   check "mreal: real curl sends the stdin header" grep -qxF "auth=Bearer real-curl-key" "$T/echo.log"
   check "mrealnokey: real curl with an empty stdin header list: counted" has mrealnokey.out "reviewers: melious OK"
   check "mrealnokey: ...and sends no Authorization at all" grep -qxF "auth=None" "$T/echo.log"
+  check "oreal: real curl, ollama API: the stdin header arrives" grep -qxF "auth=Bearer real-ollama-key" "$T/echo.log"
+  check "oreal: ...and the review is read" has oreal.out "- BUG: real curl ollama"
 else
   echo "SKIP: the real-curl melious cases need curl and python3. The -H @- path was NOT checked against real curl."
 fi

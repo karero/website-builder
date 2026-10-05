@@ -124,14 +124,18 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
   policy?". Settings take effect in a NEW session.
 - **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
   names no default.
-- **Budget:** `MELIOUS_MAX_TOKENS` (default 48000). A reasoning model can spend all of it
-  thinking and return no text; the seat fails and says so. Raise it and run again.
-- **Reasoning that leaks into the reply:** when the reviewed text itself contains literal think
-  tags, the provider can end the model's reasoning at a closing tag the model quotes from the
-  artifact and send the rest of the trace as the reply (seen 2026-10-05: about 290 KB of trace,
-  the review proper at the very end). No tags reach the reply then, so the seat cannot strip
-  it. Signs: a huge melious section, a review that starts mid-sentence; read it from the END.
-  The seat and its tests build those tags at runtime so this repo's own diffs carry none.
+- **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
+  27 KB diff). A reasoning model can still spend all of it thinking and return no text; the
+  seat fails and says so. Raise it and run again.
+- **Reasoning that leaks into the reply:** the provider can end a reasoning model's thinking at a
+  closing think tag the model writes or quotes (from the artifact, or typed while reasoning
+  about tag handling), and send the rest of the trace as the reply (seen 2026-10-05: 100-290 KB
+  of trace, the review at the very end). The seat therefore asks for a marker line,
+  `=== FINAL REVIEW ===`, before the final answer and keeps only what follows its last
+  occurrence; the section then says how much was dropped, and the untrimmed reply is in
+  `melious.full` in the raw dir. A model that ignores the request gets its whole reply kept;
+  when that reply is large, the section warns that it may hold leaked reasoning: read it from
+  the end. The seat and its tests build think tags at runtime, so this repo's files carry none.
 - **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
   or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with
   the model in its own column.

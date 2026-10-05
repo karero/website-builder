@@ -72,6 +72,8 @@ skip silently. With a config diff, send the code that reads the config too.
    re-gate). `MELIOUS_MODEL` must name the model; the key comes from `MELIOUS_API_KEY`,
    `~/.config/reviewers/melious.env`, or a cloud environment's proxy (`references/setup-guide.md`). A reasoning model can spend
    the whole reply budget thinking: the seat then FAILS and says to raise `MELIOUS_MAX_TOKENS`.
+   The provider can leak reasoning into the reply; the seat keeps what follows the final-review
+   marker it asks for (setup guide).
 
 The standard pair (1 + 2) is the default for both gates and runs in parallel. `--first-success`
 stops at the first reviewer that counts — a conscious choice, honored for a plan too. The script
