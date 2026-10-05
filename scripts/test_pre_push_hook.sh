@@ -34,6 +34,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false"
 fails=0
 check() { if [ "$2" = "$3" ]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s (expected %s, got %s)\n' "$1" "$2" "$3"; fails=$((fails+1)); fi; }
+# yes or no: does $1 contain $2. A function, not an inline "$(case …)": bash 3.2 (macOS)
+# ends a $( ) at the first `)` of a case pattern.
+has() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac; }
 
 # The hook as shipped, and with the block's six commented lines uncommented — the edit
 # website-team-setup §5-B makes. If that edit stops changing exactly six lines, the "on"
@@ -162,8 +165,8 @@ if command -v node >/dev/null 2>&1; then
     p="$sh, site with verify.mjs:"
     out="$(printf '%s\n' "$UPD" | SITE_DIR="$T/site-v" npm_execpath= run "$sh" "$T/off" env)"
     check "$p a normal push runs the gate"      GATE "$(outcome "$out")"
-    check "$p ... through verify.mjs"           yes "$(case "$out" in *"✓ verify: all green"*) echo yes ;; *) echo no ;; esac)"
-    check "$p ... and not the old build step"   no "$(case "$out" in *"npm run build"*) echo yes ;; *) echo no ;; esac)"
+    check "$p ... through verify.mjs"           yes "$(has "$out" "✓ verify: all green")"
+    check "$p ... and not the old build step"   no "$(has "$out" "npm run build")"
     check "$p a failing check stops the push"   FAILED "$(outcome "$(printf '%s\n' "$UPD" | SITE_DIR="$T/site-v" npm_execpath= NPM_FAIL=check run "$sh" "$T/off" env)")"
     check "$p failing tests stop the push"      FAILED "$(outcome "$(printf '%s\n' "$UPD" | SITE_DIR="$T/site-v" npm_execpath= NPM_FAIL=test run "$sh" "$T/off" env)")"
   done
