@@ -174,6 +174,25 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+case "$url" in
+  https://api.melious.ai/*)   # the Melious fallback seat: an OpenAI-style SSE stream
+    printf '%s\n' "$url" >"$STUB_MARKS/melious-url"
+    cp "$body" "$STUB_MARKS/melious-body"
+    [ -e "$STUB_MARKS/curl-hdr" ] && mv "$STUB_MARKS/curl-hdr" "$STUB_MARKS/melious-hdr"
+    d() { printf 'data: {"choices":[{"index":0,"delta":{%s},"finish_reason":%s}],"usage":%s}\n\n' "$1" "$2" "${3:-null}"; }
+    case "${MELIOUS_STUB:-ok}" in
+      ok)     { d '"reasoning_content":"Thinking: I could not read the file."' null
+                d '"content":"- BUG: melious "' null
+                d '"content":"finding one\n- NIT: two"' null
+                d '"content":null' '"stop"'
+                d '"content":null' null '{"prompt_tokens":400,"completion_tokens":200,"total_tokens":600}'
+                printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      429)    printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan","code":"rate_limited"}}' >"$out"; printf 429 ;;
+      trunc)  d '"content":"- BUG: cut off"' null >"$out"; printf 200 ;;
+      length) { d '"content":"- BUG: cut off"' null; d '"content":null' '"length"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+    esac
+    exit 0 ;;
+esac
 printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
 cp "$body" "$STUB_MARKS/curl-body"
 case "${API_STUB:-ok}" in
@@ -195,7 +214,7 @@ mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -798,6 +817,63 @@ for how in failhelp longword; do   # round 1, Codex: a failed help, or the flag 
   run "think$how" STUB_OLDCLI=$how OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
   check "think$how: the flag is not passed" test ! -e "$T/think$how.marks/ollama-hidethinking"
 done
+
+# 32. The Melious fallback for the ollama seat (2026-10-05): it runs only when MELIOUS_MODEL names
+#     a model and the ollama seat did not count, or as --seat melious. Same text-only prompt.
+run mfall OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious REVIEW_LOG="$T/mfall.tsv" bash "$SCRIPT" "$T/change.diff"
+check "mfall: ollama refused, melious stands in and counts" \
+  has mfall.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
+check "mfall: two counted, so no fewer-than-2 note" lacks mfall.out "fewer than the 2"
+check "mfall: its section header" has mfall.out "## Independent review — melious (stub-melious, HTTP API)"
+check "mfall: the streamed pieces are joined" has mfall.out "- BUG: melious finding one"
+check "mfall: the reasoning trace is not the answer" lacks mfall.out "Thinking: I could not read"
+check "mfall: Melious's chat completions endpoint" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mfall.marks/melious-url"
+check "mfall: the model, streamed, the text-only prompt" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-melious" && $j->{stream} && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mfall.marks/melious-body"
+check "mfall: no key set, no Authorization header sent" not_in "$T/mfall.marks/melious-hdr" "Authorization"
+check "mfall: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s, melious [0-9]+s \(600 tokens\)$' "$T/mfall.out"
+check "mfall: tokens in the cost log" awk -F'\t' '$8=="melious" && $9=="stub-melious" && $12=="600" && $13=="OK" {f=1} END {exit !f}' "$T/mfall.tsv"
+run mnomodel OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "mnomodel: no MELIOUS_MODEL, no Melious seat and no call" \
+  sh -c '! grep -qF melious "$1/mnomodel.out" && [ ! -e "$1/mnomodel.marks/melious-url" ]' _ "$T"
+run mpair MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "mpair: ollama counted, so Melious is not called" \
+  sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/mpair.out" && ! grep -qF melious "$1/mpair.out" && [ ! -e "$1/mpair.marks/melious-url" ]' _ "$T"
+run mnocli PATH="$NOCLI" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "mnocli: no ollama at all, Melious runs with the pair" has mnocli.out "reviewers: codex OK, ollama SKIPPED (not available), melious OK"
+check "mnocli: the no-CLI note names MELIOUS_MODEL" has mnocli.err "MELIOUS_MODEL=<model> sends the seat to Melious instead"
+run mlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "mlocal: a local sanity pass does not count, so Melious runs" \
+  has mlocal.out "reviewers: codex OK, ollama-local NOT COUNTED (local model: sanity pass only), melious OK"
+run mkey OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_API_KEY=stub-msecret bash "$SCRIPT" "$T/change.diff"
+check "mkey: the key rides in the header file" grep -qxF "Authorization: Bearer stub-msecret" "$T/mkey.marks/melious-hdr"
+check "mkey: and the file is gone afterwards" [ ! -e "$T/mkey.raw/melious.hdr" ]
+check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" "$1/mkey.err" "$1/mkey.raw"' _ "$T"
+run m429 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
+check "m429: the API's message is quoted" has m429.out "Rate limit exceeded for your plan"
+check "m429: the FAILED section names the model" has m429.out "Model: stub-melious"
+run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff"
+check "mtrunc: a stream with no finish_reason or [DONE] fails the tier" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
+run mlength OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff"
+check "mlength: finish_reason length fails the tier" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "finish_reason length" "$1"' _ "$T/mlength.out"
+run mseat MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mseat: only Melious ran" \
+  sh -c 'grep -qF "reviewers: melious OK" "$1/mseat.out" && [ ! -e "$1/mseat.marks/codex-ran" ] && [ ! -e "$1/mseat.marks/ollama-ran" ]' _ "$T"
+run mseatnomodel bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mseatnomodel: --seat melious without a model is skipped, exit 4" \
+  sh -c 'grep -qF "reviewers: melious SKIPPED (not available)" "$1/mseatnomodel.out" && [ "$(cat "$1/mseatnomodel.rc")" = 4 ]' _ "$T"
+run mfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --first-success
+check "mfirst: --first-success falls through to Melious after ollama" \
+  has mfirst.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
+run mlocalonly OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only
+check "mlocalonly: --local-only never calls Melious" \
+  sh -c '! grep -qF melious "$1/mlocalonly.out" && [ ! -e "$1/mlocalonly.marks/melious-url" ]' _ "$T"
+run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
+check "mlocalseat: --local-only refuses --seat melious, exit 2" \
+  sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
