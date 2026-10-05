@@ -165,7 +165,7 @@ jobs:
               console.log("::error::the copied site has no hook or no .sh to check"); process.exit(1);
             }
             if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
-            console.log("line endings: LF in the hook and all " + (seen.length - 1) + " .sh files");
+            console.log("line endings: LF in the hook and all " + seen.filter((p) => p.endsWith(".sh")).length + " .sh files");
           ' "$S"
           cd "$S"
           git init -q
