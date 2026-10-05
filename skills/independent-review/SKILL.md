@@ -62,7 +62,8 @@ skip silently. With a config diff, send the code that reads the config too.
    as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
    OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
    `MELIOUS_API_KEY`, or the environment's API credential for that host. `--seat melious` runs it
-   alone; `--local-only` never calls it. It logs tokens too.
+   alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
+   tokens too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
@@ -83,8 +84,9 @@ degraded and needs an explicit owner waiver. Cross-model per host — Claude Cod
 ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
 Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
 same opt-in rule). Melious counts like ollama-cloud, by the family of `MELIOUS_MODEL` (a gpt-class
-model there is the Codex host's own family). A human round adds findings but never counts as cross-model. A Light-depth
-gate is the one exception, by the owner's standing choice (Review depth).
+model there is the Codex host's own family). A human round adds findings but never counts as
+cross-model. A Light-depth gate is the one exception, by the owner's standing choice (Review
+depth).
 
 ## Onboarding — first use
 

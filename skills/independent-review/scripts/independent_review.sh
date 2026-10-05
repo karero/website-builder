@@ -9,7 +9,8 @@
 # MELIOUS FALLBACK for the ollama seat: when MELIOUS_MODEL names a model and the ollama seat does
 # not count (no model or CLI, a failure such as a quota refusal, or a local sanity pass), the same
 # text-only prompt goes to Melious's OpenAI-compatible API instead, so the pair still has its second
-# reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone.
+# reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone;
+# `--seat ollama` never falls back to it.
 #
 # Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
 # WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
@@ -92,8 +93,8 @@
 #                                    /v1/models lists it. Unset = no Melious call at all.
 #   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else none is sent — in a
 #                                    cloud session an environment API credential for
-#                                    api.melious.ai is added by the proxy. MELIOUS_API_TIMEOUT
-#                                    (seconds, default 1800) caps the request.
+#                                    api.melious.ai is added by the proxy.
+#   MELIOUS_API_TIMEOUT (1800)       seconds curl allows the Melious request.
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
@@ -209,7 +210,7 @@ if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
     # names no model itself: the caller names it.
     echo "note: no ollama CLI to auto-detect a model from — the ollama tier is skipped this run. Set OLLAMA_MODEL=<name>:cloud to review over ollama's HTTP API, or install ollama and 'ollama signin'; MELIOUS_MODEL=<model> sends the seat to Melious instead." >&2
   elif ! command -v ollama >/dev/null 2>&1; then
-    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer)." >&2
+    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer; MELIOUS_MODEL=<model> sends the seat to Melious instead)." >&2
   elif ! list_out="$(ollama list 2>/dev/null)"; then
     # A failed listing is NOT "no cloud model" — don't send the user to signin
     # for what is actually a broken CLI/daemon.
@@ -858,9 +859,12 @@ ollama_via_api() {
 # seat did not count, or as --seat melious (dispatch below). Text only, sent PROMPT_TEXTONLY like
 # ollama. POST /v1/chat/completions, STREAMED for the same reason as ollama_via_api: each line is
 # "data: <JSON chunk>", ending "data: [DONE]". A stream with neither a finish_reason nor [DONE] is a
-# truncated review, and so is finish_reason "length". A reasoning model's trace arrives as
-# reasoning_content, apart from content, and is left out: the trace is not the answer (see
-# ollama_via_cli's --hidethinking). The key, the usage-to-tokens line and the "Error: HTTP <code>:"
+# truncated review, and so is finish_reason "length" or "content_filter"; a 200 reply that is one
+# JSON object and no stream (the server ignored stream:true) is reported as that. A reasoning
+# model's trace is not the answer (see ollama_via_cli's --hidethinking): Melious sent it as
+# reasoning_content, apart from content, for each of three reasoning models tried on 2026-10-05,
+# and that field is left out. A model that inlines it as a leading <think>...</think> block in
+# content has the block cut too. The key, the usage-to-tokens line and the "Error: HTTP <code>:"
 # shape follow ollama_via_api, so attempt()'s quota classification reads a 429 the same way.
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
@@ -896,8 +900,9 @@ run_melious() {
             : "response is not JSON: " . substr($raw =~ s/\s+/ /gr, 0, 300);
       print STDERR "Error: HTTP $code: $m\n"; exit 2;
     }
-    my ($c, $done, $fin, $usage, $n) = ("", 0, undef, undef, 0);
+    my ($c, $done, $fin, $usage, $n, $raw) = ("", 0, undef, undef, 0, "");
     while (my $line = <$f>) {
+      $raw .= $line if length $raw < 4096;
       next unless $line =~ /^data:[ \t]*(.*?)\s*$/;
       my $d = $1;
       if ($d eq "[DONE]") { $done = 1; next }
@@ -911,8 +916,12 @@ run_melious() {
       $c .= $ch->{delta}{content} // "" if ref $ch->{delta} eq "HASH";
       $fin = $ch->{finish_reason} if defined $ch->{finish_reason};
     }
+    if (!$n && !$done && ref(eval { $json->decode($raw) }) eq "HASH") {
+      print STDERR "Error: HTTP $code: the reply was one JSON object, not a stream (stream:true ignored?)\n"; exit 3;
+    }
     if (!$done && !defined $fin) { print STDERR "Error: HTTP $code: the stream ended without a finish_reason or [DONE] after $n chunks — a truncated review\n"; exit 4 }
     if (defined $fin && $fin =~ /^(length|content_filter)$/) { print STDERR "Error: HTTP $code: the reply stopped early (finish_reason $fin) — a truncated review\n"; exit 4 }
+    $c =~ s/\A\s*<think>.*?<\/think>\s*//s;   # an inline trace, cut before anything judges it
     binmode STDOUT, ":encoding(UTF-8)";
     print $c; print "\n" if length $c && $c !~ /\n\z/;
     if ($usage && open my $t, ">", $tok) {
@@ -920,6 +929,7 @@ run_melious() {
       print $t "$total\n";
     }
   ' "$resp" "$code" "$RAW_DIR/melious.tokens" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
+  [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
   [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
   [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
@@ -1191,17 +1201,23 @@ else
   trap 'stop_tiers; exit 130' INT TERM
   run_tier codex run_codex &                                                     # 1. OpenAI Codex CLI
   run_tier ollama run_ollama &                                                   # 2. ollama cloud/local
-  # 2b. Melious, for the ollama seat. With no ollama model at all the seat is known to be out from
-  # the start, so the fallback runs with the pair; otherwise it waits to see whether ollama counted.
-  MELIOUS_RAN=0
-  if [ -n "${MELIOUS_MODEL:-}" ] && [ -z "${OLLAMA_MODEL:-}" ]; then run_tier melious run_melious & MELIOUS_RAN=1; fi
+  ollama_pid=$!
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then
     run_tier agy run_agy &                                                       # 3. agy, opt-in only
   fi
-  wait
-  if [ -n "${MELIOUS_MODEL:-}" ] && [ $MELIOUS_RAN -eq 0 ] && ! ollama_counted; then
-    run_tier melious run_melious & MELIOUS_RAN=1; wait   # a job, so stop_tiers can still reach it
+  # 2b. Melious, for the ollama seat. With no ollama model at all the seat is known to be out from
+  # the start, so the fallback runs with the pair; otherwise it waits for ollama ALONE (not codex
+  # or agy) and starts the moment ollama did not count. Always a job, so stop_tiers reaches it.
+  MELIOUS_RAN=0
+  if [ -n "${MELIOUS_MODEL:-}" ]; then
+    if [ -z "${OLLAMA_MODEL:-}" ]; then
+      run_tier melious run_melious & MELIOUS_RAN=1
+    else
+      wait "$ollama_pid"
+      if ! ollama_counted; then run_tier melious run_melious & MELIOUS_RAN=1; fi
+    fi
   fi
+  wait
   trap - INT TERM
   report_tier codex codex
   report_tier "$OLLAMA_LABEL" ollama

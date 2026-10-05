@@ -65,8 +65,9 @@ the reading code in the artifact, or expect to spend the round refuting.
    (`MELIOUS_MODEL`, opt-in by naming a model): when the ollama seat does not
    count — no model or CLI, a failure such as a quota refusal, or a local
    sanity pass — the script sends the same text-only prompt to Melious's
-   OpenAI-compatible API instead, so a round keeps two reviewers. It stands in
-   for the seat, never adds a third; `--seat melious` runs it alone.
+   OpenAI-compatible API instead, so the pair keeps its second reviewer. It
+   stands in for the seat and is never a third counted reviewer; `--seat
+   melious` runs it alone, and `--seat ollama` never falls back to it.
 3. **Fresh-eyes host-agent pass** — a read-only sub-agent (or the vendored
    `double-knuth` skill) with NO shared context: give it only the artifact and
    the strict prompt below. Never reuse the authoring conversation. If the host

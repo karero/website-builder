@@ -190,6 +190,15 @@ case "$url" in
       429)    printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan","code":"rate_limited"}}' >"$out"; printf 429 ;;
       trunc)  d '"content":"- BUG: cut off"' null >"$out"; printf 200 ;;
       length) { d '"content":"- BUG: cut off"' null; d '"content":null' '"length"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      inlinethink) # a trace inlined in content; alone it would reject the one-finding review
+              { d '"content":"<think>I could not read the file.</think>\n"' null
+                d '"content":"- RISK: inline finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      miderr) { d '"content":"- BUG: partial"' null
+                printf 'data: {"error":{"message":"upstream overloaded"}}\n\n'; } >"$out"; printf 200 ;;
+      notstream) printf '%s\n' '{"choices":[{"message":{"content":"- BUG: x"},"finish_reason":"stop"}]}' >"$out"; printf 200 ;;
+      down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
+      slow)   sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
     exit 0 ;;
 esac
@@ -854,11 +863,41 @@ check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate l
 check "m429: the API's message is quoted" has m429.out "Rate limit exceeded for your plan"
 check "m429: the FAILED section names the model" has m429.out "Model: stub-melious"
 run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff"
-check "mtrunc: a stream with no finish_reason or [DONE] fails the tier" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
+check "mtrunc: a stream with no finish_reason or [DONE] fails the tier, named as truncated" \
+  sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
 run mlength OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff"
 check "mlength: finish_reason length fails the tier" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "finish_reason length" "$1"' _ "$T/mlength.out"
+  sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "finish_reason length" "$1"' _ "$T/mlength.out"
+run mthink OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=inlinethink bash "$SCRIPT" "$T/change.diff"
+check "mthink: an inline <think> trace is cut, and the review counts" \
+  sh -c 'grep -qF "melious OK" "$1" && grep -qF -- "- RISK: inline finding" "$1" && ! grep -qF "could not read the file" "$1"' _ "$T/mthink.out"
+run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff"
+check "mmiderr: an error object mid-stream fails the tier and is quoted" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
+run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
+check "mnotstream: a plain JSON reply is named as not a stream" has mnotstream.out "not a stream (stream:true ignored?)"
+run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
+check "mdown: a network failure names curl's exit, with a hint" \
+  sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
+# The fallback waits for ollama alone, not for codex (round 1, fresh-eyes): codex 2s and Melious
+# 2s overlap, so the round is well under the 4s of one after the other.
+start=$SECONDS
+run mparallel CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+elapsed=$((SECONDS - start))
+check "mparallel: melious counted" has mparallel.out "melious OK"
+check "mparallel: took ${elapsed}s, under the 4s of codex then Melious" [ "$elapsed" -lt 4 ]
+# Stopping the script stops a fallback started after ollama failed, as it does the pair.
+mkdir -p "$T/mstop.marks"
+env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY PATH="$T/bin:$PATH" HOME="$T/u" \
+  WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn \
+  bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
+spid=$!
+i=0; while [ ! -s "$T/mstop.marks/melious-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/mstop.rc"
+check "mstop: the script exits 130" rc_is mstop 130
+check "mstop: the TERM-ignoring fallback is gone" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/mstop.marks/melious-pid"
 run mseat MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mseat: only Melious ran" \
   sh -c 'grep -qF "reviewers: melious OK" "$1/mseat.out" && [ ! -e "$1/mseat.marks/codex-ran" ] && [ ! -e "$1/mseat.marks/ollama-ran" ]' _ "$T"
