@@ -171,7 +171,7 @@ jobs:
           VERIFY_TRACE: '1'
         run: |
           node scripts/verify.mjs 2>&1 | tee verify1.log
-          grep -q "verify: npm from PATH (through a shell on Windows)" verify1.log
+          grep -q "verify: npm from PATH (through a shell)" verify1.log
           grep -q "verify: all green" verify1.log
           # Node deprecates an args array with shell: true (DEP0190); verify.mjs passes one string.
           if grep -q "DEP0190" verify1.log; then echo "::error::verify.mjs printed Node's DEP0190 warning"; exit 1; fi

@@ -138,7 +138,9 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
   or quoted after the review does not count); the section then says how much was dropped, and
   the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
   reply is kept; when it is over 64 KB, the section warns that it may hold leaked reasoning: read
-  it from the end. The seat and its tests build think tags at runtime, so this repo's files carry none.
+  it from the end. A leak can also run on with no marker until the connection drops (seen once,
+  after 38 minutes): the seat fails with "reply cut off" and keeps what came in `melious.resp`;
+  run it again. The seat and its tests build think tags at runtime, so this repo's files carry none.
 - **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
   or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with
   the model in its own column.

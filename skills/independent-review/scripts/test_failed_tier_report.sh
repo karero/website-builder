@@ -239,6 +239,8 @@ case "$url" in
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       trunc)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: cut off"}}]}' >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
+      reset)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: half a reply"}}]}' >"$out"
+              echo "curl: (56) Recv failure: Connection reset by peer" >&2; exit 56 ;;
     esac
     exit 0 ;;
 esac
@@ -948,6 +950,10 @@ check "mtrunc: a stream with no end is a truncated review" has mtrunc.out "a tru
 run mdown PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mdown: a blocked host points at the network policy" has mdown.out "is the host allowed by the network policy?"
 check "mdown: the header file is gone after a failed call too" test ! -e "$T/mdown.raw/melious.hdr"
+run mreset PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=reset bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mreset: a reply that broke off is named as such" has mreset.out "reviewers: melious FAILED (curl exit 56, reply cut off)"
+check "mreset: ...not as a blocked host" sh -c '! grep -qF "network policy" "$1"' _ "$T/mreset.out"
+check "mreset: ...and the part that came is kept" grep -qF "half a reply" "$T/mreset.raw/melious.resp"
 run mbudget PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_MAX_TOKENS=96000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 96000)' "$T/mbudget.marks/curl-body"
@@ -1043,21 +1049,24 @@ PY
   if [ ! -s "$T/echo.port" ]; then
     echo "real-curl cases: the local server wrote no port in 30 s; its stderr:"; sed 's/^/    /' "$T/echo.err"
     kill -0 "$echo_pid" 2>/dev/null && echo "    (the server process is still running)" || echo "    (the server process has exited)"
+    # One clear failure, not six curl errors against an empty port (round 8, glm).
+    echo "FAIL real-curl cases: no local server, so none of them ran"; fails=$((fails+1))
+  else
+    RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
+    run mreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m MELIOUS_API_KEY=real-curl-key \
+      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+    run mrealnokey PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m \
+      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+    run oreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 OLLAMA_TRANSPORT=api OLLAMA_MODEL=stub-local \
+      OLLAMA_HOST="127.0.0.1:$(cat "$T/echo.port")" OLLAMA_API_KEY=real-ollama-key bash "$SCRIPT" "$T/change.diff" --seat ollama
+    check "mreal: real curl, keyed: counted" has mreal.out "reviewers: melious OK"
+    check "mreal: real curl sends the stdin header" grep -qxF "auth=Bearer real-curl-key" "$T/echo.log"
+    check "mrealnokey: real curl with an empty stdin header list: counted" has mrealnokey.out "reviewers: melious OK"
+    check "mrealnokey: ...and sends no Authorization at all" grep -qxF "auth=None" "$T/echo.log"
+    check "oreal: real curl, ollama API: the stdin header arrives" grep -qxF "auth=Bearer real-ollama-key" "$T/echo.log"
+    check "oreal: ...and the review is read" has oreal.out "- BUG: real curl ollama"
   fi
-  RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
-  run mreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m MELIOUS_API_KEY=real-curl-key \
-    MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
-  run mrealnokey PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m \
-    MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
-  run oreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 OLLAMA_TRANSPORT=api OLLAMA_MODEL=stub-local \
-    OLLAMA_HOST="127.0.0.1:$(cat "$T/echo.port")" OLLAMA_API_KEY=real-ollama-key bash "$SCRIPT" "$T/change.diff" --seat ollama
   kill "$echo_pid" 2>/dev/null; wait "$echo_pid" 2>/dev/null
-  check "mreal: real curl, keyed: counted" has mreal.out "reviewers: melious OK"
-  check "mreal: real curl sends the stdin header" grep -qxF "auth=Bearer real-curl-key" "$T/echo.log"
-  check "mrealnokey: real curl with an empty stdin header list: counted" has mrealnokey.out "reviewers: melious OK"
-  check "mrealnokey: ...and sends no Authorization at all" grep -qxF "auth=None" "$T/echo.log"
-  check "oreal: real curl, ollama API: the stdin header arrives" grep -qxF "auth=Bearer real-ollama-key" "$T/echo.log"
-  check "oreal: ...and the review is read" has oreal.out "- BUG: real curl ollama"
 else
   echo "SKIP: the real-curl cases need curl and a python3 that can import http.server. The -H @- path was NOT checked against real curl."
 fi

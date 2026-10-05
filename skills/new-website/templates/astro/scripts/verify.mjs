@@ -47,7 +47,8 @@ function npm(args, capture) {
   // VERIFY_TRACE=1 names the branch once, so a test (CI on Windows) can prove which one ran.
   if (process.env.VERIFY_TRACE && !npm.traced) {
     npm.traced = true;
-    console.log(viaEntry ? 'verify: npm via npm_execpath (npm-cli.js)' : 'verify: npm from PATH (through a shell on Windows)');
+    const viaShell = process.platform === 'win32' ? ' (through a shell)' : '';
+    console.log(viaEntry ? 'verify: npm via npm_execpath (npm-cli.js)' : `verify: npm from PATH${viaShell}`);
   }
   if (viaEntry) return spawnSync(process.execPath, [entry, ...args], opts);
   // On Windows: one command string, not an args array. Node deprecates args with

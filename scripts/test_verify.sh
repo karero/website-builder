@@ -116,7 +116,7 @@ check "npm_execpath set: npm's entry runs through node"     "check test" "$(call
 out="$(cd "$T/elsewhere" && VERIFY_TRACE=1 npm_execpath="$T/npm-cli.js" node "$SITE/scripts/verify.mjs" 2>&1)"
 check "VERIFY_TRACE names the npm_execpath branch"          yes "$(has "$out" "verify: npm via npm_execpath (npm-cli.js)")"
 out="$(VERIFY_TRACE=1 go)"
-check "VERIFY_TRACE names the PATH branch"                  yes "$(has "$out" "verify: npm from PATH (through a shell on Windows)")"
+check "VERIFY_TRACE names the PATH branch"                  yes "$(has "$out" "verify: npm from PATH")"
 out="$(go)"
 check "... and says nothing without VERIFY_TRACE"           no "$(has "$out" "verify: npm from PATH")"
 # pnpm and yarn set npm_execpath to their own entry, which has no `npm ci`: npm on PATH runs.

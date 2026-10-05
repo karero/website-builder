@@ -943,8 +943,16 @@ run_melious() {
     --data-binary @"$body" "$url/chat/completions" 2>>"$RAW_DIR/melious.err")"; rc=$?
   key=""
   if [ $rc -ne 0 ]; then
-    printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
-    WHY="curl exit $rc"; return 1
+    if [ -s "$resp" ]; then
+      # Part of a reply came in, then the connection broke (a reset after 38 minutes of a
+      # runaway reply, 2026-10-05): the host was reachable, so the network policy is not it.
+      printf 'Error: the reply from %s broke off (curl exit %s); the part that came is in melious.resp\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
+      WHY="curl exit $rc, reply cut off"
+    else
+      printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
+      WHY="curl exit $rc"
+    fi
+    return 1
   fi
   perl -MJSON::PP -MEncode -e '
     my ($file, $code, $tok, $mark, $full) = @ARGV;
