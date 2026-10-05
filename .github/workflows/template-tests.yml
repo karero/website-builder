@@ -150,16 +150,22 @@ jobs:
           file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
           # Node reads the bytes: a CR handed to grep through Git Bash flagged LF files as CRLF.
           node -e '
-            const fs = require("fs"), path = require("path"), bad = [];
+            const fs = require("fs"), path = require("path"), bad = [], seen = [];
             (function walk(d) {
               for (const e of fs.readdirSync(d, { withFileTypes: true })) {
                 const p = path.join(d, e.name);
                 if (e.isDirectory()) { if (e.name !== "node_modules") walk(p); }
-                else if ((e.name.endsWith(".sh") || p.endsWith(path.join("hooks", "pre-push"))) && fs.readFileSync(p).includes(13)) bad.push(p);
+                else if (e.name.endsWith(".sh") || p.endsWith(path.join("hooks", "pre-push"))) {
+                  seen.push(p); if (fs.readFileSync(p).includes(13)) bad.push(p);
+                }
               }
             })(process.argv[1]);
+            // A copy without the hook or any .sh would pass with nothing checked.
+            if (!seen.some((p) => p.endsWith("pre-push")) || !seen.some((p) => p.endsWith(".sh"))) {
+              console.log("::error::the copied site has no hook or no .sh to check"); process.exit(1);
+            }
             if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
-            console.log("line endings: LF in the hook and every .sh");
+            console.log("line endings: LF in the hook and all " + (seen.length - 1) + " .sh files");
           ' "$S"
           cd "$S"
           git init -q
