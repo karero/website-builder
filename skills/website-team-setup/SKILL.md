@@ -28,9 +28,11 @@ in the order we had to do it on a real site, with the traps we hit written in.
 > every value and run every command that `gh` can run; you never handle the owner's
 > credentials or 2FA, and never drive a dashboard through blind screen control.
 
-> **Language.** Talk to the owner in their language. The files stay English unless the
-> owner's language is another one; then translate `AGENTS.md` and `TEAM-GUIDE.md`
-> in-session (rules and commands intact), as `new-website` does for `PUBLISHING.md`.
+> **Language.** Talk to the owner in their language. `AGENTS.md` stays English on every
+> site, like the skills: agents read it, and its Language rule has them reply in the
+> person's language. `TEAM-GUIDE.md` is for people: translate it in-session when the
+> team's language is not English (rules and commands intact), as `new-website` does
+> for `PUBLISHING.md`.
 
 Prerequisites: the site is on GitHub with `.github/workflows/ci.yml` from the kit, and
 `AGENTS.md` exists. If it does not (a site scaffolded before the template existed),
@@ -377,7 +379,7 @@ pull request). Walk the owner through it with these warnings ahead of each click
    scaffolded after that step existed carry it: `whats-new.sh` reports drift in
    `ci.yml`, it never rewrites it. So `AGENTS.md`'s merge rule ("no placeholder is
    left") is enforced only if the step is there. First find out which **token** this
-   site uses: `AGENTS.md` §4 names it, and a translated site may well use its own word
+   site uses: `AGENTS.md` §4 names it, and a site with non-English content may use its own word
    (a German site might write `"[FEHLT: …]"`); the kit's step greps for `[MISSING:`
    and matches nothing else. Then check for the step itself — its `grep -rnI` line,
    not any mention of the word in a comment — add it if missing with the site's

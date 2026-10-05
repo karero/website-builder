@@ -309,8 +309,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
    rule, who publishes) ships with single-owner defaults, not slots; `website-team-setup`
-   rewrites it when a team forms. Non-English owner: translate `AGENTS.md` in-session
-   like `PUBLISHING.md` — rules and commands intact.
+   rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
+   skills: agents read it, and its Language rule has them reply in the person's
+   language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
 3. **Skills travel with the repo** — copy the twenty-five always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not

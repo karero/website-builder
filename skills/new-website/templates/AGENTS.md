@@ -8,17 +8,22 @@ Live: [LIVE_URL] · Preview: [PREVIEW_URL]
      single-stage: "pull-request previews only, <branch>.<project>.pages.dev"),
      TITLE_SUFFIX + SUFFIX_LENGTH + TITLE_MAX in §6, and keeps ONE publish-model block
      in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
-     (collaborators, rights level, merge rule, who publishes). Owner writes in another
-     language? Translate this file in-session, keep every rule, keep the commands
-     verbatim — and if you translate the placeholder token "[MISSING: …]" (§2, §4),
-     change the grep pattern in .github/workflows/ci.yml and DRAFT_TOKEN in
-     tests/placeholders.spec.ts to the same word, or the CI gate never fires and a
-     draft branch cannot be pushed. CLAUDE.md imports this file, so Codex and Claude Code follow
+     (collaborators, rights level, merge rule, who publishes). This file stays English
+     for every owner, like the skills; the Language rule below makes the assistant talk
+     to a non-English owner in their language. A site with non-English content may use
+     its own placeholder token instead of "[MISSING: …]" (e.g. "[FEHLT: …]"): then
+     write it in §2 and §4 here, and change the grep pattern in
+     .github/workflows/ci.yml and DRAFT_TOKEN in tests/placeholders.spec.ts to the
+     same word, or the CI gate never fires and a draft branch cannot be pushed. CLAUDE.md imports this file, so Codex and Claude Code follow
      the same rules. -->
 
 Several people and several AI assistants may work on this site, sometimes at the same
 time. The rules below stop anyone from working on a stale state or overwriting someone
 else's work. If a rule is unclear or does not fit the situation: ask, do not improvise.
+
+**Language.** This file is in English on every site. Everything you say to the
+person (reports, questions, pull request descriptions) is in the language they write
+in. The language of the site's own texts is set in §4, independent of that.
 
 ## 1. At the start of EVERY session: get the latest state (mandatory)
 
