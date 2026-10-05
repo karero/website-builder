@@ -353,7 +353,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
       skills/new-website/templates/astro/.nvmrc)
         echo "  templates/astro/.nvmrc (site copy: .nvmrc)" ;;
       skills/new-website/templates/astro/.gitattributes)
-        echo "  templates/astro/.gitattributes (site copy: .gitattributes — on a Windows computer that already has the site, delete scripts/hooks/pre-push and run \`git checkout -- scripts/hooks/pre-push\` after committing it, so the hook is checked out again with LF line endings)" ;;
+        echo "  templates/astro/.gitattributes (site copy: .gitattributes — keeps the hook and shell scripts LF; a Windows working copy made before it still holds CRLF copies, which Git for Windows runs but WSL or a container does not: there, delete scripts/hooks/pre-push and run \`git checkout -- scripts/hooks/pre-push\` after committing the file)" ;;
       *)
         echo "  $f" ;;
     esac

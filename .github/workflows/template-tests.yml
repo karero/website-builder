@@ -144,8 +144,9 @@ jobs:
           S="$RUNNER_TEMP/site"
           # Absolute: this workflow's default working-directory is the template folder.
           cp -r "$GITHUB_WORKSPACE/skills/new-website/templates/astro" "$S"
-          # Git for Windows checks text out with CRLF; the template's .gitattributes keeps the
-          # hook and shell scripts LF, or sh fails on the hook's first `set -e`.
+          # Git for Windows checks text out with CRLF. Its own bash runs a CRLF hook (this job
+          # passed on one before), but WSL's or a container's sh stops at the first `set -e`,
+          # so the template's .gitattributes keeps the hook and shell scripts LF.
           file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
           if grep -q $'\r' "$S/scripts/hooks/pre-push"; then echo "::error::the hook was checked out with CRLF line endings"; exit 1; fi
           cd "$S"
@@ -172,6 +173,8 @@ jobs:
           node scripts/verify.mjs 2>&1 | tee verify1.log
           grep -q "verify: npm from PATH (through a shell on Windows)" verify1.log
           grep -q "verify: all green" verify1.log
+          # Node deprecates an args array with shell: true (DEP0190); verify.mjs passes one string.
+          if grep -q "DEP0190" verify1.log; then echo "::error::verify.mjs printed Node's DEP0190 warning"; exit 1; fi
       - name: npm run verify (npm's own npm-cli.js under a C:\ path); the second run does not reinstall
         working-directory: ${{ runner.temp }}/site
         shell: bash

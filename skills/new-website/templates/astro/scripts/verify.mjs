@@ -49,9 +49,13 @@ function npm(args, capture) {
     npm.traced = true;
     console.log(viaEntry ? 'verify: npm via npm_execpath (npm-cli.js)' : 'verify: npm from PATH (through a shell on Windows)');
   }
-  return viaEntry
-    ? spawnSync(process.execPath, [entry, ...args], opts)
-    : spawnSync('npm', args, { ...opts, shell: process.platform === 'win32' });
+  if (viaEntry) return spawnSync(process.execPath, [entry, ...args], opts);
+  // On Windows: one command string, not an args array. Node deprecates args with
+  // shell: true (DEP0190, printed on every run), and these are fixed words with no
+  // spaces or quotes, so joining them changes nothing.
+  return process.platform === 'win32'
+    ? spawnSync(['npm', ...args].join(' '), { ...opts, shell: true })
+    : spawnSync('npm', args, opts);
 }
 
 // Print what a captured step wrote (it stayed hidden while the step ran), then stop.
