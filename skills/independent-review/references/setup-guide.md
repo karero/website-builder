@@ -125,17 +125,20 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
 - **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
   names no default.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
-  27 KB diff). A reasoning model can still spend all of it thinking and return no text; the
+  27 KB diff, and finished at 96000 in 296-656 s, inside the 1800 s `MELIOUS_API_TIMEOUT`). A
+  model whose output cap is lower answers with an error, quoted in the FAILED section: lower the
+  budget for it. A reasoning model can still spend all of it thinking and return no text; the
   seat fails and says so. Raise it and run again.
 - **Reasoning that leaks into the reply:** the provider can end a reasoning model's thinking at a
   closing think tag the model writes or quotes (from the artifact, or typed while reasoning
   about tag handling), and send the rest of the trace as the reply (seen 2026-10-05: 100-290 KB
   of trace, the review at the very end). The seat therefore asks for a marker line,
-  `=== FINAL REVIEW ===`, before the final answer and keeps only what follows its last
-  occurrence; the section then says how much was dropped, and the untrimmed reply is in
-  `melious.full` in the raw dir. A model that ignores the request gets its whole reply kept;
-  when that reply is large, the section warns that it may hold leaked reasoning: read it from
-  the end. The seat and its tests build think tags at runtime, so this repo's files carry none.
+  `=== FINAL REVIEW ===`, before the final answer and keeps what follows the last marker line
+  that has findings after it (Markdown around the marker is fine; a marker repeated at the end
+  or quoted after the review does not count); the section then says how much was dropped, and
+  the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
+  reply is kept; when it is large, the section warns that it may hold leaked reasoning: read
+  it from the end. The seat and its tests build think tags at runtime, so this repo's files carry none.
 - **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
   or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with
   the model in its own column.

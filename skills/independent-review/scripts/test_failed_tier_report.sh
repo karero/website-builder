@@ -219,6 +219,15 @@ case "$url" in
       bignomark) x=$(printf '%70000s' '' | tr ' ' x)
                 printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\"}}]}" '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      markdup) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Thinking about it at length.\n=== FINAL REVIEW ===\n- BUG: kept finding\n- NIT: two\n=== FINAL REVIEW ===\n"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      markfence) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Thinking first.\n=== FINAL REVIEW ===\n- RISK: fenced case kept\n- NIT: the seat asks for this line:\n```\n=== FINAL REVIEW ===\n```\n"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      markwrap) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Reasoning that leaked.\n**=== FINAL REVIEW ===**\n- BUG: wrapped marker kept\n- NIT: two"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      bigmarkend) x=$(printf '%70000s' '' | tr ' ' x)
+                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n=== FINAL REVIEW ===\\n\"}}]}" '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       markend) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: before the marker\n- NIT: two\n=== FINAL REVIEW ===\n"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       think)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me think about the retry loop at length"}}]}' '' \
@@ -702,8 +711,8 @@ REVIEW_LOG="$RL" bash "$HERE/review_log.sh" summary >"$T/race.out"
 check "race: a spare header is not counted as a seat" [ "$(awk 'NR > 1 && NF == 0 {exit} NR > 1' "$T/race.out" | grep -c .)" = 40 ]
 
 # 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
-#     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, rides in a
-#     header FILE that is gone afterwards; the tokens reach the timings line and the cost log.
+#     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, reaches curl
+#     on stdin and is never on disk; the tokens reach the timings line and the cost log.
 NOCLI="$T/bin2:/usr/bin:/bin"
 run api PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" REVIEW_LOG="$T/api.tsv" bash "$SCRIPT" "$T/change.diff"
 check "api: counted" has api.out "reviewers: codex OK, ollama-cloud OK"
@@ -876,6 +885,14 @@ check "mleak: the section says text was dropped" has mleak.out "text before the 
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
 run mbig PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
+run mmarkdup PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mmarkdup: a marker repeated at the end does not win: the review after the first is kept" sh -c 'grep -qF "BUG: kept finding" "$1" && ! grep -qF "Thinking about it" "$1" && grep -qF "dropped, under 1 KB" "$1"' _ "$T/mmarkdup.out"
+run mmarkfence PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markfence bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mmarkfence: a marker quoted in a fence after the review does not win" sh -c 'grep -qF "RISK: fenced case kept" "$1" && ! grep -qF "Thinking first" "$1"' _ "$T/mmarkfence.out"
+run mmarkwrap PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markwrap bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped marker kept" "$1" && ! grep -qF "Reasoning that leaked" "$1"' _ "$T/mmarkwrap.out"
+run mbigmarkend PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
 run mmarkend PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkend: a marker with nothing after it: the reply is kept whole" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: before the marker" "$1"' _ "$T/mmarkend.out"
 check "mok: api.melious.ai, /v1/chat/completions" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mok.marks/curl-url"
@@ -919,6 +936,7 @@ check "mthink: not read as a quota failure" lacks mthink.out "quota/rate limit"
 run mlength PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mlength: a reply cut by the budget is not counted" has mlength.out "reviewers: melious FAILED (HTTP 200, review cut off)"
 check "mlength: and says it was cut off" has mlength.out "finish_reason=length"
+check "mlength: the raw reply is saved on a failure path too" grep -qF "first finding" "$T/mlength.raw/melious.full"
 run mtrunc PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mtrunc: a stream with no end is a truncated review" has mtrunc.out "a truncated review"
 run mdown PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff" --seat melious

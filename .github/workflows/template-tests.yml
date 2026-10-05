@@ -132,6 +132,7 @@ jobs:
   # through the hook: a green change goes through, a tone violation is refused.
   verify-windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -141,7 +142,10 @@ jobs:
         shell: bash
         run: |
           S="$RUNNER_TEMP/site"
-          cp -r skills/new-website/templates/astro "$S"
+          # Absolute: this workflow's default working-directory is the template folder.
+          cp -r "$GITHUB_WORKSPACE/skills/new-website/templates/astro" "$S"
+          # What a Windows checkout did to the hook's line endings (the job's open question).
+          file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
           cd "$S"
           git init -q
           git config user.name ci && git config user.email ci@example.invalid
@@ -156,14 +160,24 @@ jobs:
       - name: Playwright's browser
         working-directory: ${{ runner.temp }}/site
         run: npx playwright install chromium
+      # VERIFY_TRACE=1 makes verify.mjs name the way it started npm, so each step can prove its branch.
       - name: verify.mjs started directly (npm.cmd from PATH, through a shell; first run installs)
         working-directory: ${{ runner.temp }}/site
-        run: node scripts/verify.mjs
+        shell: bash
+        env:
+          VERIFY_TRACE: '1'
+        run: |
+          node scripts/verify.mjs 2>&1 | tee verify1.log
+          grep -q "verify: npm from PATH (through a shell on Windows)" verify1.log
+          grep -q "verify: all green" verify1.log
       - name: npm run verify (npm's own npm-cli.js under a C:\ path); the second run does not reinstall
         working-directory: ${{ runner.temp }}/site
         shell: bash
+        env:
+          VERIFY_TRACE: '1'
         run: |
           npm run verify 2>&1 | tee verify2.log
+          grep -q "verify: npm via npm_execpath (npm-cli.js)" verify2.log
           grep -q "verify: all green" verify2.log
           if grep -q "installing the exact packages" verify2.log; then echo "::error::the second run reinstalled"; exit 1; fi
       - name: The pre-push hook runs verify (a green push goes through, a red one is refused)

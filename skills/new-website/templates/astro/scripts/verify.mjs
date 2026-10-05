@@ -43,7 +43,13 @@ function npm(args, capture) {
     maxBuffer: 256 * 1024 * 1024,
   };
   const entry = process.env.npm_execpath;
-  return entry && /[\\/]npm-cli\.c?js$/.test(entry)
+  const viaEntry = Boolean(entry && /[\\/]npm-cli\.c?js$/.test(entry));
+  // VERIFY_TRACE=1 names the branch once, so a test (CI on Windows) can prove which one ran.
+  if (process.env.VERIFY_TRACE && !npm.traced) {
+    npm.traced = true;
+    console.log(viaEntry ? 'verify: npm via npm_execpath (npm-cli.js)' : 'verify: npm from PATH (through a shell on Windows)');
+  }
+  return viaEntry
     ? spawnSync(process.execPath, [entry, ...args], opts)
     : spawnSync('npm', args, { ...opts, shell: process.platform === 'win32' });
 }

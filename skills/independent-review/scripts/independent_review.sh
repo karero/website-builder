@@ -946,7 +946,7 @@ run_melious() {
     WHY="curl exit $rc"; return 1
   fi
   perl -MJSON::PP -e '
-    my ($file, $code, $tok) = @ARGV;
+    my ($file, $code, $tok, $mark, $full) = @ARGV;
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $raw = do { local $/; <$f> } // "";
     my $json = JSON::PP->new->utf8;
@@ -976,6 +976,8 @@ run_melious() {
       for my $k (qw(reasoning_content reasoning)) { $think += length $d->{$k} if defined $d->{$k} && !ref $d->{$k} }
       $finish = $ch->{finish_reason} if defined $ch->{finish_reason};
     }
+    # The reply as it came, before any check or trim, on every path that has one (melious.full).
+    if (length $c && open my $fh, ">:encoding(UTF-8)", $full) { print $fh $c; close $fh }
     if (!$n) { print STDERR "Error: HTTP $code: no stream chunks in the reply: ", $quote->($raw), "\n"; exit 3 }
     if (!$done && !defined $finish) { print STDERR "Error: HTTP $code: the stream ended without a finish reason or [DONE] — a truncated review\n"; exit 4 }
     # No bare numbers in these messages: QUOTA_RE reads any free-standing 429 as a rate limit.
@@ -998,20 +1000,26 @@ run_melious() {
     if (defined $finish && $finish eq "length") { print STDERR "Error: HTTP $code: the reply hit the token budget (finish_reason=length) — the review is cut off: $budget\n"; exit 4 }
     # Only "stop" is a finished reply; a filter, an error or a tool call left it incomplete.
     if (defined $finish && $finish ne "stop") { print STDERR "Error: HTTP $code: the reply ended with finish_reason=$finish, not stop — an incomplete review\n"; exit 4 }
-    # Keep what follows the LAST marker line; the untrimmed reply goes to melious.full.
-    my ($mark, $full) = ($ARGV[3], $ARGV[4]);
-    if (open my $fh, ">:encoding(UTF-8)", $full) { print $fh $c; close $fh }
+    # Keep what follows the LAST marker line that has findings-shaped text after it: a marker
+    # repeated at the end, or quoted in a fence after the review, must not win. Markdown around
+    # the marker (bold, a heading, a quote, backticks) is allowed. No usable marker: the reply is
+    # kept whole, with a warning when it is large.
     my $note = "";
-    my @at; while ($c =~ /^[ \t]*\Q$mark\E[ \t]*\r?$/mg) { push @at, $+[0] }
-    if (@at) {
-      my $after = substr($c, $at[-1]); $after =~ s/\A\r?\n//;
-      if ($after =~ /\S/) {
-        my $before = substr($c, 0, $at[-1]); $before =~ s/\Q$mark\E//g;
-        $note = "(text before the final-review marker dropped, about " . int(length($before) / 1024 + 0.5) . " KB; the full reply is in melious.full)\n\n" if $before =~ /\S/;
-        $c = $after;
+    my $wrap = qr/[ \t>*_#\x60]*/;
+    my @at; while ($c =~ /^$wrap\Q$mark\E$wrap\r?$/mg) { push @at, $+[0] }
+    my $kept_whole = 1;
+    for my $end (reverse @at) {
+      my $after = substr($c, $end); $after =~ s/\A\r?\n//;
+      next unless $after =~ /\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
+      my $before = substr($c, 0, $end); $before =~ s/^$wrap\Q$mark\E$wrap\r?$//mg;
+      if ($before =~ /\S/) {
+        my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
+        $note = "(text before the final-review marker dropped, $kb; the full reply is in melious.full)\n\n";
       }
-    } elsif (length($c) > 65536) {
-      $note = "(no final-review marker, and the reply is large: it may hold leaked reasoning ahead of the review; read it from the end)\n\n";
+      $c = $after; $kept_whole = 0; last;
+    }
+    if ($kept_whole && length($c) > 65536) {
+      $note = "(no usable final-review marker, and the reply is large: it may hold leaked reasoning ahead of the review; read it from the end)\n\n";
     }
     binmode STDOUT, ":encoding(UTF-8)";
     print $note, $c; print "\n" if $c !~ /\n\z/;
