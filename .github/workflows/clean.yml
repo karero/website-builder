@@ -119,12 +119,17 @@ jobs:
       - name: Check the private-name check also runs in a linked worktree
         run: bash scripts/test_clean_denylist.sh
   search-console-insights-tests:
+    # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
+    # (e.g. reusing a quote inside an f-string) once broke the report there.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
       - name: Install the one runtime dependency the tests import
         run: python -m pip install requests
       - name: Run the tracker + AI-check tests (stub servers, no real API calls)

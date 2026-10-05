@@ -720,7 +720,7 @@ def render(site, data, alert, settings, rows, ai_link, bing_state, today, curren
         else:
             parts.append("<table><tr><th>Search</th><th>Position</th><th>Shown (4 weeks)</th><th>Your page</th></tr>"
                          + "".join(f"<tr><td>{H(r['query'])}</td><td>{round(r['position'])}</td><td>{_n(r['impressions'])}</td>"
-                                   f"<td>{H(show_page(r['page'], site) if r['page'] else 'page unknown')}{H(f' (+{r['more']} more)') if r.get('more') else ''}</td></tr>"
+                                   f"<td>{H(show_page(r['page'], site) if r['page'] else 'page unknown')}{H(' (+{} more)'.format(r['more'])) if r.get('more') else ''}</td></tr>"
                                    for r in data["s6"][:S6_SHOWN]) + "</table>")
         parts.append("<h2>Shown often, rarely clicked</h2><p class=\"sub\">Worth a look: first check how the page appears "
                      "in Google today, before changing anything.</p>")
