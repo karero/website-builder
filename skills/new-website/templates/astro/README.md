@@ -10,6 +10,7 @@ drives assembly; this README is the manual reference.
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
 .nvmrc                        # Node 24 — Astro needs >=22.12 (Cloudflare Pages reads it)
+.gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
 src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)

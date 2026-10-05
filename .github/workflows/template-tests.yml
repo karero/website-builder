@@ -144,8 +144,10 @@ jobs:
           S="$RUNNER_TEMP/site"
           # Absolute: this workflow's default working-directory is the template folder.
           cp -r "$GITHUB_WORKSPACE/skills/new-website/templates/astro" "$S"
-          # What a Windows checkout did to the hook's line endings (the job's open question).
+          # Git for Windows checks text out with CRLF; the template's .gitattributes keeps the
+          # hook and shell scripts LF, or sh fails on the hook's first `set -e`.
           file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
+          if grep -q $'\r' "$S/scripts/hooks/pre-push"; then echo "::error::the hook was checked out with CRLF line endings"; exit 1; fi
           cd "$S"
           git init -q
           git config user.name ci && git config user.email ci@example.invalid
