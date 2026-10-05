@@ -1000,7 +1000,9 @@ check "mbadseat: the error lists melious" has mbadseat.err "codex, ollama, agy o
 # implements that itself, so it cannot prove real curl honours it (round 5, glm). A local
 # server records the Authorization header of a keyed call and of a keyless one.
 REAL_CURL="$(command -v curl || true)"
-if [ -n "$REAL_CURL" ] && command -v python3 >/dev/null 2>&1; then
+# python3 must be able to serve, not merely exist (a stock Mac's /usr/bin/python3 can be a stub).
+if [ -n "$REAL_CURL" ] && command -v python3 >/dev/null 2>&1 && python3 -c 'import http.server' >/dev/null 2>&1; then
+  echo "real-curl cases: curl $REAL_CURL, python3 $(command -v python3) ($(python3 -c 'import sys; print(sys.version.split()[0])'))"
   cat >"$T/echo.py" <<'PY'
 import http.server, sys
 class H(http.server.BaseHTTPRequestHandler):
@@ -1017,11 +1019,18 @@ class H(http.server.BaseHTTPRequestHandler):
                              b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
     def log_message(self, *a): pass
 s = http.server.HTTPServer(("127.0.0.1", 0), H)
-open(sys.argv[1], "w").write(str(s.server_address[1]))
+import os
+with open(sys.argv[1] + ".tmp", "w") as f:
+    f.write(str(s.server_address[1]))
+os.replace(sys.argv[1] + ".tmp", sys.argv[1])   # the port file appears whole, or not at all
 for _ in range(3): s.handle_request()
 PY
-  python3 "$T/echo.py" "$T/echo.port" "$T/echo.log" & echo_pid=$!
-  i=0; while [ ! -s "$T/echo.port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+  python3 "$T/echo.py" "$T/echo.port" "$T/echo.log" 2>"$T/echo.err" & echo_pid=$!
+  i=0; while [ ! -s "$T/echo.port" ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+  if [ ! -s "$T/echo.port" ]; then
+    echo "real-curl cases: the local server wrote no port in 30 s; its stderr:"; sed 's/^/    /' "$T/echo.err"
+    kill -0 "$echo_pid" 2>/dev/null && echo "    (the server process is still running)" || echo "    (the server process has exited)"
+  fi
   RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
   run mreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m MELIOUS_API_KEY=real-curl-key \
     MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
@@ -1037,7 +1046,7 @@ PY
   check "oreal: real curl, ollama API: the stdin header arrives" grep -qxF "auth=Bearer real-ollama-key" "$T/echo.log"
   check "oreal: ...and the review is read" has oreal.out "- BUG: real curl ollama"
 else
-  echo "SKIP: the real-curl melious cases need curl and python3. The -H @- path was NOT checked against real curl."
+  echo "SKIP: the real-curl cases need curl and a python3 that can import http.server. The -H @- path was NOT checked against real curl."
 fi
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
