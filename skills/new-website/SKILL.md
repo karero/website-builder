@@ -284,7 +284,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch. **Astro needs Node ≥22.12** — the overlay's `.nvmrc` pins
-   22 for local + Cloudflare Pages builds.
+   24 for local + Cloudflare Pages builds.
 2. **Permissions + working rules.** Copy the setup guide into the project (all tools), then — **Claude Code
    only** — copy the allowlist so routine `npm`/`astro`/`playwright`/`git commit` calls don't
    prompt (it still asks for `rm -rf`, `git push --force`, `wrangler … delete`, `gh repo delete`):
