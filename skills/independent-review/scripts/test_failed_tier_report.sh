@@ -1024,8 +1024,15 @@ class H(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b'data: {"choices":[{"index":0,"delta":{"content":"- BUG: real curl\\n- NIT: two"}}]}\n\n'
                              b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
     def log_message(self, *a): pass
-s = http.server.HTTPServer(("127.0.0.1", 0), H)
-import os
+# HTTPServer's own server_bind asks socket.getfqdn() for the host's name: a reverse DNS
+# lookup that can stall for many seconds on a macOS runner (macos-stock-tools: no port
+# file in 10 s, nothing on stderr). Bind without it.
+import os, socketserver
+class S(http.server.HTTPServer):
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+s = S(("127.0.0.1", 0), H)
 with open(sys.argv[1] + ".tmp", "w") as f:
     f.write(str(s.server_address[1]))
 os.replace(sys.argv[1] + ".tmp", sys.argv[1])   # the port file appears whole, or not at all
