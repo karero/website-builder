@@ -148,8 +148,19 @@ jobs:
           # passed on one before), but WSL's or a container's sh stops at the first `set -e`,
           # so the template's .gitattributes keeps the hook and shell scripts LF.
           file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
-          crlf="$(grep -rl --include='*.sh' $'\r' "$S"; grep -l $'\r' "$S/scripts/hooks/pre-push")" || true
-          if [ -n "$crlf" ]; then echo "::error::checked out with CRLF line endings: $crlf"; exit 1; fi
+          # Node reads the bytes: a CR handed to grep through Git Bash flagged LF files as CRLF.
+          node -e '
+            const fs = require("fs"), path = require("path"), bad = [];
+            (function walk(d) {
+              for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+                const p = path.join(d, e.name);
+                if (e.isDirectory()) { if (e.name !== "node_modules") walk(p); }
+                else if ((e.name.endsWith(".sh") || p.endsWith(path.join("hooks", "pre-push"))) && fs.readFileSync(p).includes(13)) bad.push(p);
+              }
+            })(process.argv[1]);
+            if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
+            console.log("line endings: LF in the hook and every .sh");
+          ' "$S"
           cd "$S"
           git init -q
           git config user.name ci && git config user.email ci@example.invalid
