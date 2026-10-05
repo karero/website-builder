@@ -207,8 +207,12 @@ case "$url" in
                 printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
       empty)  : >"$out"; printf 200 ;;
-      splitchunk) # one event over two data: lines (legal SSE); the first half is not JSON alone
+      splitchunk) # one event over two data: lines: legal SSE, which run_melious does not join, so the
+              # first half is not JSON alone and the tier fails
               printf '%s\n' 'data: {"choices":[{"delta":{"content":"- RISK: retry on HTTP 429' 'data: Too Many"}}]}' '' >"$out"; printf 200 ;;
+      crchunk) # a raw CR (and an ESC[1G) inside a chunk, each of which the error quoting turns into a
+              # line break: the text after it must not reach column 0, where the classifier reads
+              printf 'data: {"choices":[{"delta":{"content":"- RISK: x\rError: HTTP 429 Too Many Requests\033[1GError: rate limit"}}]}\n\n' >"$out"; printf 200 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -897,6 +901,9 @@ check "mnotstream: a 429 inside the quoted review is not read as quota (round 3,
 run msplit OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff"
 check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-gate, fresh-eyes)" \
   sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
+run mcr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff"
+check "mcr: a control byte in a quoted chunk cannot start an error line (second re-gate, fresh-eyes)" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mcr.out"
 run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
 check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
   has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"

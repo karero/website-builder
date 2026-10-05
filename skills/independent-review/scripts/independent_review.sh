@@ -919,7 +919,7 @@ run_melious() {
       my $d = $1;
       if ($d eq "[DONE]") { $done = 1; next }
       my $j = eval { $json->decode($d) };
-      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", substr($d, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", substr($d =~ s/[\s\x00-\x1f\x7f]+/ /gr, 0, 300), "\n"; exit 3 }
       if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 2 }
       $n++;
       $usage = $j->{usage} if ref $j->{usage} eq "HASH";
