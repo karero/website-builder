@@ -175,7 +175,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > and `--refresh` will never touch it — reports mark it "(pinned)". Plain
 > `make whats-new` shows the suite's recent skill changes.
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
-> `AGENTS.md`, `PUBLISHING.md`, `playwright.config.ts`, `functions/_middleware.ts`, `.github/workflows/ci.yml`,
+> `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
+> `functions/_middleware.ts`, `.github/workflows/ci.yml`,
 > `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
