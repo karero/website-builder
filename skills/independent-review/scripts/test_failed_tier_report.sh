@@ -72,7 +72,10 @@ case "${CODEX_STUB:-ok}" in
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
-  slow)  sleep 2; : >"$STUB_MARKS/codex-done"; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  waitmelious) # finishes only once Melious has started (10s cap), then marks itself done
+        i=0; while [ ! -e "$STUB_MARKS/melious-started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+        : >"$STUB_MARKS/codex-done"; printf '%s\n' '- BUG: stub finding one' ;;
   tokens) # a run that reports its token count on stderr, as codex ends a run
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
@@ -168,7 +171,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift ;;
     --data-binary) body="${2#@}"; shift ;;
-    -H) case "$2" in @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
+    -H) case "$2" in @-) cat >"$STUB_MARKS/curl-hdr" ;; @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
     -w|--max-time) shift ;;
     http*) url="$1" ;;
   esac
@@ -197,12 +200,14 @@ case "$url" in
                 printf 'data: {"error":{"message":"upstream overloaded"}}\n\n'; } >"$out"; printf 200 ;;
       notstream) # a whole, pretty-printed reply well past 4 KB, as a real review would be
               { printf '{\n  "choices": [ {\n    "message": { "content": "'
+                printf -- '- RISK: retry on HTTP 429 Too Many Requests, a rate limit\\n'
                 i=0; while [ $i -lt 120 ]; do printf -- '- NIT: finding number %s of a long review\\n' "$i"; i=$((i+1)); done
                 printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
       empty)  : >"$out"; printf 200 ;;
+      notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
-              sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+              : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
     exit 0 ;;
@@ -860,8 +865,8 @@ run mlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T
 check "mlocal: a local sanity pass does not count, so Melious runs" \
   has mlocal.out "reviewers: codex OK, ollama-local NOT COUNTED (local model: sanity pass only), melious OK"
 run mkey OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_API_KEY=stub-msecret bash "$SCRIPT" "$T/change.diff"
-check "mkey: the key rides in the header file" grep -qxF "Authorization: Bearer stub-msecret" "$T/mkey.marks/melious-hdr"
-check "mkey: and the file is gone afterwards" [ ! -e "$T/mkey.raw/melious.hdr" ]
+check "mkey: the key reaches curl on its stdin" grep -qxF "Authorization: Bearer stub-msecret" "$T/mkey.marks/melious-hdr"
+check "mkey: and no header file is written" [ ! -e "$T/mkey.raw/melious.hdr" ]
 check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" "$1/mkey.err" "$1/mkey.raw"' _ "$T"
 run m429 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
@@ -882,16 +887,21 @@ check "mmiderr: an error object mid-stream fails the tier and is quoted" \
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
+check "mnotstream: a 429 inside the quoted review is not read as quota (round 3, fresh-eyes)" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mnotstream.out"
+run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
+check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
+  has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"
 run mempty OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
 check "mempty: an empty 200 reply is named as empty, not truncated" \
   sh -c 'grep -qF "an empty reply" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
 run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
 check "mdown: a network failure names curl's exit, with a hint" \
   sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
-# The fallback waits for ollama alone, not for codex (round 1, fresh-eyes). Checked by order, not
-# wall time (round 2: a timing margin was thin): the Melious stub records whether codex, which
-# takes 2s, had already finished when Melious started.
-run mparallel CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+# The fallback waits for ollama alone, not for codex (round 1, fresh-eyes). A handshake, not wall
+# time (rounds 2 and 3): codex finishes only once Melious has started, so code that holds Melious
+# back until codex is done shows as melious-after-codex after codex's 10s cap.
+run mparallel CODEX_STUB=waitmelious OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
 check "mparallel: melious counted" has mparallel.out "melious OK"
 check "mparallel: Melious started while codex was still running" \
   sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
@@ -905,8 +915,8 @@ spid=$!
 i=0; while [ ! -s "$T/mstop.marks/melious-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 kill -TERM "$spid"; wait "$spid"; echo $? >"$T/mstop.rc"
 check "mstop: the script exits 130" rc_is mstop 130
-check "mstop: the key's header file is not left behind (final full read, deepseek)" \
-  sh -c '[ -e "$1/mstop.marks/melious-hdr" ] && [ ! -e "$1/mstop.raw/melious.hdr" ]' _ "$T"
+check "mstop: the key reached curl, and no copy of it is left in RAW_DIR (final full read, deepseek)" \
+  sh -c 'grep -qxF "Authorization: Bearer stub-stopkey" "$1/mstop.marks/melious-hdr" && ! grep -rqF stub-stopkey "$1/mstop.raw"' _ "$T"
 check "mstop: the TERM-ignoring fallback is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/mstop.marks/melious-pid"
 run mseat MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious

@@ -483,12 +483,13 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
-  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
-# A header file holds an API key for its one request only. RAW_DIR is kept for the clerk, so a run
-# stopped mid-request must not leave the key in it: EXIT runs on a normal exit, on the `exit` in
-# the INT/TERM trap below, and on an untrapped SIGTERM (seen with bash 5.2). SIGKILL is out of reach.
-trap 'rm -f -- "$RAW_DIR/ollama.hdr" "$RAW_DIR/melious.hdr"' EXIT
+# ollama_via_api's header file holds an API key for its one request only. RAW_DIR is kept for the
+# clerk, so a run stopped mid-request must not leave the key in it: EXIT runs on a normal exit, on
+# the `exit` in the INT/TERM trap below, and on an untrapped SIGTERM, SIGINT or SIGHUP (each seen
+# with bash 5.2; not checked on bash 3.2). SIGKILL is out of reach. run_melious writes no such file.
+trap 'rm -f -- "$RAW_DIR/ollama.hdr"' EXIT
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
@@ -870,25 +871,28 @@ ollama_via_api() {
 # and that field is left out. A model that inlines it as a leading <think>...</think> block in
 # content has the block cut too. Not covered: on 2026-10-05 a reviewed text that itself quoted the
 # closing tag made the server end reasoning_content there, and the rest of the trace arrived as
-# content with no tags at all; the review still counted, with the trace printed above it. The key, the usage-to-tokens line and the "Error: HTTP <code>:"
-# shape follow ollama_via_api, so attempt()'s quota classification reads a 429 the same way.
+# content with no tags at all; the review still counted, with the trace printed above it.
+# The key, when set, reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it, and
+# never a file, so a run stopped mid-request leaves no key behind (final full read). The
+# usage-to-tokens line and the "Error: HTTP <code>:" shape follow ollama_via_api, so attempt()'s
+# quota classification reads a 429 the same way. Server text never goes on an "Error:" line except
+# an error message the server itself sent: the classifier reads those lines.
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
   command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
-  local url="https://api.melious.ai/v1/chat/completions" hdr="$RAW_DIR/melious.hdr"
+  local url="https://api.melious.ai/v1/chat/completions"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
-  ( umask 077; : >"$hdr"
-    if [ -n "${MELIOUS_API_KEY:-}" ]; then printf 'Authorization: Bearer %s\n' "$MELIOUS_API_KEY" >"$hdr"; fi )
   printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
     local $/; my $p = decode("UTF-8", scalar <STDIN>);
     print JSON::PP->new->utf8->canonical->encode({ model => $ARGV[0], stream => JSON::PP::true,
       stream_options => { include_usage => JSON::PP::true },
       messages => [ { role => "user", content => $p } ] });
-  ' "$MELIOUS_MODEL" >"$body" || { rm -f "$hdr"; WHY="could not build the API request"; return 1; }
-  code="$(curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
-    -H @"$hdr" -H 'Content-Type: application/json' --data-binary @"$body" "$url" \
-    2>"$RAW_DIR/melious.err")"; rc=$?
-  rm -f "$hdr"
+  ' "$MELIOUS_MODEL" >"$body" || { WHY="could not build the API request"; return 1; }
+  # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
+  code="$(if [ -n "${MELIOUS_API_KEY:-}" ]; then printf 'Authorization: Bearer %s\n' "$MELIOUS_API_KEY"; fi \
+    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+      -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url" \
+      2>"$RAW_DIR/melious.err")"; rc=$?
   if [ $rc -ne 0 ]; then
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
     WHY="curl exit $rc"; return 1
@@ -924,9 +928,10 @@ run_melious() {
     if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignoring stream:true
       seek $f, 0, 0; local $/; my $body = <$f> // "";
       if ($body !~ /\S/) { print STDERR "Error: HTTP $code: an empty reply\n"; exit 3 }
-      if (ref(eval { $json->decode($body) }) eq "HASH") {
-        print STDERR "Error: HTTP $code: the reply was one JSON object, not a stream (stream:true ignored?): ",
-          substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
+      my $j = eval { $json->decode($body) };
+      if (ref $j eq "HASH") {   # the quote goes on its own indented line, which the classifier skips
+        my $why = defined $j->{error} ? errtext($j->{error}) : "the reply was one JSON object, not a stream (stream:true ignored?)";
+        print STDERR "Error: HTTP $code: $why\n    reply began: ", substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
       }
     }
     # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
