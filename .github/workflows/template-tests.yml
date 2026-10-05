@@ -221,6 +221,31 @@ jobs:
           if git push origin content/red 2>&1 | tee push-red.log; then echo "::error::a push with a tone violation went through"; exit 1; fi
           grep -q "verify: npm test failed" push-red.log
           if git ls-remote --exit-code origin refs/heads/content/red >/dev/null; then echo "::error::the red branch reached origin"; exit 1; fi
+      # whats-new.sh tells a Windows working copy made before .gitattributes how to get LF copies
+      # back. Run that exact command (read from whats-new.sh, not retyped) in Git Bash: it needs
+      # `xargs -0` there, and paths with spaces.
+      - name: whats-new's CRLF recovery command works in Git Bash
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          line="$(grep -A1 'templates/astro/.gitattributes)' "$GITHUB_WORKSPACE/scripts/whats-new.sh" | tail -1 | sed 's/ ;;$//')"
+          cmd="$(bash -c "$line" | grep -o '`[^`]*`' | tr -d '`')"
+          case "$cmd" in "git ls-files "*) echo "command: $cmd" ;; *) echo "::error::no recovery command found in whats-new.sh"; exit 1 ;; esac
+          crs() { node -e 'let n = 0; for (const f of process.argv.slice(1)) if (require("fs").readFileSync(f).includes(13)) n++; console.log(n)' "$@"; }
+          mkdir crlf-fix && cd crlf-fix && git init -q && git config user.name ci && git config user.email ci@example.invalid
+          mkdir -p scripts/hooks tests "my dir"
+          printf '#!/bin/sh\nset -e\n' >scripts/hooks/pre-push; printf 'echo a\n' >tests/x.sh; printf 'echo b\n' >"my dir/sp ace.sh"
+          git -c core.autocrlf=false add -A && git -c core.autocrlf=false commit -qm lf
+          # A working copy as Git for Windows writes it by default: CRLF, with a clean status.
+          git config core.autocrlf true
+          git ls-files -z | xargs -0 rm -f && git checkout -- .
+          before="$(crs scripts/hooks/pre-push tests/x.sh "my dir/sp ace.sh")"
+          [ "$before" = 3 ] || { echo "::error::the setup did not produce CRLF copies ($before of 3)"; exit 1; }
+          cp "$GITHUB_WORKSPACE/skills/new-website/templates/astro/.gitattributes" . && git add .gitattributes && git commit -qm attrs
+          eval "$cmd"
+          after="$(crs scripts/hooks/pre-push tests/x.sh "my dir/sp ace.sh")"
+          [ "$after" = 0 ] || { echo "::error::$after file(s) still CRLF after the recovery command"; exit 1; }
+          echo "recovery command: 3 CRLF files, 0 after"
 
   # The website-scorecard skill ships three files that live in a SITE, never in the
   # starter, so the job above does not run them. This builds a site from the starter,
