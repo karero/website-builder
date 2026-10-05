@@ -107,6 +107,29 @@ After install, model download and every future run happens from a terminal
 (`ollama pull <model>`, `ollama run <model>`) regardless of OS — there's no
 avoiding the terminal for this step, unlike the IDE-only Antigravity path.
 
+### melious.ai (API key, no install)
+
+An extra text-only seat for when ollama-cloud is out of quota (SKILL.md, reviewer stack, item 7).
+Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path needs too.
+
+- **Key, on your own machine:** `~/.config/reviewers/melious.env`, `chmod 600`, one line
+  `MELIOUS_API_KEY=<key>`. Never source, cat or echo it. Check it is there with
+  `grep -c '^MELIOUS_API_KEY=' ~/.config/reviewers/melious.env` (prints 1). Another path:
+  `MELIOUS_ENV_FILE`.
+- **Key, in a cloud session:** an environment variable `MELIOUS_API_KEY` in the environment's
+  settings (cloud environment menu → Edit). Allow `api.melious.ai` under Network access too, or
+  every call fails with a proxy 403, which the FAILED section reports as "is the host allowed
+  by the network policy?". Both take effect in a NEW session.
+- **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
+  names no default.
+- **Budget:** `MELIOUS_MAX_TOKENS` (default 48000). A reasoning model can spend all of it
+  thinking and return no text; the seat fails and says so. Raise it and run again.
+- **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
+  or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with
+  the model in its own column.
+- **First use per repo:** ask the owner before a repo's content goes to melious.ai the first time
+  (SKILL.md, Procedure step 1).
+
 ## Picking a model — RAM decides this, don't guess
 
 **Check installed RAM first, then pick from the table — don't let the user

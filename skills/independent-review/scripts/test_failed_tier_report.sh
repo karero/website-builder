@@ -163,7 +163,7 @@ EOF
 # file it was handed (the file, not argv, must carry any key), and plays back a canned NDJSON stream.
 cat >"$T/bin/curl" <<'EOF'
 #!/bin/sh
-out= body= url=
+out= body= url= ARGV0="$*"
 while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift ;;
@@ -176,6 +176,25 @@ while [ $# -gt 0 ]; do
 done
 printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
 cp "$body" "$STUB_MARKS/curl-body"
+case "$url" in
+  *melious*|*/chat/completions)
+    # The melious seat: OpenAI-style server-sent events. argv is kept, to show the key is not in it.
+    printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv"
+    case "${MELIOUS_STUB:-ok}" in
+      ok)     printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"- BUG: melious "}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{"content":"finding one\n- NIT: two"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":600,"completion_tokens":300,"total_tokens":900}}' '' \
+                'data: [DONE]' >"$out"; printf 200 ;;
+      429)    printf '%s\n' '{"error":{"message":"you have reached your session usage limit","type":"rate_limit"}}' >"$out"; printf 429 ;;
+      think)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me think about the retry loop at length"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      length) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: first finding\n- RISK: cut"}}]}' '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      trunc)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: cut off"}}]}' >"$out"; printf 200 ;;
+      down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
+    esac
+    exit 0 ;;
+esac
 case "${API_STUB:-ok}" in
   ok)    printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: api "},"done":false}' \
            '{"message":{"role":"assistant","content":"finding one\n- NIT: two"},"done":false}' \
@@ -196,6 +215,7 @@ run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
   env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
+    -u MELIOUS_API_KEY -u MELIOUS_MODEL -u MELIOUS_ENV_FILE -u MELIOUS_BASE_URL -u MELIOUS_MAX_TOKENS -u WITH_MELIOUS \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -798,6 +818,79 @@ for how in failhelp longword; do   # round 1, Codex: a failed help, or the flag 
   run "think$how" STUB_OLDCLI=$how OLLAMA_STUB=think bash "$SCRIPT" "$T/change.diff"
   check "think$how: the flag is not passed" test ! -e "$T/think$how.marks/ollama-hidethinking"
 done
+
+# The melious.ai seat (2026-10-05): opt-in (--with-melious / --seat melious), named model, key from
+# MELIOUS_API_KEY or the env file (parsed, never sourced, never on curl's argv), streamed SSE.
+MK=stub-melious-key
+run mok PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" REVIEW_LOG="$T/mok.tsv" bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mok: exit 0" rc_is mok 0
+check "mok: header names the seat and model" has mok.out "## Independent review — melious (stub-m, HTTP API)"
+check "mok: the streamed pieces are joined" has mok.out "- BUG: melious finding one"
+check "mok: summary counts it" has mok.out "reviewers: melious OK"
+check "mok: one-seat note, as for any --seat run" has mok.out "--seat melious was requested"
+check "mok: api.melious.ai, /v1/chat/completions" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mok.marks/curl-url"
+check "mok: model, stream, default budget and the text-only prompt" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-m" && $j->{stream} && $j->{max_tokens} == 48000 && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mok.marks/curl-body"
+check "mok: the key rides in the header file" grep -qxF "Authorization: Bearer $MK" "$T/mok.marks/curl-hdr"
+check "mok: the key is not on curl's command line" not_in "$T/mok.marks/curl-argv" "$MK"
+check "mok: the header file is gone after the call" test ! -e "$T/mok.raw/melious.hdr"
+check "mok: tokens in the timings line" grep -qE '^timings: melious [0-9]+s \(900 tokens\)$' "$T/mok.out"
+check "mok: one cost-log line, model and tokens" awk -F'\t' '$8=="melious" && $9=="stub-m" && $12=="900" && $13=="OK" {f=1} END {exit !f}' "$T/mok.tsv"
+printf '%s\r\n' "MELIOUS_API_KEY=\"file-key\"" 'MELIOUS_API_KEY=second-line' >"$T/melious.env"
+run menv PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_ENV_FILE="$T/melious.env" bash "$SCRIPT" "$T/change.diff" --seat melious
+check "menv: the env file's first key line, quotes and CR dropped" grep -qxF "Authorization: Bearer file-key" "$T/menv.marks/curl-hdr"
+mkdir -p "$T/u/.config/reviewers"; printf 'MELIOUS_API_KEY=home-key\n' >"$T/u/.config/reviewers/melious.env"
+run mhome PATH="$NOCLI" MELIOUS_MODEL=stub-m bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mhome: the default env file under HOME is read" grep -qxF "Authorization: Bearer home-key" "$T/mhome.marks/curl-hdr"
+rm -f "$T/u/.config/reviewers/melious.env"
+run mnokey PATH="$NOCLI" MELIOUS_MODEL=stub-m bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mnokey: no key: skipped, not failed" has mnokey.out "reviewers: melious SKIPPED (not available)"
+check "mnokey: nothing was sent" test ! -e "$T/mnokey.marks/curl-url"
+check "mnokey: exit 4 (no reviewer counted)" rc_is mnokey 4
+run mnomodel PATH="$NOCLI" MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mnomodel: no model named: skipped" has mnomodel.out "reviewers: melious SKIPPED (not available)"
+run m429 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --seat melious
+check "m429: FAILED section quotes the provider's message" has m429.out "Error: HTTP 429: you have reached your session usage limit"
+check "m429: classified as quota" has m429.out "reviewers: melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
+run mthink PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=think bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mthink: a thinking-only reply fails the seat" has mthink.out "reviewers: melious FAILED (HTTP 200)"
+check "mthink: and names the budget to raise" has mthink.out "raise MELIOUS_MAX_TOKENS (now 48000)"
+check "mthink: and says how much was thinking" has mthink.out "characters of thinking"
+run mlength PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mlength: a reply cut by the budget is not counted" has mlength.out "reviewers: melious FAILED (HTTP 200)"
+check "mlength: and says it was cut off" has mlength.out "finish_reason=length"
+run mtrunc PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mtrunc: a stream with no end is a truncated review" has mtrunc.out "a truncated review"
+run mdown PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mdown: a blocked host points at the network policy" has mdown.out "is the host allowed by the network policy?"
+check "mdown: the header file is gone after a failed call too" test ! -e "$T/mdown.raw/melious.hdr"
+run mbudget PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_MAX_TOKENS=96000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 96000)' "$T/mbudget.marks/curl-body"
+check "mbudget: MELIOUS_BASE_URL, trailing slash dropped" grep -qxF "https://example.test/v9/chat/completions" "$T/mbudget.marks/curl-url"
+run mbadbudget PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_MAX_TOKENS=lots bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbadbudget: a non-number budget fails before any call" sh -c 'grep -qF "melious FAILED (bad MELIOUS_MAX_TOKENS)" "$1" && [ ! -e "$2" ]' _ "$T/mbadbudget.out" "$T/mbadbudget.marks/curl-url"
+# Beside the pair, when ollama-cloud is out of quota: codex + melious make two counted seats.
+run mwith CODEX_STUB=ok OLLAMA_STUB=429 MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --with-melious
+check "mwith: all three sections, melious after ollama" \
+  sh -c 'grep -n "^## Independent review" "$1" | awk -F: "/codex/{c=\$1} /ollama-cloud — FAILED/{o=\$1} /melious/{m=\$1} END{exit !(c && o && m && c<o && o<m)}"' _ "$T/mwith.out"
+check "mwith: summary" has mwith.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
+check "mwith: two counted, so no fewer-than-2 note" lacks mwith.out "fewer than the 2"
+run mwithenv CODEX_STUB=ok OLLAMA_STUB=ok WITH_MELIOUS=1 MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff"
+check "mwithenv: WITH_MELIOUS=1 does the same" has mwithenv.out "reviewers: codex OK, ollama-cloud OK, melious OK"
+run mdefault CODEX_STUB=ok OLLAMA_STUB=ok MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff"
+check "mdefault: without the opt-in, melious is never called" sh -c '! grep -qF melious "$1" && [ ! -e "$2" ]' _ "$T/mdefault.out" "$T/mdefault.marks/curl-argv"
+run mfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --first-success --with-melious
+check "mfirst: --first-success falls through to melious" has mfirst.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
+run mlocal OLLAMA_STUB=ok MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --local-only --with-melious
+check "mlocal: --local-only wins, with a note" has mlocal.err "melious.ai is an external call and will be skipped"
+check "mlocal: and nothing was sent" test ! -e "$T/mlocal.marks/curl-argv"
+run mlocalseat MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
+check "mlocalseat: --local-only refuses --seat melious" sh -c '[ "$(cat "$1")" = 2 ] && grep -qF "would send content out" "$2"' _ "$T/mlocalseat.rc" "$T/mlocalseat.err"
+run mclash MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat codex --with-melious
+check "mclash: --seat codex with --with-melious is refused" rc_is mclash 2
+run mbadseat bash "$SCRIPT" "$T/change.diff" --seat melius
+check "mbadseat: the error lists melious" has mbadseat.err "codex, ollama, agy or melious"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

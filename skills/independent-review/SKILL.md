@@ -66,6 +66,12 @@ skip silently. With a config diff, send the code that reads the config too.
    `AGY_MODEL` overrides; `run_agy` in the script has the call.
 5. **ollama local** — a sanity pass; never satisfies the gate alone.
 6. **Paste** — the script prints the prompt for a human to paste into any model.
+7. **melious.ai — opt-in, for when ollama-cloud is out.** An API seat hosting open-weight families,
+   text only like ollama's API path. `--with-melious` adds it beside the pair (a round where
+   ollama-cloud fails can still count two); `--seat melious` runs it alone (the wording pass, a
+   re-gate). `MELIOUS_MODEL` must name the model; the key comes from `MELIOUS_API_KEY` or
+   `~/.config/reviewers/melious.env` (`references/setup-guide.md`). A reasoning model can spend
+   the whole reply budget thinking: the seat then FAILS and says to raise `MELIOUS_MAX_TOKENS`.
 
 The standard pair (1 + 2) is the default for both gates and runs in parallel. `--first-success`
 stops at the first reviewer that counts — a conscious choice, honored for a plan too. The script
@@ -74,8 +80,8 @@ flags any round with fewer than 2 counted reviewers: degraded unless that was th
 **Independence rule.** The tier of the HOST's own model family is the fresh-eyes seat, never
 cross-model. The gate needs at least one successful cross-model reviewer; same-family only is
 degraded and needs an explicit owner waiver. Cross-model per host — Claude Code: Codex,
-ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
-Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
+ollama-cloud and melious (by the family of the model used), Gemini. Codex: ollama-cloud, melious,
+Gemini, Claude. Antigravity: Codex, ollama-cloud, melious, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
 same opt-in rule). A human round adds findings but never counts as cross-model. A Light-depth
 gate is the one exception, by the owner's standing choice (Review depth).
 
@@ -107,8 +113,8 @@ Codex's effort for any run.
 
 1. **Data check before anything leaves the machine.** Grep the artifact for secrets (keys, tokens,
    passwords, customer data). Get the owner's OK the first time a repo's content goes to each
-   destination SERVICE — Codex, ollama-cloud, Antigravity, Antigravity routed to a Claude tag, and
-   whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
+   destination SERVICE — Codex, ollama-cloud, melious.ai, Antigravity, Antigravity routed to a
+   Claude tag, and whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
