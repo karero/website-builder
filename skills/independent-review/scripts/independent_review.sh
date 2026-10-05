@@ -864,7 +864,9 @@ ollama_via_api() {
 # model's trace is not the answer (see ollama_via_cli's --hidethinking): Melious sent it as
 # reasoning_content, apart from content, for each of three reasoning models tried on 2026-10-05,
 # and that field is left out. A model that inlines it as a leading <think>...</think> block in
-# content has the block cut too. The key, the usage-to-tokens line and the "Error: HTTP <code>:"
+# content has the block cut too. Not covered: on 2026-10-05 a reviewed text that itself quoted the
+# closing tag made the server end reasoning_content there, and the rest of the trace arrived as
+# content with no tags at all; the review still counted, with the trace printed above it. The key, the usage-to-tokens line and the "Error: HTTP <code>:"
 # shape follow ollama_via_api, so attempt()'s quota classification reads a 429 the same way.
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
@@ -900,9 +902,8 @@ run_melious() {
             : "response is not JSON: " . substr($raw =~ s/\s+/ /gr, 0, 300);
       print STDERR "Error: HTTP $code: $m\n"; exit 2;
     }
-    my ($c, $done, $fin, $usage, $n, $raw) = ("", 0, undef, undef, 0, "");
+    my ($c, $done, $fin, $usage, $n) = ("", 0, undef, undef, 0);
     while (my $line = <$f>) {
-      $raw .= $line if length $raw < 4096;
       next unless $line =~ /^data:[ \t]*(.*?)\s*$/;
       my $d = $1;
       if ($d eq "[DONE]") { $done = 1; next }
@@ -916,10 +917,15 @@ run_melious() {
       $c .= $ch->{delta}{content} // "" if ref $ch->{delta} eq "HASH";
       $fin = $ch->{finish_reason} if defined $ch->{finish_reason};
     }
-    if (!$n && !$done && ref(eval { $json->decode($raw) }) eq "HASH") {
-      print STDERR "Error: HTTP $code: the reply was one JSON object, not a stream (stream:true ignored?)\n"; exit 3;
+    if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignoring stream:true
+      seek $f, 0, 0; local $/; my $body = <$f> // "";
+      if (ref(eval { $json->decode($body) }) eq "HASH") {
+        print STDERR "Error: HTTP $code: the reply was one JSON object, not a stream (stream:true ignored?): ",
+          substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
+      }
     }
-    if (!$done && !defined $fin) { print STDERR "Error: HTTP $code: the stream ended without a finish_reason or [DONE] after $n chunks — a truncated review\n"; exit 4 }
+    # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
+    if (!$done && !defined $fin) { print STDERR "Error: HTTP $code: the stream ended without a finish_reason or [DONE] — a truncated review\n"; exit 4 }
     if (defined $fin && $fin =~ /^(length|content_filter)$/) { print STDERR "Error: HTTP $code: the reply stopped early (finish_reason $fin) — a truncated review\n"; exit 4 }
     $c =~ s/\A\s*<think>.*?<\/think>\s*//s;   # an inline trace, cut before anything judges it
     binmode STDOUT, ":encoding(UTF-8)";

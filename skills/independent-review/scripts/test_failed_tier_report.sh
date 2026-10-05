@@ -72,7 +72,7 @@ case "${CODEX_STUB:-ok}" in
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
-  slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  slow)  sleep 2; : >"$STUB_MARKS/codex-done"; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
   tokens) # a run that reports its token count on stderr, as codex ends a run
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
@@ -195,9 +195,13 @@ case "$url" in
                 d '"content":"- RISK: inline finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       miderr) { d '"content":"- BUG: partial"' null
                 printf 'data: {"error":{"message":"upstream overloaded"}}\n\n'; } >"$out"; printf 200 ;;
-      notstream) printf '%s\n' '{"choices":[{"message":{"content":"- BUG: x"},"finish_reason":"stop"}]}' >"$out"; printf 200 ;;
+      notstream) # a whole, pretty-printed reply well past 4 KB, as a real review would be
+              { printf '{\n  "choices": [ {\n    "message": { "content": "'
+                i=0; while [ $i -lt 120 ]; do printf -- '- NIT: finding number %s of a long review\\n' "$i"; i=$((i+1)); done
+                printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
-      slow)   sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
+              sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
     exit 0 ;;
@@ -875,21 +879,22 @@ run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=miderr bash 
 check "mmiderr: an error object mid-stream fails the tier and is quoted" \
   sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
-check "mnotstream: a plain JSON reply is named as not a stream" has mnotstream.out "not a stream (stream:true ignored?)"
+check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
+  sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
 run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
 check "mdown: a network failure names curl's exit, with a hint" \
   sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
-# The fallback waits for ollama alone, not for codex (round 1, fresh-eyes): codex 2s and Melious
-# 2s overlap, so the round is well under the 4s of one after the other.
-start=$SECONDS
+# The fallback waits for ollama alone, not for codex (round 1, fresh-eyes). Checked by order, not
+# wall time (round 2: a timing margin was thin): the Melious stub records whether codex, which
+# takes 2s, had already finished when Melious started.
 run mparallel CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
-elapsed=$((SECONDS - start))
 check "mparallel: melious counted" has mparallel.out "melious OK"
-check "mparallel: took ${elapsed}s, under the 4s of codex then Melious" [ "$elapsed" -lt 4 ]
+check "mparallel: Melious started while codex was still running" \
+  sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
 # Stopping the script stops a fallback started after ollama failed, as it does the pair.
 mkdir -p "$T/mstop.marks"
-env -u CODEX_MODEL -u CODEX_EFFORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY PATH="$T/bin:$PATH" HOME="$T/u" \
-  WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
+  PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn \
   bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
 spid=$!
