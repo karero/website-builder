@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # The Astro starter every new site is scaffolded from.
+  - package-ecosystem: npm
+    directory: /skills/new-website/templates/astro
+    schedule:
+      interval: weekly
+    groups:
+      astro-template-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Tracks the Node major in .nvmrc / engines / ci.yml; bump all of them together by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: pip
+    directory: /skills/search-console-insights
+    schedule:
+      interval: weekly
+
+  # This repo's workflows, plus the CI workflow the starter ships to every site.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /skills/new-website/templates/astro
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

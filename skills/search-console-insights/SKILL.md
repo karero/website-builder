@@ -138,7 +138,8 @@ The agent drafts these; the owner clicks (account + OAuth consent are owner acti
      Without this, consent is blocked for an external app in "Testing".
 2. **Create a venv + install deps** (one-time, local — plain `pip install` fails on
    PEP-668 "externally-managed" Python, e.g. Homebrew/macOS). Use a stable home that
-   matches where the OAuth token is cached:
+   matches where the OAuth token is cached. Any Python 3.9+ works, including macOS's stock
+   `python3`:
    ```bash
    python3 -m venv ~/.config/gsc-insights/venv
    ~/.config/gsc-insights/venv/bin/pip install -r requirements.txt
