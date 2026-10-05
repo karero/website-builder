@@ -72,7 +72,11 @@ case "${CODEX_STUB:-ok}" in
   diskquota) # a local setup failure that merely contains the word "quota"
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
-  slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  meet)  # a reviewer that waits (10s or more) to see ollama start, and notes if it did: run
+         # side by side, each sees the other; one after the other, the first never can
+         i=0; while [ ! -e "$STUB_MARKS/ollama-ran" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+         [ -e "$STUB_MARKS/ollama-ran" ] && : >"$STUB_MARKS/codex-saw-ollama"
+         printf '%s\n' '- BUG: stub finding one' ;;
   tokens) # a run that reports its token count on stderr, as codex ends a run
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
@@ -139,6 +143,10 @@ case "${OLLAMA_STUB:-ok}" in
             'Error: 429 responses are retried, per the comment - UNVERIFIABLE.' ;;
   reply)  printf '%s\n' "$STUB_REPLY" ;;   # as in the codex stub: the whole reply is $STUB_REPLY
   slow)   sleep 2; printf '%s\n' '- RISK: stub ollama finding' ;;
+  meet)   # as in the codex stub, the other way round
+          i=0; while [ ! -e "$STUB_MARKS/codex-ran" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+          [ -e "$STUB_MARKS/codex-ran" ] && : >"$STUB_MARKS/ollama-saw-codex"
+          printf '%s\n' '- RISK: stub ollama finding' ;;
 esac
 EOF
 cat >"$T/bin/agy" <<'EOF'
@@ -477,14 +485,14 @@ check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
 
-# 24. The default pair runs at once (2026-09-26): two reviewers that take 2s each finish in
-#     well under the 4s they took one after the other, and the sections still print in tier
-#     order, codex first. A timings line follows the reviewers line.
-start=$SECONDS
-run parallel CODEX_STUB=slow OLLAMA_STUB=slow bash "$SCRIPT" "$T/change.diff"
-elapsed=$((SECONDS - start))
+# 24. The default pair runs at once (2026-09-26): each reviewer sees the other start before
+#     it finishes, and the sections still print in tier order, codex first. A timings line
+#     follows the reviewers line. The proof is the order of events, not a clock: a 4s
+#     threshold on two 2s reviewers failed under heavy load (2026-10-04, `make check` twice).
+run parallel CODEX_STUB=meet OLLAMA_STUB=meet bash "$SCRIPT" "$T/change.diff"
 check "parallel: both counted" has parallel.out "reviewers: codex OK, ollama-cloud OK"
-check "parallel: took ${elapsed}s, under the 4s of a sequential run" [ "$elapsed" -lt 4 ]
+check "parallel: each reviewer saw the other start before it finished" \
+  sh -c '[ -e "$1/codex-saw-ollama" ] && [ -e "$1/ollama-saw-codex" ]' _ "$T/parallel.marks"
 check "parallel: codex's section prints before ollama's" \
   sh -c 'c=$(grep -n "^## Independent review — codex" "$1" | cut -d: -f1); o=$(grep -n "^## Independent review — ollama" "$1" | cut -d: -f1); [ -n "$c" ] && [ -n "$o" ] && [ "$c" -lt "$o" ]' _ "$T/parallel.out"
 check "parallel: a timings line names both tiers" \
