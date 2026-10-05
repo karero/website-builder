@@ -69,8 +69,8 @@ skip silently. With a config diff, send the code that reads the config too.
 7. **melious.ai — opt-in, for when ollama-cloud is out.** An API seat hosting open-weight families,
    text only like ollama's API path. `--with-melious` adds it beside the pair (a round where
    ollama-cloud fails can still count two); `--seat melious` runs it alone (the wording pass, a
-   re-gate). `MELIOUS_MODEL` must name the model; the key comes from `MELIOUS_API_KEY` or
-   `~/.config/reviewers/melious.env` (`references/setup-guide.md`). A reasoning model can spend
+   re-gate). `MELIOUS_MODEL` must name the model; the key comes from `MELIOUS_API_KEY`,
+   `~/.config/reviewers/melious.env`, or a cloud environment's proxy (`references/setup-guide.md`). A reasoning model can spend
    the whole reply budget thinking: the seat then FAILS and says to raise `MELIOUS_MAX_TOKENS`.
 
 The standard pair (1 + 2) is the default for both gates and runs in parallel. `--first-success`

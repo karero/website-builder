@@ -116,10 +116,12 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
   `MELIOUS_API_KEY=<key>`. Never source, cat or echo it. Check it is there with
   `grep -c '^MELIOUS_API_KEY=' ~/.config/reviewers/melious.env` (prints 1). Another path:
   `MELIOUS_ENV_FILE`.
-- **Key, in a cloud session:** an environment variable `MELIOUS_API_KEY` in the environment's
-  settings (cloud environment menu → Edit). Allow `api.melious.ai` under Network access too, or
-  every call fails with a proxy 403, which the FAILED section reports as "is the host allowed
-  by the network policy?". Both take effect in a NEW session.
+- **Key, in a cloud session:** an API credential for `api.melious.ai` in the environment's
+  settings (cloud environment menu → Edit): the proxy adds it to each call, and the seat sends no
+  key of its own when `MELIOUS_API_KEY` and the env file are both absent. An environment variable
+  `MELIOUS_API_KEY` works too. The host must be allowed under Network access, or every call fails
+  with a proxy 403, which the FAILED section reports as "is the host allowed by the network
+  policy?". Settings take effect in a NEW session.
 - **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
   names no default.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 48000). A reasoning model can spend all of it

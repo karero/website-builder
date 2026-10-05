@@ -98,7 +98,9 @@
 #   MELIOUS_API_KEY (unset)          the key; when unset, the one MELIOUS_API_KEY= line of
 #                                    MELIOUS_ENV_FILE (default ~/.config/reviewers/melious.env)
 #                                    is read. The file is parsed, never sourced, and the key goes
-#                                    to curl in a header FILE, never on its command line.
+#                                    to curl in a header FILE, never on its command line. With
+#                                    neither, no key is sent — in a cloud session an environment
+#                                    API credential for api.melious.ai is added by the proxy.
 #   MELIOUS_MAX_TOKENS (48000)       the reply budget. A reasoning model can spend all of it
 #                                    thinking and return no text; the seat then fails and says
 #                                    to raise this.
@@ -869,11 +871,14 @@ ollama_via_api() {
 # the reason ollama_via_api streams: a silent long request gets cut on the way. The key comes from
 # MELIOUS_API_KEY, else from the one MELIOUS_API_KEY= line of MELIOUS_ENV_FILE, which is parsed and
 # never sourced; it goes to curl in an owner-only header file, never on curl's command line, and the
-# file is removed right after the call. Errors read "Error: HTTP <code>: <message>", so a 429 is
+# file is removed right after the call. With neither, the request goes out without an Authorization
+# header, as ollama_via_api's does: in a cloud session the environment's API credential for
+# api.melious.ai is added by the proxy (seen 2026-10-05: no variable, no file, /v1/models 200). The
+# seat is opt-in, so a missing key costs one 401, shown in the FAILED section. Errors read "Error: HTTP <code>: <message>", so a 429 is
 # classified as quota like the other seats. A reply with no text (a reasoning model that spent the
 # whole budget thinking) or one cut off by the budget fails the seat and names MELIOUS_MAX_TOKENS.
 # Leaves the review in melious.out and the token count, when the stream reports one, in
-# melious.tokens. Returns 3 (skipped: no model, no key, or no curl/perl) or 1 (failed, WHY set).
+# melious.tokens. Returns 3 (skipped: no model, or no curl/perl) or 1 (failed, WHY set).
 melious_key() {   # prints the key, or nothing
   if [ -n "${MELIOUS_API_KEY:-}" ]; then printf '%s' "$MELIOUS_API_KEY"; return; fi
   local f="${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}"
@@ -887,10 +892,12 @@ run_melious() {
   local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" hdr="$RAW_DIR/melious.hdr"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc max="${MELIOUS_MAX_TOKENS:-48000}"
   key="$(melious_key)"
-  [ -n "$key" ] || return 3
   case "$max" in ''|*[!0-9]*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a number" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;; esac
   url="${url%/}"
-  ( umask 077; printf 'Authorization: Bearer %s\n' "$key" >"$hdr" )
+  ( umask 077; : >"$hdr"
+    if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key" >"$hdr"
+    else printf 'note: no MELIOUS_API_KEY and no %s: sent without a key, for a proxy that adds one\n' \
+           "${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}" >"$RAW_DIR/melious.err"; fi )
   key=""
   printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
     local $/; my $p = decode("UTF-8", scalar <STDIN>);
@@ -900,7 +907,7 @@ run_melious() {
   ' "$MELIOUS_MODEL" "$max" >"$body" || { rm -f "$hdr"; WHY="could not build the API request"; return 1; }
   code="$(curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
     -H @"$hdr" -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
-    --data-binary @"$body" "$url/chat/completions" 2>"$RAW_DIR/melious.err")"; rc=$?
+    --data-binary @"$body" "$url/chat/completions" 2>>"$RAW_DIR/melious.err")"; rc=$?
   rm -f "$hdr"
   if [ $rc -ne 0 ]; then
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"

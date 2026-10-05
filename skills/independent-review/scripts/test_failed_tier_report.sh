@@ -186,6 +186,7 @@ case "$url" in
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":600,"completion_tokens":300,"total_tokens":900}}' '' \
                 'data: [DONE]' >"$out"; printf 200 ;;
       429)    printf '%s\n' '{"error":{"message":"you have reached your session usage limit","type":"rate_limit"}}' >"$out"; printf 429 ;;
+      401)    printf '%s\n' '{"detail":"missing API key"}' >"$out"; printf 401 ;;
       think)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me think about the retry loop at length"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       length) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: first finding\n- RISK: cut"}}]}' '' \
@@ -843,10 +844,14 @@ mkdir -p "$T/u/.config/reviewers"; printf 'MELIOUS_API_KEY=home-key\n' >"$T/u/.c
 run mhome PATH="$NOCLI" MELIOUS_MODEL=stub-m bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mhome: the default env file under HOME is read" grep -qxF "Authorization: Bearer home-key" "$T/mhome.marks/curl-hdr"
 rm -f "$T/u/.config/reviewers/melious.env"
+# No key anywhere: sent without one, as in a cloud session whose proxy adds the credential.
 run mnokey PATH="$NOCLI" MELIOUS_MODEL=stub-m bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mnokey: no key: skipped, not failed" has mnokey.out "reviewers: melious SKIPPED (not available)"
-check "mnokey: nothing was sent" test ! -e "$T/mnokey.marks/curl-url"
-check "mnokey: exit 4 (no reviewer counted)" rc_is mnokey 4
+check "mnokey: no key: still sent, for a proxy that adds one" has mnokey.out "reviewers: melious OK"
+check "mnokey: and without an Authorization header" not_in "$T/mnokey.marks/curl-hdr" "Authorization"
+check "mnokey: the raw stderr says it went without a key" grep -qF "sent without a key, for a proxy that adds one" "$T/mnokey.raw/melious.err"
+run mnokey401 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_STUB=401 bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mnokey401: no key and no proxy: a FAILED section with the 401, not a skip" has mnokey401.out "Error: HTTP 401: missing API key"
+check "mnokey401: exit 4 (no reviewer counted)" rc_is mnokey401 4
 run mnomodel PATH="$NOCLI" MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mnomodel: no model named: skipped" has mnomodel.out "reviewers: melious SKIPPED (not available)"
 run m429 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --seat melious
