@@ -51,12 +51,13 @@ function npm(args, capture) {
     console.log(viaEntry ? 'verify: npm via npm_execpath (npm-cli.js)' : `verify: npm from PATH${viaShell}`);
   }
   if (viaEntry) return spawnSync(process.execPath, [entry, ...args], opts);
+  if (process.platform !== 'win32') return spawnSync('npm', args, opts);
   // On Windows: one command string, not an args array. Node deprecates args with
-  // shell: true (DEP0190, printed on every run), and these are fixed words with no
-  // spaces or quotes, so joining them changes nothing.
-  return process.platform === 'win32'
-    ? spawnSync(['npm', ...args].join(' '), { ...opts, shell: true })
-    : spawnSync('npm', args, opts);
+  // shell: true (DEP0190, printed on every run). Joining is safe only for plain words, so
+  // anything else (a space, a quote, one of cmd.exe's & | ^ < > %) stops here, not in cmd.exe.
+  const unsafe = args.find((a) => !/^[\w@/.:=-]+$/.test(a));
+  if (unsafe !== undefined) throw new Error(`verify.mjs: npm argument not safe for cmd.exe: ${unsafe}`);
+  return spawnSync(['npm', ...args].join(' '), { ...opts, shell: true });
 }
 
 // Print what a captured step wrote (it stayed hidden while the step ran), then stop.

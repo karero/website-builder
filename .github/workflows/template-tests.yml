@@ -148,7 +148,8 @@ jobs:
           # passed on one before), but WSL's or a container's sh stops at the first `set -e`,
           # so the template's .gitattributes keeps the hook and shell scripts LF.
           file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
-          if grep -q $'\r' "$S/scripts/hooks/pre-push"; then echo "::error::the hook was checked out with CRLF line endings"; exit 1; fi
+          crlf="$(grep -rl --include='*.sh' $'\r' "$S"; grep -l $'\r' "$S/scripts/hooks/pre-push")" || true
+          if [ -n "$crlf" ]; then echo "::error::checked out with CRLF line endings: $crlf"; exit 1; fi
           cd "$S"
           git init -q
           git config user.name ci && git config user.email ci@example.invalid
