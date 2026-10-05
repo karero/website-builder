@@ -32,49 +32,49 @@ jobs:
   no-pii-secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Scan skills for names / contact info / credentials
         run: bash scripts/check_clean.sh
   cdpath-safe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check every script locates itself CDPATH-safely
         run: bash scripts/check_cdpath_safe.sh
   pipefail-pipes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check no pipefail script pipes into an early-exit consumer
         run: bash scripts/check_pipefail_pipes.sh
   model-defaults:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check independent-review stays model-agnostic
         run: bash scripts/check_model_agnostic.sh
   template-coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check every astro template file is accounted for (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE)
         run: bash scripts/check_template_coverage.sh
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check per-skill size budgets (description limit + line budget)
         run: bash scripts/check_skill_budgets.sh
   review-reporting:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check a failed reviewer is reported, not hidden behind exit 0
         run: bash skills/independent-review/scripts/test_failed_tier_report.sh
   review-validator:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check which reviewer output independent-review counts as a review
         run: bash skills/independent-review/scripts/test_looks_like_review.sh
       - name: Check SKILL.md's reviewer prompt matches the script's
@@ -82,29 +82,29 @@ jobs:
   claims-sweep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the claims sweep sees the sentences a per-line grep misses
         run: bash skills/independent-review/scripts/test_sweep_claims.sh
   install-pin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the installers keep a skill pinned to another worktree
         run: bash scripts/test_install_pin.sh
   package-leak:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the handoff zip's leak guard catches a large leak
         run: bash scripts/test_package_leak.sh
   pre-push-hook:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The test's "prepare" cases need node and npm, and without them it skips those cases
       # and still exits 0. A zip recipient gets that skip; this job must not, or it would stay
       # green and test less. So it brings node, and stops if either is missing.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: Check the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax
@@ -115,7 +115,7 @@ jobs:
   clean-denylist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the private-name check also runs in a linked worktree
         run: bash scripts/test_clean_denylist.sh
   search-console-insights-tests:
@@ -126,8 +126,8 @@ jobs:
         python-version: ["3.9", "3.12"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install the one runtime dependency the tests import
@@ -146,7 +146,7 @@ jobs:
       LC_ALL: en_US.UTF-8
       LANG: en_US.UTF-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Put macOS's own bash, awk, sed, tr and grep first on PATH
         run: |
           stock="$RUNNER_TEMP/stock-tools"; mkdir -p "$stock"
