@@ -31,7 +31,8 @@ has() { case "$2" in *"$3"*) check "$1" yes yes ;; *) check "$1" "text '$3'" "$(
 # Set a file's mtime N minutes into the past, portably (no GNU touch -d).
 age() { node -e 'const f=process.argv[1],t=new Date(Date.now()-process.argv[2]*60000);require("fs").utimesSync(f,t,t)' "$1" "$2"; }
 # Run the hook: hook <mode> [stdin-json] — prints its stdout; field <json> <path> extracts.
-hook() { (cd "$T/work" && printf '%s' "${2:-{\"source\":\"startup\"\}}" | CLAUDE_PROJECT_DIR="$T/work" node "$HOOK" "$1"); }
+START='{"source":"startup"}'   # a plain variable: bash 3.2 (macOS stock) parses it the same way
+hook() { (cd "$T/work" && printf '%s' "${2:-$START}" | CLAUDE_PROJECT_DIR="$T/work" node "$HOOK" "$1"); }
 field() { printf '%s' "$1" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{if(!s){console.log("<silent>");return}const j=JSON.parse(s);console.log(process.argv[1].split(".").reduce((o,k)=>o?.[k],j)??"")})' "$2"; }
 
 # The settings template registers exactly the shipped script, for both events.
