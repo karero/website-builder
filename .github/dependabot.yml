@@ -18,6 +18,10 @@ updates:
 
   - package-ecosystem: pip
     directory: /skills/search-console-insights
+    # The file holds >= floors, which already admit every new release. Without this,
+    # Dependabot raises each floor to the latest version, and those can drop Python 3.9
+    # (macOS's stock python3) without the marker requirements.txt uses for requests.
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
 
