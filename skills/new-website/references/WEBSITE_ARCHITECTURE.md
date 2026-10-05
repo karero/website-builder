@@ -40,7 +40,7 @@ The flow already in use is the modern best practice:
 
 | Capability | Cloudflare Pages/Workers | Netlify | Vercel |
 |---|---|---|---|
-| Static + global CDN | ✅ free, **unmetered bandwidth** | ✅ (metered) | ✅ (metered) |
+| Static + global CDN | ✅ free, **unlimited static requests** | ✅ (metered) | ✅ (metered) |
 | Edge functions | ✅ Workers/Pages Functions | ✅ | ✅ |
 | Free-tier generosity | ★ best | good | good |
 | Next.js SSR ergonomics | ⚠️ needs OpenNext adapter | ✅ | ★ native |
@@ -51,6 +51,15 @@ The flow already in use is the modern best practice:
 case for switching is heavy Next.js SSR → Vercel (no OpenNext friction). The over-built SSR site is the
 living proof of that tax (`@opennextjs/cloudflare`, `.open-next/worker.js`, dual output modes).
 Astro avoids the tax entirely (first-class CF adapter). **Stay on Cloudflare for content sites.**
+
+**Pages or Workers?** Cloudflare's Pages docs now open with "Start new projects with
+Workers"; Pages is still listed as available on all plans, and the docs name no end date
+(read 2026-10-05). The kit stays on Pages for now. It is written for Pages: the
+middleware's `*.pages.dev` host rules, the `CF_PAGES_*` build variables that gate analytics
+and stamp `build.txt`, and the deploy and preview steps in these docs. And when the free plan's daily Functions requests run out, a Pages project
+can still serve the static site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a
+Worker set to run before its static files answers 429 instead. Moving the kit to Workers is
+one decision for the whole kit, not one to make per site.
 
 ---
 
@@ -94,7 +103,10 @@ need is the actual mistake.**
 **This is the static-Astro tier.** 50 pages is trivial — Astro builds ~23 pages in ~0.5s; static scales to thousands.
 
 **Cloudflare Pages limits (where it breaks):** 20,000 files/deploy, 25 MiB/file, 500 builds/mo
-(free), **unmetered bandwidth**. → You will *never* hit these at 50 pages. Effectively unlimited.
+(free). → You will *never* hit these at 50 pages. Requests for static files are free and
+unlimited, but only while no Function runs: the kit's `functions/_middleware.ts` runs on
+every request, so a kit site's requests count against Tier 2's Functions limit below (100K a
+day on the free plan; `CLOUDFLARE_FIRST_DEPLOY.md` says what to set for when it runs out).
 
 ### Tier 2 — Static Astro + Cloudflare Pages Functions / Server Islands  ← light dynamic
 **Use for:** a few server endpoints or per-request fragments — contact form that posts+emails

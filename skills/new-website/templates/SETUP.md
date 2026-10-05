@@ -16,8 +16,14 @@ file into a handed-off repo so the receiving party can get running too.
    both steps at once). Optional unless GitHub asks for it: GitHub requires two-factor only
    for some accounts, and tells those by email and on the site.
 2. **Cloudflare account.** https://dash.cloudflare.com/sign-up. Hosts the site
-   (Pages) and, if you move the domain's DNS there, the DNS. Free tier (unmetered bandwidth)
-   covers a small static site; upgrade to Workers Paid ($5/mo) only when a feature needs it.
+   (Pages) and, if you move the domain's DNS there, the DNS. The free plan covers a small
+   site. Cloudflare serves plain files free and without limit only while no Function runs,
+   and this site's `functions/_middleware.ts` runs on every request: each page view, image
+   and crawler visit counts against the free plan's 100,000 Functions requests a day, shared
+   by every Pages Function and Worker in the account and reset at midnight UTC. After the first deploy, set the
+   project's **Settings → Runtime → Fail open / closed** to **Fail open**, so the site stays
+   online if that runs out. Upgrade to Workers Paid ($5/mo) when a feature needs it or a
+   site gets near the limit.
    **Recommended: protect this account too.** It decides whether your website is online and,
    with the DNS here, where your domain points. In the dashboard, **My Profile →
    Authentication**, turn on **two-factor authentication**; a security key is the strongest
