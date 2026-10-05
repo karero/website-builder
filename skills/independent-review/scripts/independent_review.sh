@@ -98,13 +98,14 @@
 #   MELIOUS_API_KEY (unset)          the key; when unset, the one MELIOUS_API_KEY= line of
 #                                    MELIOUS_ENV_FILE (default ~/.config/reviewers/melious.env)
 #                                    is read. The file is parsed, never sourced, and the key goes
-#                                    to curl in a header FILE, never on its command line. With
+#                                    to curl on stdin, never on its command line or in a file. With
 #                                    neither, no key is sent — in a cloud session an environment
 #                                    API credential for api.melious.ai is added by the proxy.
 #   MELIOUS_MAX_TOKENS (48000)       the reply budget. A reasoning model can spend all of it
 #                                    thinking and return no text; the seat then fails and says
 #                                    to raise this.
 #   MELIOUS_BASE_URL (https://api.melious.ai/v1)  the OpenAI-style API root.
+#   MELIOUS_API_TIMEOUT (1800)       seconds before the melious call is given up.
 
 set -uo pipefail
 
@@ -472,6 +473,11 @@ ${CONTENT}
 # shape fails here instead, loudly, at the moment it happens. Nothing below reassigns these.
 readonly PROMPT_CORE PROMPT_VERIFY PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
 
+# The melious key, when given in the environment, is read ONCE into a shell variable that is not
+# exported, and the exported one is unset: codex, agy and ollama are tool-using agents reading
+# untrusted text, and none of them needs it (round 1 of this seat, fresh-eyes).
+MELIOUS_KEY_VALUE="${MELIOUS_API_KEY:-}"
+unset MELIOUS_API_KEY
 # Raw reviewer outputs STREAM to files (never shell-variable-only: a teardown
 # mid-review must leave partials on disk — the clerk procedure depends on them).
 RAW_DIR="${REVIEW_RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/independent-review.XXXXXX")}"
@@ -494,6 +500,7 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
@@ -870,8 +877,8 @@ ollama_via_api() {
 # Text only, like the ollama API seat: it gets PROMPT_TEXTONLY. STREAMED (server-sent events) for
 # the reason ollama_via_api streams: a silent long request gets cut on the way. The key comes from
 # MELIOUS_API_KEY, else from the one MELIOUS_API_KEY= line of MELIOUS_ENV_FILE, which is parsed and
-# never sourced; it goes to curl in an owner-only header file, never on curl's command line, and the
-# file is removed right after the call. With neither, the request goes out without an Authorization
+# never sourced; it goes to curl on stdin, never on curl's command line and never in a file. With
+# neither, the request goes out without an Authorization
 # header, as ollama_via_api's does: in a cloud session the environment's API credential for
 # api.melious.ai is added by the proxy (seen 2026-10-05: no variable, no file, /v1/models 200). The
 # seat is opt-in, so a missing key costs one 401, shown in the FAILED section. Errors read "Error: HTTP <code>: <message>", so a 429 is
@@ -880,35 +887,40 @@ ollama_via_api() {
 # Leaves the review in melious.out and the token count, when the stream reports one, in
 # melious.tokens. Returns 3 (skipped: no model, or no curl/perl) or 1 (failed, WHY set).
 melious_key() {   # prints the key, or nothing
-  if [ -n "${MELIOUS_API_KEY:-}" ]; then printf '%s' "$MELIOUS_API_KEY"; return; fi
+  if [ -n "$MELIOUS_KEY_VALUE" ]; then printf '%s' "$MELIOUS_KEY_VALUE"; return; fi
   local f="${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}"
   [ -r "$f" ] || return 0
-  # First matching line only; optional surrounding quotes and a CRLF ending are dropped.
-  sed -n '/^MELIOUS_API_KEY=/{s///;s/\r$//;s/^"\(.*\)"$/\1/;s/^'"'"'\(.*\)'"'"'$/\1/;p;q;}' "$f"
+  # First matching line only, `export ` prefix allowed; trailing whitespace (a CRLF ending
+  # included) and one pair of surrounding quotes are dropped. Perl, not sed: BSD sed reads
+  # `\r` in a pattern as the letter r.
+  perl -ne 'if (s/^(?:export[ \t]+)?MELIOUS_API_KEY=//) { s/\s+\z//; s/^"(.*)"\z/$1/ or s/^\x27(.*)\x27\z/$1/; print; exit }' "$f"
 }
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
   command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
-  local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" hdr="$RAW_DIR/melious.hdr"
+  local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc max="${MELIOUS_MAX_TOKENS:-48000}"
-  key="$(melious_key)"
-  case "$max" in ''|*[!0-9]*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a number" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;; esac
+  case "$max" in
+    ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
+  esac
+  [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
   url="${url%/}"
-  ( umask 077; : >"$hdr"
-    if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key" >"$hdr"
-    else printf 'note: no MELIOUS_API_KEY and no %s: sent without a key, for a proxy that adds one\n' \
-           "${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}" >"$RAW_DIR/melious.err"; fi )
-  key=""
+  key="$(melious_key)"
+  [ -n "$key" ] || printf 'note: no MELIOUS_API_KEY and no %s: sent without a key, for a proxy that adds one\n' \
+    "${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}" >"$RAW_DIR/melious.err"
   printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
     local $/; my $p = decode("UTF-8", scalar <STDIN>);
     print JSON::PP->new->utf8->canonical->encode(
       { model => $ARGV[0], stream => JSON::PP::true, max_tokens => 0 + $ARGV[1],
         messages => [ { role => "user", content => $p } ] });
-  ' "$MELIOUS_MODEL" "$max" >"$body" || { rm -f "$hdr"; WHY="could not build the API request"; return 1; }
-  code="$(curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
-    -H @"$hdr" -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
+  ' "$MELIOUS_MODEL" "$max" >"$body" || { key=""; WHY="could not build the API request"; return 1; }
+  # The Authorization header reaches curl on stdin (`-H @-`, curl 7.55+): printf is a builtin, so
+  # the key is in no process's argv and in no file, not even for an interrupted run.
+  code="$(if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key"; fi \
+    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+    -H @- -H 'Content-Type: application/json' -H 'Accept: text/event-stream' \
     --data-binary @"$body" "$url/chat/completions" 2>>"$RAW_DIR/melious.err")"; rc=$?
-  rm -f "$hdr"
+  key=""
   if [ $rc -ne 0 ]; then
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
     WHY="curl exit $rc"; return 1
@@ -944,21 +956,31 @@ run_melious() {
     }
     if (!$n) { print STDERR "Error: HTTP $code: no stream chunks in the reply: ", substr($raw =~ s/\s+/ /gr, 0, 300), "\n"; exit 3 }
     if (!$done && !defined $finish) { print STDERR "Error: HTTP $code: the stream ended without a finish reason or [DONE] after $n chunks — a truncated review\n"; exit 4 }
-    my $budget = "raise MELIOUS_MAX_TOKENS (now $ARGV[3])";
+    # No bare numbers in these messages: QUOTA_RE reads any free-standing 429 as a rate limit.
+    my $budget = "raise MELIOUS_MAX_TOKENS";
+    # A reasoning model may put its thinking inside the text, in think tags; that is not review.
+    $c =~ s/<think>.*?<\/think>\s*//gs;
     if ($c !~ /\S/) {
-      print STDERR "Error: HTTP $code: the reply holds no text", ($think ? " ($think characters of thinking)" : ""),
+      print STDERR "Error: HTTP $code: the reply holds no text", ($think ? ", only thinking" : ""),
         (defined $finish ? ", finish_reason=$finish" : ""), " — a reasoning model may have spent its whole budget thinking: $budget\n";
       exit 5;
     }
     if (defined $finish && $finish eq "length") { print STDERR "Error: HTTP $code: the reply hit the token budget (finish_reason=length) — the review is cut off: $budget\n"; exit 4 }
+    # Only "stop" is a finished reply; a filter, an error or a tool call left it incomplete.
+    if (defined $finish && $finish ne "stop") { print STDERR "Error: HTTP $code: the reply ended with finish_reason=$finish, not stop — an incomplete review\n"; exit 4 }
     binmode STDOUT, ":encoding(UTF-8)";
     print $c; print "\n" if $c !~ /\n\z/;
     if ($usage && open my $t, ">", $tok) {
       my $total = $usage->{total_tokens} // (($usage->{prompt_tokens} // 0) + ($usage->{completion_tokens} // 0));
       print $t "$total\n" if $total;
     }
-  ' "$resp" "$code" "$RAW_DIR/melious.tokens" "$max" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
-  [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
+  ' "$resp" "$code" "$RAW_DIR/melious.tokens" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
+  case $prc in
+    0) ;;
+    4) WHY="HTTP $code, review cut off"; return 1 ;;
+    5) WHY="HTTP $code, no review text"; return 1 ;;
+    *) WHY="HTTP $code"; return 1 ;;
+  esac
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
   printf '## Independent review — melious (%s, HTTP API)\n\n' "$MELIOUS_MODEL"
   cat "$RAW_DIR/melious.out"
