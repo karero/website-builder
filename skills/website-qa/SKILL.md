@@ -122,7 +122,7 @@ cosmetic you'll change next week; do pin every contract a third party could sile
 
 The baseline only protects the site if it actually runs before a deploy. The scaffold ships
 a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `scripts/verify.mjs` (the same
-as `npm run verify`: `npm ci` only when `package-lock.json` changed, `npm run check`, then
+as `npm run verify`: `npm ci` only on its first run or when `package-lock.json` changed, `npm run check`, then
 `npm test`, which builds once; short output) and `check_seo.py` (if present), and **refuses the
 push if anything is red** — so a broken build never reaches the deploy branch. A site without
 `scripts/verify.mjs` gets the older `npm run build` + `npm test`. It's wired automatically: the `prepare` script in

@@ -129,22 +129,25 @@ applies there; instead of steps 2 to 4, only this:
   placeholder must never be merged.
 
 - **Checks before the pull request: one command, the same for every change.** Text
-  changes too: the tests check exactly what text gets wrong (tone, title and
-  description lengths, placeholders, links). Everything must be green.
+  changes too: the tests catch the mistakes text edits typically make (banned
+  phrasing, title and description lengths, placeholders, broken internal links), so a text
+  change is the change most likely to fail them. Everything must be green.
   - On your own computer the push is the check. Commit, then
     `git push -u origin <branch>`: the pre-push hook runs `scripts/verify.mjs`, which
-    installs the exact packages only if `package-lock.json` changed, runs
-    `npm run check`, builds the site once and runs all tests. It prints a short
-    result, or the errors. Red: the push is refused; fix the cause, commit, push
-    again. Do not also run `npm ci`, `npm run check`, `npm run build` or
-    `npx playwright test` by hand first: that repeats the same work.
-  - The hook is on when `git config --get core.hooksPath` prints `scripts/hooks`. If
-    it prints nothing, and always in Codex in the cloud: run `npm run verify` yourself
-    and push (or press "Create PR") only when it is green. `npm run verify` is also
-    the way to try a fix without pushing.
-  - Never `git push --no-verify`. Do not work around or disable red tests; report
-    them. If the environment cannot run the tests (e.g. no browser installed; it
-    comes with `npx playwright install chromium`): say so, do not claim "green".
+    reinstalls the exact packages only when needed (first run, or `package-lock.json`
+    changed since), runs `npm run check`, then builds the site once and runs all tests.
+    It prints a short result, or the errors. Red: the push is refused; fix the cause,
+    commit, push again. Do not also run `npm ci`, `npm run check`, `npm run build` or
+    `npx playwright test` by hand first: the push runs the same steps, so doing both
+    only costs time.
+  - The hook is on when `git config --get core.hooksPath` prints `scripts/hooks`. If it
+    prints anything else or nothing, and always in Codex in the cloud: run
+    `npm run verify` yourself and push (or press "Create PR") only when it is green.
+    `npm run verify` is also the way to try a fix without pushing.
+  - Do not push with `--no-verify`: it skips the check, so red work reaches GitHub and
+    costs a CI round and someone's review. Do not work around or disable red tests;
+    report them. If the environment cannot run the tests (e.g. no browser installed;
+    `npx playwright install chromium` adds it): say so, do not claim "green".
 - Change only what the task asks for. Nothing "on the side". Several small changes
   the person asks for together (e.g. a handful of text fixes) go on one branch and
   into one pull request: one check covers them all.
