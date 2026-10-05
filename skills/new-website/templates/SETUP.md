@@ -76,7 +76,7 @@ npx playwright install chromium        # per machine, once
 > WSL2 shell, not the PowerShell ones.
 
 > **Node ≥22.12 required** (Astro's own floor) — the LTS installs above satisfy it; the repo's
-> `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
+> `.nvmrc` pins 24 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
 > "packages have install scripts not yet covered" for scripts it hasn't been told to trust
 > — per npm's own docs this is currently advisory only (the scripts still run; a future
 > npm release will start blocking them), but approve the one Astro needs now to silence the
