@@ -46,15 +46,18 @@ check "the block uncomments as six lines" 6 "$changed"
 # The real npm, before the stub below shadows it: the "prepare" cases at the end run through it.
 NPM="$(command -v npm || true)"
 # A stub npm, so "the gate ran" is cheap and visible. No tests/ dir, so the hook's optional
-# classifier and SEO steps stay off.
+# classifier and SEO steps stay off; no scripts/verify.mjs, so the hook takes its old path.
 mkdir -p "$T/bin" "$T/site"
-# NPM_FAIL=build or =test makes that step fail, to prove a red gate stops the push.
+# NPM_FAIL=build, =check or =test makes that step fail, to prove a red gate stops the push.
+# `run build` and `test` are what the hook runs in a site without scripts/verify.mjs; the
+# `run --silent …` forms are what verify.mjs runs (the cases after the shell loop).
 cat >"$T/bin/npm" <<'NPM'
 #!/bin/sh
 echo "npm $*"
 case "$*" in
-  "run build") [ "${NPM_FAIL:-}" = build ] && exit 1 ;;
-  test)        [ "${NPM_FAIL:-}" = test ] && exit 1 ;;
+  "run build")                                [ "${NPM_FAIL:-}" = build ] && exit 1 ;;
+  test|"run --silent test -- --reporter=dot") [ "${NPM_FAIL:-}" = test ] && exit 1 ;;
+  "run --silent check")                       [ "${NPM_FAIL:-}" = check ] && exit 1 ;;
 esac
 exit 0
 NPM
@@ -82,10 +85,11 @@ outcome() {
   elif [ "$want" = 1 ] && [ "$rc" != 0 ]; then echo "$name"
   else echo "$name-but-exit-$rc"; fi
 }
-# run <shell> <hook> <stdin-setup...> — runs the hook in the stub site with the given stdin.
+# run <shell> <hook> <stdin-setup...> — runs the hook in the stub site (or in $SITE_DIR) with
+# the given stdin.
 run() {
   local sh="$1" hook="$2"; shift 2
-  (cd "$T/site" && $TO "$@" "$sh" "$hook") 2>&1; printf '\n@@rc=%s\n' "$?"
+  (cd "${SITE_DIR:-$T/site}" && $TO "$@" "$sh" "$hook") 2>&1; printf '\n@@rc=%s\n' "$?"
 }
 
 Z=0000000000000000000000000000000000000000; A=1111111111111111111111111111111111111111
@@ -144,6 +148,27 @@ print(r.stdout + r.stderr + "\n@@rc=%d" % r.returncode)' "$sh" "$h" "$T/pushmain
     fi
   done
 done
+
+# A site with scripts/verify.mjs: the hook runs that instead of `npm run build` and `npm test`,
+# and a red step in it must still refuse the push. The real script, against the stub npm; it
+# starts npm by name only when npm_execpath is unset, as it is for a hook git starts.
+TPL_VERIFY="$HERE/../skills/new-website/templates/astro/scripts/verify.mjs"
+if command -v node >/dev/null 2>&1; then
+  mkdir -p "$T/site-v/scripts" "$T/site-v/node_modules"
+  cp "$TPL_VERIFY" "$T/site-v/scripts/verify.mjs"
+  echo '{}' >"$T/site-v/package-lock.json"
+  for sh in $shells; do
+    p="$sh, site with verify.mjs:"
+    out="$(printf '%s\n' "$UPD" | SITE_DIR="$T/site-v" npm_execpath= run "$sh" "$T/off" env)"
+    check "$p a normal push runs the gate"      GATE "$(outcome "$out")"
+    check "$p ... through verify.mjs"           yes "$(case "$out" in *"✓ verify: all green"*) echo yes ;; *) echo no ;; esac)"
+    check "$p ... and not the old build step"   no "$(case "$out" in *"npm run build"*) echo yes ;; *) echo no ;; esac)"
+    check "$p a failing check stops the push"   FAILED "$(outcome "$(printf '%s\n' "$UPD" | SITE_DIR="$T/site-v" npm_execpath= NPM_FAIL=check run "$sh" "$T/off" env)")"
+    check "$p failing tests stop the push"      FAILED "$(outcome "$(printf '%s\n' "$UPD" | SITE_DIR="$T/site-v" npm_execpath= NPM_FAIL=test run "$sh" "$T/off" env)")"
+  done
+else
+  echo "SKIP: the verify.mjs cases need node. The hook's verify.mjs path was NOT run."
+fi
 
 # Real git: what it actually hands the hook, end to end, as shipped and with the block on.
 # Each pass gets a fresh remote, so every push below has a ref to change.

@@ -121,9 +121,11 @@ cosmetic you'll change next week; do pin every contract a third party could sile
 ## 1c. Enforce the gate on push (the pre-push hook)
 
 The baseline only protects the site if it actually runs before a deploy. The scaffold ships
-a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `npm run build`, `check_seo.py`
-(if present) and `npm test`, and **refuses the push if anything is red** — so a broken build
-never reaches the deploy branch. It's wired automatically: the `prepare` script in
+a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `scripts/verify.mjs` (the same
+as `npm run verify`: `npm ci` only when `package-lock.json` changed, `npm run check`, then
+`npm test`, which builds once; short output) and `check_seo.py` (if present), and **refuses the
+push if anything is red** — so a broken build never reaches the deploy branch. A site without
+`scripts/verify.mjs` gets the older `npm run build` + `npm test`. It's wired automatically: the `prepare` script in
 `package.json` (`node scripts/wire-hooks.mjs`, a line with no shell syntax) points
 `core.hooksPath` at `scripts/hooks` on `npm install` — when the site is the root of its git
 repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the gate is not

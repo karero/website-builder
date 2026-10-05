@@ -88,15 +88,23 @@ if [ -f tests/check_ship_push.sh ]; then
   bash tests/check_ship_push.sh
 fi
 
-echo "▶ pre-push gate: building…"
-npm run build
+# The same checks as CI, in one run with short output: scripts/verify.mjs installs the
+# packages only if package-lock.json changed, runs `npm run check`, and runs the tests,
+# which build the site once. A site from before that script: the old build and tests.
+if [ -f scripts/verify.mjs ]; then
+  echo "▶ pre-push gate: check, build and tests (scripts/verify.mjs)…"
+  node scripts/verify.mjs
+else
+  echo "▶ pre-push gate: building…"
+  npm run build
+  echo "▶ pre-push gate: tests…"
+  npm test
+fi
 
+# After the tests, which leave the built site in dist/ for it.
 if [ -f tests/check_seo.py ]; then
   echo "▶ pre-push gate: SEO checks…"
   python3 tests/check_seo.py
 fi
-
-echo "▶ pre-push gate: tests…"
-npm test
 
 echo "✓ pre-push gate passed — pushing."

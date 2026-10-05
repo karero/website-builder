@@ -60,7 +60,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    (controller, date, analytics wording — see the comment block in that file).
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
-5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
+5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
