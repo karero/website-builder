@@ -150,8 +150,9 @@ print(r.stdout + r.stderr + "\n@@rc=%d" % r.returncode)' "$sh" "$h" "$T/pushmain
 done
 
 # A site with scripts/verify.mjs: the hook runs that instead of `npm run build` and `npm test`,
-# and a red step in it must still refuse the push. The real script, against the stub npm; it
-# starts npm by name only when npm_execpath is unset, as it is for a hook git starts.
+# and a red step in it must still refuse the push. The real script, against the stub npm. It
+# starts npm by name only without npm's own entry in npm_execpath, so the cases blank it: a
+# push from `npm run ship` hands the hook npm's (test_verify.sh covers that branch).
 TPL_VERIFY="$HERE/../skills/new-website/templates/astro/scripts/verify.mjs"
 if command -v node >/dev/null 2>&1; then
   mkdir -p "$T/site-v/scripts" "$T/site-v/node_modules"

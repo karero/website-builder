@@ -19,6 +19,9 @@ HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 VERIFY="$HERE/../skills/new-website/templates/astro/scripts/verify.mjs"
 T="$(mktemp -d "${TMPDIR:-/tmp}/verify-test.XXXXXX")"
 trap 'rm -rf "$T"' EXIT
+# The physical path: the stub npm logs `pwd` as the shell finds it, and where the temp folder
+# sits behind a symlink (macOS: /var -> /private/var) the two spellings would never match.
+T="$(CDPATH= cd -- "$T" && pwd -P)"
 # Run through `npm run`, npm would hand verify.mjs its own entry point in npm_execpath; this
 # test starts it with node directly, as the hook does, so the stub below is what runs.
 unset npm_execpath
@@ -32,7 +35,9 @@ cat >"$T/bin/npm" <<'NPM'
 printf '%s|%s\n' "$(pwd)" "$*" >>"$CALLS"
 case "$*" in
   ci\ *)                                 step=ci ;;
-  "run --silent check")                  step=check; echo "CHECK-SAYS-SOMETHING" ;;
+  "run --silent check")                  step=check; echo "CHECK-SAYS-SOMETHING"
+                                         # More than Node's default 1 MiB pipe buffer.
+                                         [ -n "${NPM_LOUD:-}" ] && head -c 2097152 /dev/zero | tr '\0' x ;;
   "run --silent test -- --reporter=dot") step=test; echo "TEST-SAYS-SOMETHING" ;;
   *)                                     step=other ;;
 esac
@@ -80,6 +85,16 @@ check "... so the next run installs again"                  "ci check test" "$(c
 out="$(go)"
 check "... and once that worked, not again"                 "check test" "$(calls)"
 
+echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs"}}' >"$SITE/package.json"
+out="$(go)"
+check "package.json changed, lockfile not: installs"        "ci check test" "$(calls)"
+out="$(go)"
+check "... and once that worked, not again"                 "check test" "$(calls)"
+
+out="$(NPM_LOUD=1 go)"
+check "a passing check that prints 2 MiB: still green"      0 "$(rc "$out")"
+check "... and its output stays hidden"                     no "$(has "$out" "xxxxxxxx")"
+
 out="$(NPM_FAIL=check go)"
 check "check fails: fails"                                  1 "$(rc "$out")"
 check "... the tests do not run"                            "check" "$(calls)"
@@ -98,6 +113,14 @@ JS
 : >"$CALLS"
 (cd "$T/elsewhere" && npm_execpath="$T/npm-cli.js" node "$SITE/scripts/verify.mjs") >/dev/null 2>&1
 check "npm_execpath set: npm's entry runs through node"     "check test" "$(calls)"
+# pnpm and yarn set npm_execpath to their own entry, which has no `npm ci`: npm on PATH runs.
+cat >"$T/pnpm.cjs" <<'JS'
+require('fs').appendFileSync(process.env.CALLS + '-pnpm', 'ran\n');
+JS
+: >"$CALLS"
+(cd "$T/elsewhere" && npm_execpath="$T/pnpm.cjs" node "$SITE/scripts/verify.mjs") >/dev/null 2>&1
+check "npm_execpath names pnpm: the npm on PATH runs"       "check test" "$(calls)"
+check "... and pnpm's entry did not"                        no "$([ -e "$CALLS-pnpm" ] && echo yes || echo no)"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

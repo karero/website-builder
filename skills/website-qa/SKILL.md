@@ -122,7 +122,7 @@ cosmetic you'll change next week; do pin every contract a third party could sile
 
 The baseline only protects the site if it actually runs before a deploy. The scaffold ships
 a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `scripts/verify.mjs` (the same
-as `npm run verify`: `npm ci` only on its first run or when `package-lock.json` changed, `npm run check`, then
+as `npm run verify`: `npm ci` only on its first run or when `package.json` or `package-lock.json` changed, `npm run check`, then
 `npm test`, which builds once; short output) and `check_seo.py` (if present), and **refuses the
 push if anything is red** — so a broken build never reaches the deploy branch. A site without
 `scripts/verify.mjs` gets the older `npm run build` + `npm test`. It's wired automatically: the `prepare` script in
@@ -140,7 +140,8 @@ up or handing off a site, surface both directions:
 - **Relax for one push:** `git push --no-verify` (skips the hook for that push only).
 - **Disable entirely:** `git config --unset core.hooksPath` (re-enable with
   `npm install`, or `git config core.hooksPath scripts/hooks`).
-- **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. drop the full build for speed).
+- **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. leave out a slow step; CI still
+  runs everything).
 
 A team that wants the speed of direct pushes and the safety of the gate keeps it on; a solo
 builder mid-experiment may want it off. Make the call explicit with the user; don't decide for

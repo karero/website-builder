@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // `npm run verify` — the one check before a pull request, and what the pre-push hook runs.
-// Same checks as CI (.github/workflows/ci.yml), in one command, with short output:
-//  1. `npm ci`, only when package-lock.json is new or changed since the last run here
-//     (a hash in node_modules/.verify-lock-hash). Every other run keeps node_modules.
+// CI's install, check, build and test steps (.github/workflows/ci.yml), in one command, with
+// short output. Two differences from CI, both on purpose: an unfilled "[MISSING: …]"
+// placeholder only warns here (CI fails on it, so a draft pull request can still be pushed;
+// AGENTS.md §2), and CI also runs tests/check_ship_push.sh, which the pre-push hook runs too.
+//  1. `npm ci`, only on the first run here or when package.json or package-lock.json changed
+//     since the last install it made (a hash in node_modules/.verify-lock-hash). Every other
+//     run keeps node_modules. package.json counts too: edited without the lockfile, the two
+//     disagree, and CI's `npm ci` fails on that, so this one must as well.
 //  2. `npm run check` (astro check). Its output is shown only when it fails.
 //  3. `npm test` with Playwright's dot reporter: one dot per passed test, the warnings the
 //     tests print (placeholders, positioning), then each failure in full and a summary.
@@ -24,13 +29,21 @@ import { dirname, join } from 'node:path';
 // The site is the folder that holds scripts/, wherever this was started from.
 const site = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-// Run through npm (`npm run verify`), npm_execpath names npm's own JS entry: start that
-// with this node, no shell. Started directly (the hook), use the npm on PATH; on Windows
-// that is npm.cmd, which Node starts only through a shell.
+// Run through npm (`npm run verify`), npm_execpath names npm's own entry, npm-cli.js: start
+// that with this node, no shell. Under pnpm or yarn it names theirs, which has no `npm ci`,
+// so only npm's counts. Started directly (the hook), use the npm on PATH; on Windows that is
+// npm.cmd, which Node starts only through a shell.
+// maxBuffer: captured output past Node's default (1 MiB) kills the step with ENOBUFS, and a
+// passing check with many hints would then read as red.
 function npm(args, capture) {
-  const opts = { cwd: site, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit' };
+  const opts = {
+    cwd: site,
+    encoding: 'utf8',
+    stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+    maxBuffer: 256 * 1024 * 1024,
+  };
   const entry = process.env.npm_execpath;
-  return entry && /\.c?js$/.test(entry)
+  return entry && /[\\/]npm-cli\.c?js$/.test(entry)
     ? spawnSync(process.execPath, [entry, ...args], opts)
     : spawnSync('npm', args, { ...opts, shell: process.platform === 'win32' });
 }
@@ -38,17 +51,17 @@ function npm(args, capture) {
 // Print what a captured step wrote (it stayed hidden while the step ran), then stop.
 // astro check colours its output even into a pipe; read by an assistant or a log, the
 // colour codes are only noise, so they go unless a person is watching a terminal.
-const plain = (text) => (process.stdout.isTTY ? text : text.replace(/\x1b\[[0-9;]*m/g, ''));
+const plain = (text, stream) => (stream.isTTY ? text : text.replace(/\x1b\[[0-9;]*m/g, ''));
 function fail(what, res, after = ' Nothing after it ran.') {
   if (res?.error) console.error(String(res.error.message || res.error));
-  if (res?.stdout) process.stdout.write(plain(res.stdout));
-  if (res?.stderr) process.stderr.write(plain(res.stderr));
+  if (res?.stdout) process.stdout.write(plain(res.stdout, process.stdout));
+  if (res?.stderr) process.stderr.write(plain(res.stderr, process.stderr));
   console.error(`✗ verify: ${what} failed (output above).${after}`);
   process.exit(1);
 }
 
 // 1. Packages. CI installs with `npm ci` from the committed lockfile, so this does too,
-// but only when the lockfile differs from the one the last install here used.
+// but only when package.json or the lockfile differs from what the last install here used.
 const lock = join(site, 'package-lock.json');
 if (!existsSync(lock)) {
   console.error('✗ verify: no package-lock.json. CI installs with `npm ci`, which needs it: run `npm install` and commit the file.');
@@ -56,10 +69,13 @@ if (!existsSync(lock)) {
 }
 const modules = join(site, 'node_modules');
 const stamp = join(modules, '.verify-lock-hash');
-const want = createHash('sha256').update(readFileSync(lock)).digest('hex');
+const manifest = join(site, 'package.json');
+const hash = createHash('sha256').update(readFileSync(lock));
+if (existsSync(manifest)) hash.update('\0').update(readFileSync(manifest));
+const want = hash.digest('hex');
 const have = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : '';
 if (want !== have) {
-  console.log('▶ verify: installing the exact packages (package-lock.json is new or changed)…');
+  console.log('▶ verify: installing the exact packages (first run, or package.json or package-lock.json changed)…');
   const res = npm(['ci', '--no-audit', '--no-fund', '--loglevel=error'], true);
   if (res.error || res.status !== 0) fail('npm ci', res);
   mkdirSync(modules, { recursive: true });

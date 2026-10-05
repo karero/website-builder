@@ -88,9 +88,10 @@ if [ -f tests/check_ship_push.sh ]; then
   bash tests/check_ship_push.sh
 fi
 
-# The same checks as CI, in one run with short output: scripts/verify.mjs installs the
-# packages only if package-lock.json changed, runs `npm run check`, and runs the tests,
-# which build the site once. A site from before that script: the old build and tests.
+# CI's install, check, build and test steps, in one run with short output: scripts/verify.mjs
+# reinstalls the packages only when package.json or package-lock.json changed, runs
+# `npm run check`, and runs the tests, which build the site once (its header lists how it
+# differs from CI). A site from before that script: the old build and tests.
 if [ -f scripts/verify.mjs ]; then
   echo "▶ pre-push gate: check, build and tests (scripts/verify.mjs)…"
   node scripts/verify.mjs

@@ -22,7 +22,9 @@ name: clean
 # that the handoff zip's leak guard still fires on a leak too big for a pipe buffer
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
 # and blocks the right pushes and is wired only where the site is the root of its repo,
-# by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), and that the private-name check
+# by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), that the site's verify
+# script reinstalls only on a changed package.json or lockfile and stops at the first red step
+# (scripts/test_verify.sh), and that the private-name check
 # runs in a linked worktree too (scripts/test_clean_denylist.sh). And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
