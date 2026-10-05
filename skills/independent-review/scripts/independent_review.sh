@@ -483,12 +483,13 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
-  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 # ollama_via_api's header file holds an API key for its one request only. RAW_DIR is kept for the
 # clerk, so a run stopped mid-request must not leave the key in it: EXIT runs on a normal exit, on
-# the `exit` in the INT/TERM trap below, and on an untrapped SIGTERM, SIGINT or SIGHUP (each seen
-# with bash 5.2; not checked on bash 3.2). SIGKILL is out of reach. run_melious writes no such file.
+# the `exit` in the INT/TERM trap below, and on an untrapped SIGTERM or SIGHUP (each seen with bash
+# 5.2; not checked on bash 3.2). SIGKILL is out of reach. run_melious writes no such file; the
+# melious.hdr that earlier commits of this branch wrote is cleared with the stale files above.
 trap 'rm -f -- "$RAW_DIR/ollama.hdr"' EXIT
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
@@ -875,8 +876,10 @@ ollama_via_api() {
 # The key, when set, reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it, and
 # never a file, so a run stopped mid-request leaves no key behind (final full read). The
 # usage-to-tokens line and the "Error: HTTP <code>:" shape follow ollama_via_api, so attempt()'s
-# quota classification reads a 429 the same way. Server text never goes on an "Error:" line except
-# an error message the server itself sent: the classifier reads those lines.
+# quota classification reads a 429 the same way. On a 200 reply, which may carry review text, no
+# server text goes on an "Error:" line except an error message the server sent: the classifier
+# reads those lines, so a quote goes on an indented line below. A non-200 body is the server's
+# own error reply and is quoted on the line itself.
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
   command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
@@ -916,7 +919,7 @@ run_melious() {
       my $d = $1;
       if ($d eq "[DONE]") { $done = 1; next }
       my $j = eval { $json->decode($d) };
-      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON: ", substr($d, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", substr($d, 0, 300), "\n"; exit 3 }
       if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 2 }
       $n++;
       $usage = $j->{usage} if ref $j->{usage} eq "HASH";

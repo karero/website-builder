@@ -162,8 +162,9 @@ case "${AGY_STUB:-ok}" in
           printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
 esac
 EOF
-# A stub curl for the ollama HTTP API transport: records the URL, the request body and the header
-# file it was handed (the file, not argv, must carry any key), and plays back a canned NDJSON stream.
+# A stub curl for the ollama HTTP API transport and the Melious seat: records the URL, the request
+# body and the headers it was handed in a file (ollama) or on stdin (Melious) — never argv, which
+# must carry no key — and plays back a canned NDJSON stream (ollama) or SSE stream (Melious).
 cat >"$T/bin/curl" <<'EOF'
 #!/bin/sh
 out= body= url=
@@ -171,7 +172,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift ;;
     --data-binary) body="${2#@}"; shift ;;
-    -H) case "$2" in @-) cat >"$STUB_MARKS/curl-hdr" ;; @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
+    -H) case "$2" in @-) cat >"$STUB_MARKS/curl-hdr"; : >"$STUB_MARKS/curl-hdr-stdin" ;; @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
     -w|--max-time) shift ;;
     http*) url="$1" ;;
   esac
@@ -182,6 +183,7 @@ case "$url" in
     printf '%s\n' "$url" >"$STUB_MARKS/melious-url"
     cp "$body" "$STUB_MARKS/melious-body"
     [ -e "$STUB_MARKS/curl-hdr" ] && mv "$STUB_MARKS/curl-hdr" "$STUB_MARKS/melious-hdr"
+    [ -e "$STUB_MARKS/curl-hdr-stdin" ] && mv "$STUB_MARKS/curl-hdr-stdin" "$STUB_MARKS/melious-hdr-stdin"
     d() { printf 'data: {"choices":[{"index":0,"delta":{%s},"finish_reason":%s}],"usage":%s}\n\n' "$1" "$2" "${3:-null}"; }
     case "${MELIOUS_STUB:-ok}" in
       ok)     { d '"reasoning_content":"Thinking: I could not read the file."' null
@@ -205,6 +207,8 @@ case "$url" in
                 printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
       empty)  : >"$out"; printf 200 ;;
+      splitchunk) # one event over two data: lines (legal SSE); the first half is not JSON alone
+              printf '%s\n' 'data: {"choices":[{"delta":{"content":"- RISK: retry on HTTP 429' 'data: Too Many"}}]}' '' >"$out"; printf 200 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -865,7 +869,8 @@ run mlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T
 check "mlocal: a local sanity pass does not count, so Melious runs" \
   has mlocal.out "reviewers: codex OK, ollama-local NOT COUNTED (local model: sanity pass only), melious OK"
 run mkey OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_API_KEY=stub-msecret bash "$SCRIPT" "$T/change.diff"
-check "mkey: the key reaches curl on its stdin" grep -qxF "Authorization: Bearer stub-msecret" "$T/mkey.marks/melious-hdr"
+check "mkey: the key reaches curl on its stdin" \
+  sh -c 'grep -qxF "Authorization: Bearer stub-msecret" "$1/melious-hdr" && [ -e "$1/melious-hdr-stdin" ]' _ "$T/mkey.marks"
 check "mkey: and no header file is written" [ ! -e "$T/mkey.raw/melious.hdr" ]
 check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" "$1/mkey.err" "$1/mkey.raw"' _ "$T"
 run m429 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
@@ -889,6 +894,9 @@ check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and qu
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
 check "mnotstream: a 429 inside the quoted review is not read as quota (round 3, fresh-eyes)" \
   sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mnotstream.out"
+run msplit OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff"
+check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-gate, fresh-eyes)" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
 run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
 check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
   has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"
