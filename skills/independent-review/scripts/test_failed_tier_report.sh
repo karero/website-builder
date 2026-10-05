@@ -200,6 +200,7 @@ case "$url" in
                 i=0; while [ $i -lt 120 ]; do printf -- '- NIT: finding number %s of a long review\\n' "$i"; i=$((i+1)); done
                 printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
+      empty)  : >"$out"; printf 200 ;;
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
@@ -881,6 +882,9 @@ check "mmiderr: an error object mid-stream fails the tier and is quoted" \
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
+run mempty OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
+check "mempty: an empty 200 reply is named as empty, not truncated" \
+  sh -c 'grep -qF "an empty reply" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
 run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
 check "mdown: a network failure names curl's exit, with a hint" \
   sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
@@ -895,12 +899,14 @@ check "mparallel: Melious started while codex was still running" \
 mkdir -p "$T/mstop.marks"
 env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
-  CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn \
+  CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
   bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
 spid=$!
 i=0; while [ ! -s "$T/mstop.marks/melious-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
 kill -TERM "$spid"; wait "$spid"; echo $? >"$T/mstop.rc"
 check "mstop: the script exits 130" rc_is mstop 130
+check "mstop: the key's header file is not left behind (final full read, deepseek)" \
+  sh -c '[ -e "$1/mstop.marks/melious-hdr" ] && [ ! -e "$1/mstop.raw/melious.hdr" ]' _ "$T"
 check "mstop: the TERM-ignoring fallback is gone" \
   sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/mstop.marks/melious-pid"
 run mseat MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious

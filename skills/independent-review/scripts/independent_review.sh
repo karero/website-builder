@@ -485,6 +485,10 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
   "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
+# A header file holds an API key for its one request only. RAW_DIR is kept for the clerk, so a run
+# stopped mid-request must not leave the key in it: EXIT runs on a normal exit, on the `exit` in
+# the INT/TERM trap below, and on an untrapped SIGTERM (seen with bash 5.2). SIGKILL is out of reach.
+trap 'rm -f -- "$RAW_DIR/ollama.hdr" "$RAW_DIR/melious.hdr"' EXIT
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
@@ -919,6 +923,7 @@ run_melious() {
     }
     if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignoring stream:true
       seek $f, 0, 0; local $/; my $body = <$f> // "";
+      if ($body !~ /\S/) { print STDERR "Error: HTTP $code: an empty reply\n"; exit 3 }
       if (ref(eval { $json->decode($body) }) eq "HASH") {
         print STDERR "Error: HTTP $code: the reply was one JSON object, not a stream (stream:true ignored?): ",
           substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
