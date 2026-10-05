@@ -1,6 +1,6 @@
 # DIFF review — karero/website-builder#165 — site checks: one `npm run verify`, run by the push, with short output
 
-Base `bb765c6` · depth: Normal (template tooling and agent instructions; no auth, secrets, user data or deploy target; the pre-push gate only gets stricter) · verdict: **OPEN — rounds 1–2 closed every finding; the prose-only re-gate of the round-2 NIT fix (`e66ed73`) could not run (ollama-cloud 502, then 429), so no stamp yet** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the branch `claude/inspiring-brahmagupta-il6tw8` (assigned) and its commits; POST AUTHORITY — this session opened #165, at the owner's request; GATED-THIS-DIFF — not yet held for `e66ed73` (ollama-cloud chain `4ed8427` → `050cd53` only)
+Base `bb765c6` · depth: Normal (template tooling and agent instructions; no auth, secrets, user data or deploy target; the pre-push gate only gets stricter) · verdict: **CLEAN, degraded — rounds 1–2 closed every finding; the prose-only re-gate of `e66ed73` ran same-family (fresh-eyes) at the owner's choice after ollama-cloud hit its usage limit, so no cross-model seat saw the final head and the marker is not stamped** · authority used: WORKTREE-WRITE and BRANCH-COMMIT — this session created the branch `claude/inspiring-brahmagupta-il6tw8` (assigned) and its commits; POST AUTHORITY — this session opened #165, at the owner's request; GATED-THIS-DIFF — not held for `e66ed73`: the cross-model chain (ollama-cloud) ends at `050cd53`; the last link `050cd53` → `e66ed73` was seen by fresh-eyes only, which the stamp does not accept (closeout: at least one cross-model seat with an unbroken chain)
 
 **Data release consent** (owner, in this session, quoted verbatim): "ollama-cloud (Recommended)". The repo has no standing consent; this is session-scoped. Codex is not installed in this cloud container, so ollama-cloud was the one cross-model seat.
 
@@ -8,7 +8,7 @@ Base `bb765c6` · depth: Normal (template tooling and agent instructions; no aut
 |---|---|---|---|---|---|
 | 1 | `4ed8427` | full, `bb765c6...4ed8427` | codex — SKIPPED (not installed) · ollama-cloud kimi-k3:cloud, HTTP API, text only · fresh-eyes: host-family mid-tier model, read-only sub-agent | ollama 391 s, 39 853 · fresh-eyes 219 s, 107 539 | 2 / 5 / 3 (deduped) |
 | 2 | `050cd53` | delta since `4ed8427`, with round 1's dispositions | ollama-cloud kimi-k3:cloud, HTTP API | 224 s, 22 412 | 0 / 0 / 1 |
-| prose re-gate | `e66ed73` | delta since `050cd53` (one Markdown hunk, SETUP.md) | ollama-cloud kimi-k3:cloud — FAILED (502, 429) · glm-5.3:cloud — FAILED (502) | — | not run |
+| prose re-gate | `e66ed73` | delta since `050cd53` (one Markdown hunk, SETUP.md) | ollama-cloud kimi-k3:cloud — FAILED (502, 429, then 429 session usage limit at 17:41) · glm-5.3:cloud — FAILED (502) · fresh-eyes: host-family mid-tier model, read-only sub-agent, new to the change (owner's choice: "use a fresh Claude reviewer for the last check") | fresh-eyes 14 s, 58 089 | 0 / 0 / 0 |
 
 Before round 1 the claims sweep listed 19 sentences; three overclaims were fixed before any reviewer ran ("exactly what text gets wrong", "installs only if package-lock.json changed", "if it prints nothing"), plus "broken links" → "broken internal links" (navigation.spec.ts checks internal links only).
 
@@ -24,8 +24,8 @@ Before round 1 the claims sweep listed 19 sentences; three overclaims were fixed
 | R1-8 | NIT | kimi | 1 | `/\.c?js$/` accepts pnpm/yarn entries in npm_execpath | fixed — externally_reverified (round 2) | `/[\\/]npm-cli\.c?js$/`; pnpm test fails without the fix |
 | R1-9 | NIT | fresh-eyes | 1 | stale docs (README list, clean.yml header, SETUP.md, website-qa tuning example); `plain()` keyed on stdout only | fixed — externally_reverified (round 2) | `050cd53` |
 | R1-10 | NIT | fresh-eyes | 1 | AGENTS.md adds the "small changes → one PR" rule | refuted — in scope (point 2 of the site team's feedback, in the plan the owner approved) | PR description names it |
-| R2-1 | NIT | kimi | 2 | SETUP.md said the hook runs `npm run verify`; it runs `node scripts/verify.mjs` | fixed — locally_verified; prose re-gate pending | `e66ed73` |
+| R2-1 | NIT | kimi | 2 | SETUP.md said the hook runs `npm run verify`; it runs `node scripts/verify.mjs` | fixed — re-verified same-family only (fresh-eyes prose re-gate: every claim in the line VERIFIED against pre-push, verify.mjs, package.json, playwright.config.ts) | `e66ed73` |
 
 Waivers and deferrals: none.
 Follow-ups: Windows `npm.cmd` / `shell: true` path not exercised (no Windows runner). Real-browser runs used Chromium 1194 symlinked under Playwright 1.63's path (no browser download here).
-Notes: degraded — one cross-model seat (Codex not installed). Round 2 met stop condition (a2). Closing edit `e66ed73` not externally re-verified until the prose re-gate runs; the stamp waits for it. `make check` exits 0 at `e66ed73`.
+Notes: degraded — one cross-model seat (Codex not installed), and the final prose link same-family only. Round 2 met stop condition (a2). No marker: nothing in this repo's CI reads it, so the missing stamp blocks no merge. A melious.ai seat (owner's handover, 2026-10-05) is not installed in this container. `make check` exits 0 at `e66ed73`.
