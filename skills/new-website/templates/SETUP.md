@@ -171,8 +171,12 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 **Claude Code only.** Copy the permission allowlist into the project so routine build
 commands (npm/astro/playwright/git read+commit, image tools) run without a prompt:
 ```bash
-mkdir -p .claude && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
+mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
+cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/
 ```
+The settings also register `.claude/hooks/git-stand.mjs`: at every session start (and
+again once the last sync is 2 hours old) it runs `git fetch` and tells you and Claude what
+changed on GitHub. It never pulls, merges or changes files.
 > **Codex / Antigravity:** skip this — `.claude/settings.json` is Claude Code-specific. On
 > Codex, durable project instructions live in `AGENTS.md` (the scaffold ships one; `CLAUDE.md`
 > imports it) and command approval in Codex's own rules/config. Antigravity uses its own

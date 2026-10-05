@@ -37,7 +37,10 @@ in the order we had to do it on a real site, with the traps we hit written in.
 Prerequisites: the site is on GitHub with `.github/workflows/ci.yml` from the kit, and
 `AGENTS.md` exists. If it does not (a site scaffolded before the template existed),
 copy `new-website/templates/AGENTS.md` + `templates/CLAUDE.md` in first and fill the
-`[BRACKET]` slots per the note at its top, then continue here.
+`[BRACKET]` slots per the note at its top, then continue here. Claude Code sites also
+need the sync hook that `AGENTS.md` §1 relies on: if `.claude/hooks/git-stand.mjs` is
+missing, copy it from `new-website/templates/claude/hooks/` and merge the `hooks` block of
+`new-website/templates/claude/settings.json` into the site's `.claude/settings.json`.
 
 Work on a branch and finish with a pull request — the rule the setup installs applies
 to the setup itself. Say in the pull request that it touches `scripts/` (the hook) and

@@ -39,7 +39,15 @@ Before you change any file:
    git log --format='%h %an, %ar: %s' ${old:+$old..}origin/main -n 20
    ```
    If Codex asks whether `git fetch` may use the network: allow it (it cannot work
-   without).
+   without network access).
+   **Claude Code** does this step automatically (hook `.claude/hooks/git-stand.mjs`,
+   at session start and again once the last sync is 2 hours old). Use the hook's
+   report and do not repeat step 2: after the hook, the command above shows nothing
+   new even when there was something new. No hook report at the start of the
+   session, or none for more than 2 hours in a long session, means the hook or its
+   2-hour check did not run (settings not trusted, Node missing, a timeout): then do
+   step 2 yourself. An extra fetch does no harm: the command then lists what arrived
+   since the hook's last sync, which no report has covered yet; tell the person (step 3).
 3. Tell the person in plain words **what is new** (who changed what). If nothing is
    new: say so.
 4. Then, depending on the task. If it is unclear which case applies: ask.

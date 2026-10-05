@@ -72,6 +72,7 @@ REQUIRED=(
   skills/new-website/templates/SETUP.md
   skills/new-website/templates/.gitignore
   skills/new-website/templates/claude/settings.json
+  skills/new-website/templates/claude/hooks/git-stand.mjs
   skills/new-website/templates/AGENTS.md
   skills/new-website/templates/CLAUDE.md
   skills/website-team-setup/SKILL.md
