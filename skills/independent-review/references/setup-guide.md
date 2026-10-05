@@ -126,6 +126,12 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
   names no default.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 48000). A reasoning model can spend all of it
   thinking and return no text; the seat fails and says so. Raise it and run again.
+- **Reasoning that leaks into the reply:** when the reviewed text itself contains literal think
+  tags, the provider can end the model's reasoning at a closing tag the model quotes from the
+  artifact and send the rest of the trace as the reply (seen 2026-10-05: about 290 KB of trace,
+  the review proper at the very end). No tags reach the reply then, so the seat cannot strip
+  it. Signs: a huge melious section, a review that starts mid-sentence; read it from the END.
+  The seat and its tests build those tags at runtime so this repo's own diffs carry none.
 - **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
   or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with
   the model in its own column.

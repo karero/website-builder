@@ -194,10 +194,20 @@ case "$url" in
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       filter) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: half a finding\n- NIT: two"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"content_filter"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      thinktag) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"<think>No findings, I could not read it.</think>\n- BUG: real finding\n- NIT: two"}}]}' '' \
+      # Think tags are built at runtime (TO/TC): see the note at run_melious's think-strip.
+      thinktag) TO="<""think>"; TC="</""think>"
+                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"${TO}No findings, I could not read it.${TC}\\n- BUG: real finding\\n- NIT: two\"}}]}" '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      thinkonly) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"<think>long thoughts</think>"}}]}' '' \
+      thinkonly) TO="<""think>"; TC="</""think>"
+                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"${TO}long thoughts${TC}\"}}]}" '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      thinklast) TO="<""think>"; TC="</""think>"
+                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"- BUG: kept before\\n- NIT: two\\n${TO}trailing thoughts${TC}\"}}]}" '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      unclosed) TO="<""think>"
+                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"- BUG: kept first\\n- NIT: two\\n${TO}unfinished, I could not read it\"}}]}" '' \
+                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
+      nochunks) printf '%s\n' 'upstream said 429 busy, retry 1500 ms' >"$out"; printf 200 ;;
       think)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me think about the retry loop at length"}}]}' '' \
                 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
       length) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: first finding\n- RISK: cut"}}]}' '' \
@@ -902,6 +912,15 @@ run mthinktag PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_S
 check "mthinktag: thinking in think tags is dropped, the review kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: real finding" "$1" && ! grep -qF "could not read" "$1"' _ "$T/mthinktag.out"
 run mthinkonly PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mthinkonly: a reply that is only think tags has no review text" has mthinkonly.out "reviewers: melious FAILED (HTTP 200, no review text)"
+check "mthinkonly: a stopped reply is not told to raise the budget" sh -c 'grep -qF "the model returned no review" "$1" && ! grep -qF "raise MELIOUS_MAX_TOKENS" "$1"' _ "$T/mthinkonly.out"
+run mthinklast PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=thinklast bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mthinklast: a think block after the review is dropped, the review before it kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept before" "$1" && ! grep -qF "trailing thoughts" "$1"' _ "$T/mthinklast.out"
+run munclosed PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=unclosed bash "$SCRIPT" "$T/change.diff" --seat melious
+check "munclosed: an opener never closed: the rest is thinking and is dropped" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept first" "$1" && ! grep -qF "could not read" "$1"' _ "$T/munclosed.out"
+run mnochunks PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=nochunks bash "$SCRIPT" "$T/change.diff" --seat melious
+# The paste fallback below the summary echoes the test diff, which has its own 429: look at the
+# quoted error line and the summary only.
+check "mnochunks: a reply quoting a 429 in its body is not read as quota" sh -c 'l=$(grep -F "no stream chunks in the reply" "$1") && case "$l" in *"said # busy"*) ;; *) exit 1 ;; esac && grep -qxF "reviewers: melious FAILED (HTTP 200)" "$1"' _ "$T/mnochunks.out"
 # A reused raw dir: the second run's stream reports no usage, so it must show no token count.
 run mstale PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat melious
 run mstale2 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --seat melious
@@ -930,6 +949,42 @@ run mclash MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.
 check "mclash: --seat codex with --with-melious is refused" rc_is mclash 2
 run mbadseat bash "$SCRIPT" "$T/change.diff" --seat melius
 check "mbadseat: the error lists melious" has mbadseat.err "codex, ollama, agy or melious"
+
+# Real curl, not the stub: the key reaches curl only through `-H @-` (stdin), and the stub
+# implements that itself, so it cannot prove real curl honours it (round 5, glm). A local
+# server records the Authorization header of a keyed call and of a keyless one.
+REAL_CURL="$(command -v curl || true)"
+if [ -n "$REAL_CURL" ] && command -v python3 >/dev/null 2>&1; then
+  cat >"$T/echo.py" <<'PY'
+import http.server, sys
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        with open(sys.argv[2], "a") as f:
+            f.write("auth=%s\n" % self.headers.get("Authorization"))
+        self.send_response(200); self.send_header("Content-Type", "text/event-stream"); self.end_headers()
+        self.wfile.write(b'data: {"choices":[{"index":0,"delta":{"content":"- BUG: real curl\\n- NIT: two"}}]}\n\n'
+                         b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+    def log_message(self, *a): pass
+s = http.server.HTTPServer(("127.0.0.1", 0), H)
+open(sys.argv[1], "w").write(str(s.server_address[1]))
+for _ in range(2): s.handle_request()
+PY
+  python3 "$T/echo.py" "$T/echo.port" "$T/echo.log" & echo_pid=$!
+  i=0; while [ ! -s "$T/echo.port" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+  RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
+  run mreal PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m MELIOUS_API_KEY=real-curl-key \
+    MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+  run mrealnokey PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL=stub-m \
+    MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/echo.port")/v1" bash "$SCRIPT" "$T/change.diff" --seat melious
+  kill "$echo_pid" 2>/dev/null; wait "$echo_pid" 2>/dev/null
+  check "mreal: real curl, keyed: counted" has mreal.out "reviewers: melious OK"
+  check "mreal: real curl sends the stdin header" grep -qxF "auth=Bearer real-curl-key" "$T/echo.log"
+  check "mrealnokey: real curl with an empty stdin header list: counted" has mrealnokey.out "reviewers: melious OK"
+  check "mrealnokey: ...and sends no Authorization at all" grep -qxF "auth=None" "$T/echo.log"
+else
+  echo "SKIP: the real-curl melious cases need curl and python3. The -H @- path was NOT checked against real curl."
+fi
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

@@ -477,6 +477,7 @@ readonly PROMPT_CORE PROMPT_VERIFY PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROM
 # exported, and the exported one is unset: codex, agy and ollama are tool-using agents reading
 # untrusted text, and none of them needs it (round 1 of this seat, fresh-eyes).
 MELIOUS_KEY_VALUE="${MELIOUS_API_KEY:-}"
+export -n MELIOUS_KEY_VALUE   # an assignment keeps a name exported that came in exported
 unset MELIOUS_API_KEY
 # Raw reviewer outputs STREAM to files (never shell-variable-only: a teardown
 # mid-review must leave partials on disk — the clerk procedure depends on them).
@@ -930,6 +931,8 @@ run_melious() {
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $raw = do { local $/; <$f> } // "";
     my $json = JSON::PP->new->utf8;
+    # A quoted reply body may hold any number; masked, none of it reads as a 429 (QUOTA_RE).
+    my $quote = sub { my $t = substr($_[0] =~ s/\s+/ /gr, 0, 300); $t =~ s/[0-9]+/#/g; $t };
     my $errmsg = sub { my $e = shift; return ref $e eq "HASH" ? ($e->{message} // JSON::PP->new->canonical->encode($e)) : ref $e ? JSON::PP->new->encode($e) : $e };
     if ($code ne "200") {
       my $j = eval { $json->decode($raw) };
@@ -943,7 +946,7 @@ run_melious() {
       if ($line =~ /^\[DONE\]\s*$/) { $done = 1; next }
       next unless $line =~ /\S/;
       my $j = eval { $json->decode($line) };
-      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: stream chunk is not JSON: ", substr($line, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: stream chunk is not JSON: ", $quote->($line), "\n"; exit 3 }
       if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", $errmsg->($j->{error}), "\n"; exit 2 }
       $n++;
       $usage = $j->{usage} if ref $j->{usage} eq "HASH";
@@ -954,15 +957,23 @@ run_melious() {
       for my $k (qw(reasoning_content reasoning)) { $think += length $d->{$k} if defined $d->{$k} && !ref $d->{$k} }
       $finish = $ch->{finish_reason} if defined $ch->{finish_reason};
     }
-    if (!$n) { print STDERR "Error: HTTP $code: no stream chunks in the reply: ", substr($raw =~ s/\s+/ /gr, 0, 300), "\n"; exit 3 }
-    if (!$done && !defined $finish) { print STDERR "Error: HTTP $code: the stream ended without a finish reason or [DONE] after $n chunks — a truncated review\n"; exit 4 }
+    if (!$n) { print STDERR "Error: HTTP $code: no stream chunks in the reply: ", $quote->($raw), "\n"; exit 3 }
+    if (!$done && !defined $finish) { print STDERR "Error: HTTP $code: the stream ended without a finish reason or [DONE] — a truncated review\n"; exit 4 }
     # No bare numbers in these messages: QUOTA_RE reads any free-standing 429 as a rate limit.
     my $budget = "raise MELIOUS_MAX_TOKENS";
     # A reasoning model may put its thinking inside the text, in think tags; that is not review.
-    $c =~ s/<think>.*?<\/think>\s*//gs;
+    # Closed blocks first, then an opener never closed: everything after it is thinking too.
+    # The tags are built, not written out: with literal tags in this file, a review of a diff
+    # touching it made the provider end the reasoning of the model at a quoted closing tag and pour
+    # the rest of the trace into the reply (2026-10-05, references/setup-guide.md).
+    my ($open, $close) = ("<" . "think>", "</" . "think>");
+    $c =~ s/\Q$open\E.*?\Q$close\E\s*//gs;
+    $c =~ s/\Q$open\E.*\z//s;
     if ($c !~ /\S/) {
       print STDERR "Error: HTTP $code: the reply holds no text", ($think ? ", only thinking" : ""),
-        (defined $finish ? ", finish_reason=$finish" : ""), " — a reasoning model may have spent its whole budget thinking: $budget\n";
+        (defined $finish ? ", finish_reason=$finish" : ""),
+        (defined $finish && $finish eq "length" ? " — a reasoning model spent its whole budget thinking: $budget"
+                                                : " — the model returned no review"), "\n";
       exit 5;
     }
     if (defined $finish && $finish eq "length") { print STDERR "Error: HTTP $code: the reply hit the token budget (finish_reason=length) — the review is cut off: $budget\n"; exit 4 }
