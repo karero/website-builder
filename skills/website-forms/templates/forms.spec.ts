@@ -195,7 +195,7 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
 test('contact — a line break in the name cannot start a new mail header', async () => {
   // The subject is cut at 120 characters: a longer prefix leaves too little room for a
   // name, and the checks below assume the room is there.
-  expect(MAIL.subject.length, 'MAIL.subject in src/components/contact-form.ts is 90 characters at most').toBeLessThanOrEqual(90);
+  expect(MAIL.subject.length, 'MAIL.subject in src/components/contact-form.ts is 90 characters at most (JavaScript length)').toBeLessThanOrEqual(90);
   const { sent, send } = recorder();
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
   await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029x\u202A\u202B\u202C\u202D\u202Ey\u2066\u2067\u2068\u2069z' }), ENV, send);
