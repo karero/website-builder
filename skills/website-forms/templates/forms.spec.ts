@@ -151,6 +151,35 @@ test('contact — the entry point Cloudflare calls sends through the real mail c
     expect(answer.status).toBe(503);
     expect(log).toContain('not set on this deployment');
     expect(calls).toHaveLength(2);
+    // A body sent in pieces declares no length. It is still read only up to the limit:
+    // a good message padded past it with a field the form does not have (so no field
+    // check catches it) is refused and nobody is called, while the same message unpadded
+    // and sent the same way goes through.
+    status = 200;
+    const streamed = (body: string) => {
+      const bytes = new TextEncoder().encode(body);
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (let at = 0; at < bytes.length; at += 16_384) controller.enqueue(bytes.subarray(at, at + 16_384));
+          controller.close();
+        },
+      });
+      const request = new Request(`${SITE_ORIGIN}/api/contact`, {
+        method: 'POST',
+        headers: { accept: 'application/json', origin: SITE_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+        body: stream,
+        duplex: 'half',
+      } as RequestInit);
+      expect(request.headers.get('content-length'), 'the test post declares no length').toBeNull();
+      return request;
+    };
+    answer = await onRequestPost({ request: streamed(new URLSearchParams({ ...GOOD, padding: 'x'.repeat(200_000) }).toString()), env: ENV });
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
+    expect(calls, 'a post past the limit reaches nobody').toHaveLength(2);
+    answer = await onRequestPost({ request: streamed(new URLSearchParams(GOOD).toString()), env: ENV });
+    expect(answer.status).toBe(200);
+    expect(calls).toHaveLength(3);
   } finally {
     globalThis.fetch = real;
   }

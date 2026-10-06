@@ -212,7 +212,7 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops the form; if it is posted anyway, the function refuses it and names the field. Nothing is sent. An ordinary address with an apostrophe (o'brien@…) is accepted |
 | 3 | a bot fills the field people never see | it submits | it gets the same thank-you; nothing is sent |
 | 4 | Cloudflare's mail service refuses the message, cannot be reached, or does not answer within ten seconds | a visitor sends | the form says the message could not be sent and points to the address under it, in the line a screen reader is told to read out, and keeps what was typed. The owner's log shows the status and Cloudflare's numeric error codes, never the token, the message, the visitor's address, or any text Cloudflare or the runtime wrote |
-| 5 | a site with the form | the tests run | red unless the privacy page carries the marked sentences about the form, and they name Cloudflare. Red too while the test file does not say which page has the form and which is the privacy page |
+| 5 | a site with the form | the tests run | red unless the privacy page carries one passage marked as being about the form, at least 15 words long, that names Cloudflare. What the passage says beyond that is the skill's text, not a test. Red too while the test file does not say which page has the form and which is the privacy page |
 | 6 | a site where the owner has not entered the four settings yet | a visitor sends | "could not be sent", as in row 4. Never a pretended success. The log names the settings that are missing |
 | 7 | a name with a line break and "Bcc:" in it, or two addresses in the email field | it is sent | the line break is removed from the subject; the two addresses are refused |
 | 8 | a form on another website posts to this site's endpoint through a visitor's browser | it submits | refused whenever the browser names where the post comes from, also when the other site hides its name or uses http for this site's name. A post that names no origin at all is let through on purpose, so that an older browser's visitor does not lose a message |
@@ -222,14 +222,21 @@ when the interview says it needs a form that emails the owner, or later on reque
 | 12 | a site with several languages | the form is put on a page without saying where the privacy page is | the build stops and says what to pass |
 | 13 | a visitor using only the keyboard | they tab through the form | name, email, message, send. The hidden field is never reached |
 | 14 | a two-stage site with the four settings entered for the live site only | the owner tries the form on the preview address | "could not be sent", and the log names the four settings. The skill says this is expected and that the first real message is sent on the live address |
-| 15 | a script posts a file as the name, a name made of control characters, or a post of 200 KB | it arrives | refused; nothing is sent |
+| 15 | a script posts a file as the name, a name made of control characters, or a post of 200 KB, whether or not it declares its length | it arrives | refused; nothing is sent |
 | 16 | the owner tries their own form and reads "could not be sent" | they open the function's log and send again | the mailbox first: "could not be sent" means no clear yes, and the message can have gone out all the same. Then one line says why: a setting is missing, Cloudflare's answer was not a clear yes (status and numeric codes), the call ended in an error, or the post named another origin. No line at all means the function wrote nothing: the post never reached it, or the message went out, or the form reported a field as missing or not valid. The skill has one table: what each line means and what to do |
 
 Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`,
 run on 2026-10-04 in a scratch copy of the starter with the skill installed by its own
 steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). One of
 the tests enters the function the way a deployment does, through the export Cloudflare
-calls, with only the network call underneath replaced. 88 deliberate breakages of the
+calls, with only the network call underneath replaced. Three rows are pinned more narrowly
+than they read. Row 2: the browser test presses send on an empty form; that a browser
+stops "ada@example" is not tested, only that the function refuses it. Row 4: the test
+checks that the mail call carries a signal to stop it, not that it ends within ten
+seconds. Row 13: the test starts on the name field and checks that Tab reaches email and
+then message and never the hidden field; it does not check that send comes next. Row 15's
+200 KB post without a declared length was added on 2026-10-06, after a review sent one
+and it went through. 88 deliberate breakages of the
 function, the form or the privacy text were each caught by those tests. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default
