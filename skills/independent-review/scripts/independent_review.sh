@@ -725,6 +725,9 @@ run_ollama() {
 # Leaves the clean review in ollama.filtered. Returns 3 (unavailable) or 1 (failed, WHY set).
 ollama_via_cli() {
   command -v ollama >/dev/null 2>&1 || return 3
+  # The output filter below needs Perl 5.10 (`//`). Checked before the model runs: on an older
+  # Perl the filter would fail to compile only after the review request was spent.
+  perl -e 'require 5.010' 2>/dev/null || return 3
   # A model is named and the CLI is present, so a failing listing is an attempted tier
   # that failed (daemon down, broken install) — keep its error for the FAILED section.
   ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }

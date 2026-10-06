@@ -1029,5 +1029,23 @@ EOF
 check "no_rflag: the guard rejects every one-line r-flag form, comment mentions included, and passes plain code" [ "$rflag_selftest" = 1 ]
 check "no one-line r-flag substitution in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
 
+# 34. A Perl older than 5.10 (2026-10-06): every ollama and Melious transport checks for 5.10
+#     before it sends anything, so the tier is skipped rather than failing after a spent request.
+#     A wrapper perl fails exactly the `require 5.010` probe and runs the real perl otherwise.
+REALPERL="$(command -v perl)"
+mkdir -p "$T/oldperl"
+cat >"$T/oldperl/perl" <<EOF
+#!/bin/sh
+for a; do case "\$a" in *'require 5.010'*) echo "Perl v5.10.0 required--this is only v5.8.9" >&2; exit 2 ;; esac; done
+exec "$REALPERL" "\$@"
+EOF
+chmod +x "$T/oldperl/perl"
+run oldcli PATH="$T/oldperl:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff"
+check "oldcli: an old Perl skips the ollama CLI tier before the model runs" \
+  sh -c 'grep -qF "ollama-cloud SKIPPED (not available)" "$1/oldcli.out" && [ ! -e "$1/oldcli.marks/ollama-ran" ]' _ "$T"
+run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "oldapi: an old Perl skips the ollama API and Melious tiers, nothing sent" \
+  sh -c 'grep -qF "ollama-cloud SKIPPED (not available)" "$1/oldapi.out" && grep -qF "melious SKIPPED (not available)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ]' _ "$T"
+
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
