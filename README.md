@@ -180,7 +180,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
 > `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
-> `.nvmrc`, `.claude/settings.json`, and `.claude/hooks/git-stand.mjs`) are **frozen
+> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `.claude/settings.json`, and `.claude/hooks/git-stand.mjs`) are **frozen
 > one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
@@ -280,7 +280,9 @@ scripts/
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
+  test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+  test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)

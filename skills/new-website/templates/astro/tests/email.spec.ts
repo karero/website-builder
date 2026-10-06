@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
+import { emailHint } from '../src/lib/obfuscate';
 
 // Anti-harvest guardrail: the SERVED HTML of every page must contain no plaintext
 // email address and no `mailto:` link. Addresses go through <EmailLink>, which
@@ -19,3 +20,24 @@ for (const path of PAGES) {
     expect(m?.[0] ?? null, `${path} ships a plaintext email "${m?.[0]}" — use <EmailLink>`).toBeNull();
   });
 }
+
+// The no-JS hint speaks the language of the page it is on, not the site's: the
+// German Impressum on an English site must say "[punkt]", not "[dot]". Runs with
+// JavaScript off, as a no-JS visitor sees it (with JS on, the decode script swaps
+// the hint for the address). Each hint is rebuilt from its encoded address and
+// the page's <html lang>; links with their own `text` (no "[at]") are skipped.
+test.describe('without JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+  for (const path of PAGES) {
+    test(`email — ${path} hints use the page's language`, async ({ page }) => {
+      await page.goto(path);
+      const lang = (await page.locator('html').getAttribute('lang')) ?? '';
+      const links = await page.locator('a.email-link[data-email]').evaluateAll((els) =>
+        els.map((a) => ({ data: (a as HTMLElement).dataset.email!, text: a.textContent ?? '' })));
+      for (const { data, text } of links.filter((l) => l.text.includes('[at]'))) {
+        const address = Buffer.from(data, 'base64').toString('utf-8').split('').reverse().join('');
+        expect(text, `${path} (<html lang="${lang}">) shows the hint in another language`).toBe(emailHint(address, lang));
+      }
+    });
+  }
+});
