@@ -1000,7 +1000,7 @@ MK=stub-melious-secret
 run mbody MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbody: default budget 96000 and the final-review marker ask" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /=== FINAL REVIEW ===/)' "$T/mbody.marks/melious-body"
-check "mbody: no marker, small reply: kept whole, no note" sh -c 'grep -qF "melious OK" "$1" && ! grep -qF "final-review marker" "$1" && ! grep -qF "leaked reasoning" "$1"' _ "$T/mbody.out"
+check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, glm)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
 run mbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 48000)' "$T/mbudget.marks/melious-body"
@@ -1025,11 +1025,12 @@ rm -f "$T/u/.config/reviewers/melious.env"
 run mleak MELIOUS_MODEL=stub-melious MELIOUS_STUB=leak bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mleak: the answer after the LAST marker line is the review" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: the real finding" "$1" && ! grep -qF "draft finding" "$1" && ! grep -qF "Let me think" "$1"' _ "$T/mleak.out"
 check "mleak: the section says text was dropped" has mleak.out "text before the final-review marker dropped"
+check "mleak: a usable marker gives no no-marker warning" lacks mleak.out "no usable final-review marker"
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
 run mleaknofull MELIOUS_MODEL=stub-melious MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mleaknofull: the note does not promise a melious.full it could not write" sh -c 'grep -qF "the full reply could not be saved" "$1" && ! grep -qF "is in melious.full" "$1" && grep -qF "BUG: the real finding" "$1"' _ "$T/mleaknofull.out"
 run mbig MELIOUS_MODEL=stub-melious MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
+check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
 run mmarkdup MELIOUS_MODEL=stub-melious MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkdup: a marker repeated at the end does not win" sh -c 'grep -qF "BUG: kept finding" "$1" && ! grep -qF "Thinking about it" "$1" && grep -qF "dropped, under 1 KB" "$1"' _ "$T/mmarkdup.out"
 run mmarkfence MELIOUS_MODEL=stub-melious MELIOUS_STUB=markfence bash "$SCRIPT" "$T/change.diff" --seat melious
@@ -1037,7 +1038,7 @@ check "mmarkfence: a marker quoted in a fence after the review does not win" sh 
 run mmarkwrap MELIOUS_MODEL=stub-melious MELIOUS_STUB=markwrap bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped marker kept" "$1" && ! grep -qF "Reasoning that leaked" "$1"' _ "$T/mmarkwrap.out"
 run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
+check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
 run mmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkend: a marker with nothing after it: the reply is kept whole" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: before the marker" "$1"' _ "$T/mmarkend.out"
 run mthinkonly MELIOUS_MODEL=stub-melious MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --seat melious

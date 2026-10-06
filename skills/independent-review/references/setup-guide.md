@@ -140,8 +140,9 @@ to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path n
   that has findings after it (Markdown around the marker is fine; a marker repeated at the end
   or quoted after the review does not count); the section then says how much was dropped, and
   the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
-  reply is kept; when it is over 64 KB, the section warns that it may hold leaked reasoning: read
-  it from the end. A leak can also run on with no marker until the connection drops (seen once,
+  reply is kept and the section always warns that it may be leaked reasoning rather than a
+  finished review: read it from the end, and rerun the round if it is working notes (a 21 KB reply
+  of notes with no marker was seen; size alone does not tell). A leak can also run on with no marker until the connection drops (seen once,
   after 38 minutes): the seat fails with "reply cut off" and keeps what came in `melious.resp`;
   run it again. The seat and its tests build think tags at runtime, so this repo's files carry none.
 - **Run:** set `MELIOUS_MODEL=<id>` and run the pair as usual; the seat stands in when ollama did

@@ -1037,8 +1037,12 @@ run_melious() {
       }
       $c = $after; $kept_whole = 0; last;
     }
-    if ($kept_whole && length(Encode::encode("UTF-8", $c)) > 65536) {   # bytes, as the guide says
-      $note = "(no usable final-review marker, and the reply is large: it may hold leaked reasoning ahead of the review; read it from the end)\n\n";
+    # No usable marker: the model did not mark its final answer. Kept, and always said: a 21 KB
+    # reply of working notes with no marker counted as a review and carried no warning (#165,
+    # round 16), so size alone does not tell a leak from a short review.
+    if ($kept_whole) {
+      my $size = length(Encode::encode("UTF-8", $c)) > 65536 ? "large " : "";   # bytes
+      $note = "(no usable final-review marker: this ${size}reply may be leaked reasoning rather than a finished review; read it from the end" . ($saved ? "; the full reply is in melious.full" : "") . ")\n\n";
     }
     binmode STDOUT, ":encoding(UTF-8)";
     print $thinknote, $note, $c; print "\n" if length $c && $c !~ /\n\z/;
