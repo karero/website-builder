@@ -200,6 +200,27 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
   expect(tooLarge.status).toBe(400);
   expect(await tooLarge.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
   expect(huge.sent).toHaveLength(0);
+  // One that declares no length at all (sent in pieces, as a script can) is refused too,
+  // once its bytes pass the limit: the header is not what bounds it.
+  const pieces = new TextEncoder().encode(new URLSearchParams({ ...GOOD, message: 'x'.repeat(150_000) }).toString());
+  const streamed = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let at = 0; at < pieces.length; at += 16_384) controller.enqueue(pieces.slice(at, at + 16_384));
+      controller.close();
+    },
+  });
+  const unsized = new Request(`${SITE_ORIGIN}/api/contact`, {
+    method: 'POST',
+    headers: { accept: 'application/json', origin: SITE_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+    body: streamed,
+    duplex: 'half',
+  } as RequestInit);
+  expect(unsized.headers.get('content-length'), 'the request declares no length').toBeNull();
+  const endless = recorder();
+  const notDeclared = await handle(unsized, ENV, endless.send);
+  expect(notDeclared.status).toBe(400);
+  expect(await notDeclared.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
+  expect(endless.sent).toHaveLength(0);
   // A message at the limit, with the CRLF line breaks a browser sends, is not too long.
   const paragraphs = Array.from({ length: 100 }, () => 'x'.repeat(49)).join('\r\n');
   expect(paragraphs.replace(/\r\n/g, '\n')).toHaveLength(LIMITS.message - 1);
@@ -531,6 +552,8 @@ for (const [name, answer, says] of [
   ['not sent', { status: 502, body: { ok: false, error: 'send_failed' } }, 'data-failed'],
   ['refused by the function', { status: 400, body: { ok: false, error: 'invalid', fields: { email: 'invalid' } } }, 'data-invalid'],
   ['answered with something that is not an answer', { status: 200, body: null }, 'data-failed'],
+  ['answered with an "ok" that is not true', { status: 200, body: { ok: 'false' } }, 'data-failed'],
+  ['answered "ok" with an error status', { status: 502, body: { ok: true } }, 'data-failed'],
   ['lost on the way', 'lost', 'data-failed'],
 ] as const) {
   test(`contact — the status line and the fallback address when the message is ${name}`, async ({ page }) => {
@@ -557,9 +580,39 @@ for (const [name, answer, says] of [
     await expect(direct.locator('a')).toHaveCount(1);
     await expect(page.locator('#contact-message')).toHaveValue(says === 'data-sent' ? '' : 'Hello, do you have time in May?');
     await expect(page.locator('#contact-form button[type="submit"]')).toBeEnabled();
+    await expect(page.locator('#contact-message'), 'the visitor can type again').toBeEditable();
     expect(posted, 'the form posted to the endpoint').toContain('Ada Lovelace');
   });
 }
+
+test('contact — nothing can be typed while the message is on its way, so a success never empties unsent words', async ({ page }) => {
+  test.skip(!PAGE, 'PAGE is not set');
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/contact', async (route) => {
+    await held;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  await page.goto(PAGE);
+  await page.fill('#contact-name', 'Ada Lovelace');
+  await page.fill('#contact-email', 'ada@example.org');
+  await page.fill('#contact-message', 'Hello, do you have time in May?');
+  await page.click('#contact-form button[type="submit"]');
+  const sending = await page.locator('#contact-form').getAttribute('data-sending');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(sending!);
+  // The visitor goes on typing while the answer is held back.
+  for (const id of ['#contact-name', '#contact-email', '#contact-message']) await expect(page.locator(id)).not.toBeEditable();
+  await page.locator('#contact-message').press('End');
+  await page.keyboard.type(' And in June?');
+  await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
+  release();
+  const sent = await page.locator('#contact-form').getAttribute('data-sent');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(sent!);
+  for (const id of ['#contact-name', '#contact-email', '#contact-message']) {
+    await expect(page.locator(id)).toBeEditable();
+    await expect(page.locator(id)).toHaveValue('');
+  }
+});
 
 test('contact — an empty form is stopped in the browser, before anything is posted', async ({ page }) => {
   test.skip(!PAGE, 'PAGE is not set');

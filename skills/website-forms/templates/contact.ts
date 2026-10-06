@@ -100,18 +100,44 @@ export async function sendViaCloudflare(message: Message, env: Required<Env>, fe
 
 type Outcome = { status: number; body: { ok: boolean; error?: 'forbidden' | 'invalid' | 'not_configured' | 'send_failed'; fields?: Record<string, string> } };
 
+// The request's body, or null as soon as it passes `limit` bytes: the rest is not read.
+async function readAtMost(request: Request, limit: number): Promise<ArrayBuffer | null> {
+  if (!request.body) return new ArrayBuffer(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
+
 // The decision, apart from how it is phrased back to the visitor.
 export async function decide(request: Request, env: Env, send: Send = sendViaCloudflare): Promise<{ outcome: Outcome; lang: string }> {
   // A post that declares far more than a message can be is refused unread. One that
-  // declares nothing is still read: Cloudflare's own limits are what bound it. Whether
-  // Cloudflare hands this header to the function was not observed; if it does not, this
-  // check never fires there.
-  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) {
-    return { outcome: { status: 400, body: { ok: false, error: 'invalid', fields: { form: 'too_large' } } }, lang: 'en' };
-  }
+  // declares nothing, or less than it sends, is read only up to the limit: the bytes are
+  // counted as they arrive. That holds whether or not Cloudflare hands the header to the
+  // function, which was not observed.
+  const tooLarge: { outcome: Outcome; lang: string } = { outcome: { status: 400, body: { ok: false, error: 'invalid', fields: { form: 'too_large' } } }, lang: 'en' };
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return tooLarge;
   let form: FormData;
   try {
-    form = await request.formData();
+    const bytes = await readAtMost(request, MAX_BODY_BYTES);
+    if (!bytes) return tooLarge;
+    form = await new Response(bytes, { headers: { 'content-type': request.headers.get('content-type') ?? '' } }).formData();
   } catch {
     return { outcome: { status: 400, body: { ok: false, error: 'invalid', fields: { form: 'unreadable' } } }, lang: 'en' };
   }

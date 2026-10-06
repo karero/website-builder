@@ -80,11 +80,17 @@ const privacy = Astro.props.privacy ?? t.privacy;
   if (form) {
     const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="hidden"]), textarea'));
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       status.textContent = form.dataset.sending ?? '';
       button.disabled = true;
-      let outcome: { ok?: boolean; error?: string } = {};
+      // Nothing can be typed while the message is on its way, so a success, which empties
+      // the form, never takes words that were not sent. Read-only, not disabled: a
+      // disabled field would be left out of the post.
+      for (const field of fields) field.readOnly = true;
+      let ok = false;
+      let error: unknown;
       try {
         const res = await fetch(form.action, {
           method: 'POST',
@@ -93,20 +99,24 @@ const privacy = Astro.props.privacy ?? t.privacy;
           // Give up after 15 seconds. A browser that cannot do that waits as long as it likes.
           signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined,
         });
-        // An answer that is not the function's (null, a number) counts as a failure below.
-        outcome = (await res.json()) ?? {};
+        const answer: unknown = await res.json();
+        // Sent only when the function says so: a success status and ok exactly true. Any
+        // other answer (null, a number, "ok": "false", an error status) is a failure.
+        ok = res.ok && (answer as { ok?: unknown } | null)?.ok === true;
+        error = (answer as { error?: unknown } | null)?.error;
       } catch {
-        outcome = { ok: false, error: 'send_failed' };
+        error = 'send_failed';
       }
+      for (const field of fields) field.readOnly = false;
       button.disabled = false;
-      if (outcome.ok) {
+      if (ok) {
         form.reset();
         status.textContent = form.dataset.sent ?? '';
         return;
       }
       // Not sent. Say so in the announced line and keep what was typed. The failure
       // sentence points to the address under the form.
-      status.textContent = (outcome.error === 'invalid' ? form.dataset.invalid : form.dataset.failed) ?? '';
+      status.textContent = (error === 'invalid' ? form.dataset.invalid : form.dataset.failed) ?? '';
     });
   }
 </script>
