@@ -110,72 +110,51 @@ expect "a list with no names: the OK line says so" 0 "private-name check SKIPPED
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
 
 # CI runs with CLEAN_MASK_NAMES=1 and its logs are public: a hit must still fail the run,
-# and no listed name may appear in the output, in any case, in the text or a file name.
-# masked <label> <exit code wanted> <text the output must contain> [PATH prefix] [ERE it must not]
+# and nothing scanned may be printed, only counts. No listed name may appear, in any case,
+# in a hit, a file name, another report or a grep error.
+# masked <label> <exit code wanted> <text the output must contain>
 masked() {
   local out rc
-  out="$(cd "$R" && PATH="${4:+$4:}$PATH" CLEAN_MASK_NAMES=1 bash scripts/check_clean.sh 2>&1)"; rc=$?
+  out="$(cd "$R" && CLEAN_MASK_NAMES=1 bash scripts/check_clean.sh 2>&1)"; rc=$?
   if [ "$rc" -eq "$2" ] && printf '%s' "$out" | grep -qF -- "$3" && ! printf '%s' "$out" | grep -qi zorblequux \
-     && { [ -z "${5:-}" ] || ! printf '%s' "$out" | grep -qiE -- "$5"; }; then
+     && ! printf '%s' "$out" | grep -q '^    [^(]'; then
     printf 'ok   %s\n' "$1"
   else
     printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$2" "$out" | sed '2,$s/^/     /'
     fails=$((fails+1))
   fi
 }
-printf 'ran ZorbleQuux and zorblequux\n' >"$R/docs/notes.md"
-masked "masked: a listed name fails, and is not printed" 1 "docs/notes.md:1:ran [***] and [***]"
-printf 'plain notes\n' >"$R/docs/notes.md"; printf 'ran zorblequux\n' >"$R/docs/zorblequux-notes.md"
-masked "masked: a listed name in a file name is not printed either" 1 "docs/[***]-notes.md:1:"
-rm "$R/docs/zorblequux-notes.md"
-# Masking must not undo the gitignore filter, which needs the real file name.
+printf 'ran ZorbleQuux and zorblequux\nand zorblequux again\n' >"$R/docs/notes.md"
+masked "masked: a listed name fails, and only a count is printed" 1 "    (2 line(s) withheld"
+printf 'plain notes\n' >"$R/docs/notes.md"
+# A name in a file name, inside a word, in an email or a home path: other reports print
+# their lines too, and each of these leaked when only the name report was masked.
+printf 'met zorblequux and the zorblequux_team\nwrite to bob@zorblequux.de\nsee /Users/zorblequux/x\n' >"$R/docs/zorblequux_notes.md"
+masked "masked: names in file names, emails and home paths: not printed" 1 "✗ email address"
+rm "$R/docs/zorblequux_notes.md"
+# Withholding happens after the inner run filtered gitignored files by their real names.
 printf 'docs/*-scratch\n' >>"$R/.gitignore"; printf 'ran zorblequux\n' >"$R/docs/zorblequux-scratch"
 masked "masked: a listed name in a gitignored file named after it: passes" 0 "OK — no private names in:"
 rm "$R/docs/zorblequux-scratch"
-# A name inside a word (`_`, digits) and a name that trips a generic check too (an email
-# domain, a home path) printed in clear when only the name report was masked.
-printf 'met zorblequux and the zorblequux_team, zorblequux2026\nwrite to bob@zorblequux.de\nsee /Users/zorblequux/x\n' >"$R/docs/zorblequux_notes.md"
-masked "masked: names inside words, emails and home paths, and file names with _: not printed" 1 "✗ email address"
-rm "$R/docs/zorblequux_notes.md"
-# Masking the hits before report() filtered them again turned this hit into a pass: the
-# masked name no longer existed, and its gitignored prefix did.
 printf 'ignored\n' >"$R/docs/scratch"; printf 'ran zorblequux\n' >"$R/docs/scratch:zorblequux.md"
 masked "masked: a file named like an ignored path plus a colon and a name: still fails" 1 "personal/site identifier"
 rm "$R/docs/scratch" "$R/docs/scratch:zorblequux.md"
-# A longer word holding a name, on a line with a hit, gives the name away: the whole word goes.
-printf 'ran zorblequux, zorblequuxes and ZorbleQuuxCloud\n' >"$R/docs/notes.md"
-masked "masked: a word holding a name is blanked whole" 1 "docs/notes.md:1:ran [***], [***] and [***]"
-printf 'plain notes\n' >"$R/docs/notes.md"
-# The script's own lines read the same whatever the list holds. Blanking an entry inside them
-# would give it away on every green run, and an entry inside the old marker "[private name]"
-# withheld every run of a clean tree.
+# grep's own errors name files, and are withheld like hits.
+mkdir "$R/docs/zorblequux-locked"; printf 'x\n' >"$R/docs/zorblequux-locked/a.md"; chmod 000 "$R/docs/zorblequux-locked"
+if [ -r "$R/docs/zorblequux-locked" ]; then
+  echo "SKIP: masked scan-error case needs a directory this user cannot read (running as root?)"
+else
+  masked "masked: a grep error naming a file: withheld, and fails" 1 "✗ home path:"
+fi
+chmod 755 "$R/docs/zorblequux-locked"; rm -r "$R/docs/zorblequux-locked"
+# The script's own lines read the same whatever the list holds, and are printed as they are.
 printf 'dent\nriva\n' >>"$R/scripts/.clean-denylist"
 masked "masked: entries inside the script's own words leave them alone, and pass" 0 "no contact info or credentials in:"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
-# perl takes the first alternative that matches, so a short entry before a longer one that
-# starts with it left the rest of the longer one in clear; two overlapping entries likewise.
-printf 'zorblequux-widgetz\nwidgetz-quam\n' >>"$R/scripts/.clean-denylist"
-printf 'ran zorblequux-widgetz-quam today\n' >"$R/docs/notes.md"
-masked "masked: entries that share a prefix or overlap are blanked whole" 1 "docs/notes.md:1:ran [***] today" "" "widgetz|quam"
-cp "$T/list.bak" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
-# Every line that is not scan output is this script's own text, which never holds a whole
-# listed name; if one ever does, the output is withheld rather than printed.
+# They never hold a whole listed name; if one ever does, nothing is printed.
 printf 'skills\n' >>"$R/scripts/.clean-denylist"
 masked "masked: a whole name in a line that is not scan output: withheld" 1 "output is withheld"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
-# perl's errors quote the whole pattern, every name in it: if perl fails, nothing is printed,
-# and the run still fails.
-mkdir -p "$T/badperl"; printf '#!/bin/sh\necho "Nested quantifiers in regex; m/zorblequux <-- HERE/" >&2\nexit 255\n' >"$T/badperl/perl"; chmod +x "$T/badperl/perl"
-printf 'ran zorblequux\n' >"$R/docs/notes.md"
-masked "masked: perl failing withholds everything and still fails" 1 "output is withheld" "$T/badperl"
-# The same, with a clean tree: a masking failure must not pass either.
-printf 'plain notes\n' >"$R/docs/notes.md"
-masked "masked: perl failing on a clean tree: still fails" 1 "output is withheld" "$T/badperl"
-# A pattern perl reads differently from grep leaves the name in place; grep finds it in the
-# masked text, so the output is withheld. \< \> are word edges to grep, plain < > to perl.
-printf 'a zorblequux b\n' >"$R/docs/notes.md"; printf '\\<zorblequux\\>\n' >"$R/scripts/.clean-denylist"
-masked "masked: a pattern perl reads differently: output withheld" 1 "output is withheld"
-cp "$T/list.bak" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
 
 # A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
 # that checkout (it names the git folder instead), so the list cannot be found from a linked
@@ -220,14 +199,12 @@ FAKE
     fi
   }
   push "push-denylist: sends the list to the repo gh names" "$R" 0 "args: secret set CLEAN_DENYLIST --repo owner/repo"
-  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 -d)" != "$(cat "$R/scripts/.clean-denylist")" ]; then
-    printf 'FAIL push-denylist: the secret is not the list, base64-encoded\n'; fails=$((fails+1))
+  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 -d)" != "$(printf '# CLEAN_DENYLIST v1\n'; cat "$R/scripts/.clean-denylist")" ]; then
+    printf 'FAIL push-denylist: the secret is not the marker and the list, base64-encoded\n'; fails=$((fails+1))
   fi
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"
   push "push-denylist: refuses a list with no names" "$R" 2 "lists no names"
-  printf 'zorblequux**\n' >"$R/scripts/.clean-denylist"
-  push "push-denylist: refuses a pattern perl cannot read" "$R" 2 "perl cannot read"
   [ -f "$T/gh.log" ] && { printf 'FAIL push-denylist: gh was called for a refused list\n'; fails=$((fails+1)); }
   cp "$T/list.bak" "$R/scripts/.clean-denylist"; : >"$R/Makefile"; : >"$W/Makefile"
 else
@@ -248,13 +225,15 @@ if [ -f "$WF" ]; then
       printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$4" "$out" | sed '2,$s/^/     /'; fails=$((fails+1))
     fi
   }
-  b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
+  b64() { { printf '# CLEAN_DENYLIST v1\n'; printf '%s' "$1"; } | base64 | tr -d '\n'; }
   step "CI step: a secret with names is written" "$(b64 "$(printf '# x\r\nzorblequux\r')")" false 0 ""
-  if [ "$(cat "$T/stepdir/scripts/.clean-denylist")" != "$(printf '# x\nzorblequux')" ]; then
+  if [ "$(cat "$T/stepdir/scripts/.clean-denylist")" != "$(printf '# CLEAN_DENYLIST v1\n# x\nzorblequux')" ]; then
     printf 'FAIL CI step: the list is not written as the secret holds it, less carriage returns\n'; fails=$((fails+1))
   fi
   step "CI step: a secret with no names fails" "$(b64 "# none yet")" false 1 "lists no names"
-  step "CI step: a plain, not base64, secret fails" "zorble quux!" false 1 "::error::"
+  step "CI step: a plain list as the secret fails" "$(printf 'zorble quux!\nzorblequux')" false 1 "not set by 'make push-denylist'"
+  # Letters only, length a multiple of 4: valid base64 that decodes to garbage, no marker.
+  step "CI step: a secret that only decodes as base64 fails" "zorblequuxzz" false 1 "not set by 'make push-denylist'"
   step "CI step: no secret where secrets exist fails" "" false 1 "secret is missing"
   step "CI step: no secret with NO_SECRETS=true warns" "" true 0 "::warning::"
 else

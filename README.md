@@ -280,7 +280,7 @@ scripts/
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
-  test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list, and CI's masked mode never prints a name (make check)
+  test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list, and CI's masked mode prints no scanned text (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
   test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
@@ -377,10 +377,11 @@ make check       # PII/secrets + model-agnostic + template coverage + per-skill 
 catches (any real email, credential/token formats, secret-looking assignments). The
 denylist is a gitignored local file. CI gets it from the `CLEAN_DENYLIST` repository
 secret, which `make push-denylist` sets from the local list, base64-encoded (run it
-after every change to the list). The logs are public, so CI blanks every listed name out
-of the scan output it prints, and withholds the output if a name would still show. A pull request from a fork
-or from Dependabot gets no secrets, so it skips the name check with a warning, as does a
-fork of the repo; anywhere else a missing secret, or one with no names, fails the job.
+after every change to the list). The logs are public, so when CI has the list it
+prints no scanned text, only which checks failed and how many lines they found; run
+the check locally to see them. A pull request from a fork or from Dependabot gets no
+secrets, so it skips the name check with a warning, as does a fork of the repo;
+anywhere else a missing secret, or one with no names, fails the job.
 The script runs in CI on every pull request and every push to `main`
 (`.github/workflows/clean.yml`) and is a prerequisite of `make package`: in a checkout
 that has the list, a listed name in a file the script scans stops the build, unless the

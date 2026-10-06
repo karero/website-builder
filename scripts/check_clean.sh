@@ -8,8 +8,8 @@
 #     file (scripts/.clean-denylist) so the public suite never enumerates private names.
 #     Catches our own info regressing back in; skipped if the file is absent. CI writes
 #     the file from the CLEAN_DENYLIST repo secret (`make push-denylist` sets it) and runs
-#     with CLEAN_MASK_NAMES=1, which blanks every listed name out of the scan output it
-#     prints, since a public repo's CI logs are public (section 0 below).
+#     with CLEAN_MASK_NAMES=1, which prints no scanned text at all, only counts, since a
+#     public repo's CI logs are public (section 0 below).
 #   • GENERIC  — any real email, plus credential/secret formats and secret-looking
 #     assignments. Catches things no denylist could enumerate.
 # A real false positive should be fixed by narrowing the pattern here, never by
@@ -31,60 +31,31 @@ if [ ! -f "$DENYLIST_FILE" ]; then
   main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
   [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
 fi
-NAMES_NL=""   # one pattern per line
-[ -f "$DENYLIST_FILE" ] && NAMES_NL="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)')"
-NAMES="$(printf '%s' "$NAMES_NL" | paste -sd'|' -)"   # one ERE alternation
+NAMES=""
+[ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
 
-# 0. CI's logs are public. With CLEAN_MASK_NAMES=1 this script runs itself again, unmasked,
-#    and prints what that run printed with every listed name blanked out of the scan output:
-#    the 4-space-indented lines, which hold every hit and grep's own errors. Each entry is
-#    matched on its own, and each match widened to the whole run of letters around it, so
-#    "Names", "Name_team" and file names go too; overlapping matches of two entries ("acme"
-#    and "acme-widget") merge into one [***]. This script's own lines are left alone: they
-#    read the same whatever the list holds, so they give no entry away, where blanking a
-#    short entry inside them ("cre[***]ials") would. Then grep, the engine that found the
-#    names, checks the result: no trace of a name may be left in a scan line, and no whole
-#    name in any other line. Otherwise, or if perl or grep failed (perl's errors quote the
-#    whole list), nothing is printed and the run fails. Masking one report at a time missed
-#    names in the other reports, in scan errors and next to `_`, and could turn a hit into
-#    a pass (#189 review).
+# 0. CI's logs are public. With CLEAN_MASK_NAMES=1 and a name list, this script runs itself
+#    again and prints that run's own lines only: each block of scan lines (the 4-space-
+#    indented lines, which hold every hit and grep's own errors) becomes a count. A hit's
+#    text, its file name, an email around it or a grep error naming a file can each hold a
+#    name, and blanking names inside them missed one case after another in review (#189);
+#    so nothing scanned is printed. Run the check locally to see the lines. The exit code is
+#    the inner run's. The script's own lines never hold a whole listed name; if one ever
+#    does, nothing is printed and the run fails. Each check keeps every pipeline stage's
+#    status: under pipefail, a failed stage before a grep that found nothing reads like "none".
 if [ -n "${CLEAN_MASK_NAMES:-}" ] && [ -n "$NAMES" ]; then
   out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
-  masked="$(printf '%s\n' "$out" | NAMES_NL="$NAMES_NL" perl -e '
-    my @re = map { qr/$_/i } split /\n/, $ENV{NAMES_NL};
-    while (my $l = <STDIN>) {
-      if ($l =~ /^    /) {
-        my @span;
-        for my $re (@re) {
-          while ($l =~ /$re/g) {
-            my ($x, $y) = ($-[0], $+[0]);
-            if ($y == $x) { pos($l) = $x + 1; next }
-            $x-- while $x > 0 && substr($l, $x - 1, 1) =~ /[A-Za-z]/;
-            $y++ while $y < length($l) && substr($l, $y, 1) =~ /[A-Za-z]/;
-            push @span, [$x, $y];
-          }
-        }
-        my @merged;
-        for my $sp (sort { $a->[0] <=> $b->[0] } @span) {
-          if (@merged && $sp->[0] <= $merged[-1][1]) { $merged[-1][1] = $sp->[1] if $sp->[1] > $merged[-1][1] }
-          else { push @merged, [@$sp] }
-        }
-        substr($l, $_->[0], $_->[1] - $_->[0]) = "[***]" for reverse @merged;
-      }
-      print $l;
-    }' 2>/dev/null)"; prc=$?
-  # Each check is one grep reading through a pipe, and every stage's status is kept: under
-  # pipefail a failed stage before a grep that found nothing reads like "no name left". (A
-  # here-string read the same way when bash could not write its temporary file.)
-  left="$(printf '%s\n' "$masked" | grep -ciE -- "^    .*(${NAMES})" 2>/dev/null; echo "${PIPESTATUS[*]}")"
-  whole="$(printf '%s\n' "$masked" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
-  none="$(printf '0\n0 1')"
-  if [ "$prc" -ne 0 ] || [ "$left" != "$none" ] || [ "$whole" != "$none" ]; then
-    echo "FAIL — this run's output is withheld: a listed name could not be blanked out of it."
+  whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
+  if [ "$whole" != "$(printf '0\n0 1')" ]; then
+    echo "FAIL — this run's output is withheld: a line of it might hold a listed name."
     echo "Run the check where the logs are private to see it: bash scripts/check_clean.sh"
     exit 1
   fi
-  printf '%s\n' "$masked"
+  printf '%s\n' "$out" | awk '
+    /^    / { n++; next }
+    n { printf "    (%d line(s) withheld: CI logs are public; run bash scripts/check_clean.sh locally to see them)\n", n; n = 0 }
+    { print }
+    END { if (n) printf "    (%d line(s) withheld: CI logs are public; run bash scripts/check_clean.sh locally to see them)\n", n }'
   exit "$rc"
 fi
 SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
@@ -126,7 +97,7 @@ filter_ignored() { # stdin: grep output → stdout minus gitignored files
   while IFS= read -r line; do
     case "$line" in
       "Binary file "*" matches") f="${line#Binary file }"; f="${f% matches}"
-        { [ -e "$f" ] && git check-ignore -q -- "$f" 2>/dev/null; } || printf '%s\n' "$line"; continue ;;
+        git check-ignore -q -- "$f" 2>/dev/null || printf '%s\n' "$line"; continue ;;
     esac
     # A file name may hold a colon, so the name is not simply the text before the first
     # one: try each prefix that ends at a colon, and drop the line only when every prefix
@@ -152,13 +123,14 @@ g() { # <grep args…> → matches on stdout; a scan ERROR fails the run instead
   # GNU grep 3.5+ (CI's) reports a matching binary file on stderr with exit 0, where BSD grep
   # prints "Binary file X matches" on stdout. Turn the GNU form into the BSD one, or the hit
   # would be thrown away with the rest of stderr and a binary file holding a name would pass.
-  # A newline in the file name splits that message, and the part after the newline could
-  # name a gitignored file the filter would drop: report it as a scan error instead.
+  # Any other stderr line from a grep that did not fail is a scan error, reported unfiltered:
+  # a newline in a file name splits that message, and the part after the newline could look
+  # like a whole message (or name a gitignored file the filter would drop).
   bin="$(sed -n 's/^grep: \(.*\): binary file matches$/Binary file \1 matches/p' "$err")"
   [ -n "$bin" ] && out="${out:+$out$'\n'}$bin"
-  split="$(sed -n '/^grep: /d; /: binary file matches$/p' "$err")"
-  if [ -n "$split" ]; then
-    echo "✗ scan error (a matching binary file's name holds a newline) — its hits were not filtered:"
+  split="$(sed '/^grep: .*: binary file matches$/d' "$err")"
+  if [ "$rc" -le 1 ] && [ -n "$split" ]; then
+    echo "✗ scan error (grep wrote to stderr; a file name may hold a newline) — its hits were not filtered:"
     printf '%s\n' "$split" | sed 's/^/    /'
   fi
   if [ "$rc" -gt 1 ]; then

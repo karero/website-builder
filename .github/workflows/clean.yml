@@ -26,7 +26,7 @@ name: clean
 # by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), that the site's verify
 # script reinstalls only on a changed package.json or lockfile and stops at the first red step
 # (scripts/test_verify.sh), and that the private-name check
-# runs in a linked worktree too and that CI's masked mode never prints a name
+# runs in a linked worktree too and that CI's masked mode prints no scanned text
 # (scripts/test_clean_denylist.sh), and that the site's Claude Code
 # sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh). And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
@@ -68,9 +68,10 @@ jobs:
       # Anywhere else a missing secret, or one that lists no names, fails the job: deleting
       # it must not bring back the silent skip. Only this step sees the secret; the file it
       # writes is gitignored and read by the next step. The secret holds the list
-      # base64-encoded on one line: the runner blanks every line of a secret wherever it
-      # occurs in the log, so a plain list would turn an entry inside an ordinary word into
-      # "cre***ials" and give it away; one base64 line never occurs in the log.
+      # base64-encoded on one line, after a marker line: the runner blanks every line of a
+      # secret wherever it occurs in the log, so a plain list would turn an entry inside an
+      # ordinary word into "cre***ials" and give it away; one base64 line never occurs in
+      # the log. The marker tells our list from text that merely decodes as base64.
       - name: Write the private-name list from the CLEAN_DENYLIST secret
         env:
           CLEAN_DENYLIST: ${{ secrets.CLEAN_DENYLIST }}
@@ -78,10 +79,14 @@ jobs:
         run: |
           set -o pipefail
           if [ -n "$CLEAN_DENYLIST" ]; then
-            if ! printf '%s' "$CLEAN_DENYLIST" | base64 -d 2>/dev/null | tr -d '\r' > scripts/.clean-denylist; then
-              echo "::error::The CLEAN_DENYLIST secret is not base64: set it again with 'make push-denylist'"
+            bad=""; list=""
+            list="$(printf '%s' "$CLEAN_DENYLIST" | base64 -d 2>/dev/null)" || bad=1
+            case "$list" in "# CLEAN_DENYLIST v1"*) ;; *) bad=1 ;; esac
+            if [ -n "$bad" ]; then
+              echo "::error::The CLEAN_DENYLIST secret was not set by 'make push-denylist' (one base64 line, with its marker): run it again"
               exit 1
             fi
+            printf '%s\n' "$list" | tr -d '\r' > scripts/.clean-denylist
             if ! grep -qvE '^[[:space:]]*(#|$)' scripts/.clean-denylist; then
               echo "::error::The CLEAN_DENYLIST secret lists no names: run 'make push-denylist' in a checkout whose scripts/.clean-denylist does"
               exit 1
@@ -92,7 +97,7 @@ jobs:
             echo "::error::The CLEAN_DENYLIST secret is missing or empty: run 'make push-denylist' in a checkout that has scripts/.clean-denylist"
             exit 1
           fi
-      # This repo's CI logs are public, so every listed name is blanked out of the scan output.
+      # This repo's CI logs are public, so no scanned text is printed, only counts.
       - name: Scan skills for names / contact info / credentials
         env:
           CLEAN_MASK_NAMES: "1"
@@ -188,7 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Check the private-name check runs in a linked worktree, CI's masked mode never prints a name, and the secret step and push-denylist refuse an empty list
+      - name: Check the private-name check runs in a linked worktree, CI's masked mode prints no scanned text, and the secret step and push-denylist refuse an empty list
         run: bash scripts/test_clean_denylist.sh
   git-stand-hook:
     runs-on: ubuntu-latest
