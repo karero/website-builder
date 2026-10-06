@@ -263,7 +263,10 @@ case "$url" in
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
-    [ -n "$M" ] && [ -f "$out" ] && M="$M" perl -pi -e 's/\@\@MARK\@\@/$ENV{M}/g' "$out"
+    if [ -f "$out" ] && grep -qF '@@MARK@@' "$out"; then   # a reply that needs the marker: never send it unfilled
+      [ -n "$M" ] || { echo 'curl stub: no final-review marker in the request' >&2; exit 7; }
+      M="$M" perl -pi -e 's/\@\@MARK\@\@/$ENV{M}/g' "$out"
+    fi
     exit 0 ;;
 esac
 printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
@@ -1124,7 +1127,12 @@ check "mbigmarkend: markers but none usable, reply large: kept whole, with the w
 run mglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, glm)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
 run moldmark MELIOUS_MODEL=stub-melious MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --seat melious
-check "moldmark: the old fixed marker, as a diff about the seat carries it, is not this run's marker" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "a draft that quotes" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/moldmark.out"
+check "moldmark: a reply quoting the old fixed marker: only this run's marker counts" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "a draft that quotes" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/moldmark.out"
+# The marker is never one the reviewed text holds, even when the random source repeats itself.
+mkdir -p "$T/odbin"; printf '#!/bin/sh\nprintf " de ad be ef\\n"\n' >"$T/odbin/od"; chmod +x "$T/odbin/od"
+printf 'diff --git a/x b/x\n+=== FINAL REVIEW deadbeef ===\n+=== FINAL REVIEW deadbeefdeadbeef ===\n' >"$T/markdiff.diff"
+run mcollide MELIOUS_MODEL=stub-melious MELIOUS_STUB=markend PATH="$T/odbin:$T/bin:$PATH" bash "$SCRIPT" "$T/markdiff.diff" --seat melious
+check "mcollide: markers the diff holds are skipped, even from a stuck random source" sh -c 'grep -qF "holds exactly === FINAL REVIEW deadbeefdeadbeefdeadbeef ===" "$1" && grep -qF "reviewers: melious OK" "$2"' _ "$T/mcollide.marks/melious-body" "$T/mcollide.out"
 run mbody2 MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbody2: each run asks for a marker of its own" sh -c 'a=$(grep -o "FINAL REVIEW [0-9a-f]* ===" "$1" | head -n 1); b=$(grep -o "FINAL REVIEW [0-9a-f]* ===" "$2" | head -n 1); [ -n "$a" ] && [ -n "$b" ] && [ "$a" != "$b" ]' _ "$T/mbody.marks/melious-body" "$T/mbody2.marks/melious-body"
 run mmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious

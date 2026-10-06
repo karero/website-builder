@@ -936,12 +936,13 @@ melious_key() {   # prints the key, or nothing
 # holds: a diff about this seat is full of marker text, and twice (#165, rounds 16 and 16a) the
 # model echoed the fixed marker inline while reasoning and never set one on a line of its own.
 melious_marker() {   # prints a marker line the reviewed text does not contain
-  local n m i=0
-  while :; do
-    n="$(od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
-    [ -n "$n" ] || n="$$$RANDOM$i"
+  local n="" r m
+  while :; do   # each pass makes the marker longer, so it ends once it outgrows the text
+    r="$(od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    [ -n "$r" ] || r="$$$RANDOM"
+    n="$n$r"
     m="=== FINAL REVIEW $n ==="
-    case "$PROMPT_TEXTONLY" in *"$m"*) [ $i -lt 5 ] || break; i=$((i+1)) ;; *) break ;; esac
+    case "$PROMPT_TEXTONLY" in *"$m"*) ;; *) break ;; esac
   done
   printf '%s' "$m"
 }
