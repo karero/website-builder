@@ -1,7 +1,7 @@
 # DIFF review — karero/website-builder#167 — Melious as the fallback for the ollama seat
 
 Base `b8ccec0` · depth: **High** (an API key is handled and content goes to a new external service,
-next to the `--local-only` boundary; owner: "High (Recommended)") · verdict: **CLEAN (one open NIT, K2, for the owner)** ·
+next to the `--local-only` boundary; owner: "High (Recommended)") · verdict: **CLEAN** ·
 authority used: POST AUTHORITY, WORKTREE-WRITE, BRANCH-COMMIT — atom A (this session created the
 branch, its checkout and the PR); GATED-THIS-DIFF — atom A (kimi-k3's unbroken chain below).
 
@@ -20,6 +20,7 @@ count** (owner, this session, verbatim, after round 3 started): "Keep it down to
 | re-gate 1 | `dc5ab07` | since `6104f28` | fresh-eyes; kimi-k3; deepseek-v3.2 not counted (1st: `length`; 2nd: script file swapped on disk mid-run) | fe ~288 s/79,670; kimi 119 s/12,816 | 1/2/3 (2 RISK refuted) |
 | re-gate 2 | `be4727f` | since `dc5ab07` (ds: since `6104f28`) | fresh-eyes; kimi-k3; deepseek-v3.2 **FAILED** (`length`) | fe ~397 s/80,090; kimi 110 s/9,868 | 1/0/2 |
 | final check | `4636276` | since `be4727f` | fresh-eyes; kimi-k3 | fe ~243 s/64,596; kimi 67 s/5,986 | 0/0/2 |
+| wording pass (prose-only re-gate) | `2140f51` | since `4636276`: one test-comment hunk | kimi-k3 | kimi 37 s/3,624 | 0/0/0 |
 
 Codex is not installed in this cloud session. kimi-k3 holds an unbroken chain from round 1 to the
 final check; it and fresh-eyes are the seats the stamp relies on.
@@ -50,7 +51,7 @@ final check; it and fresh-eyes are the seats the stamp relies on.
 | H2 | NIT | kimi, fe | rg2 | "legal SSE" stub comment | fixed in part → K2 | `4636276` |
 | H3 | NIT | fe | rg2 | `mkey` file check redundant | refuted | still guards the file name earlier commits used |
 | K1 | NIT | kimi | final | `mcr` does not assert the ESC payload on its own | refuted | mutation: collapse narrowed to `\s+` → `mcr` FAILS (the ESC payload carries its own quota phrase) |
-| K2 | NIT | fe | final | `splitchunk` comment implies the two halves would join into JSON; the split is inside a string | **open — owner's call** | test-comment wording; fixing it moves the stamped head |
+| K2 | NIT | fe | final | `splitchunk` comment implies the two halves would join into JSON; the split is inside a string | fixed, ext. reverified (wording pass, kimi-k3) | `2140f51` (owner: "fix K2 and merge it") |
 
 Waivers and deferrals: none.
 
@@ -63,5 +64,4 @@ Follow-ups:
 Notes: ollama-cloud was at its usage limit (HTTP 429) on all three tries — the case this PR targets.
 No round past 3 was earned by a substantive BUG; the later passes were re-gates of a moved head
 (closeout, clerk item 2); the second re-gate's H1 went to the owner, who chose one last check.
-The trail commit moves the head; the diff-scope (excluding `docs/reviews/`) is byte-identical to
-`4636276`, so the marker names the trail commit.
+The owner then asked "fix K2 and merge it": K2's comment fix (`2140f51`) got a prose-only wording pass from kimi-k3 (clean). The trail commit after it moves the head; the diff-scope (excluding `docs/reviews/`) is byte-identical to `2140f51`, so the marker names the trail commit.
