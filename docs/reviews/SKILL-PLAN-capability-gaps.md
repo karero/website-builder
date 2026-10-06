@@ -209,7 +209,7 @@ when the interview says it needs a form that emails the owner, or later on reque
 | # | Given | When | Then |
 |---|---|---|---|
 | 1 | a contact page | a visitor sends name, email and a message | they see a thank-you in the form; the owner gets the message by email, and pressing Reply writes to the visitor |
-| 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops the form; if it is posted anyway, the function refuses it and names the field. Nothing is sent. An ordinary address with an apostrophe (o'brien@…) is accepted |
+| 2 | an empty message, a missing name, or "ada@example" as the address | the visitor presses send | the browser stops an empty field. "ada@example" passes the browser, which allows an address with no dot after the @; the function refuses it and names the field, as it does any field that is posted anyway. Nothing is sent. An ordinary address with an apostrophe (o'brien@…) is accepted |
 | 3 | a bot fills the field people never see | it submits | it gets the same thank-you; nothing is sent |
 | 4 | Cloudflare's mail service refuses the message, cannot be reached, or does not answer within ten seconds | a visitor sends | the form says the message could not be sent and points to the address under it, in the line a screen reader is told to read out, and keeps what was typed. The owner's log shows the status and Cloudflare's numeric error codes, never the token, the message, the visitor's address, or any text Cloudflare or the runtime wrote |
 | 5 | a site with the form | the tests run | red unless the privacy page carries one passage marked as being about the form, at least 15 words long, that names Cloudflare. What the passage says beyond that is the skill's text, not a test. Red too while the test file does not say which page has the form and which is the privacy page |
@@ -227,17 +227,19 @@ when the interview says it needs a form that emails the owner, or later on reque
 
 Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`,
 run on 2026-10-04 in a scratch copy of the starter with the skill installed by its own
-steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). One of
+steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). The
+same setup ran again on 2026-10-06 with the byte limit below in place: 117 passed, 1 skip. One of
 the tests enters the function the way a deployment does, through the export Cloudflare
 calls, with only the network call underneath replaced. Three rows are pinned more narrowly
-than they read. Row 2: the browser test presses send on an empty form; that a browser
-stops "ada@example" is not tested, only that the function refuses it. Row 4: the test
+than they read. Row 2: the browser test presses send on an empty form only; the
+function's refusals, "ada@example" among them, are tested. Row 4: the test
 checks that the mail call carries a signal to stop it, not that it ends within ten
 seconds. Row 13: the test starts on the name field and checks that Tab reaches email and
 then message and never the hidden field; it does not check that send comes next. Row 15's
-200 KB post without a declared length was added on 2026-10-06, after a review sent one
-and it went through. 88 deliberate breakages of the
-function, the form or the privacy text were each caught by those tests. Row 10 was read
+200 KB post without a declared length was added on 2026-10-06, after a review that day
+sent 200,062 bytes with no length and it went through. The 88 deliberate breakages of the
+function, the form or the privacy text, each caught by the tests, date from 2026-10-04:
+none of them touched the byte limit, which came later. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default
 language's included, and with it the German page gets the German form. Row 14 is the
