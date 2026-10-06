@@ -847,9 +847,16 @@ ollama_via_api() {
     WHY="curl exit $rc"; return 1
   fi
   perl "$PERL_DIR/ollama_stream.pl" "$resp" "$code" "$RAW_DIR/ollama.tokens" >"$RAW_DIR/ollama.out" 2>>"$RAW_DIR/ollama.err"; prc=$?
-  [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
-  [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
-  [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
+  # As in run_melious: the summary line names the failure, not just the status.
+  case $prc in
+    0) ;;
+    3) WHY="a stream line that is not JSON (HTTP $code)"; return 1 ;;
+    4) WHY="truncated review (HTTP $code)"; return 1 ;;
+    6) WHY="error mid-stream (HTTP $code)"; return 1 ;;
+    8) WHY="empty reply (HTTP $code)"; return 1 ;;
+    *) WHY="HTTP $code"; return 1 ;;
+  esac
+  [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP $code but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/ollama.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
 }
 # FALLBACK for the ollama seat (2026-10-05): Melious, an OpenAI-compatible hosted API serving
@@ -940,7 +947,8 @@ run_melious() {
   fi
   perl "$PERL_DIR/melious_stream.pl" "$resp" "$code" "$RAW_DIR/melious.tokens" "$mark" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
   # The summary line names the failure, not just the status: a mid-stream error or a non-stream
-  # reply comes with HTTP 200, and "FAILED (HTTP 200)" sent the reader to the quoted stderr.
+  # reply comes with HTTP 200, and "FAILED (HTTP 200)" sent the reader to the quoted stderr. Exit 1
+  # (the reader failed) and 2 (an error status) keep the bare "HTTP <code>".
   case $prc in
     0) ;;
     3) WHY="a stream chunk that is not JSON (HTTP $code)"; return 1 ;;
@@ -949,9 +957,10 @@ run_melious() {
     6) WHY="error mid-stream (HTTP $code)"; return 1 ;;
     7) WHY="not a stream (HTTP $code)"; return 1 ;;
     8) WHY="empty reply (HTTP $code)"; return 1 ;;
+    9) WHY="error reply, not a stream (HTTP $code)"; return 1 ;;
     *) WHY="HTTP $code"; return 1 ;;
   esac
-  [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
+  [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP $code but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
   printf '## Independent review — melious (%s, HTTP API)\n\n' "$MELIOUS_MODEL"
   cat "$RAW_DIR/melious.out"
