@@ -744,6 +744,7 @@ run_ollama() {
 # a bare "not available" that sends the owner looking for a missing model or CLI.
 api_tools_ok() {
   command -v curl >/dev/null 2>&1 || { WHY="curl not found"; return 1; }
+  command -v perl >/dev/null 2>&1 || { WHY="perl not found"; return 1; }
   perl -e 'require 5.010' 2>/dev/null || { WHY="Perl 5.10 or newer not found"; return 1; }
   perl -MJSON::PP -e 1 2>/dev/null || { WHY="Perl module JSON::PP not found"; return 1; }
 }

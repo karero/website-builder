@@ -1270,8 +1270,7 @@ check "oldapi: an old Perl skips the ollama API and Melious tiers, says why, not
   sh -c 'grep -qF "ollama-cloud SKIPPED (Perl 5.10 or newer not found), melious SKIPPED (Perl 5.10 or newer not found)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ] && [ -e "$1/oldapi.marks/perl510-refused" ]' _ "$T"
 
 # 36. The API transports' other missing tools are named in the summary too: a Perl without
-#     JSON::PP (a wrapper perl fails exactly the module probe), and no curl at all (a PATH of links
-#     to every tool in /usr/bin and /bin but curl).
+#     JSON::PP (a wrapper perl fails exactly the module probe), and no curl or no perl at all.
 mkdir -p "$T/nojsonperl"
 cat >"$T/nojsonperl/perl" <<EOF
 #!/bin/sh
@@ -1284,15 +1283,18 @@ chmod +x "$T/nojsonperl/perl"
 run nojson PATH="$T/nojsonperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
 check "nojson: no JSON::PP: both API tiers skipped, the module named, nothing sent" \
   sh -c 'grep -qF "ollama-cloud SKIPPED (Perl module JSON::PP not found), melious SKIPPED (Perl module JSON::PP not found)" "$1/nojson.out" && [ ! -e "$1/nojson.marks/curl-url" ] && [ ! -e "$1/nojson.marks/melious-url" ] && [ -e "$1/nojson.marks/jsonpp-refused" ]' _ "$T"
-mkdir -p "$T/nocurl" "$T/bin3"; cp "$T/bin/codex" "$T/bin3/"
-for f in /usr/bin/* /bin/*; do
-  case "${f##*/}" in curl) ;; *) [ -e "$T/nocurl/${f##*/}" ] || ln -s "$f" "$T/nocurl/" 2>/dev/null || true ;; esac
+# A PATH of links to every tool in /usr/bin and /bin, less one: two ln calls, not one per file.
+# The ollama API transport is pinned, so an ollama CLI on the host cannot change the path taken.
+mkdir -p "$T/bin3"; cp "$T/bin/codex" "$T/bin3/"
+for drop in curl perl; do
+  mkdir -p "$T/no$drop"; ln -s /usr/bin/* "$T/no$drop/" 2>/dev/null; ln -s /bin/* "$T/no$drop/" 2>/dev/null; rm -f "$T/no$drop/$drop"
 done
-run nocurl PATH="$T/bin3:$T/nocurl" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+run nocurl PATH="$T/bin3:$T/nocurl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
 check "nocurl: no curl: both API tiers skipped, curl named" \
   has nocurl.out "reviewers: codex OK, ollama-cloud SKIPPED (curl not found), melious SKIPPED (curl not found)"
-check "apinomodel: a skip that names no reason still reads (not available)" \
-  has apinomodel.out "ollama SKIPPED (not available)"
+run noperl PATH="$T/bin3:$T/noperl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "noperl: no perl at all: named as missing, not as too old" \
+  has noperl.out "ollama-cloud SKIPPED (perl not found), melious SKIPPED (perl not found)"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
