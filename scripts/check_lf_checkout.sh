@@ -32,13 +32,14 @@ trap 'rm -rf "$T"' EXIT
 cr_files() {
   git -C "$1" -c core.autocrlf=true -c core.eol=crlf -c core.attributesfile=/dev/null \
     checkout-index -a -f --prefix="$2/" || return 2
-  (CDPATH= cd -- "$2" && LC_ALL=C grep -rlI $'\r' .)
+  (CDPATH= cd -- "$2" || exit 2; LC_ALL=C grep -rlI $'\r' .)
   [ "$?" -le 1 ]
 }
 
 # Self-test: without the rule, the same export must produce a CR, or this guard cannot fire.
 mkdir -p "$T/bare" && git -C "$T/bare" init -q --template= \
-  && printf 'set -eu\necho ok\n' >"$T/bare/a.sh" && git -C "$T/bare" add a.sh \
+  && printf 'set -eu\necho ok\n' >"$T/bare/a.sh" \
+  && git -C "$T/bare" -c core.attributesfile=/dev/null add a.sh \
   || { echo "FAIL — could not build the self-test repo."; exit 1; }
 out="$(cr_files "$T/bare" "$T/bare-out")" \
   || { echo "FAIL — the self-test export did not run."; exit 1; }
