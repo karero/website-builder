@@ -200,6 +200,44 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
   expect(tooLarge.status).toBe(400);
   expect(await tooLarge.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
   expect(huge.sent).toHaveLength(0);
+  // One that declares no length at all (sent in pieces, as a script can) is refused too,
+  // once its bytes pass the limit, and the rest is not read: the header is not what bounds
+  // it. The stream below never ends by itself. It breaks off after 100 pieces, so a
+  // function that reads on to the end fails here instead of hanging.
+  for (const copied of [false, true]) {
+    const source = { pulls: 0, cancelled: false };
+    const head = new TextEncoder().encode(`${new URLSearchParams({ name: GOOD.name, email: GOOD.email, [TRAP]: '', lang: 'en' })}&message=`);
+    const piece = new TextEncoder().encode('x'.repeat(16_384));
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        source.pulls += 1;
+        if (source.pulls > 100) controller.error(new Error('read on past the limit'));
+        else controller.enqueue(source.pulls === 1 ? head : piece);
+      },
+      cancel() { source.cancelled = true; },
+    });
+    const unsized = new Request(`${SITE_ORIGIN}/api/contact`, {
+      method: 'POST',
+      headers: { accept: 'application/json', origin: SITE_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+      body: endless,
+      duplex: 'half',
+    } as RequestInit);
+    expect(unsized.headers.get('content-length'), 'the request declares no length').toBeNull();
+    // A copy nobody reads, as a layer in front of the function might keep: the refusal
+    // must not wait for it.
+    const copy = copied ? unsized.clone() : null;
+    const none = recorder();
+    const notDeclared = await Promise.race([
+      handle(unsized, ENV, none.send),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`no answer within 5 s (copied: ${copied})`)), 5_000)),
+    ]);
+    expect(notDeclared.status).toBe(400);
+    expect(await notDeclared.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
+    expect(none.sent).toHaveLength(0);
+    expect(source.pulls, `reading stopped near the limit (copied: ${copied})`).toBeLessThan(20);
+    if (!copied) expect(source.cancelled, 'the rest of the stream was cancelled').toBe(true);
+    await copy?.body?.cancel();
+  }
   // A message at the limit, with the CRLF line breaks a browser sends, is not too long.
   const paragraphs = Array.from({ length: 100 }, () => 'x'.repeat(49)).join('\r\n');
   expect(paragraphs.replace(/\r\n/g, '\n')).toHaveLength(LIMITS.message - 1);
@@ -531,6 +569,8 @@ for (const [name, answer, says] of [
   ['not sent', { status: 502, body: { ok: false, error: 'send_failed' } }, 'data-failed'],
   ['refused by the function', { status: 400, body: { ok: false, error: 'invalid', fields: { email: 'invalid' } } }, 'data-invalid'],
   ['answered with something that is not an answer', { status: 200, body: null }, 'data-failed'],
+  ['answered with an "ok" that is not true', { status: 200, body: { ok: 'false' } }, 'data-failed'],
+  ['answered "ok" with an error status', { status: 502, body: { ok: true } }, 'data-failed'],
   ['lost on the way', 'lost', 'data-failed'],
 ] as const) {
   test(`contact — the status line and the fallback address when the message is ${name}`, async ({ page }) => {
@@ -557,9 +597,92 @@ for (const [name, answer, says] of [
     await expect(direct.locator('a')).toHaveCount(1);
     await expect(page.locator('#contact-message')).toHaveValue(says === 'data-sent' ? '' : 'Hello, do you have time in May?');
     await expect(page.locator('#contact-form button[type="submit"]')).toBeEnabled();
+    await expect(page.locator('#contact-message'), 'the visitor can type again').toBeEditable();
     expect(posted, 'the form posted to the endpoint').toContain('Ada Lovelace');
   });
 }
+
+test('contact — nothing can be typed while the message is on its way, so a success never empties unsent words', async ({ page }) => {
+  test.skip(!PAGE, 'PAGE is not set');
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route('**/api/contact', async (route) => {
+    await held;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  await page.goto(PAGE);
+  // Fields an owner might add later: a phone number is locked like the others, a
+  // checkbox is not dimmed, and a field that is read-only on purpose stays so.
+  await page.evaluate(() => {
+    const before = document.querySelector('#contact-form button[type="submit"]')!.parentElement!;
+    before.insertAdjacentHTML('beforebegin', '<p><label for="added-phone">Phone</label><input id="added-phone" name="phone" type="tel"></p>' +
+      '<p><input id="added-agree" name="agree" type="checkbox"><label for="added-agree">Agree</label></p>' +
+      '<p><label for="added-ref">Reference</label><input id="added-ref" name="ref" type="text" value="A-1" readonly></p>');
+    // Astro scopes the form's styles to its own elements by an attribute: the added ones
+    // get it too, as they would if the owner wrote them into the component.
+    const scope = Array.from(document.getElementById('contact-name')!.attributes).filter((a) => a.name.startsWith('data-astro-cid'));
+    if (!scope.length) throw new Error('the form\'s fields carry no data-astro-cid attribute: the opacity checks below would prove nothing');
+    for (const el of document.querySelectorAll('#added-phone, #added-agree, #added-ref')) for (const a of scope) el.setAttribute(a.name, a.value);
+  });
+  const typeable = ['#contact-name', '#contact-email', '#contact-message', '#added-phone'];
+  await page.fill('#contact-name', 'Ada Lovelace');
+  await page.fill('#contact-email', 'ada@example.org');
+  await page.fill('#contact-message', 'Hello, do you have time in May?');
+  await page.fill('#added-phone', '0123');
+  const opacity = (id: string) => page.locator(id).evaluate((el) => getComputedStyle(el).opacity);
+  expect(await opacity('#added-agree'), 'a checkbox at rest is not dimmed').toBe('1');
+  await page.click('#contact-form button[type="submit"]');
+  const sending = await page.locator('#contact-form').getAttribute('data-sending');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(sending!);
+  // The visitor goes on typing while the answer is held back.
+  for (const id of typeable) await expect(page.locator(id)).not.toBeEditable();
+  expect(await opacity('#contact-message'), 'a locked field is dimmed').toBe('0.7');
+  expect(await opacity('#added-phone'), 'an added field is reached by the form\'s styles and dimmed too').toBe('0.7');
+  expect(await opacity('#added-ref'), 'a field read-only on purpose is not dimmed').toBe('1');
+  expect(await opacity('#added-agree'), 'a checkbox is not dimmed while the message is on its way').toBe('1');
+  await page.locator('#contact-message').press('End');
+  await page.keyboard.type(' And in June?');
+  await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
+  await page.locator('#added-phone').press('End');
+  await page.keyboard.type('9');
+  await expect(page.locator('#added-phone')).toHaveValue('0123');
+  release();
+  const sent = await page.locator('#contact-form').getAttribute('data-sent');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(sent!);
+  for (const id of typeable) {
+    await expect(page.locator(id)).toBeEditable();
+    await expect(page.locator(id)).toHaveValue('');
+  }
+  expect(await opacity('#contact-message'), 'no longer dimmed').toBe('1');
+  expect(await opacity('#added-phone'), 'no longer dimmed').toBe('1');
+  await expect(page.locator('#added-ref'), 'read-only on purpose, still read-only').not.toBeEditable();
+});
+
+test('contact — a send that gets no answer gives up after 15 seconds and gives the fields back', async ({ page }) => {
+  test.skip(!PAGE, 'PAGE is not set');
+  await page.clock.install();
+  // The answer never comes.
+  await page.route('**/api/contact', () => {});
+  await page.goto(PAGE);
+  await page.fill('#contact-name', 'Ada Lovelace');
+  await page.fill('#contact-email', 'ada@example.org');
+  await page.fill('#contact-message', 'Hello, do you have time in May?');
+  // The page's clock stands still from here, so the 15 seconds are counted exactly.
+  await page.clock.pauseAt(Date.now() + 60_000);
+  await page.click('#contact-form button[type="submit"]');
+  await expect(page.locator('#contact-message')).not.toBeEditable();
+  // Not a moment early: a send cut off before its time says "could not be sent" for a
+  // message that may still arrive.
+  await page.clock.runFor(14_999);
+  const sending = await page.locator('#contact-form').getAttribute('data-sending');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(sending!);
+  await expect(page.locator('#contact-message')).not.toBeEditable();
+  await page.clock.runFor(1);
+  const failed = await page.locator('#contact-form').getAttribute('data-failed');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(failed!);
+  for (const id of ['#contact-name', '#contact-email', '#contact-message']) await expect(page.locator(id)).toBeEditable();
+  await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
+});
 
 test('contact — an empty form is stopped in the browser, before anything is posted', async ({ page }) => {
   test.skip(!PAGE, 'PAGE is not set');
