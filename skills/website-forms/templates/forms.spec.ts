@@ -350,7 +350,8 @@ test('contact — every text of the form keeps to the site\'s tone rules, in eve
   const texts: [string, string, string][] = [];
   const walk = (value: unknown, where: string, lang: string) => {
     if (typeof value === 'string') texts.push([where, value, lang]);
-    // `privacy` is the address of a page, not a text.
+    // `privacy` is the address of a page, not a text. The key is skipped at any depth:
+    // do not name a text `privacy`.
     else for (const [key, inner] of Object.entries(value as object)) if (key !== 'privacy') walk(inner, `${where}.${key}`, lang);
   };
   for (const [lang, text] of Object.entries(TEXT)) {
