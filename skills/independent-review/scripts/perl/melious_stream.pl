@@ -1,13 +1,19 @@
 # The Melious reply reader (run_melious): arguments are the response file, the HTTP code, the tokens
 # file, this run's final-review marker and the melious.full path. Prints the review with its notes;
-# errors go to stderr as "Error: HTTP <code>: ...". Exit 2: an error reply; 3: not a stream, not JSON
-# or empty; 4: a truncated review; 5: no review text.
+# errors go to stderr as "Error: HTTP <code>: ...". Exit 2: an error reply (not 200); 3: a stream chunk
+# that is not JSON; 4: a truncated review; 5: no review text; 6: an error mid-stream; 7: not a stream
+# (one JSON object, or a body that is not JSON); 8: an empty reply; 9: an error reply that is not a
+# stream (200); 1: the reader itself failed. run_melious names each in the summary line.
 use 5.010;
 use JSON::PP;
 use Encode;
 
+# A die outside an eval exits with errno, which can collide with the codes above: exit 1 instead.
+# $^S is undef while code compiles, as in a require inside an eval: that die is left alone.
+$SIG{__DIE__} = sub { return if !defined $^S || $^S; print STDERR "melious_stream.pl: ", @_; exit 1 };
+
 my ($file, $code, $tok, $mark, $full) = @ARGV;
-open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
+open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit($code eq "200" ? 8 : 2) };
 my $json = JSON::PP->new->utf8;
 sub errtext { my $e = shift; $e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
               $e = JSON::PP->new->encode($e) if ref $e; $e }
@@ -30,7 +36,7 @@ while (my $line = <$f>) {
   if ($d eq "[DONE]") { $done = 1; next }
   my $j = eval { $json->decode($d) };
   if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", quoted($d), "\n"; exit 3 }
-  if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 2 }
+  if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 6 }
   $n++;
   $usage = $j->{usage} if ref $j->{usage} eq "HASH";
   my $ch = ref $j->{choices} eq "ARRAY" ? $j->{choices}[0] : undef;
@@ -44,11 +50,18 @@ while (my $line = <$f>) {
 }
 if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignoring stream:true
   seek $f, 0, 0; local $/; my $body = <$f> // "";
-  if ($body !~ /\S/) { print STDERR "Error: HTTP $code: an empty reply\n"; exit 3 }
+  if ($body !~ /\S/) { print STDERR "Error: HTTP $code: an empty reply\n"; exit 8 }
+  # The quote goes on its own indented line, which the classifier skips.
   my $j = eval { $json->decode($body) };
-  if (ref $j eq "HASH") {   # the quote goes on its own indented line, which the classifier skips
+  if (ref $j eq "HASH") {
     my $why = defined $j->{error} ? errtext($j->{error}) : "the reply was one JSON object, not a stream (stream:true ignored?)";
-    print STDERR "Error: HTTP $code: $why\n    reply began: ", quoted($body), "\n"; exit 3;
+    print STDERR "Error: HTTP $code: $why\n    reply began: ", quoted($body), "\n"; exit(defined $j->{error} ? 9 : 7);
+  }
+  # Not JSON either (an HTML page from a proxy, say): named, not left to read as a truncated review.
+  # A body of SSE lines that carried no data (keep-alive comments, then the connection closed) is a
+  # stream that ended early, and falls through to the truncated-review check below.
+  if ($body !~ /^(?::|event:|id:|retry:)/m) {
+    print STDERR "Error: HTTP $code: the reply is not a stream, and not JSON\n    reply began: ", quoted($body), "\n"; exit 7;
   }
 }
 # The reply as it came, before any check or trim, on every path that reaches the finish check
