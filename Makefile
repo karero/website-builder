@@ -15,7 +15,7 @@ refresh:   ## re-copy a project's stale bundled skills + re-stamp (overwrites lo
 package: check   ## build dist/website-builder.zip for handoff (runs check first)
 	@bash scripts/package.sh
 
-check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no pipe into an early-exit consumer (head, grep -q, …) under pipefail, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak, the site pre-push hook gating and blocking the right pushes and being wired only at a repo's root by a line that holds no shell syntax, the private-name check running in a worktree too (each script's header says what it checks; the installer and hook tests need git, the hook test's wiring cases node and npm too, the claims-sweep test git and python3)
+check:     ## run every suite guard: no personal data or credentials, every script locating itself CDPATH-safely, no pipe into an early-exit consumer (head, grep -q, …) under pipefail, no concrete model in independent-review, every astro template file bucketed, skill descriptions within budget, no failed reviewer hidden, independent-review's validator, prompt-sync and claims-sweep self-checks green, no installer clobbering a pinned skill, the handoff zip's leak check catching a large leak, the site pre-push hook gating and blocking the right pushes and being wired only at a repo's root by a line that holds no shell syntax, the private-name check running in a worktree too, every text file checking out LF even where Git converts to CRLF (each script's header says what it checks; the installer and hook tests need git, the hook test's wiring cases node and npm too, the claims-sweep test git and python3)
 	@bash scripts/check_clean.sh
 	@bash scripts/check_cdpath_safe.sh
 	@bash scripts/check_pipefail_pipes.sh
@@ -30,6 +30,7 @@ check:     ## run every suite guard: no personal data or credentials, every scri
 	@bash scripts/test_package_leak.sh
 	@bash scripts/test_pre_push_hook.sh
 	@bash scripts/test_clean_denylist.sh
+	@bash scripts/check_lf_checkout.sh
 
 PYTHON ?= python3
 test:      ## run the search-console-insights tests (tracker + AI check; needs `requests`; stub servers, no real API calls). Not part of check/package, which must run on a stock python3

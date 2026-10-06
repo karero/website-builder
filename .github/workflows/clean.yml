@@ -23,8 +23,9 @@ name: clean
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
 # and blocks the right pushes and is wired only where the site is the root of its repo,
 # by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), and that the private-name check
-# runs in a linked worktree too (scripts/test_clean_denylist.sh). And it runs the
-# search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
+# runs in a linked worktree too (scripts/test_clean_denylist.sh), and that every text file
+# checks out LF even where Git converts to CRLF (scripts/check_lf_checkout.sh). And it runs
+# the search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
   pull_request:
@@ -118,6 +119,12 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check the private-name check also runs in a linked worktree
         run: bash scripts/test_clean_denylist.sh
+  lf-checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check every text file checks out LF, even where Git converts to CRLF
+        run: bash scripts/check_lf_checkout.sh
   search-console-insights-tests:
     # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
     # (e.g. reusing a quote inside an f-string) once broke the report there.
