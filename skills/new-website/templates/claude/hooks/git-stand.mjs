@@ -99,6 +99,7 @@ function main() {
   let state = {};
   try { dueMin = (Date.now() - statSync(marker).mtimeMs) / 60_000; hasMarker = true; } catch {}
   try { state = JSON.parse(readFileSync(marker, 'utf8')); } catch {}
+  if (!state || typeof state !== 'object') state = {}; // e.g. a marker that reads "null"
   if (!(dueMin >= 0)) dueMin = Infinity; // clock skew: a marker in the future
   if (mode === 'prompt' && dueMin < MAX_AGE_MIN) process.exit(0);
   const reported = typeof state.reported === 'string' ? state.reported : '';
@@ -114,8 +115,12 @@ function main() {
   const dirty = (status ?? '').split('\n').filter(Boolean);
 
   let fetchError = null;
-  const noRemote = tryGit('remote', 'get-url', 'origin') === null;
-  if (!noRemote) {
+  // No remote named origin is normal before the site is on GitHub; a failed lookup is not.
+  const remotes = tryGit('remote');
+  const noRemote = remotes !== null && !remotes.split('\n').includes('origin');
+  if (remotes === null) {
+    fetchError = 'git could not list the remotes (git remote failed).';
+  } else if (!noRemote) {
     // ssh: no prompts, and give up on a dead or stalled connection by itself. Only
     // when the person has not chosen an ssh of their own (GIT_SSH_COMMAND, GIT_SSH,
     // core.sshCommand, e.g. a key per GitHub account or PuTTY): GIT_SSH_COMMAND would
