@@ -972,14 +972,15 @@ run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT"
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
-# 33. No s///r in the script (2026-10-06, a #167 follow-up): the API transports promise Perl 5.10,
-#     and /r needs 5.14, so on an older Perl their parser would fail to compile and report "HTTP 200".
-#     Read as code, line by line: an s, tr or y whose modifiers include r, written on one line, with
-#     any delimiter (/ | , # ! and the paired {} () [] <>), with or without =~. Whole-line comments
-#     are skipped; an inline comment is NOT, so one that mentions an r-flag form fails the check (the
-#     safe direction; round 2 dropped cutting at " # ", which also cut strings and patterns). Not
-#     seen: a substitution split across lines, or a nested paired delimiter (s{a{b}}{c}r). It tests
-#     itself first on the forms it must catch and the lines it must pass (rounds 1-2, all seats).
+# 33. No one-line r-flag substitution in the script (2026-10-06, a #167 follow-up): the API
+#     transports promise Perl 5.10, and /r needs 5.14, so on an older Perl their parser would fail
+#     to compile and report "HTTP 200". Read as code, line by line: an s, tr or y whose modifiers
+#     include r, written on one line, with any delimiter (/ | , # ! and the paired {} () [] <>), with
+#     or without =~. Whole-line comments are skipped; an inline comment, a string or a heredoc line
+#     is NOT, so one that spells an r-flag form fails the check (the safe direction; round 2 dropped
+#     cutting at " # ", which also cut strings and patterns). Not seen: a substitution split across
+#     lines, or a nested paired delimiter (s{a{b}}{c}r). It tests itself first on the forms it must
+#     catch and the lines it must pass (rounds 1-3, all seats).
 cat >"$T/no_rflag.pl" <<'EOF'
 next if /^\s*#/;
 $bad++, print STDERR "s///r at line $.: $_" if
@@ -1025,7 +1026,7 @@ print "a,b,r";
 $e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
 $x =~ s/a/b/g; # a plain substitution with an inline comment
 EOF
-check "no_rflag: the guard catches every r-flag form and passes plain code" [ "$rflag_selftest" = 1 ]
+check "no_rflag: the guard rejects every one-line r-flag form, comment mentions included, and passes plain code" [ "$rflag_selftest" = 1 ]
 check "no one-line r-flag substitution in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
