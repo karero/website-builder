@@ -137,6 +137,21 @@ gh repo edit --delete-branch-on-merge
 git config --global fetch.prune true   # once per machine; use --local to scope per repo
 ```
 
+Then let GitHub warn you about security holes in the site's building blocks (the npm
+packages it installs) and send the fix as a pull request. Both are free on every plan, but
+a private repo starts with them off. A fix pull request is checked by CI like any other;
+merge it once it is green.
+```bash
+gh api -X PUT "repos/{owner}/{repo}/vulnerability-alerts"        # Dependabot alerts
+gh api -X PUT "repos/{owner}/{repo}/automated-security-fixes"    # Dependabot security updates
+gh api --silent "repos/{owner}/{repo}/vulnerability-alerts" && echo "alerts: on"
+gh api "repos/{owner}/{repo}/automated-security-fixes" --jq '"security updates: \(.enabled)"'
+```
+The last two lines check the result: they should print `alerts: on` and
+`security updates: true`. Anything else (an error, or `false`): turn both on by hand under
+the repo's **Settings → Code security** (Dependabot alerts, then Dependabot security
+updates).
+
 ### Pre-push quality gate (auto-wired by `npm install`)
 
 The `prepare` script in `package.json` (`node scripts/wire-hooks.mjs`) points
