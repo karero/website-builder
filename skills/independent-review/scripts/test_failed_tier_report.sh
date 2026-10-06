@@ -1060,7 +1060,7 @@ MK=stub-melious-secret
 run mbody MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbody: default budget 96000 and the final-review marker ask" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /holds exactly === FINAL REVIEW [0-9a-f]{8,} ===/)' "$T/mbody.marks/melious-body"
-check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, ollama)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
+check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, melious)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
 run mbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 48000)' "$T/mbudget.marks/melious-body"
@@ -1100,7 +1100,7 @@ check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped
 run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
 run mglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, ollama)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
+check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, melious)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
 check "mglued: a cut at a glued marker says so" grep -qF "the marker ended a line of other text" "$T/mglued.out"
 run mechoglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=echoglued bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mechoglued: reasoning that restates the marker on a line of its own, then glues the real one: cut at the glued one, and said" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "More reasoning" "$1" && grep -qF "the marker ended a line of other text" "$1"' _ "$T/mechoglued.out"
@@ -1152,7 +1152,7 @@ check "mstale2: a reused raw dir does not lend it the old count, nor the old mel
   sh -c 'grep -qE "^timings: melious [0-9]+s$" "$1" && ! grep -qF "melious finding one" "$2"' _ "$T/mstale2.out" "$T/mstale.raw/melious.full"
 
 # Real curl, not the stub: the key reaches curl only through `-H @-` (stdin), and the stub
-# implements that itself, so it cannot prove real curl honours it (round 5, ollama). A local
+# implements that itself, so it cannot prove real curl honours it (round 5, melious). A local
 # server records the Authorization header of a keyed call and of a keyless one.
 REAL_CURL="$(command -v curl || true)"
 # python3 must be able to serve, not merely exist (a stock Mac's /usr/bin/python3 can be a stub).
@@ -1192,7 +1192,7 @@ PY
   if [ ! -s "$T/echo.port" ]; then
     echo "real-curl cases: the local server wrote no port in 30 s; its stderr:"; sed 's/^/    /' "$T/echo.err"
     kill -0 "$echo_pid" 2>/dev/null && echo "    (the server process is still running)" || echo "    (the server process has exited)"
-    # One clear failure, not six curl errors against an empty port (round 8, ollama).
+    # One clear failure, not six curl errors against an empty port (round 8, melious).
     echo "FAIL real-curl cases: no local server, so none of them ran"; fails=$((fails+1))
   else
     RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
