@@ -35,6 +35,7 @@ SUBJECTS=(
   scripts/check_lf_checkout.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
+  skills/independent-review/scripts/check_perl_minimum.sh
   skills/independent-review/scripts/sweep_claims.sh
 )
 # Not run here, each for a reason — not because nobody got to them. The completeness check
