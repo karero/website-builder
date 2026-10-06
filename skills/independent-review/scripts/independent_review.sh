@@ -939,9 +939,18 @@ run_melious() {
     return 1
   fi
   perl "$PERL_DIR/melious_stream.pl" "$resp" "$code" "$RAW_DIR/melious.tokens" "$mark" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
-  [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
-  [ $prc -eq 5 ] && { WHY="HTTP $code but no review text"; return 1; }
-  [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
+  # The summary line names the failure, not just the status: a mid-stream error or a non-stream
+  # reply comes with HTTP 200, and "FAILED (HTTP 200)" sent the reader to the quoted stderr.
+  case $prc in
+    0) ;;
+    3) WHY="a stream chunk that is not JSON (HTTP $code)"; return 1 ;;
+    4) WHY="truncated review (HTTP $code)"; return 1 ;;
+    5) WHY="HTTP $code but no review text"; return 1 ;;
+    6) WHY="error mid-stream (HTTP $code)"; return 1 ;;
+    7) WHY="not a stream (HTTP $code)"; return 1 ;;
+    8) WHY="empty reply (HTTP $code)"; return 1 ;;
+    *) WHY="HTTP $code"; return 1 ;;
+  esac
   [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
   printf '## Independent review — melious (%s, HTTP API)\n\n' "$MELIOUS_MODEL"

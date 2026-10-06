@@ -968,27 +968,27 @@ check "mthink: an inline think block is cut, and the review counts" \
   sh -c 'grep -qF "melious OK" "$1" && grep -qF -- "- RISK: inline finding" "$1" && ! grep -qF "could not read the file" "$1"' _ "$T/mthink.out"
 run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff"
 check "mmiderr: an error object mid-stream fails the tier and is quoted" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
+  sh -c 'grep -qF "melious FAILED (error mid-stream (HTTP 200))" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
 check "mnotstream: a 429 inside the quoted review is not read as quota (round 3, fresh-eyes)" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mnotstream.out"
+  sh -c 'grep -qF "melious FAILED (not a stream (HTTP 200))" "$1" && ! grep -qF "melious FAILED (not a stream (HTTP 200); quota" "$1"' _ "$T/mnotstream.out"
 run msplit OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff"
 check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-gate, fresh-eyes)" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
+  sh -c 'grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200))" "$1" && ! grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200); quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
 run mcr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff"
 check "mcr: a control byte in a quoted chunk cannot start an error line (second re-gate, fresh-eyes)" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mcr.out"
+  sh -c 'grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200))" "$1" && ! grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200); quota" "$1"' _ "$T/mcr.out"
 run mbad502 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=bad502 bash "$SCRIPT" "$T/change.diff"
 check "mbad502: a non-JSON 502 body is quoted on one line, control bytes collapsed" \
   sh -c 'grep -qF "response is not JSON: upstream Error: bad gateway [1Gfailed" "$1" && grep -qF "melious FAILED (HTTP 502)" "$1"' _ "$T/mbad502.out"
 run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
 check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
-  has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"
+  has mnotstreamerr.out "melious FAILED (not a stream (HTTP 200); quota/rate limit: wait or add credits)"
 run mempty OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
 check "mempty: an empty 200 reply is named as empty, not truncated" \
-  sh -c 'grep -qF "an empty reply" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
+  sh -c 'grep -qF "an empty reply" "$1" && grep -qF "melious FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
 run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
 check "mdown: a network failure names curl's exit, with a hint" \
   sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
