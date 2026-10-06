@@ -966,5 +966,11 @@ run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT"
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
+# 33. No s///r in the script (2026-10-06, a #167 follow-up): the API transports promise Perl 5.10,
+#     and /r needs 5.14, so on an older Perl their parser would fail to compile and report "HTTP 200".
+#     Read as code, not by eye: a substitution operator whose modifiers include r, comment lines aside.
+check "no s///r anywhere in independent_review.sh (Perl 5.10 floor)" \
+  perl -ne 'next if /^\s*#/; s/#.*$// unless /\x27/; $bad++ if m{=~\s*s/(?:[^/\\]|\\.)*/(?:[^/\\]|\\.)*/[a-z]*r[a-z]*(?![a-z])}; END { exit($bad ? 1 : 0) }' "$SCRIPT"
+
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
