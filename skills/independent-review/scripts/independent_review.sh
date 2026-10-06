@@ -929,7 +929,8 @@ melious_key() {   # prints the key, or nothing
 # reply text, 100-290 KB ahead of the review, with no tags at all. Nothing in the reply marks where
 # the trace ends, so the seat asks for a marker line before the final answer and keeps what follows
 # the LAST marker line with findings after it (the model may mention the marker while reasoning,
-# or repeat it after the review); a lone marker wins over one that only ends a line of text. Without a usable marker the whole reply is kept, with a warning.
+# or repeat it after the review; a marker that looks quoted is skipped). Without a usable marker
+# the whole reply is kept, with a warning.
 # The untrimmed reply stays in melious.full either way. Seen live: a 79 KB leaky reply trimmed to
 # its 1.2 KB review.
 # The marker is new on every run (=== FINAL REVIEW <random hex> ===) and never one the artifact
@@ -1043,8 +1044,8 @@ run_melious() {
       print STDERR "Error: HTTP $code: the reply stopped early (finish_reason $fin) — a truncated review",
         ($fin eq "length" ? "; raise MELIOUS_MAX_TOKENS" : ""), "\n"; exit 4;
     }
-    # Think blocks inlined in content: closed ones whose opener starts a line, anywhere in the reply,
-    # then such an opener never closed (all of the rest is thinking). The tags are built, not written out: with literal tags in this file, a
+    # Think blocks inlined in content: closed ones whose opener starts a line, anywhere in the
+    # reply, then such an opener never closed (all of the rest is thinking). The tags are built, not written out: with literal tags in this file, a
     # review of a diff touching it made the provider end the reasoning at a quoted closing tag (#165).
     # Only an opener that starts a line is a trace: a review may quote the tag inline while
     # discussing tag handling, and must not lose the text after it. What is cut is noted.
@@ -1054,30 +1055,37 @@ run_melious() {
     $c =~ s/^[ \t]*\Q$open\E.*\z//ms;
     my $cut = $before_cut - length $c;
     if ($c !~ /\S/) { print STDERR "Error: HTTP $code: the reply holds no text", ($think ? ", only thinking" : ""), " — the model returned no review\n"; exit 5 }
-    # Keep what follows the LAST marker line with findings-shaped text after it: a marker repeated
-    # at the end, or quoted in a fence after the review, must not win. Markdown around the marker
-    # (bold, a heading, a quote, backticks) is allowed. A marker alone on its line wins over one
-    # that only ends a line, since a finding can quote the marker at the end of its line and must
-    # not cut the findings above it. Only with no usable lone marker does a line ending in it count:
-    # GLM glued it to the end of its last line of reasoning (#165, round 16c). That cut is said, as
-    # the line could still be a quote. No usable marker: the reply is kept whole, with a warning.
+    # Keep what follows the LAST marker that ends a line and has findings-shaped text after it: a
+    # marker repeated at the end, or quoted in a fence after the review, must not win. Markdown
+    # around the marker (bold, a heading, a quote, backticks) is allowed. The marker need not start
+    # its line: GLM glued it to the end of its last line of reasoning (#165, round 16c), and a trace
+    # can restate the ask, marker and all, before that. A marker that looks quoted is skipped: one
+    # after other text on a finding line or right after a backtick, or one just inside a fence, so
+    # a finding that quotes the marker does not cut the findings above it. A cut at a marker after
+    # other text is said. No usable marker: the reply is kept whole, with a warning.
     my $note = "";
     my $thinknote = $cut ? "(think block text dropped, " . ($cut < 1024 ? "under 1 KB" : "about " . int($cut / 1024 + 0.5) . " KB") . ($saved ? "; the full reply is in melious.full" : "") . ")\n" : "";
     my $wrap = qr/[ \t>*_#\x60]*/;
+    my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
     my $kept_whole = 1;
-    my @tiers = (qr/^$wrap\Q$mark\E$wrap\r?$/m, qr/\Q$mark\E$wrap\r?$/m);
-    TIER: for my $glued (0, 1) {   # a usable marker the lone tier missed ends a line of other text
-      my @at; while ($c =~ /$tiers[$glued]/g) { push @at, $+[0] }
-      for my $end (reverse @at) {
-        my $after = substr($c, $end); $after =~ s/\A\r?\n//;
-        next unless $after =~ /\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
-        my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
-        if ($before =~ /\S/) {
-          my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
-          $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text, so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
-        }
-        $c = $after; $kept_whole = 0; last TIER;
+    for my $m (reverse @at) {
+      my ($start, $end) = @$m;
+      my $after = substr($c, $end); $after =~ s/\A\r?\n//;
+      next unless $after =~ /\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
+      my $ls = rindex($c, "\n", $start - 1) + 1;   # where the marker line starts
+      my $lead = substr($c, $ls, $start - $ls);
+      my $glued = $lead !~ /\A$wrap\z/;
+      next if $glued && ($lead =~ /\A[ \t>]*(?:[-*+]|\d+[.)])?[ \t]*\**(?:BUG|RISK|NIT)\b/ || $lead =~ /\x60\z/);
+      if ($ls > 0) {   # the line above opens a fence: a quote
+        my $pl = rindex($c, "\n", $ls - 2) + 1;
+        next if substr($c, $pl, $ls - 1 - $pl) =~ /\A[ \t>]*\x60\x60\x60/;
       }
+      my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
+      if ($before =~ /\S/) {
+        my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
+        $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text, so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
+      }
+      $c = $after; $kept_whole = 0; last;
     }
     # No usable marker: the model did not mark its final answer. Kept, and always said: a 21 KB
     # reply of working notes with no marker counted as a review and carried no warning (#165,

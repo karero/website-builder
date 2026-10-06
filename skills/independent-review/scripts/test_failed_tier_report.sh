@@ -245,6 +245,8 @@ case "$url" in
       glued)  { d '"content":"Thinking it over at length, then the answer.@@MARK@@\n- BUG: the real finding\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       oldmark) { d '"content":"=== FINAL REVIEW ===\n- BUG: a draft that quotes the old fixed marker\n@@MARK@@\n- BUG: the real finding\n- NIT: two\n=== FINAL REVIEW ===\n- NIT: quoted after the review"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       quotemark) { d '"content":"@@MARK@@\n- BUG: real finding one\n- NIT: the prompt asks for a line holding exactly `@@MARK@@`\n- NIT: three"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      echoglued) { d '"content":"The ask says to write\n@@MARK@@\nthen the findings, BUG/RISK/NIT.\nMore reasoning, then the answer.@@MARK@@\n- BUG: the real finding\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      fencequote) { d '"content":"@@MARK@@\n- BUG: real finding one\n- NIT: the seat asks for\n  ```\n  @@MARK@@\n  ```\n- NIT: three"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       markend) { d '"content":"- BUG: before the marker\n- NIT: two\n@@MARK@@\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       quotedtag) TO="<""think>"
               { d "\"content\":\"- RISK: the seat cuts a ${TO} block only at a line start\\n- NIT: keep this line\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -1129,6 +1131,10 @@ check "mbigmarkend: markers but none usable, reply large: kept whole, with the w
 run mglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, glm)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
 check "mglued: a cut at a glued marker says so" grep -qF "the marker ended a line of other text" "$T/mglued.out"
+run mechoglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=echoglued bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mechoglued: reasoning that restates the marker on a line of its own, then glues the real one: cut at the glued one, and said" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "More reasoning" "$1" && grep -qF "the marker ended a line of other text" "$1"' _ "$T/mechoglued.out"
+run mfencequote MELIOUS_MODEL=stub-melious MELIOUS_STUB=fencequote bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mfencequote: a finding that quotes the marker in a fence does not cut the findings above it" sh -c 'grep -qF "BUG: real finding one" "$1" && grep -qF "NIT: three" "$1" && ! grep -qF "marker dropped" "$1"' _ "$T/mfencequote.out"
 run mquotemark MELIOUS_MODEL=stub-melious MELIOUS_STUB=quotemark bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mquotemark: a finding that quotes the marker at its line end does not cut the findings above it" sh -c 'grep -qF "BUG: real finding one" "$1" && grep -qF "NIT: three" "$1" && ! grep -qF "marker dropped" "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/mquotemark.out"
 run moldmark MELIOUS_MODEL=stub-melious MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --seat melious
