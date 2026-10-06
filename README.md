@@ -366,12 +366,13 @@ catches (any real email, credential/token formats, secret-looking assignments). 
 denylist is a gitignored local file, so CI, which has no copy, runs only the generic
 catches. The script runs in CI on every pull request and every push to `main`
 (`.github/workflows/clean.yml`) and is a prerequisite of `make package`: in a checkout
-that has the list, a listed name in `skills/`, `docs/` or the root files stops the build.
-It does not look for names in `scripts/`, whose files define its patterns, or in
-`LICENSE`, which carries the owner's name. A genuine false positive is fixed by
-tightening a pattern in the script — never by loosening it. The same
-`make check` (and the same CI workflow) also keeps `independent-review` free of concrete
-model names (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
+that has the list, a listed name in a file the script scans stops the build (its header
+says which files it scans and which matches it lets through). It never looks for names in
+`scripts/`, whose files define its patterns, or in `LICENSE`, which carries the owner's
+name. A genuine false positive is fixed by tightening a pattern in the script — never by
+loosening it. The same `make check` (and the same CI workflow) also keeps
+`independent-review` free of concrete model names outside its setup guide
+(`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 
 ### Merging stacked PRs
