@@ -9,6 +9,13 @@ import { PAGES, germanFunctionWordDensity, toneViolations } from './_helpers';
 // _helpers.ts (toneViolations): English rules for an <html lang> of en, German rules
 // for de, and only the universal ones (the em-dash ban) for any other language.
 
+test('tone — a German buzzword is caught in every form, the superlative included', () => {
+  // "entfesselteste" once passed: the rule had the case endings but no superlative.
+  const forms = ['entfesselt', 'entfesselte', 'entfesseltem', 'entfesseltste', 'entfesseltsten',
+    'entfesselteste', 'entfesseltester', 'entfesseltestes', 'entfesseltesten', 'entfesseltestem', 'nahtloseste'];
+  for (const form of forms) expect(toneViolations(`Die ${form} Lösung.`, 'de'), form).toHaveLength(1);
+});
+
 for (const path of PAGES) {
   test(`tone — no banned phrasing on ${path}`, async ({ page }) => {
     await page.goto(path);
