@@ -630,9 +630,9 @@ cat <<EOF
 body | head -1
 EOF
 cmd | head -1
-@@ bad/consumer-by-path
+@@ bad/head-by-path
 cmd | /usr/bin/head -1
-@@ bad/consumer-backslashed
+@@ bad/head-alias-bypass
 cmd | \head -1
 @@ bad/consumer-name-quoted
 cmd | 'grep' -q x
@@ -858,6 +858,8 @@ cat <<-'EOF'
 cmd 2>&1 >|out | tr a b
 @@ good/param-expansion
 echo "${#x} ${x#*|}" | tr a b
+@@ good/tail-by-path
+cmd | /usr/bin/tail -1
 @@ good/head-as-producer
 head -n 1 file | tr -d '\0'
 @@ good/wrapper-around-draining-consumer

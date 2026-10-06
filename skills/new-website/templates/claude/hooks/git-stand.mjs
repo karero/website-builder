@@ -27,10 +27,6 @@ const event = process.argv[2] === 'prompt' ? 'UserPromptSubmit' : 'SessionStart'
 const mode = event === 'SessionStart' && source !== 'compact' ? 'start' : 'prompt';
 
 const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' };
-// ssh: no prompts, and give up on a dead or stalled connection by itself.
-if (!env.GIT_SSH_COMMAND) {
-  env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=2';
-}
 const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const git = (...args) =>
   execFileSync('git', args, {
@@ -54,13 +50,20 @@ function reason(e) {
   if (e.code === 'ETIMEDOUT') return 'GitHub did not answer within 30 seconds.';
   if (e.code === 'ENOENT') return 'git is not installed or not on PATH.';
   const lines = String(e.stderr || e.message || '').split('\n').map((l) => l.trim()).filter(Boolean);
-  return lines.find((l) => /^(fatal|error):/.test(l)) ?? lines[0] ?? 'unknown error';
+  const i = lines.findIndex((l) => /^(fatal|error):/.test(l));
+  if (i < 0) return lines[0] ?? 'unknown error';
+  // A failed ssh connection ends on "fatal: Could not read from remote repository.";
+  // the cause ("Permission denied (publickey).", "Host key verification failed.",
+  // GitHub's "ERROR: Repository not found.") is the line before.
+  if (i > 0 && /Could not read from remote repository/.test(lines[i])) return lines[i - 1];
+  return lines[i];
 }
 
 let gitDir;
 try { gitDir = git('rev-parse', '--absolute-git-dir'); } catch (e) {
-  // Not a repository (or git unusable): only worth a word inside a project.
-  if (!process.env.CLAUDE_PROJECT_DIR) process.exit(0);
+  // Not a repository (or git unusable): only worth a word inside a project, and only
+  // at session start (it has no marker to space out a reminder on every prompt).
+  if (!process.env.CLAUDE_PROJECT_DIR || mode === 'prompt') process.exit(0);
   emit(`Sync with GitHub not possible: ${reason(e)}`,
     'Automatic sync with GitHub failed before fetching: ' + reason(e)
       + ' Per AGENTS.md §1.5: tell the person, and do step 2 of §1 yourself if git works.');
@@ -83,7 +86,8 @@ function main() {
   // The marker's mtime schedules the next check (after a failure it is set back so
   // the retry comes in RETRY_MIN). Its content: the origin/main commit last reported
   // and the time of the last successful sync. It lives in the git folder; if that is
-  // read-only, in the temp folder, so the 2-hour and 10-minute rhythm still holds.
+  // read-only, in the temp folder, so the checks stay spaced out. (git fetch itself
+  // writes to the git folder, so there it fails every time and retries in RETRY_MIN.)
   let marker = join(gitDir, 'claude-git-stand');
   try { accessSync(gitDir, constants.W_OK); } catch {
     const id = createHash('sha256').update(gitDir).digest('hex').slice(0, 16);
@@ -95,6 +99,7 @@ function main() {
   let state = {};
   try { dueMin = (Date.now() - statSync(marker).mtimeMs) / 60_000; hasMarker = true; } catch {}
   try { state = JSON.parse(readFileSync(marker, 'utf8')); } catch {}
+  if (!state || typeof state !== 'object') state = {}; // e.g. a marker that reads "null"
   if (!(dueMin >= 0)) dueMin = Infinity; // clock skew: a marker in the future
   if (mode === 'prompt' && dueMin < MAX_AGE_MIN) process.exit(0);
   const reported = typeof state.reported === 'string' ? state.reported : '';
@@ -110,12 +115,23 @@ function main() {
   const dirty = (status ?? '').split('\n').filter(Boolean);
 
   let fetchError = null;
-  if (tryGit('remote', 'get-url', 'origin') === null) {
-    fetchError = 'this repository has no remote named "origin".';
-  } else {
+  // No remote named origin is normal before the site is on GitHub; a failed lookup is not.
+  const remotes = tryGit('remote');
+  const noRemote = remotes !== null && !remotes.split('\n').includes('origin');
+  if (remotes === null) {
+    fetchError = 'git could not list the remotes (git remote failed).';
+  } else if (!noRemote) {
+    // ssh: no prompts, and give up on a dead or stalled connection by itself. Only
+    // when the person has not chosen an ssh of their own (GIT_SSH_COMMAND, GIT_SSH,
+    // core.sshCommand, e.g. a key per GitHub account or PuTTY): GIT_SSH_COMMAND would
+    // override that choice.
+    if (!env.GIT_SSH_COMMAND && !env.GIT_SSH && tryGit('config', 'core.sshCommand') === null) {
+      env.GIT_SSH_COMMAND = 'ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=10 -o ServerAliveCountMax=2';
+    }
     try {
-      // lowSpeed*: give up on a stalled connection by itself, so no helper process
-      // outlives the 30-second kill.
+      // lowSpeed*: give up on a stalled connection by itself. The 30-second kill stops
+      // git, not the helpers it started (ssh, git-remote-https): these settings and the
+      // ssh options above are what make those stop too.
       git('-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=20',
         'fetch', '--quiet', 'origin');
     } catch (e) { fetchError = reason(e); }
@@ -127,7 +143,13 @@ function main() {
   let problem = false; // a git command failed: the report may be incomplete
   let behindUp = 0;
 
-  if (fetchError) {
+  if (noRemote) {
+    // Normal before the site is on GitHub: nothing to fetch, nothing to stop for.
+    lines.push('Not on GitHub yet (no remote named "origin"): nothing to fetch.');
+    notes.push('This copy has no GitHub remote yet, so step 2 of AGENTS.md §1 does not apply. '
+      + 'If the site should already be on GitHub, tell the person.');
+    save(state);
+  } else if (fetchError) {
     lines.push(`Sync with GitHub failed: ${fetchError}`);
     notes.push('git fetch failed. Per AGENTS.md §1.5: stop, tell the person clearly that the work '
       + 'is not on the newest state, and ask how to proceed.');
@@ -138,8 +160,10 @@ function main() {
     try { utimesSync(marker, t, t); } catch {}
   } else {
     const head = tryGit('rev-parse', '-q', '--verify', 'origin/main');
-    save({ reported: head ?? reported, lastSync: new Date().toISOString() });
+    // The marker moves on to head only once the changes up to it were listed.
+    let next = reported;
     if (!head) {
+      problem = true;
       lines.push('GitHub has no branch main (origin/main not found).');
       notes.push('origin/main does not exist after the fetch. Tell the person and ask.');
     } else {
@@ -147,11 +171,14 @@ function main() {
       const base = reported && tryGit('cat-file', '-e', `${reported}^{commit}`) !== null ? reported : '';
       const range = base ? `${base}..origin/main` : 'origin/main';
       const cap = base ? 20 : 5;
-      const news = tryGit('log', '--format=%h %an, %ar: %s', '-n', String(cap), range);
+      // Titles and names come from GitHub: no run of <<< or >>> that would end the fence.
+      const log = tryGit('log', '--format=%h %an, %ar: %s', '-n', String(cap), range);
+      const news = log === null ? null : log.replace(/<{3,}|>{3,}/g, '');
       const count = tryGit('rev-list', '--count', range);
       const shown = `git log ${range.replace(base, base.slice(0, 7))}`;
       const more = count === null ? `\n(Could not count the changes; there may be more: ${shown}.)`
         : Number(count) > cap ? `\n… and ${Number(count) - cap} more (${shown}).` : '';
+      if (news !== null) next = head;
       if (news === null) {
         problem = true;
         lines.push('Could not list the changes on main.');
@@ -172,14 +199,23 @@ function main() {
         notes.push('Detached HEAD. Per AGENTS.md §1.4, create a branch from origin/main before '
           + 'changing files, or ask which branch is meant.');
       } else if (branch !== '?') {
+        // A failed count is reported, never read as "nothing missing".
+        const behind = (range, what) => {
+          const n = tryGit('rev-list', '--count', range);
+          if (n !== null) return Number(n);
+          problem = true;
+          lines.push(`Could not compare branch ${branch} with ${what}.`);
+          notes.push(`git rev-list ${range} failed. Run it yourself before changing files (AGENTS.md §1.4).`);
+          return 0;
+        };
         const upstream = tryGit('rev-parse', '--abbrev-ref', '@{u}');
-        behindUp = upstream ? Number(tryGit('rev-list', '--count', 'HEAD..@{u}') ?? 0) : 0;
+        behindUp = upstream ? behind('HEAD..@{u}', upstream) : 0;
         if (behindUp > 0) {
           lines.push(`${upstream} on GitHub has ${behindUp} new commit(s) that are missing here.`);
           notes.push(`Branch ${branch} is behind ${upstream}. Before any further change, tell the person `
             + 'and update with `git pull --ff-only` (AGENTS.md §1.4).');
         }
-        const behindMain = Number(tryGit('rev-list', '--count', 'HEAD..origin/main') ?? 0);
+        const behindMain = behind('HEAD..origin/main', 'main');
         if (behindMain > 0) {
           lines.push(`Branch ${branch} is missing ${behindMain} commit(s) from main.`);
           notes.push('Do not mix main in unasked (no merge, no rebase). Tell the person what is missing '
@@ -187,6 +223,7 @@ function main() {
         }
       }
     }
+    save({ reported: next, lastSync: new Date().toISOString() });
   }
 
   if (status === null) {
@@ -209,7 +246,8 @@ function main() {
   // Mid-session, nothing new that needs acting on: show the status, do not interrupt.
   // (Behind main or unsaved work was already reported and is not news.)
   if (mode === 'prompt' && !hasNews && !behindUp && !fetchError && !problem) {
-    emit(report, `Automatic sync with GitHub at ${now}: nothing new on main, no action needed.`);
+    emit(report, `Automatic sync with GitHub at ${now}: `
+      + `${noRemote ? 'not on GitHub yet, nothing to fetch' : 'nothing new on main'}, no action needed.`);
     return;
   }
 
