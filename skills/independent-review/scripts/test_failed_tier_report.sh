@@ -231,6 +231,12 @@ case "${API_STUB:-ok}" in
   429)   printf '%s\n' '{"error":"you have reached your weekly usage limit"}' >"$out"; printf 429 ;;
   trunc) printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: cut off"},"done":false}' >"$out"; printf 200 ;;
   502)   printf 'upstream request failed' >"$out"; printf 502 ;;
+  nonjson200) # a 200 stream cut mid-line: review text, with a CR and a 429, on a line that is not JSON
+         printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: one"},"done":false}' >"$out"
+         printf '"- RISK: retry on HTTP 429\rError: rate limit reached\n' >>"$out"; printf 200 ;;
+  trunc429) # exactly 429 chunks and no done line: the count must not read as a quota refusal
+         i=0; while [ $i -lt 429 ]; do printf '%s\n' '{"message":{"role":"assistant","content":"x"},"done":false}'; i=$((i+1)); done >"$out"
+         printf 200 ;;
   down)  echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
 esac
 EOF
@@ -708,15 +714,22 @@ check "api: no key set, no Authorization header sent" not_in "$T/api.marks/curl-
 check "api: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s \(750 tokens\)$' "$T/api.out"
 check "api: tokens in the cost log" awk -F'\t' '$8=="ollama-cloud" && $12=="750" && $13=="OK" {f=1} END {exit !f}' "$T/api.tsv"
 run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
-check "apikey: the key rides in the header file" grep -qxF "Authorization: Bearer stub-secret" "$T/apikey.marks/curl-hdr"
-check "apikey: and the file is gone afterwards" [ ! -e "$T/apikey.raw/ollama.hdr" ]
+check "apikey: the key reaches curl on its stdin" \
+  sh -c 'grep -qxF "Authorization: Bearer stub-secret" "$1/curl-hdr" && [ -e "$1/curl-hdr-stdin" ]' _ "$T/apikey.marks"
+check "apikey: and no header file is written" [ ! -e "$T/apikey.raw/ollama.hdr" ]
 check "apikey: never in any output" sh -c '! grep -rqF stub-secret "$1/apikey.out" "$1/apikey.err" "$1/apikey.raw"' _ "$T"
 run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "api429: read as quota" has api429.out "ollama-cloud FAILED (HTTP 429; quota/rate limit: wait or add credits)"
 check "api429: the API's message is quoted" has api429.out "weekly usage limit"
 run apitrunc PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc bash "$SCRIPT" "$T/change.diff"
-check "apitrunc: a stream without its done line fails the tier" has apitrunc.out "ollama-cloud FAILED (HTTP 200)"
+check "apitrunc: a stream without its done line fails the tier, named as truncated" has apitrunc.out "ollama-cloud FAILED (truncated review (HTTP 200))"
 check "apitrunc: and says it was truncated" has apitrunc.out "a truncated review"
+run apitrunc429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=trunc429 bash "$SCRIPT" "$T/change.diff"
+check "apitrunc429: a 429-chunk truncated stream is not read as quota" \
+  sh -c 'grep -qF "ollama-cloud FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "quota/rate limit: wait" "$1"' _ "$T/apitrunc429.out"
+run apinonjson PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=nonjson200 bash "$SCRIPT" "$T/change.diff"
+check "apinonjson: review text on a non-JSON 200 line is quoted below, not read as quota" \
+  sh -c 'grep -qF "ollama-cloud FAILED (HTTP 200)" "$1" && ! grep -qF "quota/rate limit: wait" "$1" && grep -qF "line began:" "$1"' _ "$T/apinonjson.out"
 run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff"
 check "api502: a non-JSON error body is quoted" has api502.out "response is not JSON: upstream request failed"
 run apidown PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=down bash "$SCRIPT" "$T/change.diff"
