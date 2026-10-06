@@ -184,6 +184,17 @@ jobs:
         run: |
           npm run check
           npm test
+      # Cloudflare bundles the function with wrangler, on its build or on
+      # `wrangler pages deploy`, and the function imports src/components/contact-form.ts
+      # from outside functions/. Bundle it the same way and look for that file's words
+      # in the result: a German sentence and the owner's subject line. The version is
+      # whatever npx fetches, as on a site's own deploy.
+      - name: The function bundles the way Cloudflare bundles it
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npx --yes wrangler pages functions build --outdir=functions-bundle
+          grep -q 'Danke. Die Nachricht wurde gesendet.' functions-bundle/index.js
+          grep -q 'Website message from ' functions-bundle/index.js
       # A form in a language it has no words for must stop the build, not go out in
       # English. Last step: it leaves the site broken on purpose.
       - name: A form in a language with no texts stops the build

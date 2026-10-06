@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { decide, handle, onRequestPost, sendViaCloudflare, TRAP, type Env, type Message } from '../functions/api/contact';
 import { LIMITS, MAIL, TEXT } from '../src/components/contact-form';
+import { emailHint } from '../src/lib/obfuscate';
 
 // Guards the contact form (the website-forms skill). `astro preview` never runs a
 // Cloudflare Pages Function, so the function is called directly, the way
@@ -11,7 +12,7 @@ import { LIMITS, MAIL, TEXT } from '../src/components/contact-form';
 // email: that one check is the owner's, once, on the deployed site (the skill's "Done
 // means").
 //
-// This file comes with the form (install the skill's three files together), so both
+// This file comes with the form (install the skill's four files together), so both
 // addresses below have to be set: a form without its privacy text is the case this
 // spec exists to refuse.
 
@@ -192,6 +193,9 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
 });
 
 test('contact — a line break in the name cannot start a new mail header', async () => {
+  // The subject is cut at 120 characters: a longer prefix leaves too little room for a
+  // name, and the checks below assume the room is there.
+  expect(MAIL.subject.length, 'MAIL.subject in src/components/contact-form.ts is 90 characters at most').toBeLessThanOrEqual(90);
   const { sent, send } = recorder();
   await handle(post({ ...GOOD, name: 'Ada\r\nBcc: eve@example.net' }), ENV, send);
   await handle(post({ ...GOOD, name: 'Ada\u0000\u0007 Love\tlace\u007F\u0085\u009F\u2028Bcc: eve\u2029x\u202A\u202B\u202C\u202D\u202Ey\u2066\u2067\u2068\u2069z' }), ENV, send);
@@ -533,6 +537,12 @@ test('contact — a visitor without JavaScript is shown the address to write to'
   const direct = page.locator('#contact-form [data-contact-direct]');
   await expect(direct).toBeVisible();
   await expect(direct.locator('a')).toHaveText(/\S+ \[[a-z]+\] \S+/);
+  // In the form's language ("[punkt]" in German), which need not be the site's. The
+  // address is read back from the link the way the page's own script reads it.
+  const encoded = (await direct.locator('a').getAttribute('data-email')) ?? '';
+  const address = Buffer.from(encoded, 'base64').toString().split('').reverse().join('');
+  const language = (await page.locator('#contact-form input[name="lang"]').getAttribute('value')) ?? '';
+  await expect(direct.locator('a'), `the hint for ${address} in "${language}"`).toHaveText(emailHint(address, language));
   await context.close();
 });
 

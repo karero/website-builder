@@ -55,7 +55,7 @@ privacy page). Neither is built by this skill.
 |---|---|---|
 | `functions/api/contact.ts` | `contact.ts` | the endpoint `POST /api/contact`: checks, bot trap, the mail call |
 | `src/components/ContactForm.astro` | `ContactForm.astro` | the form |
-| `src/components/contact-form.ts` | `contact-form.ts` | what the form and its answers say, in English and German; the lines of the owner's mail; the longest name, address and message it takes. The form and the function both import it, so a translation edits this file only |
+| `src/components/contact-form.ts` | `contact-form.ts` | what the form and its answers say, in English and German; the lines of the owner's mail; the longest name, address and message it takes. The form and the function both import it, so a translation edits this file, plus a line of words in the spec |
 | `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out) in every language of `contact-form.ts`, the privacy text |
 
 The templates are at `~/.claude/skills/website-forms/templates/` (Codex:
@@ -127,7 +127,8 @@ preview address cannot send, and says so.
    on a page in it. A form in a language with no texts stops the build. The mail the
    owner receives is in English ("Website message from …", "Name:", "Email:"), whatever
    the visitor's language: `MAIL` in `contact-form.ts`, to change if the owner reads
-   mail in another language. The spec follows a new subject line by itself.
+   mail in another language. The spec follows a new subject line by itself, up to 90
+   characters (the subject is cut at 120, and the name needs room).
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
@@ -190,15 +191,21 @@ paragraph was translated, nor the tone of what step 7 names: those are yours to 
    `data-privacy-contact-form` and naming Cloudflare. Like the English and German ones
    it is a baseline, not legal advice: say so to the owner.
 5. **The owner's mail**, only if the owner reads mail in this language: `MAIL` in
-   `contact-form.ts`, the start of the subject line and the two labels.
+   `contact-form.ts`, the start of the subject line (90 characters at most) and the two
+   labels.
+   **The address hint**: a visitor without JavaScript reads the address under the form
+   as "name [at] example [dot] com". The word for "dot" comes from `DOT_WORD` in
+   `src/lib/obfuscate.ts` (English and German there); add the language's word, or the
+   hint says "dot".
 6. **The page and its test**, as in §3 steps 2, 3 and 5: `lang` and `privacy` where the
    form's page needs them, and a copy of the spec for that page with its `PAGE` and
    `PRIVACY`. On a site in that language only, the one `tests/forms.spec.ts` is that copy.
 7. `npm run check && npm test`. Then read the four status sentences and the answer page
    against the tone rules yourself: `tests/tone.spec.ts` reads what is on the page, the
-   labels and the note, but not those. The checks catch a sentence in the wrong
-   language or one that says the wrong thing, not a clumsy one: if the owner speaks the
-   language, ask them to read the form once.
+   labels and the note, but not those. `WORDS` looks for a few words in each sentence:
+   it catches a sentence left in another language or put in the wrong place, not one
+   that says something else around those words, nor a clumsy one. If the owner speaks
+   the language, ask them to read the form once.
 
 ## 4. The privacy text
 

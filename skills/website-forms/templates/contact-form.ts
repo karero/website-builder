@@ -6,8 +6,9 @@
 // TypeScript: no Astro imports, nothing from the site's config.
 //
 // tests/forms.spec.ts checks these texts against words of its own (WORDS). That list
-// stays in the spec on purpose: it is the independent check that catches a sentence
-// in the wrong language or one that says the wrong thing.
+// stays in the spec on purpose: it is an independent check, a few words per sentence,
+// that catches a sentence left in another language or swapped with another. It does
+// not read for meaning or tone.
 
 // The longest name, address and message the form takes. The form's fields stop there
 // and the function refuses anything longer.
@@ -15,8 +16,8 @@ export const LIMITS = { name: 100, email: 254, message: 5000 };
 
 // The mail the owner receives: its subject starts with `subject`, its text starts with
 // the name and address under these two labels. In the owner's language, which need not
-// be the visitor's. A new `subject` is checked by the spec's test "a line break in the
-// name cannot start a new mail header" as it stands.
+// be the visitor's. The subject is cut at 120 characters; keep `subject` to 90 at most,
+// so a name still fits. The spec checks a new one as it stands, and fails above 90.
 export const MAIL = { subject: 'Website message from ', name: 'Name', email: 'Email' };
 
 // Everything a visitor reads, by language. The tone rules apply (tests/tone.spec.ts):

@@ -17,6 +17,7 @@
 //             differs from the site's, e.g. a German page built with <Base lang="de">.
 import { SITE } from '../config';
 import EmailLink from './EmailLink.astro';
+import { emailHint } from '../lib/obfuscate';
 // The words, in every language the form speaks, and the limits: shared with the
 // function, so a translation edits that one file.
 import { LIMITS, TEXT, hasText } from './contact-form';
@@ -67,7 +68,7 @@ const privacy = Astro.props.privacy ?? t.privacy;
   {/* The answer: the line a screen reader is told to read out when it changes. */}
   <p class="contact-form-status" role="status" aria-live="polite" data-contact-status></p>
   {/* Always there, never hidden: nothing has to work for a visitor to find it. */}
-  <p class="contact-form-direct" data-contact-direct>{t.direct} <EmailLink address={fallback} /></p>
+  <p class="contact-form-direct" data-contact-direct>{t.direct} <EmailLink address={fallback} text={emailHint(fallback, language)} /></p>
 </form>
 
 <script>
