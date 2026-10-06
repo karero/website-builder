@@ -362,11 +362,13 @@ make check       # PII/secrets + model-agnostic + template coverage + per-skill 
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
-catches (any real email, credential/token formats, secret-looking assignments). It runs in
-CI on every pull request and every push to `main` (`.github/workflows/clean.yml`) and is a prerequisite of `make package`,
-so a personalized build cannot ship. A genuine false positive is fixed by tightening a
-pattern in the script — never by loosening it. The same `make check` (and the same CI
-workflow) also keeps `independent-review` free of concrete model names
+catches (any real email, credential/token formats, secret-looking assignments). The
+denylist is a gitignored local file, so CI, which has no copy, runs only the generic
+catches. The script runs in CI on every pull request and every push to `main`
+(`.github/workflows/clean.yml`) and is a prerequisite of `make package`, so a
+personalized build cannot ship from a checkout that has the list. A genuine false positive
+is fixed by tightening a pattern in the script — never by loosening it. The same
+`make check` (and the same CI workflow) also keeps `independent-review` free of concrete model names
 (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 

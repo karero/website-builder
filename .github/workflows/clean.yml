@@ -31,16 +31,25 @@ on:
   pull_request:
   workflow_dispatch:
 
-# One run per pull request (or branch) at a time: a newer push cancels the run it
-# supersedes, so old heads never queue behind new ones (on #165 they sat over an hour and
-# then failed without running a step). `push` covers only main: a pull request branch runs
-# through `pull_request` alone, since its push run would test the same commit a second time
-# in another group. A branch with no pull request can still be run by hand
-# (workflow_dispatch). Groups are shared by every workflow in the repo, so the name in the
-# group keeps clean and template-tests from cancelling each other on the same pull request.
+# Why these triggers. Every push to a pull request branch used to start this workflow
+# twice, once for `push` and once for `pull_request`, and runs on old heads queued behind
+# new ones (on #165 they sat queued over an hour, then were cancelled before any step ran).
+# - `push` covers only main. A pull request branch runs through `pull_request` alone, which
+#   tests the branch merged into main. The two events carry different refs, so the
+#   concurrency group below could never have merged their runs into one.
+# - A pull request with merge conflicts gets no `pull_request` run until they are resolved,
+#   and a branch with no pull request gets none at all: run either by hand
+#   (workflow_dispatch).
+# - On a pull request or branch, a newer run cancels the one it supersedes. A re-run of an
+#   old run joins that same group, so it can cancel a newer run still going there.
+# - On main every commit gets its own group, so each merge keeps a result of its own.
+# - Groups are shared by every workflow in the repo; the workflow name in the group keeps
+#   clean and template-tests from cancelling each other.
+# template-tests.yml uses the same triggers and group and points here.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
+
 jobs:
   no-pii-secrets:
     runs-on: ubuntu-latest

@@ -19,15 +19,9 @@ on:
       - '.github/workflows/template-tests.yml'
   workflow_dispatch:
 
-# One run per pull request (or branch) at a time: a newer push cancels the run it
-# supersedes, so old heads never queue behind new ones (on #165 they sat over an hour and
-# then failed without running a step). `push` covers only main: a pull request branch runs
-# through `pull_request` alone, since its push run would test the same commit a second time
-# in another group. A branch with no pull request can still be run by hand
-# (workflow_dispatch). Groups are shared by every workflow in the repo, so the name in the
-# group keeps clean and template-tests from cancelling each other on the same pull request.
+# Same triggers and concurrency group as clean.yml, for the reasons written there.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
 defaults:
