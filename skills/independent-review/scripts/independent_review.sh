@@ -11,7 +11,7 @@
 # text-only prompt goes to Melious's OpenAI-compatible API instead, so the pair still has its second
 # reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone;
 # `--seat ollama` never falls back to it. SECOND_SEAT=melious swaps the two: Melious runs with
-# Codex, and ollama stands in only when Melious did not count (credits out, a failure).
+# Codex, and ollama stands in only when Melious did not count.
 #
 # Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
 # WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
@@ -91,10 +91,12 @@
 #                                    set, else none is sent — in a cloud session an environment
 #                                    API credential for ollama.com is added by the proxy.
 #   MELIOUS_MODEL  (unset)           Melious model for the fallback seat (see above), as its
-#                                    /v1/models lists it. Unset = no Melious call at all.
+#                                    /v1/models lists it. Unset = no Melious call at all
+#                                    (and SECOND_SEAT=melious refuses to run).
 #   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
 #                                    fallback, or melious, with ollama as its fallback. melious
-#                                    needs MELIOUS_MODEL. --seat and --local-only ignore it.
+#                                    needs MELIOUS_MODEL. --seat and --local-only do not use it;
+#                                    a value other than ollama or melious is refused in every mode.
 #   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else the MELIOUS_API_KEY=
 #                                    line of MELIOUS_ENV_FILE (default
 #                                    ~/.config/reviewers/melious.env; parsed, never sourced), else
@@ -1236,7 +1238,7 @@ else
   run_tier codex run_codex &                                                     # 1. OpenAI Codex CLI
   if [ "$SECOND_SEAT" = melious ]; then
     run_tier melious run_melious &                                               # 2. Melious, by choice
-    melious_pid=$! ; MELIOUS_RAN=1
+    melious_pid=$!
   else
     run_tier ollama run_ollama &                                                 # 2. ollama cloud/local
     ollama_pid=$! ; OLLAMA_RAN=1

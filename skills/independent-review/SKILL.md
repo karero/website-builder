@@ -67,7 +67,7 @@ skip silently. With a config diff, send the code that reads the config too.
    the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
    alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
    tokens too. **`SECOND_SEAT=melious`** (with `MELIOUS_MODEL`) swaps the roles: Melious runs
-   with Codex, and ollama stands in only when Melious did not count, credits out included.
+   with Codex, and ollama stands in only when Melious did not count.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
