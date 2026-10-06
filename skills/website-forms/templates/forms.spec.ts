@@ -639,6 +639,7 @@ test('contact — nothing can be typed while the message is on its way, so a suc
   expect(await opacity('#contact-message'), 'a locked field is dimmed').toBe('0.7');
   expect(await opacity('#added-phone'), 'an added field is reached by the form\'s styles and dimmed too').toBe('0.7');
   expect(await opacity('#added-ref'), 'a field read-only on purpose is not dimmed').toBe('1');
+  expect(await opacity('#added-agree'), 'a checkbox is not dimmed while the message is on its way').toBe('1');
   await page.locator('#contact-message').press('End');
   await page.keyboard.type(' And in June?');
   await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
