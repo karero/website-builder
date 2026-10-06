@@ -865,16 +865,18 @@ if command -v git >/dev/null 2>&1; then
   R="$T/mlrepo"; mkdir -p "$R"
   (
     cd "$R" && git init -q -b main && git config user.email t@t && git config user.name t
-    mkdir -p "dir with space" docs/reviews
+    mkdir -p "dir with space" "lib dir" docs/reviews
     echo base >"dir with space/f.txt"; echo base >own.txt; echo base >'[g]*.txt'; echo base >keep.txt
     echo base >callee.txt; echo base >g1.txt; echo base >docs/reviews/trail.md
+    echo base >other.txt; echo base >"lib dir/space callee.sh"
     git add -A && git commit -qm base && git tag oldbase
     git checkout -qb feat
     echo feature >>"dir with space/f.txt"; echo "my change" >own.txt; echo feature >>'[g]*.txt'
-    echo feature >>keep.txt; echo round >>docs/reviews/trail.md
+    printf 'feature\nimport callee\nrun space callee.sh\nsee own notes\n' >>keep.txt; echo round >>docs/reviews/trail.md
     git commit -qam feat && git tag reviewed
     git checkout -q main
-    echo main >"dir with space/f.txt"; echo "main change" >own.txt; echo main >callee.txt; echo main >g1.txt
+    echo main >"dir with space/f.txt"; echo "main change" >own.txt; echo main >callee.txt; echo "main other" >g1.txt
+    echo main >other.txt; echo main >"lib dir/space callee.sh"
     git commit -qam main
     git checkout -q feat
     git merge -q main >/dev/null 2>&1 || true
@@ -893,6 +895,25 @@ if command -v git >/dev/null 2>&1; then
   check "merge_link: a base-only file is not in, unless named" lacks ml.out "b/callee.txt"
   ( cd "$R" && bash "$ML" oldbase reviewed newbase -- callee.txt ) >"$T/mlx.out" 2>&1
   check "merge_link: an extra path the change calls is added" has mlx.out "+main"
+  check "merge_link: no suggestions unless asked" not_in "$T/ml.err" "base side"
+  # --suggest-callees (F5 of the trail that introduced the merge link): base-side files the merge
+  # changed that the change's own files name are listed on stderr, never added to the diff.
+  ( cd "$R" && bash "$ML" --suggest-callees oldbase reviewed newbase ) >"$T/mls.out" 2>"$T/mls.err"; echo $? >"$T/mls.rc"
+  check "suggest: exit 0" rc_is mls 0
+  check "suggest: the diff on stdout is unchanged" cmp -s "$T/ml.out" "$T/mls.out"
+  check "suggest: a file named by its module name alone is suggested" grep -qxF "  callee.txt" "$T/mls.err"
+  check "suggest: a spaced path is suggested whole" grep -qxF "  lib dir/space callee.sh" "$T/mls.err"
+  check "suggest: a base-side file no own file names is not" not_in "$T/mls.err" "g1.txt"
+  check "suggest: an own file is not suggested (already in the diff)" not_in "$T/mls.err" "  own.txt"
+  check "suggest: only own files are searched, named literally ('[g]*.txt' is not g1.txt)" \
+    not_in "$T/mls.err" "other.txt"
+  ( cd "$R" && bash "$ML" --suggest-callees oldbase reviewed newbase -- callee.txt ) >/dev/null 2>"$T/mlsx.err"
+  check "suggest: a path already passed after -- is not suggested again" not_in "$T/mlsx.err" "  callee.txt"
+  ( cd "$R" && bash "$ML" --suggest-callees reviewed reviewed oldbase ) >/dev/null 2>"$T/mlsnone.err"; echo $? >"$T/mlsnone.rc"
+  check "suggest: none found says so, exit 0" \
+    sh -c '[ "$(cat "$1/mlsnone.rc")" = 0 ] && grep -qF "no file the merge changed on the base side" "$1/mlsnone.err"' _ "$T"
+  ( cd "$R" && bash "$ML" oldbase reviewed newbase --suggest-callees ) >/dev/null 2>&1; echo $? >"$T/mlslate.rc"
+  check "suggest: the flag goes first, elsewhere it is a usage error" rc_is mlslate 2
   ( cd "$R" && bash "$ML" newhead newhead newhead ) >"$T/mlempty.out" 2>&1; echo $? >"$T/mlempty.rc"
   check "merge_link: nothing moved prints nothing (not the whole tree)" \
     sh -c '[ "$(cat "$1/mlempty.rc")" = 0 ] && [ ! -s "$1/mlempty.out" ]' _ "$T"

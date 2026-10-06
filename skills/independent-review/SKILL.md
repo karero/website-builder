@@ -216,7 +216,10 @@ Codex's effort for any run.
      ```
 
      It takes the change's files from both the old and the new pair (an own edit the merge threw
-     away matches the new base and drops out of the new pair alone) and passes names literally. PLAN: the whole plan, with the changed sections named in the
+     away matches the new base and drops out of the new pair alone) and passes names literally.
+     To find those called files, add `--suggest-callees` before the revisions: it lists on stderr
+     the base-side files the merge changed whose module name the change's own files mention —
+     suggestions to check, never added. PLAN: the whole plan, with the changed sections named in the
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
