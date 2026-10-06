@@ -918,7 +918,8 @@ run_melious() {
     sub errtext { my $e = shift; $e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
                   $e = JSON::PP->new->encode($e) if ref $e; $e }
     # A quote of server text: whitespace and control bytes collapsed to one space (so nothing in it
-    # can start a new line where the classifier reads), cut to 300 characters. No s///r: the API
+    # can start a new line where the classifier reads), cut to 300 bytes (the handle is raw, so a
+    # multibyte character can be split; readable_tail decodes leniently). No s///r: the API
     # transports need Perl 5.10, not 5.14.
     sub quoted { my $s = shift; $s =~ s/[\s\x00-\x1f\x7f]+/ /g; $s =~ s/^ | $//g; substr($s, 0, 300) }
     if ($code ne "200") {   # an error reply is one JSON object, not a stream

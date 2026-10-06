@@ -214,6 +214,9 @@ case "$url" in
       crchunk) # a raw CR (and an ESC[1G) inside a chunk, each of which the error quoting turns into a
               # line break: the text after it must not reach column 0, where the classifier reads
               printf 'data: {"choices":[{"delta":{"content":"- RISK: x\rError: HTTP 429 Too Many Requests\033[1GError: rate limit"}}]}\n\n' >"$out"; printf 200 ;;
+      bad502) # a non-200 body that is not JSON, with a CR and an ESC[1G in it: quoted on the Error
+              # line, so both must collapse or the text after them reaches column 0
+              printf 'upstream\rError: bad gateway\033[1Gfailed' >"$out"; printf 502 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -920,6 +923,9 @@ check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-
 run mcr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff"
 check "mcr: a control byte in a quoted chunk cannot start an error line (second re-gate, fresh-eyes)" \
   sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mcr.out"
+run mbad502 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=bad502 bash "$SCRIPT" "$T/change.diff"
+check "mbad502: a non-JSON 502 body is quoted on one line, control bytes collapsed" \
+  sh -c 'grep -qF "response is not JSON: upstream Error: bad gateway [1Gfailed" "$1" && grep -qF "melious FAILED (HTTP 502)" "$1"' _ "$T/mbad502.out"
 run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
 check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
   has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"
@@ -968,9 +974,56 @@ check "mlocalseat: --local-only refuses --seat melious, exit 2" \
 
 # 33. No s///r in the script (2026-10-06, a #167 follow-up): the API transports promise Perl 5.10,
 #     and /r needs 5.14, so on an older Perl their parser would fail to compile and report "HTTP 200".
-#     Read as code, not by eye: a substitution operator whose modifiers include r, comment lines aside.
-check "no s///r anywhere in independent_review.sh (Perl 5.10 floor)" \
-  perl -ne 'next if /^\s*#/; s/#.*$// unless /\x27/; $bad++ if m{=~\s*s/(?:[^/\\]|\\.)*/(?:[^/\\]|\\.)*/[a-z]*r[a-z]*(?![a-z])}; END { exit($bad ? 1 : 0) }' "$SCRIPT"
+#     Read as code, not by eye: any s, tr or y whose modifiers include r, whatever its delimiter
+#     (/ | , # ! and the paired {} () [] <>), with or without =~. Whole-line comments are skipped and
+#     an inline comment is cut only at " # ", so a # inside a pattern still counts. It tests itself
+#     first on the forms it must catch and the lines it must pass (round 1: fresh-eyes, kimi-k3).
+cat >"$T/no_rflag.pl" <<'EOF'
+next if /^\s*#/;
+s/\s#\s.*$//;
+$bad++, print STDERR "s///r at line $.: $_" if
+  m~(?<![\w\$\@%&-])(?:s|tr|y)\s*(?:
+      \{(?:\\.|[^\\}])*\}\s*\{(?:\\.|[^\\}])*\}
+    | \((?:\\.|[^\\)])*\)\s*\((?:\\.|[^\\)])*\)
+    | \[(?:\\.|[^\\\]])*\]\s*\[(?:\\.|[^\\\]])*\]
+    | <(?:\\.|[^\\>])*>\s*<(?:\\.|[^\\>])*>
+    | ([^\w\s{(\[<])(?:\\.|(?!\1).)*?\1(?:\\.|(?!\1).)*?\1
+    )[a-z]*r[a-z]*(?![a-z])~x;
+END { exit($bad ? 1 : 0) }
+EOF
+rflag_selftest=1
+while IFS= read -r l; do
+  printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null && { echo "no_rflag misses: $l"; rflag_selftest=0; }
+done <<'EOF'
+$a =~ s/a/b/gr
+s/a\/x/b/ir
+$a =~ s{a}{b}r
+s(a)(b)r
+s[a][b]gr
+s<a><b>r
+s|a|b|gr
+s,a,b,r
+s#a#b#r
+s /a/b/r
+$a =~ tr/a/b/r
+y/a/b/r
+s/a/b/gr for @x
+$x =~ s/#/ /gr
+print "token #123"; $x =~ s/a/b/r;
+EOF
+while IFS= read -r l; do
+  printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null || { echo "no_rflag over-matches: $l"; rflag_selftest=0; }
+done <<'EOF'
+$s =~ s/[\s]+/ /g;
+my $x = "string";
+tr/a-z/A-Z/;
+(my $q = $line) =~ s/x/ /g;   # keep off s///r: the API
+print "a,b,r";
+$e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
+my $x = 1; # don't do $y =~ s/a/b/r
+EOF
+check "no_rflag: the guard catches every r-flag form and passes plain code" [ "$rflag_selftest" = 1 ]
+check "no s///r anywhere in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
