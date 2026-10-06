@@ -93,7 +93,7 @@ cp "$R/scripts/.clean-denylist" "$T/list.bak"; printf 'zorble(\n' >>"$R/scripts/
 expect "a broken pattern in the list: fails as a scan error" 1 "scan error" "$R"
 # A list of nothing but comments checks no names, so it must not earn the names-checked OK.
 printf '# no names yet\n' >"$R/scripts/.clean-denylist"
-expect "a list with no names: says the check was skipped" 0 "private-name check SKIPPED" "$R"
+expect "a list with no names: the OK line says so" 0 "private-name check SKIPPED: scripts/.clean-denylist lists no names" "$R"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
 
 # A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
@@ -122,10 +122,14 @@ printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
 expect "no git, no list: skips the list and says so" 0 "denylist skipped" "$N"
 # CI has no list either. Its OK line is all a reader of the green run sees, so the skip
 # must be there, not only in the earlier line.
-expect "no git, no list: the OK line says names were skipped" 0 "private-name check SKIPPED" "$N"
-# With no git, check-ignore cannot drop the list's own lines; only the exclusion by name can.
+expect "no git, no list: the OK line says names were skipped" 0 "private-name check SKIPPED: no scripts/.clean-denylist" "$N"
+# With no git, check-ignore cannot drop the list's own lines; only the exclusion by path can.
 printf 'plain notes\n' >"$N/docs/notes.md"; cp "$R/scripts/.clean-denylist" "$N/scripts/"
 expect "no git, list present: the list does not report itself" 0 "OK — no private names in:" "$N"
+# That exclusion is for the list's own path only: a file of the same name elsewhere ships.
+cp "$R/scripts/.clean-denylist" "$N/docs/"
+expect "no git, a copy of the list in docs/: fails" 1 "docs/.clean-denylist" "$N"
+rm "$N/docs/.clean-denylist"
 
 [ "$fails" -eq 0 ] && { echo "test_clean_denylist: all passed"; exit 0; }
 echo "test_clean_denylist: $fails failed"; exit 1

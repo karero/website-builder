@@ -372,11 +372,11 @@ catches, and its OK line says the name check was skipped. The script runs in CI 
 pull request and every push to `main` (`.github/workflows/clean.yml`) and is a
 prerequisite of `make package`: in a checkout that has the list, a listed name in a file
 the script scans stops the build, unless the file is gitignored or the match is this
-repo's own `karero/website-builder` reference. Names are checked in `scripts/` too, since
-those files ship in the zip; only the generic catches skip it, because its files define
-their patterns. The name check skips only `LICENSE`, which carries the owner's name. A
-genuine false positive is fixed by tightening a pattern in the script — never by
-loosening it. The same `make check` (and the same CI workflow) also keeps
+repo's own `karero/website-builder` reference. The name check also covers `scripts/`,
+since those files ship in the zip; the generic catches leave `scripts/` out, because its
+files define their patterns. The name check skips only `LICENSE`, which carries the
+owner's name. A genuine false positive is fixed by tightening a pattern in the script —
+never by loosening it. The same `make check` (and the same CI workflow) also keeps
 `independent-review` free of concrete model names outside its setup guide
 (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
