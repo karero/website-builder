@@ -1,4 +1,4 @@
-# DIFF review — pipefail guard: #131 review items P1 (path and backslash), P7, P8
+# DIFF review — karero/website-builder#194 — pipefail guard: #131 review items P1 (path and backslash), P7, P8
 
 Base `b8d7136` · depth: **Light gate** (a small fix to a lint over the suite's own scripts; no user
 data, no production path; owner: "Gate: Light, per `skills/independent-review/SKILL.md`") ·
