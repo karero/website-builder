@@ -180,8 +180,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
 > `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
-> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `.claude/settings.json`, and `.claude/hooks/git-stand.mjs`) are **frozen
-> one-time copies**, not vendored skills —
+> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `.claude/settings.json`, and
+> `.claude/hooks/git-stand.mjs`) are **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then

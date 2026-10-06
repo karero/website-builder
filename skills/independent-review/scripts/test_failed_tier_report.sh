@@ -865,16 +865,18 @@ if command -v git >/dev/null 2>&1; then
   R="$T/mlrepo"; mkdir -p "$R"
   (
     cd "$R" && git init -q -b main && git config user.email t@t && git config user.name t
-    mkdir -p "dir with space" docs/reviews
+    mkdir -p "dir with space" "lib dir" docs/reviews
     echo base >"dir with space/f.txt"; echo base >own.txt; echo base >'[g]*.txt'; echo base >keep.txt
     echo base >callee.txt; echo base >g1.txt; echo base >docs/reviews/trail.md
+    echo base >other.txt; echo base >"lib dir/space callee.sh"
     git add -A && git commit -qm base && git tag oldbase
     git checkout -qb feat
     echo feature >>"dir with space/f.txt"; echo "my change" >own.txt; echo feature >>'[g]*.txt'
-    echo feature >>keep.txt; echo round >>docs/reviews/trail.md
+    printf 'feature\nimport callee\nrun space callee.sh\nsee own notes\n' >>keep.txt; echo round >>docs/reviews/trail.md
     git commit -qam feat && git tag reviewed
     git checkout -q main
-    echo main >"dir with space/f.txt"; echo "main change" >own.txt; echo main >callee.txt; echo main >g1.txt
+    echo main >"dir with space/f.txt"; echo "main change" >own.txt; echo main >callee.txt; echo "main other" >g1.txt
+    echo main >other.txt; echo main >"lib dir/space callee.sh"
     git commit -qam main
     git checkout -q feat
     git merge -q main >/dev/null 2>&1 || true
@@ -893,6 +895,28 @@ if command -v git >/dev/null 2>&1; then
   check "merge_link: a base-only file is not in, unless named" lacks ml.out "b/callee.txt"
   ( cd "$R" && bash "$ML" oldbase reviewed newbase -- callee.txt ) >"$T/mlx.out" 2>&1
   check "merge_link: an extra path the change calls is added" has mlx.out "+main"
+  check "merge_link: no suggestions unless asked" not_in "$T/ml.err" "base side"
+  # --suggest-callees (F5 of the trail that introduced the merge link): base-side files the merge
+  # changed that the change's own files name are listed on stderr, never added to the diff.
+  ( cd "$R" && bash "$ML" --suggest-callees oldbase reviewed newbase ) >"$T/mls.out" 2>"$T/mls.err"; echo $? >"$T/mls.rc"
+  check "suggest: exit 0" rc_is mls 0
+  check "suggest: the diff on stdout is unchanged" cmp -s "$T/ml.out" "$T/mls.out"
+  check "suggest: a file named by its module name alone is suggested" grep -qxF "  callee.txt" "$T/mls.err"
+  check "suggest: a spaced path is suggested whole" grep -qxF "  lib dir/space callee.sh" "$T/mls.err"
+  check "suggest: a base-side file no own file names is not" not_in "$T/mls.err" "g1.txt"
+  check "suggest: an own file is not suggested (already in the diff)" not_in "$T/mls.err" "  own.txt"
+  check "suggest: only own files are searched, named literally ('[g]*.txt' is not g1.txt)" \
+    not_in "$T/mls.err" "other.txt"
+  ( cd "$R" && bash "$ML" --suggest-callees oldbase reviewed newbase -- callee.txt ) >/dev/null 2>"$T/mlsx.err"
+  check "suggest: a path already passed after -- is not suggested again" not_in "$T/mlsx.err" "  callee.txt"
+  ( cd "$R" && bash "$ML" --suggest-callees reviewed reviewed oldbase ) >/dev/null 2>"$T/mlsnone.err"; echo $? >"$T/mlsnone.rc"
+  check "suggest: none found says so, exit 0" \
+    sh -c '[ "$(cat "$1/mlsnone.rc")" = 0 ] && grep -qF "no file the merge changed on the base side" "$1/mlsnone.err"' _ "$T"
+  ( cd "$R" && bash "$ML" oldbase reviewed newbase --suggest-callees ) >/dev/null 2>&1; echo $? >"$T/mlslate.rc"
+  check "suggest: the flag goes first, elsewhere it is a usage error" rc_is mlslate 2
+  ( cd "$R" && bash "$ML" --suggest-callees newhead newhead newhead ) >"$T/mlsown.out" 2>"$T/mlsown.err"
+  check "suggest: no own files to search says so, not silence (Light gate, #193)" \
+    sh -c '[ ! -s "$1/mlsown.out" ] && grep -qF "no files of its own" "$1/mlsown.err"' _ "$T"
   ( cd "$R" && bash "$ML" newhead newhead newhead ) >"$T/mlempty.out" 2>&1; echo $? >"$T/mlempty.rc"
   check "merge_link: nothing moved prints nothing (not the whole tree)" \
     sh -c '[ "$(cat "$1/mlempty.rc")" = 0 ] && [ ! -s "$1/mlempty.out" ]' _ "$T"
@@ -1060,7 +1084,7 @@ MK=stub-melious-secret
 run mbody MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbody: default budget 96000 and the final-review marker ask" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /holds exactly === FINAL REVIEW [0-9a-f]{8,} ===/)' "$T/mbody.marks/melious-body"
-check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, ollama)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
+check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, melious)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
 run mbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 48000)' "$T/mbudget.marks/melious-body"
@@ -1100,7 +1124,7 @@ check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped
 run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
 run mglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, ollama)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
+check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, melious)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
 check "mglued: a cut at a glued marker says so" grep -qF "the marker ended a line of other text" "$T/mglued.out"
 run mechoglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=echoglued bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mechoglued: reasoning that restates the marker on a line of its own, then glues the real one: cut at the glued one, and said" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "More reasoning" "$1" && grep -qF "the marker ended a line of other text" "$1"' _ "$T/mechoglued.out"
@@ -1152,7 +1176,7 @@ check "mstale2: a reused raw dir does not lend it the old count, nor the old mel
   sh -c 'grep -qE "^timings: melious [0-9]+s$" "$1" && ! grep -qF "melious finding one" "$2"' _ "$T/mstale2.out" "$T/mstale.raw/melious.full"
 
 # Real curl, not the stub: the key reaches curl only through `-H @-` (stdin), and the stub
-# implements that itself, so it cannot prove real curl honours it (round 5, ollama). A local
+# implements that itself, so it cannot prove real curl honours it (round 5, melious). A local
 # server records the Authorization header of a keyed call and of a keyless one.
 REAL_CURL="$(command -v curl || true)"
 # python3 must be able to serve, not merely exist (a stock Mac's /usr/bin/python3 can be a stub).
@@ -1192,7 +1216,7 @@ PY
   if [ ! -s "$T/echo.port" ]; then
     echo "real-curl cases: the local server wrote no port in 30 s; its stderr:"; sed 's/^/    /' "$T/echo.err"
     kill -0 "$echo_pid" 2>/dev/null && echo "    (the server process is still running)" || echo "    (the server process has exited)"
-    # One clear failure, not six curl errors against an empty port (round 8, ollama).
+    # One clear failure, not six curl errors against an empty port (round 8, melious).
     echo "FAIL real-curl cases: no local server, so none of them ran"; fails=$((fails+1))
   else
     RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"
