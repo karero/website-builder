@@ -830,7 +830,8 @@ ollama_via_cli() {
 # line except an error message the server sent: a quote goes on an indented line below, with
 # control bytes collapsed, as in run_melious. Leaves the review in ollama.out.
 ollama_via_api() {
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
+  # Perl 5.10 for `//`; JSON::PP is core only from 5.14, but a CPAN copy on an older Perl works.
+  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 'require 5.010' 2>/dev/null || return 3
   local url model="$OLLAMA_MODEL" body="$RAW_DIR/ollama.req"
   local resp="$RAW_DIR/ollama.resp" code rc prc
   if is_cloud_ollama_tag "$model"; then
@@ -863,7 +864,7 @@ ollama_via_api() {
       next unless $line =~ /\S/;
       my $j = eval { $json->decode($line) };
       if (ref $j ne "HASH") {
-        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off s///r: this path must not need Perl 5.14
+        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off the /r flag: the API transports need Perl 5.10, not 5.14
         $q =~ s/^ | $//g; $q = substr($q, 0, 300);
         # A non-200 body is the error reply of the server, quoted on the line; a 200 line may be
         # review text, so it goes below, indented, where the classifier does not read.
@@ -946,7 +947,8 @@ melious_marker() {   # prints a marker line the reviewed text does not contain
 }
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
+  # Perl 5.10 for `//`; JSON::PP is core only from 5.14, but a CPAN copy on an older Perl works.
+  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 'require 5.010' 2>/dev/null || return 3
   local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
   case "$max" in
@@ -987,11 +989,16 @@ run_melious() {
     my $json = JSON::PP->new->utf8;
     sub errtext { my $e = shift; $e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
                   $e = JSON::PP->new->encode($e) if ref $e; $e }
+    # A quote of server text: whitespace and control bytes collapsed to one space (so nothing in it
+    # can start a new line where the classifier reads), cut to 300 bytes (the handle is raw, so a
+    # multibyte character can be split; readable_tail decodes leniently). No s///r: the API
+    # transports need Perl 5.10, not 5.14.
+    sub quoted { my $s = shift; $s =~ s/[\s\x00-\x1f\x7f]+/ /g; $s =~ s/^ | $//g; substr($s, 0, 300) }
     if ($code ne "200") {   # an error reply is one JSON object, not a stream
       local $/; my $raw = <$f> // "";
       my $j = eval { $json->decode($raw) };
       my $m = (ref $j eq "HASH" && defined $j->{error}) ? errtext($j->{error})
-            : "response is not JSON: " . substr($raw =~ s/\s+/ /gr, 0, 300);
+            : "response is not JSON: " . quoted($raw);
       print STDERR "Error: HTTP $code: $m\n"; exit 2;
     }
     my ($c, $done, $fin, $usage, $n, $think) = ("", 0, undef, undef, 0, 0);
@@ -1000,7 +1007,7 @@ run_melious() {
       my $d = $1;
       if ($d eq "[DONE]") { $done = 1; next }
       my $j = eval { $json->decode($d) };
-      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", substr($d =~ s/[\s\x00-\x1f\x7f]+/ /gr, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", quoted($d), "\n"; exit 3 }
       if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 2 }
       $n++;
       $usage = $j->{usage} if ref $j->{usage} eq "HASH";
@@ -1019,7 +1026,7 @@ run_melious() {
       my $j = eval { $json->decode($body) };
       if (ref $j eq "HASH") {   # the quote goes on its own indented line, which the classifier skips
         my $why = defined $j->{error} ? errtext($j->{error}) : "the reply was one JSON object, not a stream (stream:true ignored?)";
-        print STDERR "Error: HTTP $code: $why\n    reply began: ", substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
+        print STDERR "Error: HTTP $code: $why\n    reply began: ", quoted($body), "\n"; exit 3;
       }
     }
     # The reply as it came, before any check or trim, on every path that reaches the finish check
