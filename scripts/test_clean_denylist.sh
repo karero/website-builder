@@ -87,6 +87,30 @@ rm "$R/docs/blob.bin"
 mkdir "$R/docs/nl"$'\n'"scripts"; printf 'ran zorblequux\0\n' >"$R/docs/nl"$'\n'"scripts/.clean-denylist"
 expect "a listed name in a binary file with a newline in its path: fails" 1 "personal/site identifier" "$R"
 rm -r "$R/docs/nl"$'\n'"scripts"
+# A file name holding a newline is refused: here the part after the newline names the list,
+# whose own lines are dropped, so the hit inside passed unseen.
+mkdir "$R/docs/a"$'\n'"scripts"; printf 'ran zorblequux\n' >"$R/docs/a"$'\n'"scripts/.clean-denylist"
+expect "a file name holding a newline: refused" 1 "file names holding a newline" "$R"
+rm -r "$R/docs/a"$'\n'"scripts"
+# The email and assignment exemptions match a hit's text, not its file name: a binary file's
+# hit is its name alone, and these names hold "example".
+printf 'mail bob@realmail.de\0\n' >"$R/docs/example.com.bin"
+expect "an email in a binary file named like an exemption: fails" 1 "✗ email address" "$R"
+rm "$R/docs/example.com.bin"
+printf 'api_key = "abcdefghijkl"\0\n' >"$R/docs/example.bin"
+expect "an assignment in a binary file named like an exemption: fails" 1 "secret-looking assignment" "$R"
+rm "$R/docs/example.bin"
+# An entry anchored with ^ found its lines but never reported them.
+cp "$R/scripts/.clean-denylist" "$T/list.pre"
+printf '^zorblequux\n' >"$R/scripts/.clean-denylist"; printf 'zorblequux leads this line\n' >"$R/docs/notes.md"
+expect "an entry anchored with ^: still fails" 1 "personal/site identifier" "$R"
+cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
+# A filter grep that fails dropped every hit it was meant to filter.
+mkdir -p "$T/badfilter"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *"|^Binary file |"*) exit 2 ;; esac; done\nexec "%s" "$@"\n' "$(command -v grep)" >"$T/badfilter/grep"
+chmod +x "$T/badfilter/grep"; printf 'ran zorblequux\n' >"$R/docs/notes.md"
+expect "a filter grep that fails: a scan error, not lost hits" 1 "filter grep exit 2" "$R" "PATH=$T/badfilter:$PATH"
+printf 'plain notes\n' >"$R/docs/notes.md"
 # With nowhere to put grep's errors, grep never ran, and every scan read as clean.
 mkdir -p "$T/nomktemp"; printf '#!/bin/sh\nexit 1\n' >"$T/nomktemp/mktemp"; chmod +x "$T/nomktemp/mktemp"
 expect "no temporary file for grep's errors: fails as a scan error" 1 "mktemp failed" "$R" "PATH=$T/nomktemp:$PATH"
@@ -151,6 +175,10 @@ chmod 755 "$R/docs/zorblequux-locked"; rm -r "$R/docs/zorblequux-locked"
 printf 'dent\nriva\n' >>"$R/scripts/.clean-denylist"
 masked "masked: entries inside the script's own words leave them alone, and pass" 0 "no contact info or credentials in:"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
+# Masked mode prints no scanned text even without a list (an email here).
+mv "$R/scripts/.clean-denylist" "$T/list.away"; printf 'write to bob@realmail.de\n' >"$R/docs/notes.md"
+masked "masked, no list: generic hits are withheld too" 1 "✗ email address"
+mv "$T/list.away" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
 # They never hold a whole listed name; if one ever does, nothing is printed.
 printf 'skills\n' >>"$R/scripts/.clean-denylist"
 masked "masked: a whole name in a line that is not scan output: withheld" 1 "output is withheld"
@@ -199,7 +227,7 @@ FAKE
     fi
   }
   push "push-denylist: sends the list to the repo gh names" "$R" 0 "args: secret set CLEAN_DENYLIST --repo owner/repo"
-  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 -d)" != "$(printf '# CLEAN_DENYLIST v1\n'; cat "$R/scripts/.clean-denylist")" ]; then
+  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 --decode)" != "$(printf '# CLEAN_DENYLIST v1\n'; cat "$R/scripts/.clean-denylist")" ]; then
     printf 'FAIL push-denylist: the secret is not the marker and the list, base64-encoded\n'; fails=$((fails+1))
   fi
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
@@ -234,6 +262,7 @@ if [ -f "$WF" ]; then
   step "CI step: a plain list as the secret fails" "$(printf 'zorble quux!\nzorblequux')" false 1 "not set by 'make push-denylist'"
   # Letters only, length a multiple of 4: valid base64 that decodes to garbage, no marker.
   step "CI step: a secret that only decodes as base64 fails" "zorblequuxzz" false 1 "not set by 'make push-denylist'"
+  step "CI step: a marker that only starts like ours fails" "$(printf '# CLEAN_DENYLIST v123garbage\nzorblequux' | base64 | tr -d '\n')" false 1 "not set by 'make push-denylist'"
   step "CI step: no secret where secrets exist fails" "" false 1 "secret is missing"
   step "CI step: no secret with NO_SECRETS=true warns" "" true 0 "::warning::"
 else
@@ -243,8 +272,8 @@ fi
 mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
 printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
 expect "no git, no list: skips the list and says so" 0 "denylist skipped" "$N"
-# CI has no list either. Its OK line is all a reader of the green run sees, so the skip
-# must be there, not only in the earlier line.
+# A copy with no list (a fork's CI, the handoff zip) skips the name check. Its OK line is
+# all a reader of the green run sees, so the skip must be there, not only in the earlier line.
 expect "no git, no list: the OK line says names were skipped" 0 "private-name check SKIPPED: no scripts/.clean-denylist" "$N"
 # With no git, check-ignore cannot drop the list's own lines; only the exclusion by path can.
 printf 'plain notes\n' >"$N/docs/notes.md"; cp "$R/scripts/.clean-denylist" "$N/scripts/"

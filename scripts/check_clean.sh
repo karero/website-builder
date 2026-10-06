@@ -31,24 +31,31 @@ if [ ! -f "$DENYLIST_FILE" ]; then
   main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
   [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
 fi
+# An entry anchored with ^ found its lines but was never reported: the post-filter below
+# looks for it after "file:line:", where ^ cannot match. The anchor is dropped (the entry
+# then matches anywhere, which reports more, never less).
 NAMES=""
-[ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
+[ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | sed 's/^\^//' | paste -sd'|' -)"
 
-# 0. CI's logs are public. With CLEAN_MASK_NAMES=1 and a name list, this script runs itself
-#    again and prints that run's own lines only: each block of scan lines (the 4-space-
-#    indented lines, which hold every hit and grep's own errors) becomes a count. A hit's
-#    text, its file name, an email around it or a grep error naming a file can each hold a
-#    name, and blanking names inside them missed one case after another in review (#189);
-#    so nothing scanned is printed. Run the check locally to see the lines. The exit code is
-#    the inner run's. The script's own lines never hold a whole listed name; if one ever
-#    does, nothing is printed and the run fails. Each check keeps every pipeline stage's
-#    status: under pipefail, a failed stage before a grep that found nothing reads like "none".
-if [ -n "${CLEAN_MASK_NAMES:-}" ] && [ -n "$NAMES" ]; then
+# 0. CI's logs are public. With CLEAN_MASK_NAMES=1 this script runs itself again and prints
+#    that run's own lines only: each block of scan lines (the 4-space-indented lines, which
+#    hold every hit and grep's own errors) becomes a count. A hit's text, its file name, an
+#    email around it or a grep error naming a file can each hold a name, and blanking names
+#    inside them missed one case after another in review (#189); so nothing scanned is
+#    printed, with a name list or without. Run the check locally to see the lines. The exit
+#    code is the inner run's. The script's own lines never hold a whole listed name; if one
+#    ever does, nothing is printed and the run fails. That check keeps every pipeline
+#    stage's status: under pipefail, a failed stage before a grep that found nothing reads
+#    like "none".
+if [ -n "${CLEAN_MASK_NAMES:-}" ]; then
   out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
-  whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
+  whole="$(printf '0\n0 1')"
+  [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
   if [ "$whole" != "$(printf '0\n0 1')" ]; then
-    echo "FAIL — this run's output is withheld: a line of it might hold a listed name."
-    echo "Run the check where the logs are private to see it: bash scripts/check_clean.sh"
+    echo "FAIL — this run's output is withheld: one of its own lines holds a listed name."
+    echo "Run the check where the logs are private to see the lines: bash scripts/check_clean.sh"
+    echo "If none of them holds a listed name, a list entry matches a word of this script's"
+    echo "own text (such as skills or docs): narrow that entry."
     exit 1
   fi
   printf '%s\n' "$out" | awk '
@@ -90,6 +97,15 @@ if [ -n "$MISSING" ]; then
 fi
 fail=0
 names_checked=0 names_skipped=""
+# A file name holding a newline splits every line grep prints about it, and the pieces can
+# pass for other files (an ignored one, or the list itself) and be dropped: refuse such names.
+# They print 4-space-indented, so masked mode withholds them like any scan line.
+nl_paths="$(find $SCAN_NAMES_ALL $SCAN_DOCS_ALL -name "*"$'\n'"*" -print 2>/dev/null)"
+if [ -n "$nl_paths" ]; then
+  fail=1
+  echo "✗ file names holding a newline (rename them; no check can name them reliably):"
+  printf '%s\n' "$nl_paths" | sed 's/^/    /'
+fi
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
 filter_ignored() { # stdin: grep output → stdout minus gitignored files
@@ -123,9 +139,9 @@ g() { # <grep args…> → matches on stdout; a scan ERROR fails the run instead
   # GNU grep 3.5+ (CI's) reports a matching binary file on stderr with exit 0, where BSD grep
   # prints "Binary file X matches" on stdout. Turn the GNU form into the BSD one, or the hit
   # would be thrown away with the rest of stderr and a binary file holding a name would pass.
-  # Any other stderr line from a grep that did not fail is a scan error, reported unfiltered:
-  # a newline in a file name splits that message, and the part after the newline could look
-  # like a whole message (or name a gitignored file the filter would drop).
+  # Any other stderr line from a grep that did not fail is a scan error: a newline in a file
+  # name splits that message. Its header line survives every filter and fails the run; the
+  # lines under it may be filtered. (Such file names are refused outright too.)
   bin="$(sed -n 's/^grep: \(.*\): binary file matches$/Binary file \1 matches/p' "$err")"
   [ -n "$bin" ] && out="${out:+$out$'\n'}$bin"
   split="$(sed '/^grep: .*: binary file matches$/d' "$err")"
@@ -140,6 +156,15 @@ g() { # <grep args…> → matches on stdout; a scan ERROR fails the run instead
   fi
   rm -f "$err"
   printf '%s' "$out"
+}
+# grep as a filter on stdin: like grep, but an error (exit > 1) becomes a scan-error line at
+# the top of its output, which every later filter keeps, instead of hits silently lost.
+gf() {
+  local out rc
+  out="$(command grep "$@")"; rc=$?
+  if [ "$rc" -gt 1 ]; then echo "✗ scan error (filter grep exit $rc) — hits may be missing"; fi
+  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
+  return 0
 }
 report() { # <label> <grep-output>
   [ -z "$2" ] && return 0
@@ -178,9 +203,9 @@ if [ -f "$DENYLIST_FILE" ]; then
     case "$hits" in
       "✗ scan error"*) ;;
       *) hits="$(printf '%s\n' "$hits" \
-           | grep -vE "$self" \
+           | gf -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
-           | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
+           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1
@@ -198,8 +223,10 @@ report "home path" "$(g -rnE '/(Users|home)/[A-Za-z0-9._-]+' $SCAN_DOCS)"
 
 # 3. Real email addresses (anything that is not an obvious placeholder/markup token).
 EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+# The exemptions here and in check 5 match a hit's text after "file:line:", never its file
+# name: a binary file's hit is its name alone, and docs/example.com.bin holds no placeholder.
 report "email address" "$(g -rinE "$EMAIL" $SCAN_DOCS \
-  | grep -viE '@(example|test|domain|yoursite|site|company)\b|example\.(com|org)|@(type|id|context|media|import|2x|3x|font-face|keyframes)|(you|user|name|email|first\.last|hello|info|team)@|git@(github|gitlab)\.com')"
+  | gf -viE ':[0-9]+:.*(@(example|test|domain|yoursite|site|company)\b|example\.(com|org)|@(type|id|context|media|import|2x|3x|font-face|keyframes)|(you|user|name|email|first\.last|hello|info|team)@|git@(github|gitlab)\.com)')"
 
 # 4. Credential / secret formats + private keys + JWTs.
 # sk-/pplx- cover OpenAI (incl. sk-proj-), Anthropic (sk-ant-) and Perplexity keys for the
@@ -223,7 +250,7 @@ report "credential/secret" "$(g -rnE "$SECRETS" $SCAN_DOCS)"
 # 5. Secret-looking assignments:  (api_key|secret|token|password|...) = "longish-literal"
 ASSIGN='(api[_-]?key|secret|client[_-]?secret|access[_-]?token|auth[_-]?token|password|passwd|bearer)["'"'"' ]*[:=]["'"'"' ]*["'"'"'][^"'"'"' ]{8,}'
 report "secret-looking assignment" "$(g -rinE "$ASSIGN" $SCAN_DOCS \
-  | grep -viE 'placeholder|example|your[_-]|<[a-z]|x{4,}|\.\.\.|process\.env|import\.meta\.env|REPLACE|TODO|\[bracket\]')"
+  | gf -viE ':[0-9]+:.*(placeholder|example|your[_-]|<[a-z]|x{4,}|\.\.\.|process\.env|import\.meta\.env|REPLACE|TODO|\[bracket\])')"
 
 if [ "$fail" -ne 0 ]; then
   echo ""

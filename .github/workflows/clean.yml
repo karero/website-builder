@@ -83,8 +83,8 @@ jobs:
           set -o pipefail
           if [ -n "$CLEAN_DENYLIST" ]; then
             bad=""; list=""
-            list="$(printf '%s' "$CLEAN_DENYLIST" | base64 -d 2>/dev/null)" || bad=1
-            case "$list" in "# CLEAN_DENYLIST v1"*) ;; *) bad=1 ;; esac
+            list="$(printf '%s' "$CLEAN_DENYLIST" | base64 --decode 2>/dev/null)" || bad=1
+            case "$list" in "# CLEAN_DENYLIST v1" | "# CLEAN_DENYLIST v1"$'\n'*) ;; *) bad=1 ;; esac
             if [ -n "$bad" ]; then
               echo "::error::The CLEAN_DENYLIST secret was not set by 'make push-denylist' (one base64 line, with its marker): run it again"
               exit 1
