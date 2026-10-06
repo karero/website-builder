@@ -23,11 +23,14 @@ HOOK="$TPL/hooks/git-stand.mjs"
 T="$(mktemp -d "${TMPDIR:-/tmp}/git-stand-test.XXXXXX")"
 trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+export TMPDIR="$T"   # the hook's fallback marker (read-only .git) stays inside the throwaway dir
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_SSH_COMMAND
 git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false"
 fails=0
 check() { if [ "$2" = "$3" ]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s (expected %s, got %s)\n' "$1" "$2" "$3"; fails=$((fails+1)); fi; }
 has() { case "$2" in *"$3"*) check "$1" yes yes ;; *) check "$1" "text '$3'" "$(printf '%s' "$2" | head -c 160)" ;; esac; }
+like() { if grep -Eq -- "$3" <<<"$2"; then check "$1" yes yes; else check "$1" "match /$3/" "$(printf '%s' "$2" | head -c 160)"; fi; }
+TIME='[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2} \(UTC[+-][0-9]{2}:[0-9]{2}\)'   # the hook's stamp()
 # Set a file's mtime N minutes into the past, portably (no GNU touch -d).
 age() { node -e 'const f=process.argv[1],t=new Date(Date.now()-process.argv[2]*60000);require("fs").utimesSync(f,t,t)' "$1" "$2"; }
 # Run the hook: hook <mode> [stdin-json] — prints its stdout; field <json> <path> extracts.
@@ -53,6 +56,7 @@ push() { (cd "$T/seed" && $git commit -q --allow-empty -m "$1" && $git push -q o
 out="$(hook start)"
 check "start: event name" SessionStart "$(field "$out" hookSpecificOutput.hookEventName)"
 has "start: first run lists the latest changes" "$(field "$out" systemMessage)" "Latest changes on main"
+like "start: report carries the local time and UTC offset" "$(field "$out" systemMessage)" "^Session start $TIME, branch feat\."
 check "prompt within 2 h: silent" "<silent>" "$(field "$(hook prompt)" systemMessage)"
 
 push "news one"; age "$M" 180
@@ -64,7 +68,9 @@ has "prompt after 2 h: tells the assistant to relay it" "$(field "$out" hookSpec
 age "$M" 180
 out="$(hook prompt)"
 has "nothing new: says so" "$(field "$out" systemMessage)" "Nothing new on main since the last report"
-check "nothing new: does not interrupt the assistant" "Automatic sync with GitHub: nothing new on main, no action needed." "$(field "$out" hookSpecificOutput.additionalContext)"
+ctx="$(field "$out" hookSpecificOutput.additionalContext)"
+has "nothing new: does not interrupt the assistant" "$ctx" "nothing new on main, no action needed."
+like "nothing new: still tells the assistant when it checked" "$ctx" "^Automatic sync with GitHub at $TIME: "
 
 # Someone else fetched first: the commit is still reported (baseline = last report).
 push "news two"; (cd "$T/work" && git fetch -q); age "$M" 180
@@ -88,6 +94,18 @@ has "detached HEAD: gets its own note" "$(field "$(hook start)" hookSpecificOutp
 echo x > "$T/work/x.txt"
 has "unsaved changes at start: stop-and-ask note" "$(field "$(hook start)" hookSpecificOutput.additionalContext)" "Per AGENTS.md §1.1: stop"
 rm "$T/work/x.txt"
+
+# Read-only git folder: the marker moves to the temp folder, so the 2-hour rhythm holds
+# (without a marker every prompt would fetch). root ignores permissions: skip there.
+if [ "$(id -u)" = 0 ]; then
+  echo "skip read-only .git cases (running as root, which can write anyway)"
+else
+  rm -f "$M"; chmod a-w "$T/work/.git"
+  hook start >/dev/null
+  check "read-only .git: marker kept in the temp folder" 1 "$(ls "$T" | grep -c '^claude-git-stand-')"
+  check "read-only .git: prompt within 2 h stays silent" "<silent>" "$(field "$(hook prompt)" systemMessage)"
+  chmod u+w "$T/work/.git"
+fi
 
 mkdir "$T/nogit"
 out="$(cd "$T/nogit" && printf '{}' | node "$HOOK" start)"; rc=$?
