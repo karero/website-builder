@@ -189,8 +189,9 @@ case "$url" in
   https://api.melious.ai/*|*/chat/completions)   # the Melious seat: an OpenAI-style SSE stream
     printf '%s\n' "$url" >"$STUB_MARKS/melious-url"
     cp "$body" "$STUB_MARKS/melious-body"
-    # The marker this run asked for (new each run); canned replies say @@MARK@@ where it goes.
-    M="$(perl -MJSON::PP -0777 -ne 'my $j = decode_json($_); print $1 if $j->{messages}[0]{content} =~ /holds exactly (=== FINAL REVIEW \S+ ===)/' "$body")"
+    # The marker this run asked for (new each run; the ask is last, after the reviewed text); canned
+    # replies say @@MARK@@ where it goes.
+    M="$(perl -MJSON::PP -0777 -ne 'my $j = decode_json($_); print $1 if $j->{messages}[0]{content} =~ /.*holds exactly (=== FINAL REVIEW \S+ ===)/s' "$body")"
     [ -e "$STUB_MARKS/curl-hdr" ] && mv "$STUB_MARKS/curl-hdr" "$STUB_MARKS/melious-hdr"
     [ -e "$STUB_MARKS/curl-hdr-stdin" ] && mv "$STUB_MARKS/curl-hdr-stdin" "$STUB_MARKS/melious-hdr-stdin"
     d() { printf 'data: {"choices":[{"index":0,"delta":{%s},"finish_reason":%s}],"usage":%s}\n\n' "$1" "$2" "${3:-null}"; }
@@ -243,6 +244,7 @@ case "$url" in
               { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n@@MARK@@\\n\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       glued)  { d '"content":"Thinking it over at length, then the answer.@@MARK@@\n- BUG: the real finding\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       oldmark) { d '"content":"=== FINAL REVIEW ===\n- BUG: a draft that quotes the old fixed marker\n@@MARK@@\n- BUG: the real finding\n- NIT: two\n=== FINAL REVIEW ===\n- NIT: quoted after the review"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      quotemark) { d '"content":"@@MARK@@\n- BUG: real finding one\n- NIT: the prompt asks for a line holding exactly `@@MARK@@`\n- NIT: three"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       markend) { d '"content":"- BUG: before the marker\n- NIT: two\n@@MARK@@\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       quotedtag) TO="<""think>"
               { d "\"content\":\"- RISK: the seat cuts a ${TO} block only at a line start\\n- NIT: keep this line\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -1126,6 +1128,9 @@ run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
 run mglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, glm)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
+check "mglued: a cut at a glued marker says so" grep -qF "the marker ended a line of other text" "$T/mglued.out"
+run mquotemark MELIOUS_MODEL=stub-melious MELIOUS_STUB=quotemark bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mquotemark: a finding that quotes the marker at its line end does not cut the findings above it" sh -c 'grep -qF "BUG: real finding one" "$1" && grep -qF "NIT: three" "$1" && ! grep -qF "marker dropped" "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/mquotemark.out"
 run moldmark MELIOUS_MODEL=stub-melious MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --seat melious
 check "moldmark: a reply quoting the old fixed marker: only this run's marker counts" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "a draft that quotes" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/moldmark.out"
 # The marker is never one the reviewed text holds, even when the random source repeats itself.

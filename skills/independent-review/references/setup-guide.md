@@ -137,10 +137,12 @@ to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path n
   about tag handling), and send the rest of the trace as the reply (seen 2026-10-05: 100-290 KB
   of trace, the review at the very end). The seat therefore asks for a marker line,
   `=== FINAL REVIEW <random hex> ===`, new on each run so the reviewed diff cannot contain it,
-  before the final answer and keeps what follows the last marker that ends a line and has
-  findings after it (Markdown around the marker is fine, and so is text before it on its line,
-  as when the model glues it to its last line of reasoning; a marker repeated at the end or
-  quoted after the review does not count); the section then says how much was dropped, and
+  before the final answer and keeps what follows the last marker line that has findings after
+  it (Markdown around the marker is fine; a marker repeated at the end or quoted after the
+  review does not count). A marker alone on its line comes first, so a finding that quotes the
+  marker does not cut the findings above it; only without one does a marker at the end of a
+  line of text count, as when the model glues it to its last line of reasoning, and the section
+  then says so. The section says how much was dropped, and
   the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
   reply is kept and the section always warns that it may be leaked reasoning rather than a
   finished review: read it from the end, and rerun the round if it is working notes (a 21 KB reply
