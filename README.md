@@ -314,9 +314,10 @@ site (like `website-motion`) but runs only when a team forms:
   person edits content*; don't install speculatively.
 - **`website-forms`** — adds a **contact form** that mails each message to the owner
   through the site's own Cloudflare account, with no third company in between: a form
-  component, one small server function, a privacy paragraph in English and German, and a
-  test of the submission. It stores nothing. Needs the domain's DNS at Cloudflare and
-  four settings only the owner can create. Run when interview Q2 = *a form that emails
+  component in English and German (another language is one file to translate and a few
+  words for its test), one small server function, a privacy paragraph in English and
+  German, and a test of the submission. It stores nothing. Needs the domain's DNS at
+  Cloudflare and four settings only the owner can create. Run when interview Q2 = *a form that emails
   you*, or later when the owner asks for a form.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites

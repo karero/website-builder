@@ -17,38 +17,21 @@
 //             differs from the site's, e.g. a German page built with <Base lang="de">.
 import { SITE } from '../config';
 import EmailLink from './EmailLink.astro';
+import { emailHint } from '../lib/obfuscate';
+// The words, in every language the form speaks, and the limits: shared with the
+// function, so a translation edits that one file.
+import { LIMITS, TEXT, hasText } from './contact-form';
 
 interface Props { fallback: string; privacy?: string; lang?: string }
 const { fallback } = Astro.props;
 const language = (Astro.props.lang ?? Astro.currentLocale ?? (SITE as { locale?: string }).locale ?? 'en').toLowerCase().split('-')[0];
 
-// The tone rules apply to these texts too: no long dash, no contraction, and no form
-// of address in German, so the form fits a "du" site and a "Sie" site alike.
-const TEXT = {
-  en: {
-    name: 'Name', email: 'Email address', message: 'Message', send: 'Send message',
-    note: 'What you enter here is sent to us by email and used only to answer you.',
-    privacyLink: 'Privacy policy', privacy: '/privacy',
-    trap: 'Leave this field empty',
-    sending: 'Sending…',
-    sent: 'Thank you. The message has been sent.',
-    invalid: 'Some details are missing or not valid. Please check the fields.',
-    failed: 'The message could not be sent. Please write to the address shown below.',
-    direct: 'Or write to us directly:',
-  },
-  de: {
-    name: 'Name', email: 'E-Mail-Adresse', message: 'Nachricht', send: 'Nachricht senden',
-    note: 'Die Angaben werden per E-Mail an uns gesendet und nur für die Antwort verwendet.',
-    privacyLink: 'Datenschutzerklärung', privacy: '/datenschutz',
-    trap: 'Dieses Feld bitte leer lassen',
-    sending: 'Wird gesendet…',
-    sent: 'Danke. Die Nachricht wurde gesendet.',
-    invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte die Felder prüfen.',
-    failed: 'Die Nachricht konnte nicht gesendet werden. Bitte an die unten stehende Adresse schreiben.',
-    direct: 'Oder direkt per E-Mail schreiben:',
-  },
-};
-const t = TEXT[language as keyof typeof TEXT] ?? TEXT.en;
+// A language with no texts stops the build: an English form on a page in another
+// language would otherwise go out unnoticed.
+if (!hasText(language)) {
+  throw new Error(`ContactForm: no texts for the language "${language}". Add it to src/components/contact-form.ts and to WORDS in tests/forms.spec.ts (the website-forms skill, §3 "Add a language").`);
+}
+const t = TEXT[language];
 // With several languages the privacy page's address depends on the site's routes
 // (/de/privacy, not /datenschutz), which this component cannot know.
 if (!Astro.props.privacy && Astro.currentLocale) {
@@ -60,15 +43,15 @@ const privacy = Astro.props.privacy ?? t.privacy;
   <input type="hidden" name="lang" value={language} />
   <p>
     <label for="contact-name">{t.name}</label>
-    <input id="contact-name" name="name" type="text" autocomplete="name" required maxlength="100" />
+    <input id="contact-name" name="name" type="text" autocomplete="name" required maxlength={LIMITS.name} />
   </p>
   <p>
     <label for="contact-email">{t.email}</label>
-    <input id="contact-email" name="email" type="email" autocomplete="email" required maxlength="254" />
+    <input id="contact-email" name="email" type="email" autocomplete="email" required maxlength={LIMITS.email} />
   </p>
   <p>
     <label for="contact-message">{t.message}</label>
-    <textarea id="contact-message" name="message" rows="6" required maxlength="5000"></textarea>
+    <textarea id="contact-message" name="message" rows="6" required maxlength={LIMITS.message}></textarea>
   </p>
   {/* Not for people: hidden from sight, from the keyboard and from screen readers.
        A bot that fills every field fills this one, and its message is dropped. The
@@ -85,7 +68,7 @@ const privacy = Astro.props.privacy ?? t.privacy;
   {/* The answer: the line a screen reader is told to read out when it changes. */}
   <p class="contact-form-status" role="status" aria-live="polite" data-contact-status></p>
   {/* Always there, never hidden: nothing has to work for a visitor to find it. */}
-  <p class="contact-form-direct" data-contact-direct>{t.direct} <EmailLink address={fallback} /></p>
+  <p class="contact-form-direct" data-contact-direct>{t.direct} <EmailLink address={fallback} text={emailHint(fallback, language)} /></p>
 </form>
 
 <script>
