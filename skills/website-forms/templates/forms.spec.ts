@@ -2,6 +2,11 @@ import { test, expect } from '@playwright/test';
 import { decide, handle, onRequestPost, sendViaCloudflare, TRAP, type Env, type Message } from '../functions/api/contact';
 import { LIMITS, MAIL, TEXT } from '../src/components/contact-form';
 import { emailHint } from '../src/lib/obfuscate';
+// The site's tone rules, the copy tone.spec.ts holds its pages to. A site whose
+// tests/_helpers.ts has no toneViolations predates it: `npm run check` then says
+// "has no exported member 'toneViolations'". Bring tests/_helpers.ts and tests/tone.spec.ts
+// up to date from the starter first (the website-forms skill, §1).
+import { toneViolations } from './_helpers';
 
 // Guards the contact form (the website-forms skill). `astro preview` never runs a
 // Cloudflare Pages Function, so the function is called directly, the way
@@ -43,6 +48,17 @@ function saysOnly(sentence: string, is: string, lang: string, where: string) {
       expect(words.test(sentence), `${where}: ${is} and the ${wordsOf} words for ${name}`).toBe(name === is);
     }
   }
+}
+
+// Holds texts to the tone rules: each is a [where, text, lang] the visitor reads. One
+// failure lists every break, so a translation is fixed in one pass.
+function keepTone(texts: [string, string, string][]) {
+  const found = texts.flatMap(([where, text, lang]) => toneViolations(text, lang).map((v: string) => `  • ${where} (lang="${lang}"): ${v}`));
+  expect(
+    found,
+    'These texts of the form break the tone rules (tests/_helpers.ts). Em dash → comma/period/colon · ' +
+      `contraction → long form · drop the buzzword.\n${found.join('\n')}`,
+  ).toEqual([]);
 }
 
 const ENV: Env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc', CF_EMAIL_TOKEN: 'tok' };
@@ -327,6 +343,35 @@ test('contact — every language the form speaks has its words here, and says ea
   }
 });
 
+test('contact — every text of the form keeps to the site\'s tone rules, in every language', async ({ page }) => {
+  // tone.spec.ts reads the pages, so it never sees the status sentences (shown only after
+  // a visitor presses Send) nor the page a visitor without JavaScript gets back. These are
+  // held here to the same rules, by the language they are written in.
+  const texts: [string, string, string][] = [];
+  const walk = (value: unknown, where: string, lang: string) => {
+    if (typeof value === 'string') texts.push([where, value, lang]);
+    // `privacy` is the address of a page, not a text. The key is skipped at any depth:
+    // do not name a text `privacy`.
+    else for (const [key, inner] of Object.entries(value as object)) if (key !== 'privacy') walk(inner, `${where}.${key}`, lang);
+  };
+  for (const [lang, text] of Object.entries(TEXT)) {
+    walk(text, `TEXT.${lang}`, lang);
+    // The answer pages as the function builds them, read as a browser shows them (title
+    // and text, character references decoded) in the language they declare.
+    for (const [is, fields, result] of [
+      ['sent', GOOD, true],
+      ['invalid', { ...GOOD, email: 'nope' }, true],
+      ['failed', GOOD, false],
+    ] as const) {
+      await page.setContent(await (await handle(post({ ...fields, lang }, { accept: 'text/html' }), ENV, recorder(result).send)).text());
+      const shown = await page.evaluate(() => ({ lang: document.documentElement.lang, text: `${document.title}\n${document.body.innerText}` }));
+      expect(shown.lang, `${lang}: the ${is} page declares its language`).toBe(lang);
+      texts.push([`the ${is} page`, shown.text, shown.lang]);
+    }
+  }
+  keepTone(texts);
+});
+
 test('contact — without JavaScript the visitor gets a small page in the form\'s language', async () => {
   const { send } = recorder();
   const ok = await handle(post({ ...GOOD, lang: 'de-AT' }, { accept: 'text/html' }), ENV, send);
@@ -461,6 +506,7 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
   expect(language, 'the form is in the language of its page').toBe(pageLanguage);
   expect(Object.hasOwn(WORDS, language), `the words of the form's language ("${language}") are in WORDS`).toBe(true);
   for (const attribute of SENTENCES) saysOnly((await form.getAttribute(attribute)) ?? '', attribute, language, 'the form');
+  keepTone(await Promise.all(SENTENCES.map(async (attribute) => [`the form's ${attribute}`, (await form.getAttribute(attribute)) ?? '', language] as [string, string, string])));
   const trap = page.locator(`[name="${TRAP}"]`);
   await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');

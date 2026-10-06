@@ -12,7 +12,8 @@
 # (`grep -q x <<<"$v"`), or to use a consumer that reads to EOF (`awk 'NR==1'`).
 #
 # Early-exit consumers flagged after a single `|` or `|&`: head, read, grep -q/-m/-l/-L (and
-# their long forms), sed with a q/Q command, and awk with an `exit` before any END block.
+# their long forms), sed with a q/Q command, and awk with an `exit` before any END block. A
+# consumer is judged by its basename with any leading `\` dropped: `/usr/bin/head`, `\head`.
 #
 # Why a LEXER, not a grep. A per-line grep for `| head` / `| grep -q` trips on `|| grep -q
 # … file` (OR, not a pipe), on comments that describe the pattern, on a `|` inside a quoted
@@ -43,11 +44,13 @@ EXEMPT=(
 # git's file list where there is one (it skips nested checkouts under .claude/worktrees/), else
 # find: the handoff zip has no git, and zip recipients run `make check` too.
 discover() {
+  local tracked
   # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
   # otherwise get that repository's index, which may track none, some or all of these files.
   if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
-     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
-    git ls-files 2>/dev/null
+     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] &&
+     tracked="$(git ls-files 2>/dev/null)" && [ -n "$tracked" ]; then
+    printf '%s\n' "$tracked"
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
          ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
@@ -212,6 +215,8 @@ function check(x, ln,   w, nw, k, kind) {
     if (x ~ /^[A-Za-z_][A-Za-z0-9_]*=[^ \t\n]*[ \t\n]/) { sub(/^[^ \t\n]*[ \t\n]+/, "", x); continue }
     break
   }
+  sub(/^\\/, "", x)              # \head skips an alias; it is still head
+  sub(/^[^ \t\n]*\//, "", x)     # /usr/bin/head is judged by its basename
   kind = ""
   if (x ~ /^head([ \t\n;]|$)/) kind = "head"
   else if (x ~ /^read([ \t\n;]|$)/) kind = "read"
@@ -455,6 +460,10 @@ cat <<EOF
 body | head -1
 EOF
 cmd | head -1
+@@ bad/head-by-path
+cmd | /usr/bin/head -1
+@@ bad/head-alias-bypass
+cmd | \head -1
 @@ good/herestring
 grep -q foo <<<"$x"
 @@ good/or
@@ -525,6 +534,8 @@ cat <<-'EOF'
 cmd 2>&1 >|out | tr a b
 @@ good/param-expansion
 echo "${#x} ${x#*|}" | tr a b
+@@ good/tail-by-path
+cmd | /usr/bin/tail -1
 @@ good/head-as-producer
 head -n 1 file | tr -d '\0'
 CASES

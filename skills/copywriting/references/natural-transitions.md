@@ -280,8 +280,8 @@ The list above is a lookup list, not a generalizable detection method — it
 flags specific overused phrases rather than "AI-sounding" as an abstract
 quality, and that limitation carries over to German too; there's no
 language-agnostic shortcut. These are the phrases enforced (with identical
-wording) by the `new-website` skill's scaffolded
-`templates/astro/tests/tone.spec.ts`'s `GERMAN_RULES`:
+wording) by the `new-website` skill's scaffolded tone test, through
+`GERMAN_RULES` in `templates/astro/tests/_helpers.ts`:
 
 - "In der heutigen ... Welt" (up to two modifiers, incl. the canonical
   "schnelllebigen digitalen" double, and compound Welt-nouns like

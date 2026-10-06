@@ -32,6 +32,7 @@ SUBJECTS=(
   scripts/check_template_coverage.sh
   scripts/check_skill_budgets.sh
   scripts/check_pipefail_pipes.sh
+  scripts/check_lf_checkout.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/check_perl_minimum.sh
@@ -80,11 +81,13 @@ rc=0
 # branch is not dead code: the handoff zip has no git at all, and it is the zip recipients that
 # `make check` most needs to work for.
 discover() {
+  local tracked
   # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
   # otherwise get that repository's index, which may track none, some or all of these files.
   if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
-     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
-    git ls-files 2>/dev/null
+     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] &&
+     tracked="$(git ls-files 2>/dev/null)" && [ -n "$tracked" ]; then
+    printf '%s\n' "$tracked"
   else
     find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
          ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
