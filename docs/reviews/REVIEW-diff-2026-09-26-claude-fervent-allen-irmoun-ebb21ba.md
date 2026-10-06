@@ -29,7 +29,7 @@ Codex 86,166).
 | F2 | RISK | ollama | 1 | `--seat` usable on any round | fixed, externally_reverified (r2) | `eef9c6d`: note names the two legitimate uses |
 | F3 | RISK | ollama | 1 | `--seat agy` enables Antigravity without separate opt-in | refuted | flag is as explicit as `--with-antigravity`; SKILL.md says pass either only when the owner asks |
 | F4 | NIT | ollama | 1 | `--seat` silently overrode `--first-success`/`--with-antigravity` | fixed | `eef9c6d`, tests |
-| F5 | NIT | ollama | 1, 2 | no helper to find base-side files the change calls | follow-up | — |
+| F5 | NIT | ollama | 1, 2 | no helper to find base-side files the change calls | fixed, locally_verified (2026-10-06, after the gate) | `merge_link.sh --suggest-callees`: lists on stderr the base-side files the merge changed whose module name the change's own files mention; section 30 tests, mutation-checked |
 | F6 | NIT | fresh-eyes | 1 | "6(d)/6(e)" labels read as stop conditions | fixed | `eef9c6d` |
 | F7 | NIT | fresh-eyes | 1 | inert `WITH_ANTIGRAVITY=1` for `--seat agy` | fixed | `eef9c6d` |
 | R2-1 | RISK | ollama | 2 | `--seat agy` might run Antigravity twice or not at all | refuted | dispatch calls `run_agy` in the `--seat` branch first; test counts exactly one section |
@@ -45,7 +45,7 @@ Codex 86,166).
 | C2 | BUG (substantive) | Codex | 4 | wording pass fixed "without another pass" while closeout allows no stamp on an unseen head | fixed, externally_reverified (r5) | `a62bad0`: one confirmation over the fix's delta — a re-gate, not a round or a second wording pass |
 | H1 | NIT | host | 4 | `rationale.md` still described the retired 3-to-5-round cap as current | fixed, externally_reverified (r5) | `a62bad0` |
 
-Follow-ups: F5 — a helper listing base-side files the change's code calls, for the merge link.
+Follow-ups: none open. F5 was fixed after the gate (2026-10-06), outside this review's rounds.
 Notes: the final full read found the round's two substantive issues after two delta rounds had
 come back clean of BUGs — the case it exists for. Round 3 closed clean on ollama alone; round 4,
 Codex's first look at the change, found two substantive BUGs, which earned round 5 (clean). No
