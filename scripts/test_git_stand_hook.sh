@@ -160,13 +160,14 @@ has "ssh failure: the cause, not git's generic line" "$(field "$out" systemMessa
 
 # Not on GitHub yet: a note, no "stop", and the 2-hour rhythm.
 $git init -q "$T/fresh"; (cd "$T/fresh" && $git commit -q --allow-empty -m init)
+FM="$T/fresh/.git/claude-git-stand"   # its marker, as M is for the work copy
 fresh() { (cd "$T/fresh" && printf '%s' "$START" | CLAUDE_PROJECT_DIR="$T/fresh" node "$HOOK" "$1"); }
 out="$(fresh start)"
 has "no origin: a plain note" "$(field "$out" systemMessage)" "Not on GitHub yet"
 ctx="$(field "$out" hookSpecificOutput.additionalContext)"
 case "$ctx" in *"stop, tell the person"*) check "no origin: no stop-and-ask" "no stop" "stop" ;; *) check "no origin: no stop-and-ask" yes yes ;; esac
 check "no origin: a prompt right after is silent" "<silent>" "$(field "$(fresh prompt)" systemMessage)"
-age "$T/fresh/.git/claude-git-stand" 180
+age "$FM" 180
 ctx="$(field "$(fresh prompt)" hookSpecificOutput.additionalContext)"
 has "no origin, after 2 h: a quiet status, no interruption" "$ctx" "not on GitHub yet, nothing to fetch, no action needed."
 check "no origin, after 2 h: back on the 2-hour rhythm" "<silent>" "$(field "$(fresh prompt)" systemMessage)"
