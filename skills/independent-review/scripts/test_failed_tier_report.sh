@@ -207,8 +207,9 @@ case "$url" in
                 printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
       empty)  : >"$out"; printf 200 ;;
-      splitchunk) # one event over two data: lines: legal SSE, which run_melious does not join, so the
-              # first half is not JSON alone and the tier fails
+      splitchunk) # one event over two data: lines, split inside a JSON string, so neither half nor
+              # their SSE join (which adds a raw newline) is valid JSON; run_melious decodes each
+              # data: line alone, and the tier fails with the chunk quoted
               printf '%s\n' 'data: {"choices":[{"delta":{"content":"- RISK: retry on HTTP 429' 'data: Too Many"}}]}' '' >"$out"; printf 200 ;;
       crchunk) # a raw CR (and an ESC[1G) inside a chunk, each of which the error quoting turns into a
               # line break: the text after it must not reach column 0, where the classifier reads
