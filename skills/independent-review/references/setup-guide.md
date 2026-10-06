@@ -112,7 +112,9 @@ avoiding the terminal for this step, unlike the IDE-only Antigravity path.
 The fallback for the ollama seat (SKILL.md, reviewer stack, item 2): with `MELIOUS_MODEL` set, a
 round whose ollama seat did not count (no model or CLI, a quota refusal or other failure, a local
 sanity pass) sends the same text-only prompt here, so the pair keeps its second reviewer. Nothing
-to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path needs too.
+to install beyond `curl` and Perl 5.10 or newer (with JSON::PP), which the ollama API path needs
+too. When one is missing, the Melious seat is skipped, and so is ollama on its API path; the
+summary names what is missing, as in `melious SKIPPED (curl not found)`.
 
 - **Key, on your own machine:** `~/.config/reviewers/melious.env`, `chmod 600`, one line
   `MELIOUS_API_KEY=<key>`, the key alone (a trailing comment would become part of it). Never

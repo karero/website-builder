@@ -575,7 +575,8 @@ looks_like_review() {
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
 #     non-review output) / 3 (unavailable). Callers fall through on non-zero. A
 #     tier returning 1 sets WHY to a short reason for its FAILED section (see
-#     attempt() below). ------
+#     attempt() below); one returning 3 may set it to name the missing tool, shown
+#     in the summary as "SKIPPED (<WHY>)". ------
 # PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort as
 # the daily-driver default) and ~/.codex/auth.json; `exec -s read-only` requests a read-only
 # sandbox — enforcement is the CLI's, and untested here (R-SANDBOX). The binary may not be
@@ -737,6 +738,15 @@ run_ollama() {
   fi
 }
 
+# What the HTTP API transports (ollama_via_api, run_melious) need before sending anything: curl,
+# and Perl 5.10 for `//` with JSON::PP (core only from 5.14, but a CPAN copy on an older Perl
+# works). When one is missing, WHY names it, and the summary reads "SKIPPED (<what>)" rather than
+# a bare "not available" that sends the owner looking for a missing model or CLI.
+api_tools_ok() {
+  command -v curl >/dev/null 2>&1 || { WHY="curl not found"; return 1; }
+  perl -e 'require 5.010' 2>/dev/null || { WHY="Perl 5.10 or newer not found"; return 1; }
+  perl -MJSON::PP -e 1 2>/dev/null || { WHY="Perl module JSON::PP not found"; return 1; }
+}
 # The ollama CLI, with OLLAMA_API_KEY (unset for every other seat at startup) handed back to it alone.
 ollama_cli() {
   # Unquoted on purpose: an assignment value is never word-split, and check_clean.sh reads a
@@ -831,8 +841,7 @@ ollama_via_cli() {
 # line except an error message the server sent: a quote goes on an indented line below, with
 # control bytes collapsed, as in run_melious. Leaves the review in ollama.out.
 ollama_via_api() {
-  # Perl 5.10 for `//`; JSON::PP is core only from 5.14, but a CPAN copy on an older Perl works.
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 'require 5.010' 2>/dev/null || return 3
+  api_tools_ok || return 3
   local url model="$OLLAMA_MODEL" body="$RAW_DIR/ollama.req"
   local resp="$RAW_DIR/ollama.resp" code rc prc
   if is_cloud_ollama_tag "$model"; then
@@ -950,8 +959,7 @@ melious_marker() {   # prints a marker line the reviewed text does not contain
 }
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
-  # Perl 5.10 for `//`; JSON::PP is core only from 5.14, but a CPAN copy on an older Perl works.
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 'require 5.010' 2>/dev/null || return 3
+  api_tools_ok || return 3
   local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
   case "$max" in
@@ -1203,7 +1211,7 @@ report_tier() {
   if [ $rc -eq 0 ]; then
     OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); outcome="OK"
   elif [ $rc -eq 3 ]; then
-    outcome="SKIPPED (not available)"
+    outcome="SKIPPED (${WHY:-not available})"   # WHY: a missing tool, when the tier named one
   elif [ $TIER_PRINTED -eq 1 ]; then
     outcome="NOT COUNTED ($WHY)"          # its review is above; policy keeps it off the gate
   else
