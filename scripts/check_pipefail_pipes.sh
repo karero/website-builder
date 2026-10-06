@@ -304,7 +304,7 @@ function plainread(c, inv) {
 # alarm. Text inside $( ) is not searched: it is another frame, and an exit there ends that
 # subshell. Even a break that only leaves an inner loop counts, since `break 2` leaves more. A
 # `done` closes the watches it ends.
-function structure(x,   w, k) {
+function structure(x,   w, k, u) {
   sub(/^[ \t\n]+/, "", x)
   if (x ~ /^do([ \t\n]|$)/) { for (k = 1; k <= nwat[d]; k++) wcond[d, k] = 0 }
   else {
@@ -329,9 +329,11 @@ function structure(x,   w, k) {
     }
     x = substr(x, RLENGTH + 1)
   }
-  if (nwat[d] == 0 || !(match(x, STOPRE) || match(unquote(x), STOPRE))) return
-  w = (match(x, STOPRE) ? substr(x, RSTART, RLENGTH) : "")
-  if (w == "" && match(unquote(x), STOPRE)) w = substr(unquote(x), RSTART, RLENGTH)
+  if (nwat[d] == 0) return
+  u = unquote(x)
+  if (match(x, STOPRE)) w = substr(x, RSTART, RLENGTH)
+  else if (match(u, STOPRE)) w = substr(u, RSTART, RLENGTH)
+  else return
   gsub(/[^a-z]/, "", w)
   for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
 }
