@@ -375,12 +375,15 @@ make check       # PII/secrets + model-agnostic + template coverage + per-skill 
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
 catches (any real email, credential/token formats, secret-looking assignments). The
-denylist is a gitignored local file, so CI, which has no copy, runs only the generic
-catches, and its OK line says the name check was skipped. The script runs in CI on every
-pull request and every push to `main` (`.github/workflows/clean.yml`) and is a
-prerequisite of `make package`: in a checkout that has the list, a listed name in a file
-the script scans stops the build, unless the file is gitignored or the match is this
-repo's own `karero/website-builder` reference. The name check also covers `scripts/`,
+denylist is a gitignored local file. CI gets it from the `CLEAN_DENYLIST` repository
+secret, which `make push-denylist` sets from the local list (run it after every change
+to the list), and prints any hit with the names blanked out, since the logs are public.
+A pull request from a fork or from Dependabot gets no secrets, so it skips the name
+check with a warning; anywhere else a missing secret fails the job. The script runs in
+CI on every pull request and every push to `main` (`.github/workflows/clean.yml`) and
+is a prerequisite of `make package`: in a checkout that has the list, a listed name in
+a file the script scans stops the build, unless the file is gitignored or the match is
+this repo's own `karero/website-builder` reference. The name check also covers `scripts/`,
 since those files ship in the zip; the generic catches leave `scripts/` out, because its
 files define their patterns. The name check skips only `LICENSE`, which carries the
 owner's name. A genuine false positive is fixed by tightening a pattern in the script —

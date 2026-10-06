@@ -1,4 +1,4 @@
-.PHONY: install install-codex package check test smoke whats-new refresh
+.PHONY: install install-codex package check test smoke whats-new refresh push-denylist
 
 install:   ## symlink every skill into ~/.claude/skills/ (Claude Code)
 	@bash scripts/install.sh
@@ -37,6 +37,12 @@ check:     ## run every suite guard: no personal data or credentials, every scri
 PYTHON ?= python3
 test:      ## run the search-console-insights tests (tracker + AI check; needs `requests`; stub servers, no real API calls). Not part of check/package, which must run on a stock python3
 	@$(PYTHON) -m unittest discover -s skills/search-console-insights/scripts/tests
+
+# A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
+push-denylist:   ## maintainer only: copy the private-name list (scripts/.clean-denylist, gitignored) into the repo's CLEAN_DENYLIST Actions secret, so CI checks names too. Run it after every change to the list; needs gh
+	@f=scripts/.clean-denylist; [ -f "$$f" ] || f="$$(git worktree list --porcelain | sed -n '1s/^worktree //p')/scripts/.clean-denylist"; \
+	[ -f "$$f" ] || { echo "no scripts/.clean-denylist here or in the main checkout"; exit 1; }; \
+	gh secret set CLEAN_DENYLIST < "$$f" && echo "CLEAN_DENYLIST updated from $$f"
 
 smoke: package   ## shippability check: make check + build zip + verify zip contents
 	@echo "smoke OK — suite is clean and the handoff zip is complete"

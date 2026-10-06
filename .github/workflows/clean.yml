@@ -60,7 +60,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # The private-name list is gitignored, so CI has none of its own: it comes from the
+      # CLEAN_DENYLIST repo secret (`make push-denylist` sets it from the local list). GitHub
+      # gives no secrets to a pull request from a fork or from Dependabot; those skip the name
+      # check with a warning. Anywhere else a missing secret fails the job, or deleting the
+      # secret would bring back the silent skip. The list reaches this one step only.
+      - name: Write the private-name list from the CLEAN_DENYLIST secret
+        env:
+          CLEAN_DENYLIST: ${{ secrets.CLEAN_DENYLIST }}
+          NO_SECRETS: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
+        run: |
+          if [ -n "$CLEAN_DENYLIST" ]; then
+            printf '%s\n' "$CLEAN_DENYLIST" > scripts/.clean-denylist
+          elif [ "$NO_SECRETS" = true ]; then
+            echo "::warning::No CLEAN_DENYLIST secret on a fork or Dependabot pull request: private names were not checked"
+          else
+            echo "::error::The CLEAN_DENYLIST secret is missing or empty: run 'make push-denylist' in a checkout that has scripts/.clean-denylist"
+            exit 1
+          fi
+      # This repo's CI logs are public, so a hit is printed with the names blanked out.
       - name: Scan skills for names / contact info / credentials
+        env:
+          CLEAN_MASK_NAMES: "1"
         run: bash scripts/check_clean.sh
   cdpath-safe:
     runs-on: ubuntu-latest

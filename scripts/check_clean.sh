@@ -6,7 +6,10 @@
 # Two kinds of check:
 #   • DENYLIST — specific known-private identifiers, read from an OPTIONAL gitignored
 #     file (scripts/.clean-denylist) so the public suite never enumerates private names.
-#     Catches our own info regressing back in; skipped if the file is absent.
+#     Catches our own info regressing back in; skipped if the file is absent. CI writes
+#     the file from the CLEAN_DENYLIST repo secret (`make push-denylist` sets it) and runs
+#     with CLEAN_MASK_NAMES=1, which prints each hit with the names blanked out, since a
+#     public repo's CI logs are public.
 #   • GENERIC  — any real email, plus credential/secret formats and secret-looking
 #     assignments. Catches things no denylist could enumerate.
 # A real false positive should be fixed by narrowing the pattern here, never by
@@ -93,7 +96,7 @@ report() { # <label> <grep-output>
 
 # 1. Personal / site / org identifiers (denylist, word-boundaried). Patterns live in a
 #    gitignored local file — one extended-regex pattern per line, '#' comments allowed —
-#    so private names never ship in the repo. Absent (e.g. a fresh clone / CI) → skipped;
+#    so private names never ship in the repo. Absent (e.g. a fresh clone) → skipped;
 #    the generic checks below still run.
 DENYLIST_FILE="scripts/.clean-denylist"
 # A linked worktree has no copy of the gitignored list, so the check used to skip itself in
@@ -132,7 +135,17 @@ if [ -f "$DENYLIST_FILE" ]; then
       *) hits="$(printf '%s\n' "$hits" \
            | grep -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
-           | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
+           | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")"
+         # Blank out every name, file names included, after dropping gitignored files (a
+         # blanked name is no longer a file that check-ignore can find). If perl fails, the
+         # hits are not printed at all: an empty result would read as clean.
+         if [ -n "${CLEAN_MASK_NAMES:-}" ] && [ -n "$hits" ]; then
+           hits="$(printf '%s\n' "$hits" | filter_ignored)"
+           if ! masked="$(printf '%s\n' "$hits" | NAMES="$NAMES" perl -pe 's/\b(?:$ENV{NAMES})\b/[private name]/gi')"; then
+             masked="$(printf '%s\n' "$hits" | grep -c .) hit(s) not shown: masking the names failed"
+           fi
+           hits="$masked"
+         fi ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1
