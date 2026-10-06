@@ -26,7 +26,8 @@ name: clean
 # by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), that the site's verify
 # script reinstalls only on a changed package.json or lockfile and stops at the first red step
 # (scripts/test_verify.sh), and that the private-name check
-# runs in a linked worktree too (scripts/test_clean_denylist.sh), and that the site's Claude Code
+# runs in a linked worktree too and that CI's masked mode never prints a name
+# (scripts/test_clean_denylist.sh), and that the site's Claude Code
 # sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh). And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
@@ -62,23 +63,29 @@ jobs:
       - uses: actions/checkout@v7
       # The private-name list is gitignored, so CI has none of its own: it comes from the
       # CLEAN_DENYLIST repo secret (`make push-denylist` sets it from the local list). GitHub
-      # gives no secrets to a pull request from a fork or from Dependabot; those skip the name
-      # check with a warning. Anywhere else a missing secret fails the job, or deleting the
-      # secret would bring back the silent skip. The list reaches this one step only.
+      # gives no secrets to a pull request from a fork or from Dependabot, and a fork of this
+      # repo has a secret of its own or none; those skip the name check with a warning.
+      # Anywhere else a missing secret, or one that lists no names, fails the job: deleting
+      # it must not bring back the silent skip. Only this step sees the secret; the file it
+      # writes is gitignored and read by the next step.
       - name: Write the private-name list from the CLEAN_DENYLIST secret
         env:
           CLEAN_DENYLIST: ${{ secrets.CLEAN_DENYLIST }}
-          NO_SECRETS: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') }}
+          NO_SECRETS: ${{ github.event.repository.fork || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]')) }}
         run: |
           if [ -n "$CLEAN_DENYLIST" ]; then
-            printf '%s\n' "$CLEAN_DENYLIST" > scripts/.clean-denylist
+            printf '%s\n' "$CLEAN_DENYLIST" | tr -d '\r' > scripts/.clean-denylist
+            if ! grep -qvE '^[[:space:]]*(#|$)' scripts/.clean-denylist; then
+              echo "::error::The CLEAN_DENYLIST secret lists no names: run 'make push-denylist' in a checkout whose scripts/.clean-denylist does"
+              exit 1
+            fi
           elif [ "$NO_SECRETS" = true ]; then
-            echo "::warning::No CLEAN_DENYLIST secret on a fork or Dependabot pull request: private names were not checked"
+            echo "::warning::No CLEAN_DENYLIST secret in a fork, or on a pull request from a fork or Dependabot: private names were not checked"
           else
             echo "::error::The CLEAN_DENYLIST secret is missing or empty: run 'make push-denylist' in a checkout that has scripts/.clean-denylist"
             exit 1
           fi
-      # This repo's CI logs are public, so a hit is printed with the names blanked out.
+      # This repo's CI logs are public, so every listed name is blanked out of the output.
       - name: Scan skills for names / contact info / credentials
         env:
           CLEAN_MASK_NAMES: "1"

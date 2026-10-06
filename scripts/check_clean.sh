@@ -8,8 +8,8 @@
 #     file (scripts/.clean-denylist) so the public suite never enumerates private names.
 #     Catches our own info regressing back in; skipped if the file is absent. CI writes
 #     the file from the CLEAN_DENYLIST repo secret (`make push-denylist` sets it) and runs
-#     with CLEAN_MASK_NAMES=1, which prints each hit with the names blanked out, since a
-#     public repo's CI logs are public.
+#     with CLEAN_MASK_NAMES=1, which blanks every listed name out of everything this
+#     script prints, since a public repo's CI logs are public (section 0 below).
 #   • GENERIC  — any real email, plus credential/secret formats and secret-looking
 #     assignments. Catches things no denylist could enumerate.
 # A real false positive should be fixed by narrowing the pattern here, never by
@@ -17,6 +17,42 @@
 set -uo pipefail
 export LC_ALL=C   # unlocalized grep output — filter_ignored parses "Binary file … matches"
 CDPATH= cd -- "$(dirname -- "$0")/.."
+
+# The private-name list (section 1 uses it; section 0 needs it first).
+DENYLIST_FILE="scripts/.clean-denylist"
+# A linked worktree has no copy of the gitignored list, so the check used to skip itself in
+# exactly the checkouts where commits are made (2026-09-27: a client name reached main that
+# way). Use the main checkout's list then, asking git where that is: the first entry of
+# `git worktree list`. For a main checkout made with --separate-git-dir, git records no such
+# path (it names the git folder), so the list is not found there and the skip below says so.
+# No git (the handoff zip) or no list anywhere → skip, loudly. A list saved with Windows line
+# endings would end every name in a carriage return that never matches; drop them.
+if [ ! -f "$DENYLIST_FILE" ]; then
+  main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+  [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
+fi
+NAMES=""
+[ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
+
+# 0. CI's logs are public. With CLEAN_MASK_NAMES=1 this script runs itself again, unmasked,
+#    and prints what that run printed with every listed name blanked out: anywhere in a
+#    line, file names and error messages included, not only whole words. Then grep, the
+#    engine that found the names, looks for them in the result. If one is left (perl reads
+#    a pattern differently), or perl failed (its errors quote the whole list), nothing is
+#    printed and the run fails. Masking one report at a time missed names in the other
+#    reports, in scan errors and next to `_`, and could turn a hit into a pass (#189 review).
+if [ -n "${CLEAN_MASK_NAMES:-}" ] && [ -n "$NAMES" ]; then
+  out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
+  masked="$(printf '%s\n' "$out" | NAMES="$NAMES" perl -pe 's/(?:$ENV{NAMES})/[private name]/gi' 2>/dev/null)"; prc=$?
+  grep -iqE -- "(${NAMES})" <<<"$masked" 2>/dev/null; grc=$?
+  if [ "$prc" -ne 0 ] || [ "$grc" -ne 1 ]; then
+    echo "FAIL — this run's output is withheld: a listed name could not be blanked out of it."
+    echo "Run the check where the logs are private to see it: bash scripts/check_clean.sh"
+    exit 1
+  fi
+  printf '%s\n' "$masked"
+  exit "$rc"
+fi
 SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so skills/ covers it
 # Generic checks (email / home-path / secret) also cover the root docs that ship in the
 # handoff, including LICENSE. NOT the scripts (they DEFINE the secret regexes — would
@@ -76,6 +112,11 @@ filter_ignored() { # stdin: grep output → stdout minus gitignored files
 g() { # <grep args…> → matches on stdout; a scan ERROR fails the run instead of reading as clean
   local out rc err
   err="$(mktemp)"; out="$(command grep "$@" 2>"$err")"; rc=$?
+  # GNU grep 3.5+ (CI's) reports a matching binary file on stderr with exit 0, where BSD grep
+  # prints "Binary file X matches" on stdout. Turn the GNU form into the BSD one, or the hit
+  # would be thrown away with the rest of stderr and a binary file holding a name would pass.
+  local bin; bin="$(sed -n 's/^grep: \(.*\): binary file matches$/Binary file \1 matches/p' "$err")"
+  [ -n "$bin" ] && out="${out:+$out$'\n'}$bin"
   if [ "$rc" -gt 1 ]; then
     fail=1
     echo "✗ scan error (grep exit $rc) — this check did NOT run:"
@@ -98,19 +139,7 @@ report() { # <label> <grep-output>
 #    gitignored local file — one extended-regex pattern per line, '#' comments allowed —
 #    so private names never ship in the repo. Absent (e.g. a fresh clone) → skipped;
 #    the generic checks below still run.
-DENYLIST_FILE="scripts/.clean-denylist"
-# A linked worktree has no copy of the gitignored list, so the check used to skip itself in
-# exactly the checkouts where commits are made (2026-09-27: a client name reached main that
-# way). Use the main checkout's list then, asking git where that is: the first entry of
-# `git worktree list`. For a main checkout made with --separate-git-dir, git records no such
-# path (it names the git folder), so the list is not found there and the skip below says so.
-# No git (the handoff zip) or no list anywhere → skip, loudly.
-if [ ! -f "$DENYLIST_FILE" ]; then
-  main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
-  [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
-fi
 if [ -f "$DENYLIST_FILE" ]; then
-  NAMES="$(grep -vE '^[[:space:]]*(#|$)' "$DENYLIST_FILE" | paste -sd'|' -)"
   # karero/website-builder is this project's OWN public repo — self-links to it (README
   # badges, clone instructions, the security policy) and its short form in issue and PR
   # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
@@ -135,17 +164,7 @@ if [ -f "$DENYLIST_FILE" ]; then
       *) hits="$(printf '%s\n' "$hits" \
            | grep -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
-           | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")"
-         # Blank out every name, file names included, after dropping gitignored files (a
-         # blanked name is no longer a file that check-ignore can find). If perl fails, the
-         # hits are not printed at all: an empty result would read as clean.
-         if [ -n "${CLEAN_MASK_NAMES:-}" ] && [ -n "$hits" ]; then
-           hits="$(printf '%s\n' "$hits" | filter_ignored)"
-           if ! masked="$(printf '%s\n' "$hits" | NAMES="$NAMES" perl -pe 's/\b(?:$ENV{NAMES})\b/[private name]/gi')"; then
-             masked="$(printf '%s\n' "$hits" | grep -c .) hit(s) not shown: masking the names failed"
-           fi
-           hits="$masked"
-         fi ;;
+           | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1
@@ -197,7 +216,7 @@ if [ "$fail" -ne 0 ]; then
   echo "tighten the pattern in scripts/check_clean.sh."
   exit 1
 fi
-# The OK line says itself whether names were checked: CI has no list, and a bare OK there
+# The OK line says itself whether names were checked: CI once had no list, and a bare OK there
 # read as "no private names" while the same tree failed `make check` locally.
 if [ "$names_checked" -eq 1 ]; then
   echo "OK — no private names in: $SCAN_NAMES; no contact info or credentials in: $SCAN_DOCS"

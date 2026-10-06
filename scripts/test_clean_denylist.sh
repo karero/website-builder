@@ -78,6 +78,10 @@ expect "a longer name that starts like this repo: fails" 1 "website-builder-priv
 printf 'see other-%s/website-builder\n' "$org" >"$R/docs/notes.md"
 expect "a longer name that ends like this repo: fails" 1 "other-$org" "$R"
 printf 'plain notes\n' >"$R/docs/notes.md"
+# GNU grep (CI's) reports a matching binary file on stderr, which the check used to discard.
+printf 'ran zorblequux\0\n' >"$R/docs/blob.bin"
+expect "a listed name in a binary file: fails" 1 "blob.bin" "$R"
+rm "$R/docs/blob.bin"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
 rm "$R/docs/notes:old.md"
@@ -119,11 +123,29 @@ rm "$R/docs/zorblequux-notes.md"
 printf 'docs/*-scratch\n' >>"$R/.gitignore"; printf 'ran zorblequux\n' >"$R/docs/zorblequux-scratch"
 masked "masked: a listed name in a gitignored file named after it: passes" 0 "OK — no private names in:"
 rm "$R/docs/zorblequux-scratch"
-# If masking fails, the hits are withheld but still fail the run; an empty result was a pass.
-mkdir -p "$T/noperl"; printf '#!/bin/sh\nexit 2\n' >"$T/noperl/perl"; chmod +x "$T/noperl/perl"
+# A name inside a word (`_`, digits) and a name that trips a generic check too (an email
+# domain, a home path) printed in clear when only the name report was masked.
+printf 'met zorblequux and the zorblequux_team, zorblequux2026\nwrite to bob@zorblequux.de\nsee /Users/zorblequux/x\n' >"$R/docs/zorblequux_notes.md"
+masked "masked: names inside words, emails and home paths, and file names with _: not printed" 1 "✗ email address"
+rm "$R/docs/zorblequux_notes.md"
+# Masking the hits before report() filtered them again turned this hit into a pass: the
+# masked name no longer existed, and its gitignored prefix did.
+printf 'ran zorblequux\n' >"$R/docs/scratch:zorblequux.md"
+masked "masked: a file named like an ignored path plus a colon and a name: still fails" 1 "personal/site identifier"
+rm "$R/docs/scratch:zorblequux.md"
+# perl's errors quote the whole pattern, every name in it: if perl fails, nothing is printed,
+# and the run still fails.
+mkdir -p "$T/badperl"; printf '#!/bin/sh\necho "Nested quantifiers in regex; m/zorblequux <-- HERE/" >&2\nexit 255\n' >"$T/badperl/perl"; chmod +x "$T/badperl/perl"
 printf 'ran zorblequux\n' >"$R/docs/notes.md"
-masked "masked: perl failing still fails the run, names withheld" 1 "masking the names failed" "$T/noperl"
+masked "masked: perl failing withholds everything and still fails" 1 "output is withheld" "$T/badperl"
+# The same, with a clean tree: a masking failure must not pass either.
 printf 'plain notes\n' >"$R/docs/notes.md"
+masked "masked: perl failing on a clean tree: still fails" 1 "output is withheld" "$T/badperl"
+# A pattern perl reads differently from grep leaves the name in place; grep finds it in the
+# masked text, so the output is withheld. \< \> are word edges to grep, plain < > to perl.
+printf 'a zorblequux b\n' >"$R/docs/notes.md"; printf '\\<zorblequux\\>\n' >"$R/scripts/.clean-denylist"
+masked "masked: a pattern perl reads differently: output withheld" 1 "output is withheld"
+cp "$T/list.bak" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
 
 # A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
 # that checkout (it names the git folder instead), so the list cannot be found from a linked
@@ -144,6 +166,67 @@ if { [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qF zorblequux; } ||
   printf 'ok   worktree of a --separate-git-dir checkout: finds the name or says it skipped\n'
 else
   printf 'FAIL worktree of a --separate-git-dir checkout: a bare OK (exit %s)\n' "$rc"; fails=$((fails+1))
+fi
+
+# `make push-denylist` copies the list into the CLEAN_DENYLIST secret, through a fake gh that
+# records what it was asked to send. It refuses a list CI would fail on or could not mask.
+if command -v make >/dev/null 2>&1; then
+  cp "$HERE/../Makefile" "$R/Makefile"; cp "$HERE/../Makefile" "$W/Makefile"
+  mkdir -p "$T/fakegh"; cat >"$T/fakegh/gh" <<FAKE
+#!/bin/sh
+case "\$1 \$2" in
+  "repo view") echo owner/repo ;;
+  "secret set") { echo "args: \$*"; cat; } >"$T/gh.log" ;;
+esac
+FAKE
+  chmod +x "$T/fakegh/gh"
+  push() { # <label> <dir> <exit code wanted (make exits 2 when the recipe fails)> <text the output or the gh log must contain>
+    local out rc; rm -f "$T/gh.log"
+    out="$(cd "$2" && PATH="$T/fakegh:$PATH" make -s push-denylist 2>&1)"; rc=$?
+    if [ "$rc" -eq "$3" ] && { printf '%s' "$out"; cat "$T/gh.log" 2>/dev/null; } | grep -qF -- "$4"; then
+      printf 'ok   %s\n' "$1"
+    else
+      printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$3" "$out" | sed '2,$s/^/     /'; fails=$((fails+1))
+    fi
+  }
+  push "push-denylist: sends the list to the repo gh names" "$R" 0 "args: secret set CLEAN_DENYLIST --repo owner/repo"
+  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null)" != "# made-up names" ]; then
+    printf 'FAIL push-denylist: the secret is not the list as written\n'; fails=$((fails+1))
+  fi
+  push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "zorblequux"
+  printf '# none yet\n' >"$R/scripts/.clean-denylist"
+  push "push-denylist: refuses a list with no names" "$R" 2 "lists no names"
+  printf 'zorblequux**\n' >"$R/scripts/.clean-denylist"
+  push "push-denylist: refuses a pattern perl cannot read" "$R" 2 "perl cannot read"
+  [ -f "$T/gh.log" ] && { printf 'FAIL push-denylist: gh was called for a refused list\n'; fails=$((fails+1)); }
+  cp "$T/list.bak" "$R/scripts/.clean-denylist"; : >"$R/Makefile"; : >"$W/Makefile"
+else
+  echo "SKIP: push-denylist cases need make"
+fi
+
+# The workflow step that writes the list from the secret, run as written in clean.yml. The
+# handoff zip carries no .github/, so there it is skipped, and says so.
+WF="$HERE/../.github/workflows/clean.yml"
+if [ -f "$WF" ]; then
+  awk '/name: Write the private-name list/{f=1} f&&/run: \|/{r=1;next} r&&/^      [#-]/{exit} r{sub(/^          /,"");print}' "$WF" >"$T/step.sh"
+  step() { # <label> <secret> <NO_SECRETS> <exit code wanted> <text the output must contain, or "">
+    local out rc; rm -f "$T/stepdir/scripts/.clean-denylist"; mkdir -p "$T/stepdir/scripts"
+    out="$(cd "$T/stepdir" && CLEAN_DENYLIST="$2" NO_SECRETS="$3" bash -e "$T/step.sh" 2>&1)"; rc=$?
+    if [ "$rc" -eq "$4" ] && { [ -z "$5" ] || printf '%s' "$out" | grep -qF -- "$5"; }; then
+      printf 'ok   %s\n' "$1"
+    else
+      printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$4" "$out" | sed '2,$s/^/     /'; fails=$((fails+1))
+    fi
+  }
+  step "CI step: a secret with names is written" "$(printf '# x\r\nzorblequux\r')" false 0 ""
+  if [ "$(cat "$T/stepdir/scripts/.clean-denylist")" != "$(printf '# x\nzorblequux')" ]; then
+    printf 'FAIL CI step: the list is not written as the secret holds it, less carriage returns\n'; fails=$((fails+1))
+  fi
+  step "CI step: a secret with no names fails" "# none yet" false 1 "lists no names"
+  step "CI step: no secret where secrets exist fails" "" false 1 "secret is missing"
+  step "CI step: no secret on a fork or Dependabot run warns" "" true 0 "::warning::"
+else
+  echo "SKIP: CI step cases need .github/workflows/clean.yml (not in the handoff zip)"
 fi
 
 mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
