@@ -231,9 +231,11 @@ case "${API_STUB:-ok}" in
   429)   printf '%s\n' '{"error":"you have reached your weekly usage limit"}' >"$out"; printf 429 ;;
   trunc) printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: cut off"},"done":false}' >"$out"; printf 200 ;;
   502)   printf 'upstream request failed' >"$out"; printf 502 ;;
-  nonjson200) # a 200 stream cut mid-line: review text, with a CR and a 429, on a line that is not JSON
+  nonjson200) # a 200 stream cut mid-line: review text on a line that is not JSON (it starts inside a
+         # string, hence the lone leading quote). A CR and an ESC[1G each precede an error-shaped
+         # quota line, so the cleanup must collapse control bytes, not only whitespace.
          printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: one"},"done":false}' >"$out"
-         printf '"- RISK: retry on HTTP 429\rError: rate limit reached\n' >>"$out"; printf 200 ;;
+         printf '"- RISK: retry on HTTP 429\rError: rate limit reached\033[1GError: HTTP 429 Too Many Requests\n' >>"$out"; printf 200 ;;
   trunc429) # exactly 429 chunks and no done line: the count must not read as a quota refusal
          i=0; while [ $i -lt 429 ]; do printf '%s\n' '{"message":{"role":"assistant","content":"x"},"done":false}'; i=$((i+1)); done >"$out"
          printf 200 ;;

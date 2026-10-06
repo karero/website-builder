@@ -835,12 +835,13 @@ ollama_via_api() {
     my ($file, $code, $tok) = @ARGV;
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $json = JSON::PP->new->utf8;
-    my ($c, $done, $n) = ("", undef, 0);
+    my ($c, $done) = ("", undef);
     while (my $line = <$f>) {
       next unless $line =~ /\S/;
       my $j = eval { $json->decode($line) };
       if (ref $j ne "HASH") {
-        my $q = substr($line =~ s/[\s\x00-\x1f\x7f]+/ /gr =~ s/^ | $//gr, 0, 300);
+        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # no s///r here: this path needed no Perl 5.14
+        $q =~ s/^ | $//g; $q = substr($q, 0, 300);
         # A non-200 body is the error reply of the server, quoted on the line; a 200 line may be
         # review text, so it goes below, indented, where the classifier does not read.
         if ($code ne "200") { print STDERR "Error: HTTP $code: response is not JSON: $q\n" }
@@ -851,7 +852,6 @@ ollama_via_api() {
         my $e = $j->{error}; $e = JSON::PP->new->encode($e) if ref $e;
         print STDERR "Error: HTTP $code: $e\n"; exit 2;
       }
-      $n++;
       $c .= $j->{message}{content} // "" if ref $j->{message} eq "HASH";
       $done = $j if $j->{done};
     }
