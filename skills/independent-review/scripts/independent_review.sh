@@ -1046,19 +1046,21 @@ run_melious() {
     $c =~ s/^[ \t]*\Q$open\E.*\z//ms;
     my $cut = $before_cut - length $c;
     if ($c !~ /\S/) { print STDERR "Error: HTTP $code: the reply holds no text", ($think ? ", only thinking" : ""), " — the model returned no review\n"; exit 5 }
-    # Keep what follows the LAST marker line that has findings-shaped text after it: a marker
-    # repeated at the end, or quoted in a fence after the review, must not win. Markdown around the
-    # marker (bold, a heading, a quote, backticks) is allowed. No usable marker: the reply is kept
-    # whole, with a warning when it is large.
+    # Keep what follows the LAST marker that ends a line and has findings-shaped text after it: a
+    # marker repeated at the end, or quoted in a fence after the review, must not win. Markdown
+    # around the marker (bold, a heading, a quote, backticks) is allowed. The marker need not start
+    # its line: GLM glued it to the end of its last line of reasoning (#165, round 16c), which kept
+    # the reasoning above the review. The per-run marker is in no artifact, so a line ending in it
+    # is from the model itself. No usable marker: the reply is kept whole, with a warning.
     my $note = "";
     my $thinknote = $cut ? "(think block text dropped, " . ($cut < 1024 ? "under 1 KB" : "about " . int($cut / 1024 + 0.5) . " KB") . ($saved ? "; the full reply is in melious.full" : "") . ")\n" : "";
     my $wrap = qr/[ \t>*_#\x60]*/;
-    my @at; while ($c =~ /^$wrap\Q$mark\E$wrap\r?$/mg) { push @at, $+[0] }
+    my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, $+[0] }
     my $kept_whole = 1;
     for my $end (reverse @at) {
       my $after = substr($c, $end); $after =~ s/\A\r?\n//;
       next unless $after =~ /\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
-      my $before = substr($c, 0, $end); $before =~ s/^$wrap\Q$mark\E$wrap\r?$//mg;
+      my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
       if ($before =~ /\S/) {
         my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
         $note = "(text before the final-review marker dropped, $kb" . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
