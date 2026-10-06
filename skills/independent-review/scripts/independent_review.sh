@@ -514,9 +514,15 @@ rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,secti
 # NIT" ("I cannot return a ranked list of BUG...") must not match.
 looks_like_review() {
   # Count genuine structured findings ANYWHERE in the response first — this
-  # decides how much weight the refusal check below gets.
+  # decides how much weight the refusal check below gets. A finding is a list or
+  # heading line naming a severity, or a line that STARTS with the severity, an
+  # optional number and a separator ("RISK 1 — a.rb:3 — ..."). The second shape was
+  # added 2026-10-06: a genuine melious kimi-k3 review with 1 RISK and 2 NITs written
+  # that way counted zero findings, so check 1 below became decisive and rejected it
+  # over a quoted error message ("can't open perl script") in its UNVERIFIABLE list.
+  # The separator must be followed by a space, so "Bug-free" does not count.
   local finding_count
-  finding_count="$(printf '%s\n' "$1" | grep -ciE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b')"
+  finding_count="$(printf '%s\n' "$1" | grep -ciE '^[[:space:]]*(([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b|(BUG|RISK|NIT)([[:space:]]+[0-9]+)?[[:space:]]*(—|–|-|:)[[:space:]])')"
   # 1. refusals about the reviewing act — a refusal formatted like a finding
   #    ("- BUG: I cannot review this file...") must not slip past the positive
   #    match below. Verb-anchored so genuine text survives: "a guard that
@@ -549,7 +555,7 @@ looks_like_review() {
   if [ "$finding_count" -le 1 ]; then
     grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1" && return 1
   fi
-  # 2. structured findings (list/heading-anchored severity)
+  # 2. structured findings (the two shapes finding_count counts)
   [ "$finding_count" -gt 0 ] && return 0
   # 3. genuine clean verdicts. Broadened past a strict "\bno findings\b" phrase match
   #    after 3 real Codex responses in one session all misreported as gate-FAIL despite
