@@ -9,7 +9,8 @@ use JSON::PP;
 use Encode;
 
 # A die outside an eval exits with errno, which can collide with the codes above: exit 1 instead.
-$SIG{__DIE__} = sub { return if $^S; print STDERR "melious_stream.pl: ", @_; exit 1 };
+# $^S is undef while code compiles, as in a require inside an eval: that die is left alone.
+$SIG{__DIE__} = sub { return if !defined $^S || $^S; print STDERR "melious_stream.pl: ", @_; exit 1 };
 
 my ($file, $code, $tok, $mark, $full) = @ARGV;
 open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit($code eq "200" ? 8 : 2) };
@@ -57,7 +58,11 @@ if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignor
     print STDERR "Error: HTTP $code: $why\n    reply began: ", quoted($body), "\n"; exit(defined $j->{error} ? 9 : 7);
   }
   # Not JSON either (an HTML page from a proxy, say): named, not left to read as a truncated review.
-  print STDERR "Error: HTTP $code: the reply is not a stream, and not JSON\n    reply began: ", quoted($body), "\n"; exit 7;
+  # A body of SSE lines that carried no data (keep-alive comments, then the connection closed) is a
+  # stream that ended early, and falls through to the truncated-review check below.
+  if ($body !~ /^(?::|event:|id:|retry:)/m) {
+    print STDERR "Error: HTTP $code: the reply is not a stream, and not JSON\n    reply began: ", quoted($body), "\n"; exit 7;
+  }
 }
 # The reply as it came, before any check or trim, on every path that reaches the finish check
 # (melious.full). An error chunk or a non-JSON chunk stops earlier; melious.resp holds the stream.

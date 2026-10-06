@@ -850,9 +850,11 @@ ollama_via_api() {
   # As in run_melious: the summary line names the failure, not just the status.
   case $prc in
     0) ;;
+    1) WHY="reply reader failed (HTTP $code)"; return 1 ;;
     3) WHY="a stream line that is not JSON (HTTP $code)"; return 1 ;;
     4) WHY="truncated review (HTTP $code)"; return 1 ;;
     6) WHY="error mid-stream (HTTP $code)"; return 1 ;;
+    7) WHY="not a stream (HTTP $code)"; return 1 ;;
     8) WHY="empty reply (HTTP $code)"; return 1 ;;
     *) WHY="HTTP $code"; return 1 ;;
   esac
@@ -947,10 +949,11 @@ run_melious() {
   fi
   perl "$PERL_DIR/melious_stream.pl" "$resp" "$code" "$RAW_DIR/melious.tokens" "$mark" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
   # The summary line names the failure, not just the status: a mid-stream error or a non-stream
-  # reply comes with HTTP 200, and "FAILED (HTTP 200)" sent the reader to the quoted stderr. Exit 1
-  # (the reader failed) and 2 (an error status) keep the bare "HTTP <code>".
+  # reply comes with HTTP 200, and "FAILED (HTTP 200)" sent the reader to the quoted stderr. Exit 2
+  # (an error status) and anything unexpected keep the bare "HTTP <code>".
   case $prc in
     0) ;;
+    1) WHY="reply reader failed (HTTP $code)"; return 1 ;;
     3) WHY="a stream chunk that is not JSON (HTTP $code)"; return 1 ;;
     4) WHY="truncated review (HTTP $code)"; return 1 ;;
     5) WHY="HTTP $code but no review text"; return 1 ;;

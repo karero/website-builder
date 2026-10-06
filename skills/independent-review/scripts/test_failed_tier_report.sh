@@ -267,6 +267,7 @@ case "$url" in
               printf 'upstream\rError: bad gateway\033[1Gfailed' >"$out"; printf 502 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
       html)   printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;   # a proxy's page
+      keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
@@ -294,6 +295,7 @@ case "${API_STUB:-ok}" in
          printf '"- RISK: retry on HTTP 429\rError: rate limit reached\033[1GError: HTTP 429 Too Many Requests\n' >>"$out"; printf 200 ;;
   miderr200) printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: partial"},"done":false}' '{"error":"upstream overloaded"}' >"$out"; printf 200 ;;
   empty200) : >"$out"; printf 200 ;;
+  html200) printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;
   trunc429) # exactly 429 chunks and no done line: the count must not read as a quota refusal
          i=0; while [ $i -lt 429 ]; do printf '%s\n' '{"message":{"role":"assistant","content":"x"},"done":false}'; i=$((i+1)); done >"$out"
          printf 200 ;;
@@ -801,6 +803,9 @@ check "apimiderr: an error line in a 200 stream is named as an error mid-stream"
 run apiempty PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=empty200 bash "$SCRIPT" "$T/change.diff"
 check "apiempty: an empty 200 reply is named as empty, not truncated" \
   sh -c 'grep -qF "ollama-cloud FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/apiempty.out"
+run apihtml PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=html200 bash "$SCRIPT" "$T/change.diff"
+check "apihtml: a 200 page whose first line is not JSON is named as not a stream, as Melious names it" \
+  sh -c 'grep -qF "ollama-cloud FAILED (not a stream (HTTP 200))" "$1" && grep -qF "line began: <html>" "$1"' _ "$T/apihtml.out"
 run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff"
 check "api502: a non-JSON error body is quoted" has api502.out "response is not JSON: upstream request failed"
 check "api502: ...and the summary keeps the status" has api502.out "ollama-cloud FAILED (HTTP 502)"
@@ -999,6 +1004,9 @@ check "mnotstreamerr: a 200 reply carrying an error message is classified by tha
 run mhtml OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=html bash "$SCRIPT" "$T/change.diff"
 check "mhtml: a 200 page that is neither a stream nor JSON is named and quoted, not read as truncated" \
   sh -c 'grep -qF "melious FAILED (not a stream (HTTP 200))" "$1" && grep -qF "reply began: <html>" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mhtml.out"
+run mkeepalive OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=keepalive bash "$SCRIPT" "$T/change.diff"
+check "mkeepalive: keep-alive comments, then a closed stream: a truncated review, not \"not a stream\"" \
+  sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "not a stream" "$1"' _ "$T/mkeepalive.out"
 run mempty OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
 check "mempty: an empty 200 reply is named as empty, not truncated" \
   sh -c 'grep -qF "an empty reply" "$1" && grep -qF "melious FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
