@@ -7,6 +7,7 @@ name: template-tests
 # Playwright config starts its own preview server (no reuseExistingServer).
 on:
   push:
+    branches: [main]
     paths:
       - 'skills/new-website/templates/astro/**'
       - 'skills/website-scorecard/**'
@@ -16,6 +17,14 @@ on:
       - 'skills/new-website/templates/astro/**'
       - 'skills/website-scorecard/**'
       - '.github/workflows/template-tests.yml'
+  workflow_dispatch:
+
+# Same events and concurrency group expression as clean.yml, plus this file's path
+# filters; the reasons are written there. The workflow name in the group keeps the two
+# workflows' runs apart.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:

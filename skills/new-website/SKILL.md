@@ -34,8 +34,11 @@ Everything needed is bundled here:
   (Codex, Claude Code) follows in the repo: fetch the latest state first, pull request
   instead of a direct push, when a merge is allowed, never invent facts, the new-page
   checklist. `CLAUDE.md` is one line (`@AGENTS.md`), so both tools read the same rules.
-- `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
-  permission allowlist to copy into the repo.
+- `templates/.gitignore`, `templates/claude/settings.json`, `templates/claude/hooks/git-stand.mjs`
+  — git ignore, the permission allowlist, and the Claude Code hook that fetches from
+  GitHub at session start (and again after 2 hours) and reports what is new, so
+  `AGENTS.md` §1 happens even when the assistant skips it. The settings register the
+  hook: copy both, or every session start fails to find the script.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
 - `references/WEBSITE_ARCHITECTURE.md` (bundled with this skill) — the Cloudflare
   **tier 1/2/3** decision tree + limits (the tiers are also summarized in §1, question 2).
@@ -294,8 +297,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    cp "$SKILLS_ROOT"/new-website/templates/AGENTS.md .         # working rules for every assistant (Codex + Claude)
    cp "$SKILLS_ROOT"/new-website/templates/CLAUDE.md .         # one line: @AGENTS.md
    # Claude Code only:
-   mkdir -p .claude
+   mkdir -p .claude/hooks
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
+   cp "$SKILLS_ROOT"/new-website/templates/claude/hooks/git-stand.mjs .claude/hooks/   # sync hook the settings register
    ```
    *Codex / Antigravity: skip the `.claude/settings.json` copy — it's Claude Code-specific.
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
@@ -309,8 +313,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
    rule, who publishes) ships with single-owner defaults, not slots; `website-team-setup`
-   rewrites it when a team forms. Non-English owner: translate `AGENTS.md` in-session
-   like `PUBLISHING.md` — rules and commands intact.
+   rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
+   skills: agents read it, and its Language rule has them reply in the person's
+   language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
 3. **Skills travel with the repo** — copy the twenty-five always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not

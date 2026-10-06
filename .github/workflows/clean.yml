@@ -25,11 +25,35 @@ name: clean
 # by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), that the site's verify
 # script reinstalls only on a changed package.json or lockfile and stops at the first red step
 # (scripts/test_verify.sh), and that the private-name check
-# runs in a linked worktree too (scripts/test_clean_denylist.sh). And it runs the
+# runs in a linked worktree too (scripts/test_clean_denylist.sh), and that the site's Claude Code
+# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh). And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Why these triggers. Every push to a pull request branch used to start this workflow
+# twice, once for `push` and once for `pull_request`, and runs on old heads queued behind
+# new ones (on #165 they sat queued over an hour, then were cancelled before any step ran).
+# - `push` covers only main. A pull request branch runs through `pull_request` alone, which
+#   tests the branch merged into main. The two events carry different refs, so the
+#   concurrency group below could never have merged their runs into one.
+# - A pull request with merge conflicts gets no `pull_request` run until they are resolved,
+#   and a branch with no pull request gets none at all: run either by hand
+#   (workflow_dispatch).
+# - On a pull request or branch, a newer run cancels the one it supersedes. A re-run of an
+#   old run joins that same group, so it can cancel a newer run still going there.
+# - On main every commit gets its own group, so each merge keeps a result of its own.
+# - Groups are shared by every workflow in the repo; the workflow name in the group keeps
+#   clean and template-tests from cancelling each other.
+# template-tests.yml uses the same events and group expression, adds path filters of its
+# own, and points here.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   no-pii-secrets:
     runs-on: ubuntu-latest
@@ -120,6 +144,18 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check the private-name check also runs in a linked worktree
         run: bash scripts/test_clean_denylist.sh
+  git-stand-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Without node the test skips and exits 0; this job must not stay green untested.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Check the site's Claude Code sync hook reports news, failures and retries correctly
+        run: |
+          command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
+          bash scripts/test_git_stand_hook.sh
   search-console-insights-tests:
     # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
     # (e.g. reusing a quote inside an f-string) once broke the report there.

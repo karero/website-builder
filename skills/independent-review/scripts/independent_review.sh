@@ -501,8 +501,9 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
   "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
-# No seat writes a key to a file: both API seats hand curl the header on stdin. The ollama.hdr and
-# melious.hdr files earlier versions wrote are cleared with the stale files above.
+# ollama.hdr and melious.hdr are cleared with the stale files above: earlier versions wrote the API
+# key to them for the request, and a run stopped mid-request could leave one behind. Neither API
+# transport writes a key file any more: both pipe it to curl's stdin.
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
@@ -820,10 +821,14 @@ ollama_via_cli() {
 # a real review came back "HTTP 502 upstream request failed" after 31s from a cloud session, while
 # the same request streamed returned in 45s — a silent connection gets cut somewhere on the way. A
 # stream that ends without its "done" line is a truncated review and fails the tier. The key, when
-# OLLAMA_API_KEY is set, reaches curl on stdin (`-H @-`, as run_melious sends its key): never on
-# curl's command line where `ps` would show it, and never in a file, which a run stopped mid-request
-# would leave behind in RAW_DIR. Errors are written as "Error: HTTP <code>: <message>" so attempt()'s quota
-# classification reads a 429 the same way as the CLI's. Leaves the review in ollama.out.
+# OLLAMA_API_KEY is set, reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it,
+# and never a file, so a run stopped mid-request leaves no key behind on any shell (it used to be a
+# header file removed after the call, or by an EXIT trap untested on bash 3.2). The key was read
+# into OLLAMA_KEY_VALUE and unset at startup, so no other seat sees it. Errors are written
+# as "Error: HTTP <code>: <message>" so attempt()'s quota classification reads a 429 the same way
+# as the CLI's. On a 200 reply, which may carry review text, no server text goes on an "Error:"
+# line except an error message the server sent: a quote goes on an indented line below, with
+# control bytes collapsed, as in run_melious. Leaves the review in ollama.out.
 ollama_via_api() {
   command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
   local url model="$OLLAMA_MODEL" body="$RAW_DIR/ollama.req"
@@ -840,10 +845,11 @@ ollama_via_api() {
     print JSON::PP->new->utf8->canonical->encode(
       { model => $ARGV[0], stream => JSON::PP::true, messages => [ { role => "user", content => $p } ] });
   ' "$model" >"$body" || { WHY="could not build the API request"; return 1; }
+  # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
   code="$(if [ -n "$OLLAMA_KEY_VALUE" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_KEY_VALUE"; fi \
     | curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
-    -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
-    2>"$RAW_DIR/ollama.err")"; rc=$?
+      -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
+      2>"$RAW_DIR/ollama.err")"; rc=$?
   if [ $rc -ne 0 ]; then
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/ollama.err"
     WHY="curl exit $rc"; return 1
@@ -852,27 +858,36 @@ ollama_via_api() {
     my ($file, $code, $tok) = @ARGV;
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $json = JSON::PP->new->utf8;
-    my ($c, $done, $n) = ("", undef, 0);
+    my ($c, $done) = ("", undef);
     while (my $line = <$f>) {
       next unless $line =~ /\S/;
       my $j = eval { $json->decode($line) };
-      if (ref $j ne "HASH") { chomp $line; print STDERR "Error: HTTP $code: response is not JSON: ", substr($line, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") {
+        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off s///r: this path must not need Perl 5.14
+        $q =~ s/^ | $//g; $q = substr($q, 0, 300);
+        # A non-200 body is the error reply of the server, quoted on the line; a 200 line may be
+        # review text, so it goes below, indented, where the classifier does not read.
+        if ($code ne "200") { print STDERR "Error: HTTP $code: response is not JSON: $q\n" }
+        else { print STDERR "Error: HTTP $code: a stream line is not JSON\n    line began: $q\n" }
+        exit 3;
+      }
       if (defined $j->{error}) {
         my $e = $j->{error}; $e = JSON::PP->new->encode($e) if ref $e;
         print STDERR "Error: HTTP $code: $e\n"; exit 2;
       }
-      $n++;
       $c .= $j->{message}{content} // "" if ref $j->{message} eq "HASH";
       $done = $j if $j->{done};
     }
     if ($code ne "200") { print STDERR "Error: HTTP $code: request failed\n"; exit 2 }
-    if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line after $n chunks — a truncated review\n"; exit 4 }
+    # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
+    if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line — a truncated review\n"; exit 4 }
     binmode STDOUT, ":encoding(UTF-8)";
     print $c; print "\n" if length $c && $c !~ /\n\z/;
     if (defined $done->{eval_count} && open my $t, ">", $tok) {
       print $t (($done->{prompt_eval_count} // 0) + $done->{eval_count}), "\n";
     }
   ' "$resp" "$code" "$RAW_DIR/ollama.tokens" >"$RAW_DIR/ollama.out" 2>>"$RAW_DIR/ollama.err"; prc=$?
+  [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
   [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
   [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/ollama.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
