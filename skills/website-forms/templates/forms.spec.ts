@@ -611,24 +611,47 @@ test('contact — nothing can be typed while the message is on its way, so a suc
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
   });
   await page.goto(PAGE);
+  // Fields an owner might add later: a phone number is locked like the others, a
+  // checkbox is not dimmed, and a field that is read-only on purpose stays so.
+  await page.evaluate(() => {
+    const before = document.querySelector('#contact-form button[type="submit"]')!.parentElement!;
+    before.insertAdjacentHTML('beforebegin', '<p><label for="added-phone">Phone</label><input id="added-phone" name="phone" type="tel"></p>' +
+      '<p><input id="added-agree" name="agree" type="checkbox"><label for="added-agree">Agree</label></p>' +
+      '<p><label for="added-ref">Reference</label><input id="added-ref" name="ref" type="text" value="A-1" readonly></p>');
+    // Astro scopes the form's styles to its own elements by an attribute: the added ones
+    // get it too, as they would if the owner wrote them into the component.
+    const scope = Array.from(document.getElementById('contact-name')!.attributes).filter((a) => a.name.startsWith('data-astro-cid'));
+    for (const el of document.querySelectorAll('#added-phone, #added-agree, #added-ref')) for (const a of scope) el.setAttribute(a.name, a.value);
+  });
+  const typeable = ['#contact-name', '#contact-email', '#contact-message', '#added-phone'];
   await page.fill('#contact-name', 'Ada Lovelace');
   await page.fill('#contact-email', 'ada@example.org');
   await page.fill('#contact-message', 'Hello, do you have time in May?');
+  await page.fill('#added-phone', '0123');
+  const opacity = (id: string) => page.locator(id).evaluate((el) => getComputedStyle(el).opacity);
+  expect(await opacity('#added-agree'), 'a checkbox at rest is not dimmed').toBe('1');
   await page.click('#contact-form button[type="submit"]');
   const sending = await page.locator('#contact-form').getAttribute('data-sending');
   await expect(page.locator('#contact-form [role="status"]')).toHaveText(sending!);
   // The visitor goes on typing while the answer is held back.
-  for (const id of ['#contact-name', '#contact-email', '#contact-message']) await expect(page.locator(id)).not.toBeEditable();
+  for (const id of typeable) await expect(page.locator(id)).not.toBeEditable();
+  expect(await opacity('#contact-message'), 'a locked field is dimmed').toBe('0.7');
+  expect(await opacity('#added-ref'), 'a field read-only on purpose is not dimmed').toBe('1');
   await page.locator('#contact-message').press('End');
   await page.keyboard.type(' And in June?');
   await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
+  await page.locator('#added-phone').press('End');
+  await page.keyboard.type('9');
+  await expect(page.locator('#added-phone')).toHaveValue('0123');
   release();
   const sent = await page.locator('#contact-form').getAttribute('data-sent');
   await expect(page.locator('#contact-form [role="status"]')).toHaveText(sent!);
-  for (const id of ['#contact-name', '#contact-email', '#contact-message']) {
+  for (const id of typeable) {
     await expect(page.locator(id)).toBeEditable();
     await expect(page.locator(id)).toHaveValue('');
   }
+  expect(await opacity('#contact-message'), 'no longer dimmed').toBe('1');
+  await expect(page.locator('#added-ref'), 'read-only on purpose, still read-only').not.toBeEditable();
 });
 
 test('contact — a send that gets no answer gives up after 15 seconds and gives the fields back', async ({ page }) => {
@@ -640,9 +663,17 @@ test('contact — a send that gets no answer gives up after 15 seconds and gives
   await page.fill('#contact-name', 'Ada Lovelace');
   await page.fill('#contact-email', 'ada@example.org');
   await page.fill('#contact-message', 'Hello, do you have time in May?');
+  // The page's clock stands still from here, so the 15 seconds are counted exactly.
+  await page.clock.pauseAt(Date.now() + 60_000);
   await page.click('#contact-form button[type="submit"]');
   await expect(page.locator('#contact-message')).not.toBeEditable();
-  await page.clock.runFor(15_000);
+  // Not a moment early: a send cut off before its time says "could not be sent" for a
+  // message that may still arrive.
+  await page.clock.runFor(14_999);
+  const sending = await page.locator('#contact-form').getAttribute('data-sending');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(sending!);
+  await expect(page.locator('#contact-message')).not.toBeEditable();
+  await page.clock.runFor(1);
   const failed = await page.locator('#contact-form').getAttribute('data-failed');
   await expect(page.locator('#contact-form [role="status"]')).toHaveText(failed!);
   await expect(page.locator('#contact-message')).toBeEditable();

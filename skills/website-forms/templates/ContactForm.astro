@@ -80,9 +80,10 @@ const privacy = Astro.props.privacy ?? t.privacy;
   if (form) {
     const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
-    // The form's own fields. Read-only does nothing on a checkbox, a radio button, a file
-    // or a select, so a field of another kind added later needs a lock of its own.
-    const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[type="text"], input[type="email"], textarea'));
+    // Every field read-only works on, found when the form is sent, so a field added later
+    // is locked too. It does nothing on a checkbox, a radio button, a file, a range, a
+    // colour or a select: a field of one of those kinds needs a lock of its own.
+    const typeable = 'input:not([type="hidden"], [type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="submit"], [type="reset"], [type="button"], [type="image"]), textarea';
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       status.textContent = form.dataset.sending ?? '';
@@ -91,8 +92,12 @@ const privacy = Astro.props.privacy ?? t.privacy;
       // the form, never takes words that were not sent. Read-only, not disabled: a
       // disabled field would be left out of the post. A field that was read-only already
       // stays that way.
+      const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(typeable));
       const locked = fields.filter((field) => !field.readOnly);
-      for (const field of locked) field.readOnly = true;
+      for (const field of locked) {
+        field.readOnly = true;
+        field.classList.add('contact-form-locked');
+      }
       // Give up after 15 seconds, in every browser: the fields are locked until then.
       const timeout = new AbortController();
       const timer = setTimeout(() => timeout.abort(), 15000);
@@ -114,7 +119,10 @@ const privacy = Astro.props.privacy ?? t.privacy;
         error = 'send_failed';
       } finally {
         clearTimeout(timer);
-        for (const field of locked) field.readOnly = false;
+        for (const field of locked) {
+          field.readOnly = false;
+          field.classList.remove('contact-form-locked');
+        }
         button.disabled = false;
       }
       if (ok) {
@@ -137,7 +145,7 @@ const privacy = Astro.props.privacy ?? t.privacy;
   }
   .contact-form button { font: inherit; padding: 0.6rem 1.2rem; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
   .contact-form button[disabled] { opacity: 0.6; cursor: default; }
-  .contact-form :is(input, textarea):read-only { opacity: 0.7; }
+  .contact-form .contact-form-locked { opacity: 0.7; }
   .contact-form-note { color: var(--muted); max-width: 36rem; }
   .contact-form-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 </style>

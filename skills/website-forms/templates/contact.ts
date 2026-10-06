@@ -106,19 +106,22 @@ async function readAtMost(request: Request, limit: number): Promise<ArrayBuffer 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      // Not waited for: on a request that was copied, cancelling waits for the other copy,
-      // and the refusal must not wait with it. A cancel that fails changes nothing here.
-      void reader.cancel().catch(() => {});
-      return null;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        // Not waited for: on a request that was copied, cancelling waits for the other
+        // copy, and the refusal must not wait with it. A cancel that fails changes nothing.
+        void reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } finally {
+    reader.releaseLock();
   }
-  reader.releaseLock();
   const bytes = new Uint8Array(size);
   let at = 0;
   for (const chunk of chunks) {
