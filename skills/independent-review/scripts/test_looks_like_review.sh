@@ -40,7 +40,7 @@ if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
   echo "ok   the two copies of the qualifier list are identical"
 else echo "FAIL expected two identical qualifier lists, found $n list(s), $distinct distinct"; fail=1; fi
 # The refusal phrase is written out twice (the severity-led count and check 1); the copies must not drift.
-refusals="$(printf '%s\n' "$fn" | grep -oE "\(cannot[^)]*\) \([a-z|]+\)")"
+refusals="$(printf '%s\n' "$fn" | grep -oE "\\\\b\(cannot[^)]*\) \([a-z|]+\)\\\\b")"
 n="$(printf '%s' "$refusals" | grep -c .)"; distinct="$(printf '%s' "$refusals" | sort -u | grep -c .)"
 if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
   echo "ok   the two copies of the refusal phrase are identical"
@@ -68,15 +68,27 @@ CHECKED — CLEAN
 
 UNVERIFIABLE (not findings)
 - Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
-check accept "a lone severity-led finding" "RISK 1 — c.rb:3 — z could break on normal change."
+# Severity-led lines only lift the refusal veto; they are not findings for check 2. Counted as full
+# findings (review of 2026-10-06, rounds 1-2), they accepted refusals main rejects — these four.
 check reject "a lone severity-led refusal" "BUG: I cannot review this file because it is too long."
-# Unlike the list-marked pair above, two severity-led refusals reject: a severity-led line with the
-# refusal phrase is not counted (Codex, 2026-10-06 round 1: counting it newly accepted this reply).
 check reject "two severity-led refusals" "BUG: I cannot review the file.
 RISK: I cannot access the repository."
-check accept "severity-led findings: only the one with the refusal phrase drops out of the count" "RISK 1 — a.rb:3 — retries are unbounded.
+check reject "two severity-led refusals with a clean verdict: the refusal lines do not lift the veto" "BUG: I cannot review the file.
+RISK: I cannot access the repository.
+No findings."
+check reject "a lone severity-led refusal outside the refusal phrase" "BUG: I couldn't access the repository."
+check reject "a lone severity-led refusal: 'will not review'" "BUG: I will not review this file."
+check accept "severity-led findings: only the one with the refusal phrase drops out, two still lift the veto" "RISK 1 — a.rb:3 — retries are unbounded.
 NIT 1 — b.rb:9 — the handler cannot return early here.
-NIT 2 — c.rb:4 — the name is misleading."
+NIT 2 — c.rb:4 — the name is misleading.
+
+No BUG findings."
+# The price, pinned with B-REFUSAL-TEXT (owner's choice, 2026-10-06): severity-led findings with no
+# clean-verdict line still reject, as on main; so do two of them when one says "cannot return".
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): severity-led findings with no clean-verdict line are discarded" "BUG 1 — a.rb:1 — x is wrong.
+RISK 1 — b.rb:2 — y breaks on normal change."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): two severity-led findings, one saying 'cannot return', are discarded" "BUG 1 — api.rb:12 — The handler cannot return JSON because serialization raises.
+RISK 1 — api.rb:24 — Retries are unbounded."
 check reject "a severity word leading a hyphenated word is not a finding" "Bug-free builds matter.
 Risk-averse teams agree. I cannot review this diff."
 check reject "thinking only: reasoning that names the severities, no findings" "Okay, let me look at the diff. The prompt wants BUG, RISK and NIT entries.
