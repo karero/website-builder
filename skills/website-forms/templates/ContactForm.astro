@@ -79,33 +79,63 @@ const privacy = Astro.props.privacy ?? t.privacy;
   if (form) {
     const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    // Every field read-only works on, found when the form is sent, so a field added later
+    // is locked too. Left out: the kinds read-only does nothing on, which are hidden
+    // fields, buttons (submit, reset, button, image), a checkbox, a radio button, a file,
+    // a range and a colour, and a select is not an input at all. One of those that needs
+    // locking needs a lock of its own. One :not() per kind: a list inside a single :not()
+    // is newer and an older browser would throw on it.
+    const typeable = ['hidden', 'submit', 'reset', 'button', 'image', 'checkbox', 'radio', 'file', 'range', 'color']
+      .reduce((selector, kind) => `${selector}:not([type="${kind}"])`, 'input') + ', textarea';
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       status.textContent = form.dataset.sending ?? '';
       button.disabled = true;
-      let outcome: { ok?: boolean; error?: string } = {};
+      // Nothing can be typed while the message is on its way, so a success, which empties
+      // the form, never takes words that were not sent. Read-only, not disabled: a
+      // disabled field would be left out of the post. A field that was read-only already
+      // stays that way.
+      const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(typeable));
+      const locked = fields.filter((field) => !field.readOnly);
+      for (const field of locked) {
+        field.readOnly = true;
+        field.classList.add('contact-form-locked');
+      }
+      // Give up after 15 seconds, in every browser: the fields are locked until then.
+      const timeout = new AbortController();
+      const timer = setTimeout(() => timeout.abort(), 15000);
+      let ok = false;
+      let error: unknown;
       try {
         const res = await fetch(form.action, {
           method: 'POST',
           body: new FormData(form),
           headers: { Accept: 'application/json' },
-          // Give up after 15 seconds. A browser that cannot do that waits as long as it likes.
-          signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined,
+          signal: timeout.signal,
         });
-        // An answer that is not the function's (null, a number) counts as a failure below.
-        outcome = (await res.json()) ?? {};
+        const answer: unknown = await res.json();
+        // Sent only when the function says so: a success status and ok exactly true. Any
+        // other answer (null, a number, "ok": "false", an error status) is a failure.
+        ok = res.ok && (answer as { ok?: unknown } | null)?.ok === true;
+        error = (answer as { error?: unknown } | null)?.error;
       } catch {
-        outcome = { ok: false, error: 'send_failed' };
+        error = 'send_failed';
+      } finally {
+        clearTimeout(timer);
+        for (const field of locked) {
+          field.readOnly = false;
+          field.classList.remove('contact-form-locked');
+        }
+        button.disabled = false;
       }
-      button.disabled = false;
-      if (outcome.ok) {
+      if (ok) {
         form.reset();
         status.textContent = form.dataset.sent ?? '';
         return;
       }
       // Not sent. Say so in the announced line and keep what was typed. The failure
       // sentence points to the address under the form.
-      status.textContent = (outcome.error === 'invalid' ? form.dataset.invalid : form.dataset.failed) ?? '';
+      status.textContent = (error === 'invalid' ? form.dataset.invalid : form.dataset.failed) ?? '';
     });
   }
 </script>
@@ -118,6 +148,7 @@ const privacy = Astro.props.privacy ?? t.privacy;
   }
   .contact-form button { font: inherit; padding: 0.6rem 1.2rem; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
   .contact-form button[disabled] { opacity: 0.6; cursor: default; }
+  .contact-form .contact-form-locked { opacity: 0.7; }
   .contact-form-note { color: var(--muted); max-width: 36rem; }
   .contact-form-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 </style>
