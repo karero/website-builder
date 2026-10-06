@@ -61,7 +61,10 @@ skip silently. With a config diff, send the code that reads the config too.
    script names none), a round whose ollama seat did not count — no model or CLI, a failure such
    as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
    OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
-   `MELIOUS_API_KEY`, or the environment's API credential for that host. `--seat melious` runs it
+   `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
+   that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
+   thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
+   the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
    alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
    tokens too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
@@ -116,8 +119,8 @@ Codex's effort for any run.
 
 1. **Data check before anything leaves the machine.** Grep the artifact for secrets (keys, tokens,
    passwords, customer data). Get the owner's OK the first time a repo's content goes to each
-   destination SERVICE — Codex, ollama-cloud, Antigravity, Antigravity routed to a Claude tag, and
-   whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
+   destination SERVICE — Codex, ollama-cloud, melious.ai, Antigravity, Antigravity routed to a
+   Claude tag, and whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.

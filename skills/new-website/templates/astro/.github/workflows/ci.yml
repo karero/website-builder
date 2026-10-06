@@ -30,7 +30,7 @@ jobs:
       # Runs before the build so it fails in ~1s. Template [BRACKET] slots (privacy
       # page, manifest) are checked on the rendered site by
       # tests/placeholders.spec.ts, not here.
-      # Translated site (AGENTS.md uses e.g. "[FEHLT: …]")? Put that token in the
+      # Own token for non-English content (AGENTS.md §4 names e.g. "[FEHLT: …]")? Put it in the
       # pattern below and in DRAFT_TOKEN in tests/placeholders.spec.ts, or the gate
       # greps for a word nobody writes.
       # Two guards, two jobs: the folder loop names a missing folder in plain words;

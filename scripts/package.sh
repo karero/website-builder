@@ -32,7 +32,8 @@ zip -r -X "$OUT/website-builder.zip" \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
   scripts/test_install_pin.sh scripts/check_template_coverage.sh scripts/check_cdpath_safe.sh \
   scripts/test_package_leak.sh scripts/check_pipefail_pipes.sh \
-  scripts/test_pre_push_hook.sh scripts/test_clean_denylist.sh scripts/check_lf_checkout.sh \
+  scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh \
+  scripts/check_lf_checkout.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
 
@@ -63,7 +64,9 @@ REQUIRED=(
   scripts/test_package_leak.sh
   scripts/check_pipefail_pipes.sh
   scripts/test_pre_push_hook.sh
+  scripts/test_verify.sh
   scripts/test_clean_denylist.sh
+  scripts/test_git_stand_hook.sh
   scripts/check_lf_checkout.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
   docs/ANTIGRAVITY.md
@@ -76,6 +79,7 @@ REQUIRED=(
   skills/new-website/templates/SETUP.md
   skills/new-website/templates/.gitignore
   skills/new-website/templates/claude/settings.json
+  skills/new-website/templates/claude/hooks/git-stand.mjs
   skills/new-website/templates/AGENTS.md
   skills/new-website/templates/CLAUDE.md
   skills/website-team-setup/SKILL.md

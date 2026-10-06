@@ -91,10 +91,15 @@
 #                                    API credential for ollama.com is added by the proxy.
 #   MELIOUS_MODEL  (unset)           Melious model for the fallback seat (see above), as its
 #                                    /v1/models lists it. Unset = no Melious call at all.
-#   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else none is sent — in a
-#                                    cloud session an environment API credential for
-#                                    api.melious.ai is added by the proxy.
-#   MELIOUS_API_TIMEOUT (1800)       seconds curl allows the Melious request.
+#   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else the MELIOUS_API_KEY=
+#                                    line of MELIOUS_ENV_FILE (default
+#                                    ~/.config/reviewers/melious.env; parsed, never sourced), else
+#                                    none — in a cloud session an environment API credential for
+#                                    api.melious.ai is added by the proxy. Never exported to the
+#                                    other seats.
+#   MELIOUS_MAX_TOKENS (96000)       max_tokens for the reply; a reasoning model's thinking counts.
+#   MELIOUS_API_TIMEOUT (3600)       seconds curl allows the Melious request.
+#   MELIOUS_BASE_URL (https://api.melious.ai/v1)  the API root (tests point it at a local server).
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
@@ -461,6 +466,17 @@ ${CONTENT}
 # shape fails here instead, loudly, at the moment it happens. Nothing below reassigns these.
 readonly PROMPT_CORE PROMPT_VERIFY PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
 
+# API keys are read ONCE into shell variables that are not exported, and the exported names are
+# unset: codex, agy and ollama are tool-using agents reading untrusted text, and none of them needs
+# another seat's key (#165, fresh-eyes). The melious key reaches run_melious alone; the ollama key
+# reaches ollama_via_api on curl's stdin and the ollama CLI through ollama_cli below.
+MELIOUS_KEY_VALUE="${MELIOUS_API_KEY:-}"
+export -n MELIOUS_KEY_VALUE   # an assignment keeps a name exported that came in exported
+unset MELIOUS_API_KEY
+OLLAMA_KEY_VALUE="${OLLAMA_API_KEY:-}"
+export -n OLLAMA_KEY_VALUE
+unset OLLAMA_API_KEY
+
 # Raw reviewer outputs STREAM to files (never shell-variable-only: a teardown
 # mid-review must leave partials on disk — the clerk procedure depends on them).
 RAW_DIR="${REVIEW_RAW_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/independent-review.XXXXXX")}"
@@ -483,14 +499,11 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
-  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
-# ollama_via_api's header file holds an API key for its one request only. RAW_DIR is kept for the
-# clerk, so a run stopped mid-request must not leave the key in it: EXIT runs on a normal exit, on
-# the `exit` in the INT/TERM trap below, and on an untrapped SIGTERM or SIGHUP (each seen with bash
-# 5.2; not checked on bash 3.2). SIGKILL is out of reach. run_melious writes no such file; the
-# melious.hdr that earlier commits of this branch wrote is cleared with the stale files above.
-trap 'rm -f -- "$RAW_DIR/ollama.hdr"' EXIT
+# ollama.hdr and melious.hdr are cleared with the stale files above: earlier versions wrote the API
+# key to them for the request, and a run stopped mid-request could leave one behind. Neither API
+# transport writes a key file any more: both pipe it to curl's stdin.
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
@@ -562,7 +575,8 @@ looks_like_review() {
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
 #     non-review output) / 3 (unavailable). Callers fall through on non-zero. A
 #     tier returning 1 sets WHY to a short reason for its FAILED section (see
-#     attempt() below). ------
+#     attempt() below); one returning 3 may set it to name the missing tool, shown
+#     in the summary as "SKIPPED (<WHY>)". ------
 # PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort as
 # the daily-driver default) and ~/.codex/auth.json; `exec -s read-only` requests a read-only
 # sandbox — enforcement is the CLI's, and untested here (R-SANDBOX). The binary may not be
@@ -724,13 +738,29 @@ run_ollama() {
   fi
 }
 
+# What the HTTP API transports (ollama_via_api, run_melious) need before sending anything: curl,
+# and Perl 5.10 for `//` with JSON::PP (core only from 5.14, but a CPAN copy on an older Perl
+# works). When one is missing, WHY names it, and the summary reads "SKIPPED (<what>)" rather than
+# a bare "not available" that sends the owner looking for a missing model or CLI.
+api_tools_ok() {
+  command -v curl >/dev/null 2>&1 || { WHY="curl not found"; return 1; }
+  command -v perl >/dev/null 2>&1 || { WHY="perl not found"; return 1; }
+  perl -e 'require 5.010' 2>/dev/null || { WHY="Perl 5.10 or newer not found"; return 1; }
+  perl -MJSON::PP -e 1 2>/dev/null || { WHY="Perl module JSON::PP not found"; return 1; }
+}
+# The ollama CLI, with OLLAMA_API_KEY (unset for every other seat at startup) handed back to it alone.
+ollama_cli() {
+  # Unquoted on purpose: an assignment value is never word-split, and check_clean.sh reads a
+  # quoted value after a key-like name as a secret written into the file.
+  if [ -n "$OLLAMA_KEY_VALUE" ]; then OLLAMA_API_KEY=$OLLAMA_KEY_VALUE ollama "$@"; else ollama "$@"; fi
+}
 # The CLI transport: `ollama run`, whose stdout carries terminal redraw codes that must be undone.
 # Leaves the clean review in ollama.filtered. Returns 3 (unavailable) or 1 (failed, WHY set).
 ollama_via_cli() {
   command -v ollama >/dev/null 2>&1 || return 3
   # A model is named and the CLI is present, so a failing listing is an attempted tier
   # that failed (daemon down, broken install) — keep its error for the FAILED section.
-  ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
+  ollama_cli list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
   local tmp="$RAW_DIR/ollama.out" rc
   # --hidethinking keeps a reasoning model's trace ("Thinking..." ... "...done thinking.") out
   # of stdout. The trace is not the answer, yet it was judged as one: a real review was
@@ -739,10 +769,10 @@ ollama_via_cli() {
   # quote the closing line. A CLI too old to list the flag runs without it, as before; so does
   # one whose `run --help` fails, or mentions the flag only inside a longer word.
   local help
-  if help="$(ollama run --help 2>&1)" && grep -qE -- '(^|[[:space:]])--hidethinking([[:space:]]|$)' <<<"$help"; then
-    ollama run --hidethinking "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+  if help="$(ollama_cli run --help 2>&1)" && grep -qE -- '(^|[[:space:]])--hidethinking([[:space:]]|$)' <<<"$help"; then
+    ollama_cli run --hidethinking "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   else
-    ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+    ollama_cli run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   fi
   { [ $rc -eq 0 ] && [ -s "$tmp" ]; } || { why_cli $rc; return 1; }
   looks_like_review "$(cat "$tmp")" || { WHY="$NOT_A_REVIEW"; return 1; }
@@ -785,7 +815,8 @@ ollama_via_cli() {
       $n = $line_len if $n > $line_len;
       substr($out, length($out) - $n, $n, "") if $n > 0;
     }
-    if ((pos($s) // 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
+    # No `//` here (Perl 5.10): unlike the API transports, this path has no Perl version check.
+    if ((defined pos($s) ? pos($s) : 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
     print encode("UTF-8", $out);
   ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
   # The filter's exit status was previously discarded, and the section header was printed BEFORE
@@ -801,13 +832,18 @@ ollama_via_cli() {
 # to ollama.tokens for the cost log. STREAMED, one JSON object per line: a non-streamed request for
 # a real review came back "HTTP 502 upstream request failed" after 31s from a cloud session, while
 # the same request streamed returned in 45s — a silent connection gets cut somewhere on the way. A
-# stream that ends without its "done" line is a truncated review and fails the tier. The key, when OLLAMA_API_KEY is set, goes in a header FILE in the
-# owner-only RAW_DIR, never on curl's command line where `ps` would show it; the file is removed
-# right after the call. Errors are written as "Error: HTTP <code>: <message>" so attempt()'s quota
-# classification reads a 429 the same way as the CLI's. Leaves the review in ollama.out.
+# stream that ends without its "done" line is a truncated review and fails the tier. The key, when
+# OLLAMA_API_KEY is set, reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it,
+# and never a file, so a run stopped mid-request leaves no key behind on any shell (it used to be a
+# header file removed after the call, or by an EXIT trap untested on bash 3.2). The key was read
+# into OLLAMA_KEY_VALUE and unset at startup, so no other seat sees it. Errors are written
+# as "Error: HTTP <code>: <message>" so attempt()'s quota classification reads a 429 the same way
+# as the CLI's. On a 200 reply, which may carry review text, no server text goes on an "Error:"
+# line except an error message the server sent: a quote goes on an indented line below, with
+# control bytes collapsed, as in run_melious. Leaves the review in ollama.out.
 ollama_via_api() {
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
-  local url model="$OLLAMA_MODEL" hdr="$RAW_DIR/ollama.hdr" body="$RAW_DIR/ollama.req"
+  api_tools_ok || return 3
+  local url model="$OLLAMA_MODEL" body="$RAW_DIR/ollama.req"
   local resp="$RAW_DIR/ollama.resp" code rc prc
   if is_cloud_ollama_tag "$model"; then
     url="https://ollama.com"; model="${model%:cloud}"
@@ -816,17 +852,16 @@ ollama_via_api() {
     case "$url" in http://*|https://*) ;; *) url="http://$url" ;; esac
     url="${url%/}"
   fi
-  ( umask 077; : >"$hdr"
-    if [ -n "${OLLAMA_API_KEY:-}" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_API_KEY" >"$hdr"; fi )
   printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
     local $/; my $p = decode("UTF-8", scalar <STDIN>);
     print JSON::PP->new->utf8->canonical->encode(
       { model => $ARGV[0], stream => JSON::PP::true, messages => [ { role => "user", content => $p } ] });
-  ' "$model" >"$body" || { rm -f "$hdr"; WHY="could not build the API request"; return 1; }
-  code="$(curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
-    -H @"$hdr" -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
-    2>"$RAW_DIR/ollama.err")"; rc=$?
-  rm -f "$hdr"
+  ' "$model" >"$body" || { WHY="could not build the API request"; return 1; }
+  # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
+  code="$(if [ -n "$OLLAMA_KEY_VALUE" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_KEY_VALUE"; fi \
+    | curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+      -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
+      2>"$RAW_DIR/ollama.err")"; rc=$?
   if [ $rc -ne 0 ]; then
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/ollama.err"
     WHY="curl exit $rc"; return 1
@@ -835,27 +870,36 @@ ollama_via_api() {
     my ($file, $code, $tok) = @ARGV;
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $json = JSON::PP->new->utf8;
-    my ($c, $done, $n) = ("", undef, 0);
+    my ($c, $done) = ("", undef);
     while (my $line = <$f>) {
       next unless $line =~ /\S/;
       my $j = eval { $json->decode($line) };
-      if (ref $j ne "HASH") { chomp $line; print STDERR "Error: HTTP $code: response is not JSON: ", substr($line, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") {
+        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off the /r flag: the API transports need Perl 5.10, not 5.14
+        $q =~ s/^ | $//g; $q = substr($q, 0, 300);
+        # A non-200 body is the error reply of the server, quoted on the line; a 200 line may be
+        # review text, so it goes below, indented, where the classifier does not read.
+        if ($code ne "200") { print STDERR "Error: HTTP $code: response is not JSON: $q\n" }
+        else { print STDERR "Error: HTTP $code: a stream line is not JSON\n    line began: $q\n" }
+        exit 3;
+      }
       if (defined $j->{error}) {
         my $e = $j->{error}; $e = JSON::PP->new->encode($e) if ref $e;
         print STDERR "Error: HTTP $code: $e\n"; exit 2;
       }
-      $n++;
       $c .= $j->{message}{content} // "" if ref $j->{message} eq "HASH";
       $done = $j if $j->{done};
     }
     if ($code ne "200") { print STDERR "Error: HTTP $code: request failed\n"; exit 2 }
-    if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line after $n chunks — a truncated review\n"; exit 4 }
+    # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
+    if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line — a truncated review\n"; exit 4 }
     binmode STDOUT, ":encoding(UTF-8)";
     print $c; print "\n" if length $c && $c !~ /\n\z/;
     if (defined $done->{eval_count} && open my $t, ">", $tok) {
       print $t (($done->{prompt_eval_count} // 0) + $done->{eval_count}), "\n";
     }
   ' "$resp" "$code" "$RAW_DIR/ollama.tokens" >"$RAW_DIR/ollama.out" 2>>"$RAW_DIR/ollama.err"; prc=$?
+  [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
   [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
   [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/ollama.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
@@ -865,67 +909,127 @@ ollama_via_api() {
 # seat did not count, or as --seat melious (dispatch below). Text only, sent PROMPT_TEXTONLY like
 # ollama. POST /v1/chat/completions, STREAMED for the same reason as ollama_via_api: each line is
 # "data: <JSON chunk>", ending "data: [DONE]". A stream with neither a finish_reason nor [DONE] is a
-# truncated review, and so is finish_reason "length" or "content_filter"; a 200 reply that is one
-# JSON object and no stream (the server ignored stream:true) is reported as that. A reasoning
-# model's trace is not the answer (see ollama_via_cli's --hidethinking): Melious sent it as
-# reasoning_content, apart from content, for each of three reasoning models tried on 2026-10-05,
-# and that field is left out. A model that inlines it as a leading <think>...</think> block in
-# content has the block cut too. Not covered: on 2026-10-05 a reviewed text that itself quoted the
-# closing tag made the server end reasoning_content there, and the rest of the trace arrived as
-# content with no tags at all; the review still counted, with the trace printed above it.
-# The key, when set, reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it, and
-# never a file, so a run stopped mid-request leaves no key behind (final full read). The
+# truncated review; only finish_reason "stop" is a finished one (length, a filter, an error or a
+# tool call left it incomplete). A 200 reply that is one JSON object and no stream (the server
+# ignored stream:true) is reported as that. max_tokens is MELIOUS_MAX_TOKENS (96000: 48000 ran out
+# on a 27 KB diff, #165), and the request may take MELIOUS_API_TIMEOUT (3600 s: one review took
+# 1624 s). A reasoning model's trace is not the answer (see ollama_via_cli's --hidethinking):
+# Melious sends it as reasoning_content, apart from content, and that field is left out. Think
+# blocks inlined in content are cut too.
+# The key comes from MELIOUS_API_KEY (read once at startup, never exported to the other seats), else
+# from the one MELIOUS_API_KEY= line of MELIOUS_ENV_FILE, which is parsed and never sourced. It
+# reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it, and never a file, so a
+# run stopped mid-request leaves no key behind (final full read). With neither, no Authorization
+# header is sent: in a cloud session the proxy adds the environment's credential. The
 # usage-to-tokens line and the "Error: HTTP <code>:" shape follow ollama_via_api, so attempt()'s
 # quota classification reads a 429 the same way. On a 200 reply, which may carry review text, no
 # server text goes on an "Error:" line except an error message the server sent: the classifier
 # reads those lines, so a quote goes on an indented line below. A non-200 body is the server's
 # own error reply and is quoted on the line itself.
+melious_key() {   # prints the key, or nothing
+  if [ -n "$MELIOUS_KEY_VALUE" ]; then printf '%s' "$MELIOUS_KEY_VALUE"; return; fi
+  local f="${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}"
+  [ -r "$f" ] || return 0
+  # First matching line only, `export ` prefix allowed; trailing whitespace (a CRLF ending
+  # included) and one pair of surrounding quotes are dropped. Perl, not sed: BSD sed reads
+  # `\r` in a pattern as the letter r.
+  perl -ne 'if (s/^(?:export[ \t]+)?MELIOUS_API_KEY=//) { s/\s+\z//; s/^"(.*)"\z/$1/ or s/^\x27(.*)\x27\z/$1/; print; exit }' "$f"
+}
+# Reasoning that leaks into the reply (#165, 2026-10-05): the provider can end a reasoning model's
+# thinking at a closing think tag the model writes or quotes, and send the rest of the trace as
+# reply text, 100-290 KB ahead of the review, with no tags at all. Nothing in the reply marks where
+# the trace ends, so the seat asks for a marker line before the final answer and keeps what follows
+# the LAST marker line with findings after it (the model may mention the marker while reasoning,
+# or repeat it after the review; a marker that looks quoted is skipped). Without a usable marker
+# the whole reply is kept, with a warning.
+# The untrimmed reply stays in melious.full either way. Seen live: a 79 KB leaky reply trimmed to
+# its 1.2 KB review.
+# The marker is new on every run (=== FINAL REVIEW <random hex> ===) and never one the artifact
+# holds: a diff about this seat is full of marker text, and twice (#165, rounds 16 and 16a) the
+# model echoed the fixed marker inline while reasoning and never set one on a line of its own.
+melious_marker() {   # prints a marker line the reviewed text does not contain
+  local n="" r m
+  while :; do   # each pass makes the marker longer, so it ends once it outgrows the text
+    r="$(od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    [ -n "$r" ] || r="$$$RANDOM"
+    n="$n$r"
+    m="=== FINAL REVIEW $n ==="
+    case "$PROMPT_TEXTONLY" in *"$m"*) ;; *) break ;; esac
+  done
+  printf '%s' "$m"
+}
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
-  local url="https://api.melious.ai/v1/chat/completions"
+  api_tools_ok || return 3
+  local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
   local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
-  printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
+  case "$max" in
+    ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
+  esac
+  [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
+  url="${url%/}/chat/completions"
+  local mark; mark="$(melious_marker)"
+  printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
+    "$PROMPT_TEXTONLY" "$mark" | perl -MJSON::PP -MEncode=decode -e '
     local $/; my $p = decode("UTF-8", scalar <STDIN>);
     print JSON::PP->new->utf8->canonical->encode({ model => $ARGV[0], stream => JSON::PP::true,
-      stream_options => { include_usage => JSON::PP::true },
+      stream_options => { include_usage => JSON::PP::true }, max_tokens => 0 + $ARGV[1],
       messages => [ { role => "user", content => $p } ] });
-  ' "$MELIOUS_MODEL" >"$body" || { WHY="could not build the API request"; return 1; }
+  ' "$MELIOUS_MODEL" "$max" >"$body" || { WHY="could not build the API request"; return 1; }
+  key="$(melious_key)"
   # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
-  code="$(if [ -n "${MELIOUS_API_KEY:-}" ]; then printf 'Authorization: Bearer %s\n' "$MELIOUS_API_KEY"; fi \
-    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+  code="$(if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key"; fi \
+    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-3600}" -o "$resp" -w '%{http_code}' \
       -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url" \
       2>"$RAW_DIR/melious.err")"; rc=$?
+  key=""
   if [ $rc -ne 0 ]; then
-    printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
-    WHY="curl exit $rc"; return 1
+    if [ -s "$resp" ]; then
+      # Part of a reply came in, then the connection broke (a reset after 38 minutes of a runaway
+      # reply, #165): the host was reachable, so the network policy is not the cause.
+      printf 'Error: the reply from %s broke off (curl exit %s); the part that came is in melious.resp\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
+      WHY="curl exit $rc, reply cut off"
+    else
+      printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
+      WHY="curl exit $rc"
+    fi
+    return 1
   fi
-  perl -MJSON::PP -e '
-    my ($file, $code, $tok) = @ARGV;
+  perl -MJSON::PP -MEncode -e '
+    my ($file, $code, $tok, $mark, $full) = @ARGV;
     open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
     my $json = JSON::PP->new->utf8;
     sub errtext { my $e = shift; $e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
                   $e = JSON::PP->new->encode($e) if ref $e; $e }
+    # A quote of server text: whitespace and control bytes collapsed to one space (so nothing in it
+    # can start a new line where the classifier reads), cut to 300 bytes (the handle is raw, so a
+    # multibyte character can be split; readable_tail decodes leniently). No s///r: the API
+    # transports need Perl 5.10, not 5.14.
+    sub quoted { my $s = shift; $s =~ s/[\s\x00-\x1f\x7f]+/ /g; $s =~ s/^ | $//g; substr($s, 0, 300) }
     if ($code ne "200") {   # an error reply is one JSON object, not a stream
       local $/; my $raw = <$f> // "";
       my $j = eval { $json->decode($raw) };
       my $m = (ref $j eq "HASH" && defined $j->{error}) ? errtext($j->{error})
-            : "response is not JSON: " . substr($raw =~ s/\s+/ /gr, 0, 300);
+            : "response is not JSON: " . quoted($raw);
       print STDERR "Error: HTTP $code: $m\n"; exit 2;
     }
-    my ($c, $done, $fin, $usage, $n) = ("", 0, undef, undef, 0);
+    my ($c, $done, $fin, $usage, $n, $think) = ("", 0, undef, undef, 0, 0);
     while (my $line = <$f>) {
       next unless $line =~ /^data:[ \t]*(.*?)\s*$/;
       my $d = $1;
       if ($d eq "[DONE]") { $done = 1; next }
       my $j = eval { $json->decode($d) };
-      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", substr($d =~ s/[\s\x00-\x1f\x7f]+/ /gr, 0, 300), "\n"; exit 3 }
+      if (ref $j ne "HASH") { print STDERR "Error: HTTP $code: a stream chunk is not JSON\n    chunk began: ", quoted($d), "\n"; exit 3 }
       if (defined $j->{error}) { print STDERR "Error: HTTP $code: ", errtext($j->{error}), "\n"; exit 2 }
       $n++;
       $usage = $j->{usage} if ref $j->{usage} eq "HASH";
       my $ch = ref $j->{choices} eq "ARRAY" ? $j->{choices}[0] : undef;
       next unless ref $ch eq "HASH";
-      $c .= $ch->{delta}{content} // "" if ref $ch->{delta} eq "HASH";
+      if (ref $ch->{delta} eq "HASH") {
+        my $dl = $ch->{delta};
+        $c .= $dl->{content} if defined $dl->{content} && !ref $dl->{content};
+        for my $k (qw(reasoning_content reasoning)) { $think += length $dl->{$k} if defined $dl->{$k} && !ref $dl->{$k} }
+      }
       $fin = $ch->{finish_reason} if defined $ch->{finish_reason};
     }
     if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignoring stream:true
@@ -934,21 +1038,89 @@ run_melious() {
       my $j = eval { $json->decode($body) };
       if (ref $j eq "HASH") {   # the quote goes on its own indented line, which the classifier skips
         my $why = defined $j->{error} ? errtext($j->{error}) : "the reply was one JSON object, not a stream (stream:true ignored?)";
-        print STDERR "Error: HTTP $code: $why\n    reply began: ", substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
+        print STDERR "Error: HTTP $code: $why\n    reply began: ", quoted($body), "\n"; exit 3;
       }
     }
+    # The reply as it came, before any check or trim, on every path that reaches the finish check
+    # (melious.full). An error chunk or a non-JSON chunk stops earlier; melious.resp holds the stream.
+    my $saved = 0;
+    if (length $c && open my $fh, ">:encoding(UTF-8)", $full) { $saved = (print $fh $c) && close $fh }
     # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
     if (!$done && !defined $fin) { print STDERR "Error: HTTP $code: the stream ended without a finish_reason or [DONE] — a truncated review\n"; exit 4 }
-    if (defined $fin && $fin =~ /^(length|content_filter)$/) { print STDERR "Error: HTTP $code: the reply stopped early (finish_reason $fin) — a truncated review\n"; exit 4 }
-    $c =~ s/\A\s*<think>.*?<\/think>\s*//s;   # an inline trace, cut before anything judges it
+    # The finish_reason from the server goes on an Error: line, which the quota classifier reads: only a
+    # short plain word reaches it (no newline, no 429 forged from a longer value).
+    if (defined $fin) { $fin = "<not a string>" if ref $fin; $fin =~ s/[^A-Za-z_.-]/_/g; $fin = substr($fin, 0, 40) }
+    if (defined $fin && $fin ne "stop") {
+      print STDERR "Error: HTTP $code: the reply stopped early (finish_reason $fin) — a truncated review",
+        ($fin eq "length" ? "; raise MELIOUS_MAX_TOKENS" : ""), "\n"; exit 4;
+    }
+    # Think blocks inlined in content: closed ones whose opener starts a line, anywhere in the
+    # reply, then such an opener never closed (all of the rest is thinking). The tags are built,
+    # not written out: with literal tags in this file, a review of a diff touching it made the
+    # provider end the reasoning at a quoted closing tag (#165).
+    # Only an opener that starts a line is a trace: a review may quote the tag inline while
+    # discussing tag handling, and must not lose the text after it. What is cut is noted.
+    my ($open, $close) = ("<" . "think>", "</" . "think>");
+    my $before_cut = length $c;
+    $c =~ s/^[ \t]*\Q$open\E.*?\Q$close\E\s*//gms;
+    $c =~ s/^[ \t]*\Q$open\E.*\z//ms;
+    my $cut = $before_cut - length $c;
+    if ($c !~ /\S/) { print STDERR "Error: HTTP $code: the reply holds no text", ($think ? ", only thinking" : ""), " — the model returned no review\n"; exit 5 }
+    # Keep what follows the LAST marker that ends a line and has findings-shaped text after it: a
+    # marker repeated at the end, or quoted in a fence after the review, must not win. Markdown
+    # around the marker (bold, a heading, a quote, backticks) is allowed. The marker need not start
+    # its line: the ollama seat model glued it to the end of its last line of reasoning (#165, round 16c), and a trace
+    # can restate the ask, marker and all, before that. A marker that looks quoted is skipped: one
+    # after other text on a finding line or right after a backtick, or one just inside a fence, so
+    # a finding that quotes the marker does not cut the findings above it. A cut at a marker after
+    # other text is said, and so is a cut when more than one marker had findings after it: a skip
+    # or a quote the rules miss can move the cut, and the reader then checks where the review
+    # starts. No usable marker: the reply is kept whole, with a warning.
+    my $note = "";
+    my $thinknote = $cut ? "(think block text dropped, " . ($cut < 1024 ? "under 1 KB" : "about " . int($cut / 1024 + 0.5) . " KB") . ($saved ? "; the full reply is in melious.full" : "") . ")\n" : "";
+    my $wrap = qr/[ \t>*_#\x60]*/;
+    my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
+    my $findings = qr/\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
+    my $usable = grep { substr($c, $_->[1]) =~ $findings } @at;
+    my $kept_whole = 1;
+    for my $m (reverse @at) {
+      my ($start, $end) = @$m;
+      my $after = substr($c, $end); $after =~ s/\A\r?\n//;
+      next unless $after =~ $findings;
+      my $ls = rindex($c, "\n", $start - 1) + 1;   # where the marker line starts
+      my $lead = substr($c, $ls, $start - $ls);
+      my $glued = $lead !~ /\A$wrap\z/;
+      next if $glued && ($lead =~ /\A[ \t>]*(?:[-*+]|\d+[.)])?[ \t]*\**(?:BUG|RISK|NIT)\b/ || $lead =~ /\x60\z/);
+      if ($ls > 0) {   # the line above opens a fence: a quote
+        my $pl = rindex($c, "\n", $ls - 2) + 1;
+        next if substr($c, $pl, $ls - 1 - $pl) =~ /\A[ \t>]*\x60\x60\x60/;
+      }
+      my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
+      if ($before =~ /\S/) {
+        my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
+        $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text" : "") . ($usable > 1 ? "; the marker came $usable times with findings after it" : "") . ($glued || $usable > 1 ? ", so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
+      }
+      $c = $after; $kept_whole = 0; last;
+    }
+    # A cut with nothing before it has no dropped-text note, but a skipped marker can still mean
+    # the reply opens with reasoning: said all the same.
+    $note = "(the final-review marker came $usable times with findings after it, so check that the section starts with the review)\n\n" if !$kept_whole && $note eq "" && $usable > 1;
+    # No usable marker: the model did not mark its final answer. Kept, and always said: a 21 KB
+    # reply of working notes with no marker counted as a review and carried no warning (#165,
+    # round 16), so size alone does not tell a leak from a short review.
+    if ($kept_whole) {
+      my $size = length(Encode::encode("UTF-8", $c)) > 65536 ? "large " : "";   # bytes
+      $note = "(no usable final-review marker: this ${size}reply may be leaked reasoning rather than a finished review; read it from the end" . ($saved ? "; the full reply is in melious.full" : "") . ")\n\n";
+    }
     binmode STDOUT, ":encoding(UTF-8)";
-    print $c; print "\n" if length $c && $c !~ /\n\z/;
+    print $thinknote, $note, $c; print "\n" if length $c && $c !~ /\n\z/;
     if ($usage && open my $t, ">", $tok) {
       my $total = $usage->{total_tokens} // (($usage->{prompt_tokens} // 0) + ($usage->{completion_tokens} // 0));
       print $t "$total\n";
     }
-  ' "$resp" "$code" "$RAW_DIR/melious.tokens" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
+  ' "$resp" "$code" "$RAW_DIR/melious.tokens" "$mark" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
   [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
+  [ $prc -eq 5 ] && { WHY="HTTP $code but no review text"; return 1; }
   [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
   [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
@@ -975,7 +1147,7 @@ NOT_A_REVIEW="output is not a review"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
-# (round 2, kimi).
+# (round 2, ollama).
 QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits)|exceeded your( current)? quota'
 why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
   if [ "$1" -ne 0 ]; then WHY="exit $1"; else WHY="exit 0 but no output"; fi
@@ -988,7 +1160,7 @@ why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
 # NOT emulated (run_ollama's filter does that for the review body), so a quoted
 # redrawn line may keep fragments. Decoding substitutes U+FFFD for bad bytes rather
 # than failing: `tail -c` cuts on a byte, often inside a 3-byte spinner glyph, and a
-# strict or -C decode then kills perl and loses the quote (round 2, Fable).
+# strict or -C decode then kills perl and loses the quote (round 2, fresh-eyes).
 readable_tail() {
   [ -s "$1" ] || return 0
   tail -c 65536 "$1" | perl -0777 -MEncode=decode,encode -ne '
@@ -1040,7 +1212,7 @@ report_tier() {
   if [ $rc -eq 0 ]; then
     OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); outcome="OK"
   elif [ $rc -eq 3 ]; then
-    outcome="SKIPPED (not available)"
+    outcome="SKIPPED (${WHY:-not available})"   # WHY: a missing tool, when the tier named one
   elif [ $TIER_PRINTED -eq 1 ]; then
     outcome="NOT COUNTED ($WHY)"          # its review is above; policy keeps it off the gate
   else

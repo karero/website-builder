@@ -10,6 +10,7 @@ drives assembly; this README is the manual reference.
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
 .nvmrc                        # Node 24 — Astro needs >=22.12 (Cloudflare Pages reads it)
+.gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
 src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
@@ -24,6 +25,7 @@ scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per pag
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
+scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
 ```
@@ -60,7 +62,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    (controller, date, analytics wording — see the comment block in that file).
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
-5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
+5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 

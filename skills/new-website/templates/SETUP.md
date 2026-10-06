@@ -140,8 +140,9 @@ git config --global fetch.prune true   # once per machine; use --local to scope 
 ### Pre-push quality gate (auto-wired by `npm install`)
 
 The `prepare` script in `package.json` (`node scripts/wire-hooks.mjs`) points
-`core.hooksPath` at `scripts/hooks`, so the shipped **`pre-push` hook** runs the build + tests
-and **blocks a push that's red** — the local enforcement of "fails → does not ship" (Cloudflare
+`core.hooksPath` at `scripts/hooks`, so the shipped **`pre-push` hook** runs `scripts/verify.mjs`
+(the same as `npm run verify`: type check, then the tests, which build the site) and
+**blocks a push that's red** — the local enforcement of "fails → does not ship" (Cloudflare
 deploys independently of CI, so this is what makes that true on a direct-push workflow). It
 needs `npx playwright install chromium` (above). Relax for one push with
 `git push --no-verify`; disable with `git config --unset core.hooksPath`. See `website-qa`
@@ -171,8 +172,12 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 **Claude Code only.** Copy the permission allowlist into the project so routine build
 commands (npm/astro/playwright/git read+commit, image tools) run without a prompt:
 ```bash
-mkdir -p .claude && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
+mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
+cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/
 ```
+The settings also register `.claude/hooks/git-stand.mjs`: at every session start (and
+again once the last sync is 2 hours old) it runs `git fetch` and tells you and Claude what
+changed on GitHub. It never pulls, merges or changes files.
 > **Codex / Antigravity:** skip this — `.claude/settings.json` is Claude Code-specific. On
 > Codex, durable project instructions live in `AGENTS.md` (the scaffold ships one; `CLAUDE.md`
 > imports it) and command approval in Codex's own rules/config. Antigravity uses its own

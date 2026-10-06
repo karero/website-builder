@@ -8,17 +8,23 @@ Live: [LIVE_URL] · Preview: [PREVIEW_URL]
      single-stage: "pull-request previews only, <branch>.<project>.pages.dev"),
      TITLE_SUFFIX + SUFFIX_LENGTH + TITLE_MAX in §6, and keeps ONE publish-model block
      in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
-     (collaborators, rights level, merge rule, who publishes). Owner writes in another
-     language? Translate this file in-session, keep every rule, keep the commands
-     verbatim — and if you translate the placeholder token "[MISSING: …]" (§2, §4),
-     change the grep pattern in .github/workflows/ci.yml and DRAFT_TOKEN in
-     tests/placeholders.spec.ts to the same word, or the CI gate never fires and a
-     draft branch cannot be pushed. CLAUDE.md imports this file, so Codex and Claude Code follow
+     (collaborators, rights level, merge rule, who publishes). This file stays English
+     for every owner, like the skills; the Language rule below makes the assistant talk
+     to a non-English owner in their language. A site with non-English content may use
+     its own placeholder token instead of "[MISSING: …]" (e.g. "[FEHLT: …]"): then
+     write it in §2 and §4 here, and change the grep pattern in
+     .github/workflows/ci.yml and DRAFT_TOKEN in tests/placeholders.spec.ts to the
+     same word, or the CI gate never fires and a draft branch cannot be pushed. CLAUDE.md imports this file, so Codex and Claude Code follow
      the same rules. -->
 
 Several people and several AI assistants may work on this site, sometimes at the same
 time. The rules below stop anyone from working on a stale state or overwriting someone
 else's work. If a rule is unclear or does not fit the situation: ask, do not improvise.
+
+**Language.** Keep this file in English when you edit it: agents read it, and it
+points at skills that are English too. Reply to the person (reports, questions, pull
+request descriptions) in the language they write in. The language of the site's own
+texts is set in §4, independent of that.
 
 ## 1. At the start of EVERY session: get the latest state (mandatory)
 
@@ -33,7 +39,15 @@ Before you change any file:
    git log --format='%h %an, %ar: %s' ${old:+$old..}origin/main -n 20
    ```
    If Codex asks whether `git fetch` may use the network: allow it (it cannot work
-   without).
+   without network access).
+   **Claude Code** does this step automatically (hook `.claude/hooks/git-stand.mjs`,
+   at session start and again once the last sync is 2 hours old). Use the hook's
+   report and do not repeat step 2: after the hook, the command above shows nothing
+   new even when there was something new. No hook report at the start of the
+   session, or none for more than 2 hours in a long session, means the hook or its
+   2-hour check did not run (settings not trusted, Node missing, a timeout): then do
+   step 2 yourself. An extra fetch does no harm: the command then lists what arrived
+   since the hook's last sync, which no report has covered yet; tell the person (step 3).
 3. Tell the person in plain words **what is new** (who changed what). If nothing is
    new: say so.
 4. Then, depending on the task. If it is unclear which case applies: ask.
@@ -68,7 +82,9 @@ applies there; instead of steps 2 to 4, only this:
   git ls-remote origin "refs/heads/$(git rev-parse --abbrev-ref HEAD)"   # reads only
   ```
   Same id: say the state is current. Different: say GitHub has moved on and that a
-  new task gets the newest state. Network off: say the comparison was not possible.
+  new task gets the newest state. `ls-remote` succeeds but prints no line: say this
+  branch is not (or no longer) on GitHub. It fails (network off, no access): say the
+  comparison was not possible.
 - If an **older** cloud task is being resumed, say: "Whether GitHub has moved on since
   is not checked. For the newest state, start a new task."
 - Fetch nothing, create or switch no branch. Codex works on this state; Codex creates
@@ -128,12 +144,29 @@ applies there; instead of steps 2 to 4, only this:
   publishes, the merge conditions above are the only gate: a red check or a leftover
   placeholder must never be merged.
 
-- Before the pull request: `npm ci` (installs the exact packages, also when
-  `package-lock.json` changed), then `npm run check`, `npm run build` and
-  `npx playwright test`. Everything must be green. Do not work around or disable red
-  tests; report them. If the environment cannot run the tests (e.g. no browser
-  installed): say so, do not claim "green".
-- Change only what the task asks for. Nothing "on the side".
+- **Checks before the pull request: one command, the same for every change.** Text
+  changes too: the tests catch the mistakes text edits typically make (banned
+  phrasing, title and description lengths, placeholders, broken internal links), so a text
+  change is the change most likely to fail them. Everything must be green.
+  - On your own computer the push is the check. Commit, then
+    `git push -u origin <branch>`: the pre-push hook runs `scripts/verify.mjs`, which
+    reinstalls the exact packages only when needed (first run, or `package-lock.json`
+    changed since), runs `npm run check`, then builds the site once and runs all tests.
+    It prints a short result, or the errors. Red: the push is refused; fix the cause,
+    commit, push again. Do not also run `npm ci`, `npm run check`, `npm run build` or
+    `npx playwright test` by hand first: the push runs the same steps, so doing both
+    only costs time.
+  - The hook is on when `git config --get core.hooksPath` prints `scripts/hooks`. If it
+    prints anything else or nothing, and always in Codex in the cloud: run
+    `npm run verify` yourself and push (or press "Create PR") only when it is green.
+    `npm run verify` is also the way to try a fix without pushing.
+  - Do not push with `--no-verify`: it skips the check, so red work reaches GitHub and
+    costs a CI round and someone's review. Do not work around or disable red tests;
+    report them. If the environment cannot run the tests (e.g. no browser installed;
+    `npx playwright install chromium` adds it): say so, do not claim "green".
+- Change only what the task asks for. Nothing "on the side". Several small changes
+  the person asks for together (e.g. a handful of text fixes) go on one branch and
+  into one pull request: one check covers them all.
 
 ## 3. Where the content lives
 

@@ -103,7 +103,7 @@ Feature → the high-value test to add:
 | Feature | Write a test that… |
 |---|---|
 | New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). Then **link it from a related page** — `orphans.spec.ts` fails if it's reachable from no internal link. |
-| Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. |
+| Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. A form that emails the owner: install `website-forms`, whose `tests/forms.spec.ts` covers exactly this (set its `PAGE` and `PRIVACY`). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
 | Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). |
 | Site search | a known query returns the expected result; empty query handled. |
 | Redirects (`_redirects`) | each legacy URL 301s to the new clean URL. |
@@ -121,9 +121,11 @@ cosmetic you'll change next week; do pin every contract a third party could sile
 ## 1c. Enforce the gate on push (the pre-push hook)
 
 The baseline only protects the site if it actually runs before a deploy. The scaffold ships
-a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `npm run build`, `check_seo.py`
-(if present) and `npm test`, and **refuses the push if anything is red** — so a broken build
-never reaches the deploy branch. It's wired automatically: the `prepare` script in
+a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `scripts/verify.mjs` (the same
+as `npm run verify`: `npm ci` only on its first run or when `package.json` or `package-lock.json` changed, `npm run check`, then
+`npm test`, which builds once; short output) and `check_seo.py` (if present), and **refuses the
+push if anything is red** — so a broken build never reaches the deploy branch. A site without
+`scripts/verify.mjs` gets the older `npm run build` + `npm test`. It's wired automatically: the `prepare` script in
 `package.json` (`node scripts/wire-hooks.mjs`, a line with no shell syntax) points
 `core.hooksPath` at `scripts/hooks` on `npm install` — when the site is the root of its git
 repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the gate is not
@@ -138,7 +140,8 @@ up or handing off a site, surface both directions:
 - **Relax for one push:** `git push --no-verify` (skips the hook for that push only).
 - **Disable entirely:** `git config --unset core.hooksPath` (re-enable with
   `npm install`, or `git config core.hooksPath scripts/hooks`).
-- **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. drop the full build for speed).
+- **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. leave out a slow step; CI still
+  runs everything).
 
 A team that wants the speed of direct pushes and the safety of the gate keeps it on; a solo
 builder mid-experiment may want it off. Make the call explicit with the user; don't decide for
