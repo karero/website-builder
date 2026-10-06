@@ -201,15 +201,29 @@ jobs:
           git -C "$C/src" -c user.name=ci -c user.email=ci@example.invalid commit -qm control
           git clone -q "$C/src" "$C/clone"
           node -e '
-            if (!require("fs").readFileSync(process.argv[1]).includes(13)) {
+            const fs = require("fs");
+            // Written LF, so a CR in the clone can only come from the checkout converting it.
+            if (fs.readFileSync(process.argv[1]).includes(13)) {
+              console.log("::error::the control source was written with CRLF: it cannot show a conversion");
+              process.exit(1);
+            }
+            if (!fs.readFileSync(process.argv[2]).includes(13)) {
               console.log("::error::the control script came out LF: this runner does not convert, so the check below would prove nothing");
               process.exit(1);
             }
-            console.log("control: a script with no .gitattributes rule came out CRLF");
-          ' "$C/clone/a.sh"
+            console.log("control: a script written LF, with no .gitattributes rule, came out CRLF");
+          ' "$C/src/a.sh" "$C/clone/a.sh"
       - name: This repo's shell scripts, the site hook and the Makefile checked out LF
         shell: bash
         run: |
+          # The control proves `git clone` converts here; this proves actions/checkout's own git
+          # checkout ran with conversion on (no local override). With no git on PATH, checkout
+          # downloads a zip instead and converts nothing: then there is no repo, and this fails.
+          autocrlf="$(git config --get core.autocrlf)" || true
+          [ "$autocrlf" = true ] || {
+            echo "::error::this checkout has core.autocrlf=${autocrlf:-unset}, not true: it did not convert"
+            exit 1
+          }
           git ls-files -z -- '*.sh' 'skills/new-website/templates/astro/scripts/hooks/*' Makefile \
             >"$RUNNER_TEMP/lf-files"
           node -e '
