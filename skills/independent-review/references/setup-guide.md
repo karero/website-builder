@@ -115,7 +115,8 @@ sanity pass) sends the same text-only prompt here, so the pair keeps its second 
 to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path needs too.
 
 - **Key, on your own machine:** `~/.config/reviewers/melious.env`, `chmod 600`, one line
-  `MELIOUS_API_KEY=<key>`. Never source, cat or echo it. Check it is there with
+  `MELIOUS_API_KEY=<key>`, the key alone (a trailing comment would become part of it). Never
+  source, cat or echo it. Check it is there with
   `grep -c '^MELIOUS_API_KEY=' ~/.config/reviewers/melious.env` (prints 1). Another path:
   `MELIOUS_ENV_FILE`.
 - **Key, in a cloud session:** an API credential for `api.melious.ai` in the environment's

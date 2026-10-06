@@ -240,6 +240,9 @@ case "$url" in
       bigmarkend) x=$(printf '%70000s' '' | tr ' ' x)
               { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n=== FINAL REVIEW ===\\n\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       markend) { d '"content":"- BUG: before the marker\n- NIT: two\n=== FINAL REVIEW ===\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      quotedtag) TO="<""think>"
+              { d "\"content\":\"- RISK: the seat cuts a ${TO} block only at a line start\\n- NIT: keep this line\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      oddfinish) { d '"content":"- BUG: x"' null; d '"content":null' '"429 rate limit\nError: HTTP 429"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       empty)  : >"$out"; printf 200 ;;
       splitchunk) # one event over two data: lines, split inside a JSON string, so neither half nor
               # their SSE join (which adds a raw newline) is valid JSON; run_melious decodes each
@@ -276,7 +279,7 @@ mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -963,7 +966,7 @@ check "mparallel: Melious started while codex was still running" \
   sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
 # Stopping the script stops a fallback started after ollama failed, as it does the pair.
 mkdir -p "$T/mstop.marks"
-env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
   bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
@@ -1043,6 +1046,11 @@ run mthinklast MELIOUS_MODEL=stub-melious MELIOUS_STUB=thinklast bash "$SCRIPT" 
 check "mthinklast: a think block after the review is dropped, the review kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept before" "$1" && ! grep -qF "trailing thoughts" "$1"' _ "$T/mthinklast.out"
 run munclosed MELIOUS_MODEL=stub-melious MELIOUS_STUB=unclosed bash "$SCRIPT" "$T/change.diff" --seat melious
 check "munclosed: an opener never closed: the rest is thinking and is dropped" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept first" "$1" && ! grep -qF "could not read" "$1"' _ "$T/munclosed.out"
+check "mthinklast: and says what it cut" has mthinklast.out "think block text dropped"
+run mquotedtag MELIOUS_MODEL=stub-melious MELIOUS_STUB=quotedtag bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mquotedtag: a tag quoted inside a finding cuts nothing (re-gate, fresh-eyes)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "NIT: keep this line" "$1" && ! grep -qF "think block text dropped" "$1"' _ "$T/mquotedtag.out"
+run moddfinish MELIOUS_MODEL=stub-melious MELIOUS_STUB=oddfinish bash "$SCRIPT" "$T/change.diff" --seat melious
+check "moddfinish: a finish_reason carrying 429 text is not read as quota" sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "quota/rate limit" "$1" && ! grep -qF "finish_reason 429" "$1"' _ "$T/moddfinish.out"
 run mfilter MELIOUS_MODEL=stub-melious MELIOUS_STUB=filter bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mfilter: a finish other than stop is a truncated review" sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "finish_reason content_filter" "$1"' _ "$T/mfilter.out"
 run mlengthbudget MELIOUS_MODEL=stub-melious MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --seat melious

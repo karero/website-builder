@@ -994,11 +994,15 @@ run_melious() {
         print STDERR "Error: HTTP $code: $why\n    reply began: ", substr($body =~ s/\s+/ /gr, 0, 300), "\n"; exit 3;
       }
     }
-    # The reply as it came, before any check or trim, on every path that has one (melious.full).
+    # The reply as it came, before any check or trim, on every path that reaches the finish check
+    # (melious.full). An error chunk or a non-JSON chunk stops earlier; melious.resp holds the stream.
     my $saved = 0;
     if (length $c && open my $fh, ">:encoding(UTF-8)", $full) { $saved = (print $fh $c) && close $fh }
     # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
     if (!$done && !defined $fin) { print STDERR "Error: HTTP $code: the stream ended without a finish_reason or [DONE] — a truncated review\n"; exit 4 }
+    # The finish_reason from the server goes on an Error: line, which the quota classifier reads: only a
+    # short plain word reaches it (no newline, no 429 forged from a longer value).
+    if (defined $fin) { $fin = "<not a string>" if ref $fin; $fin =~ s/[^A-Za-z_.-]/_/g; $fin = substr($fin, 0, 40) }
     if (defined $fin && $fin ne "stop") {
       print STDERR "Error: HTTP $code: the reply stopped early (finish_reason $fin) — a truncated review",
         ($fin eq "length" ? "; raise MELIOUS_MAX_TOKENS" : ""), "\n"; exit 4;
@@ -1006,15 +1010,20 @@ run_melious() {
     # Think blocks inlined in content: closed ones anywhere, then an opener never closed (all of the
     # rest is thinking). The tags are built, not written out: with literal tags in this file, a
     # review of a diff touching it made the provider end the reasoning at a quoted closing tag (#165).
+    # Only an opener that starts a line is a trace: a review may quote the tag inline while
+    # discussing tag handling, and must not lose the text after it. What is cut is noted.
     my ($open, $close) = ("<" . "think>", "</" . "think>");
-    $c =~ s/\Q$open\E.*?\Q$close\E\s*//gs;
-    $c =~ s/\Q$open\E.*\z//s;
+    my $before_cut = length $c;
+    $c =~ s/^[ \t]*\Q$open\E.*?\Q$close\E\s*//gms;
+    $c =~ s/^[ \t]*\Q$open\E.*\z//ms;
+    my $cut = $before_cut - length $c;
     if ($c !~ /\S/) { print STDERR "Error: HTTP $code: the reply holds no text", ($think ? ", only thinking" : ""), " — the model returned no review\n"; exit 5 }
     # Keep what follows the LAST marker line that has findings-shaped text after it: a marker
     # repeated at the end, or quoted in a fence after the review, must not win. Markdown around the
     # marker (bold, a heading, a quote, backticks) is allowed. No usable marker: the reply is kept
     # whole, with a warning when it is large.
     my $note = "";
+    my $thinknote = $cut ? "(think block text dropped, " . ($cut < 1024 ? "under 1 KB" : "about " . int($cut / 1024 + 0.5) . " KB") . ($saved ? "; the full reply is in melious.full" : "") . ")\n" : "";
     my $wrap = qr/[ \t>*_#\x60]*/;
     my @at; while ($c =~ /^$wrap\Q$mark\E$wrap\r?$/mg) { push @at, $+[0] }
     my $kept_whole = 1;
@@ -1032,7 +1041,7 @@ run_melious() {
       $note = "(no usable final-review marker, and the reply is large: it may hold leaked reasoning ahead of the review; read it from the end)\n\n";
     }
     binmode STDOUT, ":encoding(UTF-8)";
-    print $note, $c; print "\n" if length $c && $c !~ /\n\z/;
+    print $thinknote, $note, $c; print "\n" if length $c && $c !~ /\n\z/;
     if ($usage && open my $t, ">", $tok) {
       my $total = $usage->{total_tokens} // (($usage->{prompt_tokens} // 0) + ($usage->{completion_tokens} // 0));
       print $t "$total\n";
