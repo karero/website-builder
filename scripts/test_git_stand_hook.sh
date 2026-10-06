@@ -7,7 +7,7 @@
 # fetching itself, so a hook that reports wrong ("nothing new" when there was news, a
 # silent failure, a retry that never comes) makes a session work on a stale state without
 # anyone knowing. Every case here was first found by hand or by a reviewer (PR #166 and
-# karero/pur-architekten-v2#28); this pins them. It also checks that the settings template
+# a companion PR in a site repo); this pins them. It also checks that the settings template
 # registers exactly the script the template ships, since a copied settings file without
 # the script fails at every session start.
 #
