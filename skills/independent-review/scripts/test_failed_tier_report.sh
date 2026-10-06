@@ -914,6 +914,9 @@ if command -v git >/dev/null 2>&1; then
     sh -c '[ "$(cat "$1/mlsnone.rc")" = 0 ] && grep -qF "no file the merge changed on the base side" "$1/mlsnone.err"' _ "$T"
   ( cd "$R" && bash "$ML" oldbase reviewed newbase --suggest-callees ) >/dev/null 2>&1; echo $? >"$T/mlslate.rc"
   check "suggest: the flag goes first, elsewhere it is a usage error" rc_is mlslate 2
+  ( cd "$R" && bash "$ML" --suggest-callees newhead newhead newhead ) >"$T/mlsown.out" 2>"$T/mlsown.err"
+  check "suggest: no own files to search says so, not silence (Light gate, #193)" \
+    sh -c '[ ! -s "$1/mlsown.out" ] && grep -qF "no files of its own" "$1/mlsown.err"' _ "$T"
   ( cd "$R" && bash "$ML" newhead newhead newhead ) >"$T/mlempty.out" 2>&1; echo $? >"$T/mlempty.rc"
   check "merge_link: nothing moved prints nothing (not the whole tree)" \
     sh -c '[ "$(cat "$1/mlempty.rc")" = 0 ] && [ ! -s "$1/mlempty.out" ]' _ "$T"

@@ -42,6 +42,9 @@ own="$tmp/own" list="$tmp/list"
 } | perl -0 -ne 'print unless m{^docs/reviews/} or $seen{$_}++' >"$list"
 # An empty list must print nothing: xargs with no input runs git diff unfiltered on GNU (the whole
 # tree) and not at all on BSD — neither is the merge link.
+if [ "$suggest" = 1 ] && [ ! -s "$own" ]; then
+  echo "merge_link.sh: no suggestions — the change has no files of its own outside docs/reviews/ to search." >&2
+fi
 [ -s "$list" ] || exit 0
 if [ "$suggest" = 1 ] && [ -s "$own" ]; then
   # Candidates: the base side's changed files, less those already in the list.
