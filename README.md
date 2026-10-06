@@ -283,6 +283,7 @@ scripts/
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
+  test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
 docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
