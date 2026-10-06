@@ -32,6 +32,9 @@ STUB_TAG="stub-model"; STUB_TAG="${STUB_TAG}:cloud"
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex-ran"
+# The API keys are unset for every seat but their own (#165): codex must never see them.
+[ -n "${MELIOUS_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-melious-key"
+[ -n "${OLLAMA_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-ollama-key"
 # Like the real CLI (0.157.0, seen 2026-09-26): outside a git repo, refuse to start
 # unless --skip-git-repo-check is passed. Records its whole argv, the prompt replaced by
 # <prompt> (found by its content, not its position), so a test can pin it exactly: an
@@ -52,8 +55,6 @@ if [ $skip -eq 0 ] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; the
     'Not inside a trusted directory and --skip-git-repo-check was not specified.' >&2
   exit 1
 fi
-[ -n "${MELIOUS_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-melious-key"
-[ -n "${OLLAMA_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-ollama-key"
 case "${CODEX_STUB:-ok}" in
   ok)   printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two' ;;
   auth) # codex echoes the reviewed artifact into stderr — here one that mentions
@@ -75,6 +76,9 @@ case "${CODEX_STUB:-ok}" in
         echo "ERROR: disk quota exceeded while writing the session log" >&2; exit 1 ;;
   reply) printf '%s\n' "$STUB_REPLY" ;;   # a successful run whose whole reply is $STUB_REPLY
   slow)  sleep 2; printf '%s\n' '- BUG: stub finding one' ;;   # a reviewer that takes a while
+  waitmelious) # finishes only once Melious has started (10s cap), then marks itself done
+        i=0; while [ ! -e "$STUB_MARKS/melious-started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
+        : >"$STUB_MARKS/codex-done"; printf '%s\n' '- BUG: stub finding one' ;;
   tokens) # a run that reports its token count on stderr, as codex ends a run
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
@@ -162,8 +166,9 @@ case "${AGY_STUB:-ok}" in
           printf '%s\n' 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.' >&2 ;;
 esac
 EOF
-# A stub curl for the ollama HTTP API transport: records the URL, the request body and the header
-# file it was handed (the file, not argv, must carry any key), and plays back a canned NDJSON stream.
+# A stub curl for the ollama HTTP API transport and the Melious seat: records the URL, the request
+# body and the headers it was handed in a file (ollama) or on stdin (Melious) — never argv, which
+# must carry no key — and plays back a canned NDJSON stream (ollama) or SSE stream (Melious).
 cat >"$T/bin/curl" <<'EOF'
 #!/bin/sh
 out= body= url= ARGV0="$*"
@@ -171,79 +176,87 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift ;;
     --data-binary) body="${2#@}"; shift ;;
-    -H) case "$2" in @-) cat >"$STUB_MARKS/curl-hdr" ;; @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
+    -H) case "$2" in @-) cat >"$STUB_MARKS/curl-hdr"; : >"$STUB_MARKS/curl-hdr-stdin" ;; @*) cp "${2#@}" "$STUB_MARKS/curl-hdr" 2>/dev/null ;; esac; shift ;;
     -w|--max-time) shift ;;
     http*) url="$1" ;;
   esac
   shift
 done
-printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
-cp "$body" "$STUB_MARKS/curl-body"
 printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv-any"
 # Is the key anywhere on disk while the call is in flight (an interrupt here would leave it)?
 if [ -n "${STUB_KEY:-}" ] && grep -rqF -- "$STUB_KEY" "$REVIEW_RAW_DIR" 2>/dev/null; then : >"$STUB_MARKS/key-on-disk"; fi
 case "$url" in
-  *melious*|*/chat/completions)
-    # The melious seat: OpenAI-style server-sent events. argv is kept, to show the key is not in it.
-    printf '%s\n' "$ARGV0" >"$STUB_MARKS/curl-argv"
+  https://api.melious.ai/*|*/chat/completions)   # the Melious seat: an OpenAI-style SSE stream
+    printf '%s\n' "$url" >"$STUB_MARKS/melious-url"
+    cp "$body" "$STUB_MARKS/melious-body"
+    [ -e "$STUB_MARKS/curl-hdr" ] && mv "$STUB_MARKS/curl-hdr" "$STUB_MARKS/melious-hdr"
+    [ -e "$STUB_MARKS/curl-hdr-stdin" ] && mv "$STUB_MARKS/curl-hdr-stdin" "$STUB_MARKS/melious-hdr-stdin"
+    d() { printf 'data: {"choices":[{"index":0,"delta":{%s},"finish_reason":%s}],"usage":%s}\n\n' "$1" "$2" "${3:-null}"; }
     case "${MELIOUS_STUB:-ok}" in
-      ok)     printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"- BUG: melious "}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{"content":"finding one\n- NIT: two"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":600,"completion_tokens":300,"total_tokens":900}}' '' \
-                'data: [DONE]' >"$out"; printf 200 ;;
-      429)    printf '%s\n' '{"error":{"message":"you have reached your session usage limit","type":"rate_limit"}}' >"$out"; printf 429 ;;
-      401)    printf '%s\n' '{"detail":"missing API key"}' >"$out"; printf 401 ;;
-      nousage) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: second run\n- NIT: two"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      filter) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: half a finding\n- NIT: two"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"content_filter"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      # Think tags are built at runtime (TO/TC): see the note at run_melious's think-strip.
-      thinktag) TO="<""think>"; TC="</""think>"
-                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"${TO}No findings, I could not read it.${TC}\\n- BUG: real finding\\n- NIT: two\"}}]}" '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      thinkonly) TO="<""think>"; TC="</""think>"
-                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"${TO}long thoughts${TC}\"}}]}" '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      thinklast) TO="<""think>"; TC="</""think>"
-                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"- BUG: kept before\\n- NIT: two\\n${TO}trailing thoughts${TC}\"}}]}" '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      unclosed) TO="<""think>"
-                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"- BUG: kept first\\n- NIT: two\\n${TO}unfinished, I could not read it\"}}]}" '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      nochunks) printf '%s\n' 'upstream said 429 busy, retry 1500 ms' >"$out"; printf 200 ;;
-      # Reasoning leaked into the reply: the trace mentions the marker inline and once as a line
-      # of its own (a draft), then the real marker line and the answer.
-      leaknofull) mkdir -p "$REVIEW_RAW_DIR/melious.full"; MELIOUS_STUB=leak; ;;
-    esac
-    case "${MELIOUS_STUB:-ok}" in
-      leak)   printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Let me think. I will write === FINAL REVIEW === before the answer.\n=== FINAL REVIEW ===\n- BUG: draft finding, superseded\nMore thinking about the retry loop.\n"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{"content":"=== FINAL REVIEW ===\n- BUG: the real finding\n- NIT: two"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      bignomark) x=$(printf '%70000s' '' | tr ' ' x)
-                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\"}}]}" '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      markdup) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Thinking about it at length.\n=== FINAL REVIEW ===\n- BUG: kept finding\n- NIT: two\n=== FINAL REVIEW ===\n"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      markfence) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Thinking first.\n=== FINAL REVIEW ===\n- RISK: fenced case kept\n- NIT: the seat asks for this line:\n```\n=== FINAL REVIEW ===\n```\n"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      markwrap) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"Reasoning that leaked.\n**=== FINAL REVIEW ===**\n- BUG: wrapped marker kept\n- NIT: two"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      bigmarkend) x=$(printf '%70000s' '' | tr ' ' x)
-                printf '%s\n' "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n=== FINAL REVIEW ===\\n\"}}]}" '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      markend) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: before the marker\n- NIT: two\n=== FINAL REVIEW ===\n"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      think)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"reasoning_content":"Let me think about the retry loop at length"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      length) printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: first finding\n- RISK: cut"}}]}' '' \
-                'data: {"choices":[{"index":0,"delta":{},"finish_reason":"length"}]}' '' 'data: [DONE]' >"$out"; printf 200 ;;
-      trunc)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: cut off"}}]}' >"$out"; printf 200 ;;
+      ok)     { d '"reasoning_content":"Thinking: I could not read the file."' null
+                d '"content":"- BUG: melious "' null
+                d '"content":"finding one\n- NIT: two"' null
+                d '"content":null' '"stop"'
+                d '"content":null' null '{"prompt_tokens":400,"completion_tokens":200,"total_tokens":600}'
+                printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      429)    printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan","code":"rate_limited"}}' >"$out"; printf 429 ;;
+      trunc)  d '"content":"- BUG: cut off"' null >"$out"; printf 200 ;;
+      length) { d '"content":"- BUG: cut off"' null; d '"content":null' '"length"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      inlinethink) # a trace inlined in content; alone it would reject the one-finding review.
+              # Tags built at runtime: literal ones in this repo's files made the provider end a
+              # reviewer's reasoning at a quoted closing tag (#165).
+              TO="<""think>"; TC="</""think>"
+              { d "\"content\":\"${TO}I could not read the file.${TC}\\n\"" null
+                d '"content":"- RISK: inline finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      miderr) { d '"content":"- BUG: partial"' null
+                printf 'data: {"error":{"message":"upstream overloaded"}}\n\n'; } >"$out"; printf 200 ;;
+      notstream) # a whole, pretty-printed reply well past 4 KB, as a real review would be
+              { printf '{\n  "choices": [ {\n    "message": { "content": "'
+                printf -- '- RISK: retry on HTTP 429 Too Many Requests, a rate limit\\n'
+                i=0; while [ $i -lt 120 ]; do printf -- '- NIT: finding number %s of a long review\\n' "$i"; i=$((i+1)); done
+                printf '" },\n    "finish_reason": "stop"\n  } ]\n}\n'; } >"$out"; printf 200 ;;
       down)   echo "curl: (56) CONNECT tunnel failed, response 403" >&2; exit 56 ;;
-      reset)  printf '%s\n' 'data: {"choices":[{"index":0,"delta":{"content":"- BUG: half a reply"}}]}' >"$out"
+      # Part of a reply, then the connection breaks (#165: a runaway reply reset after 38 minutes).
+      reset)  d '"content":"- BUG: half a reply"' null >"$out"
               echo "curl: (56) Recv failure: Connection reset by peer" >&2; exit 56 ;;
+      filter) { d '"content":"- BUG: half a finding\n- NIT: two"' null; d '"content":null' '"content_filter"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      nousage) { d '"content":"- BUG: second run\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      thinkonly) { d '"reasoning_content":"long thoughts"' null; d '"content":null' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      thinklast) TO="<""think>"; TC="</""think>"
+              { d "\"content\":\"- BUG: kept before\\n- NIT: two\\n${TO}trailing thoughts${TC}\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      unclosed) TO="<""think>"
+              { d "\"content\":\"- BUG: kept first\\n- NIT: two\\n${TO}unfinished, I could not read it\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      # Reasoning leaked into the reply (#165): the trace mentions the marker inline and once as a
+      # line of its own (a draft), then the real marker line and the answer.
+      leak|leaknofull)
+              [ "$MELIOUS_STUB" = leaknofull ] && mkdir -p "$REVIEW_RAW_DIR/melious.full"   # after the startup purge
+              { d '"content":"Let me think. I will write === FINAL REVIEW === before the answer.\n=== FINAL REVIEW ===\n- BUG: draft finding, superseded\nMore thinking about the retry loop.\n"' null
+                d '"content":"=== FINAL REVIEW ===\n- BUG: the real finding\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      bignomark) x=$(printf '%70000s' '' | tr ' ' x)
+              { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markdup) { d '"content":"Thinking about it at length.\n=== FINAL REVIEW ===\n- BUG: kept finding\n- NIT: two\n=== FINAL REVIEW ===\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markfence) { d '"content":"Thinking first.\n=== FINAL REVIEW ===\n- RISK: fenced case kept\n- NIT: the seat asks for this line:\n```\n=== FINAL REVIEW ===\n```\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markwrap) { d '"content":"Reasoning that leaked.\n**=== FINAL REVIEW ===**\n- BUG: wrapped marker kept\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      bigmarkend) x=$(printf '%70000s' '' | tr ' ' x)
+              { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n=== FINAL REVIEW ===\\n\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markend) { d '"content":"- BUG: before the marker\n- NIT: two\n=== FINAL REVIEW ===\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      empty)  : >"$out"; printf 200 ;;
+      splitchunk) # one event over two data: lines, split inside a JSON string, so neither half nor
+              # their SSE join (which adds a raw newline) is valid JSON; run_melious decodes each
+              # data: line alone, and the tier fails with the chunk quoted
+              printf '%s\n' 'data: {"choices":[{"delta":{"content":"- RISK: retry on HTTP 429' 'data: Too Many"}}]}' '' >"$out"; printf 200 ;;
+      crchunk) # a raw CR (and an ESC[1G) inside a chunk, each of which the error quoting turns into a
+              # line break: the text after it must not reach column 0, where the classifier reads
+              printf 'data: {"choices":[{"delta":{"content":"- RISK: x\rError: HTTP 429 Too Many Requests\033[1GError: rate limit"}}]}\n\n' >"$out"; printf 200 ;;
+      notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
+      slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
+              : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
     exit 0 ;;
 esac
+printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
+cp "$body" "$STUB_MARKS/curl-body"
 case "${API_STUB:-ok}" in
   ok)    printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: api "},"done":false}' \
            '{"message":{"role":"assistant","content":"finding one\n- NIT: two"},"done":false}' \
@@ -263,8 +276,7 @@ mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u GIT_DIR -u GIT_WORK_TREE \
-    -u MELIOUS_API_KEY -u MELIOUS_MODEL -u MELIOUS_ENV_FILE -u MELIOUS_BASE_URL -u MELIOUS_MAX_TOKENS -u WITH_MELIOUS \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -716,8 +728,8 @@ REVIEW_LOG="$RL" bash "$HERE/review_log.sh" summary >"$T/race.out"
 check "race: a spare header is not counted as a seat" [ "$(awk 'NR > 1 && NF == 0 {exit} NR > 1' "$T/race.out" | grep -c .)" = 40 ]
 
 # 28. The ollama HTTP API transport (2026-09-26): used when the CLI is absent (or forced). A
-#     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, reaches curl
-#     on stdin and is never on disk; the tokens reach the timings line and the cost log.
+#     ':cloud' tag goes to ollama.com without the suffix, streamed; the key, when set, reaches
+#     curl on stdin and is never in a file (#165); the tokens reach the timings line and the cost log.
 NOCLI="$T/bin2:/usr/bin:/bin"
 run api PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" REVIEW_LOG="$T/api.tsv" bash "$SCRIPT" "$T/change.diff"
 check "api: counted" has api.out "reviewers: codex OK, ollama-cloud OK"
@@ -729,15 +741,15 @@ check "api: the model without its :cloud suffix, streamed, carrying the artifact
 check "api: no key set, no Authorization header sent" not_in "$T/api.marks/curl-hdr" "Authorization"
 check "api: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s \(750 tokens\)$' "$T/api.out"
 check "api: tokens in the cost log" awk -F'\t' '$8=="ollama-cloud" && $12=="750" && $13=="OK" {f=1} END {exit !f}' "$T/api.tsv"
-run clikey CODEX_STUB=ok OLLAMA_STUB=ok OLLAMA_API_KEY=cli-secret bash "$SCRIPT" "$T/change.diff"
-check "clikey: the ollama CLI still gets OLLAMA_API_KEY" grep -qxF "cli-secret" "$T/clikey.marks/ollama-cli-key"
-check "clikey: codex, running beside it, does not" test ! -e "$T/clikey.marks/codex-saw-ollama-key"
 run apikey PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" OLLAMA_API_KEY=stub-secret STUB_KEY=stub-secret bash "$SCRIPT" "$T/change.diff"
 check "apikey: the key reaches curl as a header" grep -qxF "Authorization: Bearer stub-secret" "$T/apikey.marks/curl-hdr"
 check "apikey: on stdin (-H @-), not from a file" grep -qF -- "-H @-" "$T/apikey.marks/curl-argv-any"
 check "apikey: the key is nowhere on disk during the call" test ! -e "$T/apikey.marks/key-on-disk"
 check "apikey: no header file afterwards either" [ ! -e "$T/apikey.raw/ollama.hdr" ]
 check "apikey: codex never sees OLLAMA_API_KEY" test ! -e "$T/apikey.marks/codex-saw-ollama-key"
+run clikey CODEX_STUB=ok OLLAMA_STUB=ok OLLAMA_API_KEY=cli-secret bash "$SCRIPT" "$T/change.diff"
+check "clikey: the ollama CLI still gets OLLAMA_API_KEY" grep -qxF "cli-secret" "$T/clikey.marks/ollama-cli-key"
+check "clikey: codex, running beside it, does not" test ! -e "$T/clikey.marks/codex-saw-ollama-key"
 check "apikey: never in any output" sh -c '! grep -rqF stub-secret "$1/apikey.out" "$1/apikey.err" "$1/apikey.raw"' _ "$T"
 run api429 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "api429: read as quota" has api429.out "ollama-cloud FAILED (HTTP 429; quota/rate limit: wait or add credits)"
@@ -874,139 +886,177 @@ for how in failhelp longword; do   # round 1, Codex: a failed help, or the flag 
   check "think$how: the flag is not passed" test ! -e "$T/think$how.marks/ollama-hidethinking"
 done
 
-# The melious.ai seat (2026-10-05): opt-in (--with-melious / --seat melious), named model, key from
-# MELIOUS_API_KEY or the env file (parsed, never sourced, never on curl's argv), streamed SSE.
-MK=stub-melious-key
-run mok PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" STUB_KEY="$MK" REVIEW_LOG="$T/mok.tsv" bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mok: exit 0" rc_is mok 0
-check "mok: header names the seat and model" has mok.out "## Independent review — melious (stub-m, HTTP API)"
-check "mok: the streamed pieces are joined" has mok.out "- BUG: melious finding one"
-check "mok: summary counts it" has mok.out "reviewers: melious OK"
-check "mok: one-seat note, as for any --seat run" has mok.out "--seat melious was requested"
-check "mok: no marker, small reply: kept whole, no note" sh -c '! grep -qF "final-review marker" "$1" && ! grep -qF "leaked reasoning" "$1"' _ "$T/mok.out"
-run mleak PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=leak bash "$SCRIPT" "$T/change.diff" --seat melious
+# 32. The Melious fallback for the ollama seat (2026-10-05): it runs only when MELIOUS_MODEL names
+#     a model and the ollama seat did not count, or as --seat melious. Same text-only prompt.
+run mfall OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious REVIEW_LOG="$T/mfall.tsv" bash "$SCRIPT" "$T/change.diff"
+check "mfall: ollama refused, melious stands in and counts" \
+  has mfall.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
+check "mfall: two counted, so no fewer-than-2 note" lacks mfall.out "fewer than the 2"
+check "mfall: its section header" has mfall.out "## Independent review — melious (stub-melious, HTTP API)"
+check "mfall: the streamed pieces are joined" has mfall.out "- BUG: melious finding one"
+check "mfall: the reasoning trace is not the answer" lacks mfall.out "Thinking: I could not read"
+check "mfall: Melious's chat completions endpoint" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mfall.marks/melious-url"
+check "mfall: the model, streamed, the text-only prompt" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-melious" && $j->{stream} && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mfall.marks/melious-body"
+check "mfall: no key set, no Authorization header sent" not_in "$T/mfall.marks/melious-hdr" "Authorization"
+check "mfall: tokens in the timings line" grep -qE '^timings: codex [0-9]+s, ollama-cloud [0-9]+s, melious [0-9]+s \(600 tokens\)$' "$T/mfall.out"
+check "mfall: tokens in the cost log" awk -F'\t' '$8=="melious" && $9=="stub-melious" && $12=="600" && $13=="OK" {f=1} END {exit !f}' "$T/mfall.tsv"
+run mnomodel OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "mnomodel: no MELIOUS_MODEL, no Melious seat and no call" \
+  sh -c '! grep -qF melious "$1/mnomodel.out" && [ ! -e "$1/mnomodel.marks/melious-url" ]' _ "$T"
+run mpair MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "mpair: ollama counted, so Melious is not called" \
+  sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/mpair.out" && ! grep -qF melious "$1/mpair.out" && [ ! -e "$1/mpair.marks/melious-url" ]' _ "$T"
+run mnocli PATH="$NOCLI" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "mnocli: no ollama at all, Melious runs with the pair" has mnocli.out "reviewers: codex OK, ollama SKIPPED (not available), melious OK"
+check "mnocli: the no-CLI note names MELIOUS_MODEL" has mnocli.err "MELIOUS_MODEL=<model> sends the seat to Melious instead"
+run mlocal OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "mlocal: a local sanity pass does not count, so Melious runs" \
+  has mlocal.out "reviewers: codex OK, ollama-local NOT COUNTED (local model: sanity pass only), melious OK"
+run mkey OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_API_KEY=stub-msecret bash "$SCRIPT" "$T/change.diff"
+check "mkey: the key reaches curl on its stdin" \
+  sh -c 'grep -qxF "Authorization: Bearer stub-msecret" "$1/melious-hdr" && [ -e "$1/melious-hdr-stdin" ]' _ "$T/mkey.marks"
+check "mkey: and no header file is written" [ ! -e "$T/mkey.raw/melious.hdr" ]
+check "mkey: never in any output" sh -c '! grep -rqF stub-msecret "$1/mkey.out" "$1/mkey.err" "$1/mkey.raw"' _ "$T"
+run m429 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "m429: read as quota" has m429.out "melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
+check "m429: the API's message is quoted" has m429.out "Rate limit exceeded for your plan"
+check "m429: the FAILED section names the model" has m429.out "Model: stub-melious"
+run mtrunc OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff"
+check "mtrunc: a stream with no finish_reason or [DONE] fails the tier, named as truncated" \
+  sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "a truncated review" "$1"' _ "$T/mtrunc.out"
+run mlength OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff"
+check "mlength: finish_reason length fails the tier" \
+  sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "finish_reason length" "$1"' _ "$T/mlength.out"
+run mthink OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=inlinethink bash "$SCRIPT" "$T/change.diff"
+check "mthink: an inline think block is cut, and the review counts" \
+  sh -c 'grep -qF "melious OK" "$1" && grep -qF -- "- RISK: inline finding" "$1" && ! grep -qF "could not read the file" "$1"' _ "$T/mthink.out"
+run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff"
+check "mmiderr: an error object mid-stream fails the tier and is quoted" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
+run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
+check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
+  sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
+check "mnotstream: a 429 inside the quoted review is not read as quota (round 3, fresh-eyes)" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mnotstream.out"
+run msplit OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff"
+check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-gate, fresh-eyes)" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
+run mcr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff"
+check "mcr: a control byte in a quoted chunk cannot start an error line (second re-gate, fresh-eyes)" \
+  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mcr.out"
+run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
+check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
+  has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"
+run mempty OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
+check "mempty: an empty 200 reply is named as empty, not truncated" \
+  sh -c 'grep -qF "an empty reply" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
+run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
+check "mdown: a network failure names curl's exit, with a hint" \
+  sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
+# The fallback waits for ollama alone, not for codex (round 1, fresh-eyes). A handshake, not wall
+# time (rounds 2 and 3): codex finishes only once Melious has started, so code that holds Melious
+# back until codex is done shows as melious-after-codex after codex's 10s cap.
+run mparallel CODEX_STUB=waitmelious OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+check "mparallel: melious counted" has mparallel.out "melious OK"
+check "mparallel: Melious started while codex was still running" \
+  sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
+# Stopping the script stops a fallback started after ollama failed, as it does the pair.
+mkdir -p "$T/mstop.marks"
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u GIT_DIR -u GIT_WORK_TREE \
+  PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
+  CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
+  bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
+spid=$!
+i=0; while [ ! -s "$T/mstop.marks/melious-pid" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done
+kill -TERM "$spid"; wait "$spid"; echo $? >"$T/mstop.rc"
+check "mstop: the script exits 130" rc_is mstop 130
+check "mstop: the key reached curl, and no copy of it is left in RAW_DIR (final full read, deepseek)" \
+  sh -c 'grep -qxF "Authorization: Bearer stub-stopkey" "$1/mstop.marks/melious-hdr" && ! grep -rqF stub-stopkey "$1/mstop.raw"' _ "$T"
+check "mstop: the TERM-ignoring fallback is gone" \
+  sh -c 'p=$(cat "$1"); [ -n "$p" ] && case "$(ps -o stat= -p "$p" 2>/dev/null)" in ""|Z*) true ;; *) false ;; esac' _ "$T/mstop.marks/melious-pid"
+run mseat MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mseat: only Melious ran" \
+  sh -c 'grep -qF "reviewers: melious OK" "$1/mseat.out" && [ ! -e "$1/mseat.marks/codex-ran" ] && [ ! -e "$1/mseat.marks/ollama-ran" ]' _ "$T"
+run mseatnomodel bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mseatnomodel: --seat melious without a model is skipped, exit 4" \
+  sh -c 'grep -qF "reviewers: melious SKIPPED (not available)" "$1/mseatnomodel.out" && [ "$(cat "$1/mseatnomodel.rc")" = 4 ]' _ "$T"
+run mfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --first-success
+check "mfirst: --first-success falls through to Melious after ollama" \
+  has mfirst.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
+run mlocalonly OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only
+check "mlocalonly: --local-only never calls Melious" \
+  sh -c '! grep -qF melious "$1/mlocalonly.out" && [ ! -e "$1/mlocalonly.marks/melious-url" ]' _ "$T"
+run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
+check "mlocalseat: --local-only refuses --seat melious, exit 2" \
+  sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
+
+# 33. #165 on top of the fallback: the key's sources and reach, the budget, the final-review marker
+#     against leaked reasoning, think blocks anywhere, finish reasons, a reply cut off mid-stream.
+MK=stub-melious-secret
+run mbody MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbody: default budget 96000 and the final-review marker ask" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /=== FINAL REVIEW ===/)' "$T/mbody.marks/melious-body"
+check "mbody: no marker, small reply: kept whole, no note" sh -c 'grep -qF "melious OK" "$1" && ! grep -qF "final-review marker" "$1" && ! grep -qF "leaked reasoning" "$1"' _ "$T/mbody.out"
+run mbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 48000)' "$T/mbudget.marks/melious-body"
+check "mbudget: MELIOUS_BASE_URL, trailing slash dropped" grep -qxF "https://example.test/v9/chat/completions" "$T/mbudget.marks/melious-url"
+run mbadbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=lots bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbadbudget: a non-number budget fails before any call" sh -c 'grep -qF "melious FAILED (bad MELIOUS_MAX_TOKENS)" "$1" && [ ! -e "$2" ]' _ "$T/mbadbudget.out" "$T/mbadbudget.marks/melious-url"
+run mkeyfall OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_API_KEY="$MK" STUB_KEY="$MK" bash "$SCRIPT" "$T/change.diff"
+check "mkeyfall: codex never sees MELIOUS_API_KEY" test ! -e "$T/mkeyfall.marks/codex-saw-melious-key"
+check "mkeyfall: melious still gets it, on stdin" grep -qxF "Authorization: Bearer $MK" "$T/mkeyfall.marks/melious-hdr"
+check "mkeyfall: the key is not on curl's command line" not_in "$T/mkeyfall.marks/curl-argv-any" "$MK"
+check "mkeyfall: the key is nowhere on disk during the call" test ! -e "$T/mkeyfall.marks/key-on-disk"
+printf '%s\r\n' 'OTHER=1' "MELIOUS_API_KEY=\"file-key\"" 'MELIOUS_API_KEY=second-line' >"$T/melious.env"
+run menv MELIOUS_MODEL=stub-melious MELIOUS_ENV_FILE="$T/melious.env" bash "$SCRIPT" "$T/change.diff" --seat melious
+check "menv: the env file's first key line, quotes and CR dropped" grep -qxF "Authorization: Bearer file-key" "$T/menv.marks/melious-hdr"
+printf 'export MELIOUS_API_KEY=keyendingr  \n' >"$T/melious2.env"
+run menv2 MELIOUS_MODEL=stub-melious MELIOUS_ENV_FILE="$T/melious2.env" bash "$SCRIPT" "$T/change.diff" --seat melious
+check "menv2: an export line works; trailing blanks dropped; a final r kept" grep -qxF "Authorization: Bearer keyendingr" "$T/menv2.marks/melious-hdr"
+mkdir -p "$T/u/.config/reviewers"; printf 'MELIOUS_API_KEY=home-key\n' >"$T/u/.config/reviewers/melious.env"
+run mhome MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mhome: the default env file under HOME is read" grep -qxF "Authorization: Bearer home-key" "$T/mhome.marks/melious-hdr"
+rm -f "$T/u/.config/reviewers/melious.env"
+run mleak MELIOUS_MODEL=stub-melious MELIOUS_STUB=leak bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mleak: the answer after the LAST marker line is the review" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: the real finding" "$1" && ! grep -qF "draft finding" "$1" && ! grep -qF "Let me think" "$1"' _ "$T/mleak.out"
 check "mleak: the section says text was dropped" has mleak.out "text before the final-review marker dropped"
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
-# The stub puts a directory where melious.full goes, after the startup purge: the write fails.
-run mleaknofull PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --seat melious
+run mleaknofull MELIOUS_MODEL=stub-melious MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mleaknofull: the note does not promise a melious.full it could not write" sh -c 'grep -qF "the full reply could not be saved" "$1" && ! grep -qF "is in melious.full" "$1" && grep -qF "BUG: the real finding" "$1"' _ "$T/mleaknofull.out"
-run mbig PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbig MELIOUS_MODEL=stub-melious MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
-run mmarkdup PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mmarkdup: a marker repeated at the end does not win: the review after the first is kept" sh -c 'grep -qF "BUG: kept finding" "$1" && ! grep -qF "Thinking about it" "$1" && grep -qF "dropped, under 1 KB" "$1"' _ "$T/mmarkdup.out"
-run mmarkfence PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markfence bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkdup MELIOUS_MODEL=stub-melious MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mmarkdup: a marker repeated at the end does not win" sh -c 'grep -qF "BUG: kept finding" "$1" && ! grep -qF "Thinking about it" "$1" && grep -qF "dropped, under 1 KB" "$1"' _ "$T/mmarkdup.out"
+run mmarkfence MELIOUS_MODEL=stub-melious MELIOUS_STUB=markfence bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkfence: a marker quoted in a fence after the review does not win" sh -c 'grep -qF "RISK: fenced case kept" "$1" && ! grep -qF "Thinking first" "$1"' _ "$T/mmarkfence.out"
-run mmarkwrap PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markwrap bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkwrap MELIOUS_MODEL=stub-melious MELIOUS_STUB=markwrap bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped marker kept" "$1" && ! grep -qF "Reasoning that leaked" "$1"' _ "$T/mmarkwrap.out"
-run mbigmarkend PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
+run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "may hold leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
-run mmarkend PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
+run mmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkend: a marker with nothing after it: the reply is kept whole" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: before the marker" "$1"' _ "$T/mmarkend.out"
-check "mok: api.melious.ai, /v1/chat/completions" grep -qxF "https://api.melious.ai/v1/chat/completions" "$T/mok.marks/curl-url"
-check "mok: model, stream, default budget, the text-only prompt and the marker ask" \
-  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{model} eq "stub-m" && $j->{stream} && $j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /You have NO tools/ && $j->{messages}[0]{content} =~ /after a line that holds exactly === FINAL REVIEW ===/ && $j->{messages}[0]{content} =~ /--- BEGIN diff ---/)' "$T/mok.marks/curl-body"
-check "mok: the key reaches curl as a header, on stdin" grep -qxF "Authorization: Bearer $MK" "$T/mok.marks/curl-hdr"
-check "mok: curl reads that header from stdin" grep -qF -- "-H @-" "$T/mok.marks/curl-argv"
-check "mok: the key is not on curl's command line" not_in "$T/mok.marks/curl-argv" "$MK"
-check "mok: the key is nowhere on disk during the call" test ! -e "$T/mok.marks/key-on-disk"
-check "mok: nor after it" sh -c '! grep -rqF -- "$1" "$2"' _ "$MK" "$T/mok.raw"
-check "mok: tokens in the timings line" grep -qE '^timings: melious [0-9]+s \(900 tokens\)$' "$T/mok.out"
-check "mok: one cost-log line, model and tokens" awk -F'\t' '$8=="melious" && $9=="stub-m" && $12=="900" && $13=="OK" {f=1} END {exit !f}' "$T/mok.tsv"
-printf '%s\r\n' "MELIOUS_API_KEY=\"file-key\"" 'MELIOUS_API_KEY=second-line' >"$T/melious.env"
-run menv PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_ENV_FILE="$T/melious.env" bash "$SCRIPT" "$T/change.diff" --seat melious
-check "menv: the env file's first key line, quotes and CR dropped" grep -qxF "Authorization: Bearer file-key" "$T/menv.marks/curl-hdr"
-printf '# melious\nexport MELIOUS_API_KEY=keyendingr   \n' >"$T/melious2.env"
-run menv2 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_ENV_FILE="$T/melious2.env" bash "$SCRIPT" "$T/change.diff" --seat melious
-check "menv2: an export line works; trailing blanks dropped; a final r kept" grep -qxF "Authorization: Bearer keyendingr" "$T/menv2.marks/curl-hdr"
-mkdir -p "$T/u/.config/reviewers"; printf 'MELIOUS_API_KEY=home-key\n' >"$T/u/.config/reviewers/melious.env"
-run mhome PATH="$NOCLI" MELIOUS_MODEL=stub-m bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mhome: the default env file under HOME is read" grep -qxF "Authorization: Bearer home-key" "$T/mhome.marks/curl-hdr"
-rm -f "$T/u/.config/reviewers/melious.env"
-# No key anywhere: sent without one, as in a cloud session whose proxy adds the credential.
-run mnokey PATH="$NOCLI" MELIOUS_MODEL=stub-m bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mnokey: no key: still sent, for a proxy that adds one" has mnokey.out "reviewers: melious OK"
-check "mnokey: and without an Authorization header" not_in "$T/mnokey.marks/curl-hdr" "Authorization"
-check "mnokey: the raw stderr says it went without a key" grep -qF "sent without a key, for a proxy that adds one" "$T/mnokey.raw/melious.err"
-run mnokey401 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_STUB=401 bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mnokey401: no key and no proxy: a FAILED section with the 401, not a skip" has mnokey401.out "Error: HTTP 401: missing API key"
-check "mnokey401: exit 4 (no reviewer counted)" rc_is mnokey401 4
-run mnomodel PATH="$NOCLI" MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mnomodel: no model named: skipped" has mnomodel.out "reviewers: melious SKIPPED (not available)"
-run m429 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --seat melious
-check "m429: FAILED section quotes the provider's message" has m429.out "Error: HTTP 429: you have reached your session usage limit"
-check "m429: classified as quota" has m429.out "reviewers: melious FAILED (HTTP 429; quota/rate limit: wait or add credits)"
-run mthink PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=think bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mthink: a thinking-only reply fails the seat" has mthink.out "reviewers: melious FAILED (HTTP 200, no review text)"
-check "mthink: and names the budget to raise" has mthink.out "raise MELIOUS_MAX_TOKENS"
-check "mthink: and says it was only thinking" has mthink.out "the reply holds no text, only thinking"
-check "mthink: not read as a quota failure" lacks mthink.out "quota/rate limit"
-run mlength PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mlength: a reply cut by the budget is not counted" has mlength.out "reviewers: melious FAILED (HTTP 200, review cut off)"
-check "mlength: and says it was cut off" has mlength.out "finish_reason=length"
-check "mlength: the raw reply is saved on a failure path too" grep -qF "first finding" "$T/mlength.raw/melious.full"
-run mtrunc PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=trunc bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mtrunc: a stream with no end is a truncated review" has mtrunc.out "a truncated review"
-run mdown PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mdown: a blocked host points at the network policy" has mdown.out "is the host allowed by the network policy?"
-check "mdown: the header file is gone after a failed call too" test ! -e "$T/mdown.raw/melious.hdr"
-run mreset PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=reset bash "$SCRIPT" "$T/change.diff" --seat melious
+run mthinkonly MELIOUS_MODEL=stub-melious MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mthinkonly: a reply that is only thinking has no review text" sh -c 'grep -qF "melious FAILED (HTTP 200 but no review text)" "$1" && grep -qF "the reply holds no text, only thinking" "$1"' _ "$T/mthinkonly.out"
+run mthinklast MELIOUS_MODEL=stub-melious MELIOUS_STUB=thinklast bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mthinklast: a think block after the review is dropped, the review kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept before" "$1" && ! grep -qF "trailing thoughts" "$1"' _ "$T/mthinklast.out"
+run munclosed MELIOUS_MODEL=stub-melious MELIOUS_STUB=unclosed bash "$SCRIPT" "$T/change.diff" --seat melious
+check "munclosed: an opener never closed: the rest is thinking and is dropped" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept first" "$1" && ! grep -qF "could not read" "$1"' _ "$T/munclosed.out"
+run mfilter MELIOUS_MODEL=stub-melious MELIOUS_STUB=filter bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mfilter: a finish other than stop is a truncated review" sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && grep -qF "finish_reason content_filter" "$1"' _ "$T/mfilter.out"
+run mlengthbudget MELIOUS_MODEL=stub-melious MELIOUS_STUB=length bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mlengthbudget: a reply cut by the budget names the knob" has mlengthbudget.out "raise MELIOUS_MAX_TOKENS"
+check "mlengthbudget: the raw reply is saved on a failure path too" grep -qF "cut off" "$T/mlengthbudget.raw/melious.full"
+run mreset MELIOUS_MODEL=stub-melious MELIOUS_STUB=reset bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mreset: a reply that broke off is named as such" has mreset.out "reviewers: melious FAILED (curl exit 56, reply cut off)"
 check "mreset: ...not as a blocked host" sh -c '! grep -qF "network policy" "$1"' _ "$T/mreset.out"
 check "mreset: ...and the part that came is kept" grep -qF "half a reply" "$T/mreset.raw/melious.resp"
-run mbudget PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_MAX_TOKENS=96000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
-  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 96000)' "$T/mbudget.marks/curl-body"
-check "mbudget: MELIOUS_BASE_URL, trailing slash dropped" grep -qxF "https://example.test/v9/chat/completions" "$T/mbudget.marks/curl-url"
-run mbadbudget PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_MAX_TOKENS=lots bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mbadbudget: a non-number budget fails before any call" sh -c 'grep -qF "melious FAILED (bad MELIOUS_MAX_TOKENS)" "$1" && [ ! -e "$2" ]' _ "$T/mbadbudget.out" "$T/mbadbudget.marks/curl-url"
-for b in 0 12345678; do
-  run "mbudget$b" PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_MAX_TOKENS=$b bash "$SCRIPT" "$T/change.diff" --seat melious
-  check "mbudget$b: refused before any call" sh -c 'grep -qF "melious FAILED (bad MELIOUS_MAX_TOKENS)" "$1" && [ ! -e "$2" ]' _ "$T/mbudget$b.out" "$T/mbudget$b.marks/curl-url"
-done
-run mfilter PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=filter bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mfilter: a finish other than stop is an incomplete review" sh -c 'grep -qF "melious FAILED (HTTP 200, review cut off)" "$1" && grep -qF "finish_reason=content_filter" "$1"' _ "$T/mfilter.out"
-run mthinktag PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=thinktag bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mthinktag: thinking in think tags is dropped, the review kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: real finding" "$1" && ! grep -qF "could not read" "$1"' _ "$T/mthinktag.out"
-run mthinkonly PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mthinkonly: a reply that is only think tags has no review text" has mthinkonly.out "reviewers: melious FAILED (HTTP 200, no review text)"
-check "mthinkonly: a stopped reply is not told to raise the budget" sh -c 'grep -qF "the model returned no review" "$1" && ! grep -qF "raise MELIOUS_MAX_TOKENS" "$1"' _ "$T/mthinkonly.out"
-run mthinklast PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=thinklast bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mthinklast: a think block after the review is dropped, the review before it kept" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept before" "$1" && ! grep -qF "trailing thoughts" "$1"' _ "$T/mthinklast.out"
-run munclosed PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=unclosed bash "$SCRIPT" "$T/change.diff" --seat melious
-check "munclosed: an opener never closed: the rest is thinking and is dropped" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: kept first" "$1" && ! grep -qF "could not read" "$1"' _ "$T/munclosed.out"
-run mnochunks PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=nochunks bash "$SCRIPT" "$T/change.diff" --seat melious
-# The paste fallback below the summary echoes the test diff, which has its own 429: look at the
-# quoted error line and the summary only.
-check "mnochunks: a reply quoting a 429 in its body is not read as quota" sh -c 'l=$(grep -F "no stream chunks in the reply" "$1") && case "$l" in *"said # busy"*) ;; *) exit 1 ;; esac && grep -qxF "reviewers: melious FAILED (HTTP 200)" "$1"' _ "$T/mnochunks.out"
-# A reused raw dir: the second run's stream reports no usage, so it must show no token count.
-run mstale PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat melious
-run mstale2 PATH="$NOCLI" MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mstale: the first run counted its tokens" grep -qE '^timings: melious [0-9]+s \(900 tokens\)$' "$T/mstale.out"
-check "mstale2: the reused raw dir does not lend it the old count" grep -qE '^timings: melious [0-9]+s$' "$T/mstale2.out"
-# Beside the pair, when ollama-cloud is out of quota: codex + melious make two counted seats.
-run mwith CODEX_STUB=ok OLLAMA_STUB=429 MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --with-melious
-check "mwith: all three sections, melious after ollama" \
-  sh -c 'grep -n "^## Independent review" "$1" | awk -F: "/codex/{c=\$1} /ollama-cloud — FAILED/{o=\$1} /melious/{m=\$1} END{exit !(c && o && m && c<o && o<m)}"' _ "$T/mwith.out"
-check "mwith: summary" has mwith.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
-check "mwith: two counted, so no fewer-than-2 note" lacks mwith.out "fewer than the 2"
-check "mwith: codex never sees MELIOUS_API_KEY" test ! -e "$T/mwith.marks/codex-saw-melious-key"
-check "mwith: melious still got the key" grep -qxF "Authorization: Bearer $MK" "$T/mwith.marks/curl-hdr"
-run mwithenv CODEX_STUB=ok OLLAMA_STUB=ok WITH_MELIOUS=1 MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff"
-check "mwithenv: WITH_MELIOUS=1 does the same" has mwithenv.out "reviewers: codex OK, ollama-cloud OK, melious OK"
-run mdefault CODEX_STUB=ok OLLAMA_STUB=ok MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff"
-check "mdefault: without the opt-in, melious is never called" sh -c '! grep -qF melious "$1" && [ ! -e "$2" ]' _ "$T/mdefault.out" "$T/mdefault.marks/curl-argv"
-run mfirst CODEX_STUB=auth OLLAMA_STUB=429 MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --first-success --with-melious
-check "mfirst: --first-success falls through to melious" has mfirst.out "reviewers: codex FAILED (exit 1), ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits), melious OK"
-run mlocal OLLAMA_STUB=ok MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --local-only --with-melious
-check "mlocal: --local-only wins, with a note" has mlocal.err "melious.ai is an external call and will be skipped"
-check "mlocal: and nothing was sent" test ! -e "$T/mlocal.marks/curl-argv"
-run mlocalseat MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
-check "mlocalseat: --local-only refuses --seat melious" sh -c '[ "$(cat "$1")" = 2 ] && grep -qF "would send content out" "$2"' _ "$T/mlocalseat.rc" "$T/mlocalseat.err"
-run mclash MELIOUS_MODEL=stub-m MELIOUS_API_KEY="$MK" bash "$SCRIPT" "$T/change.diff" --seat codex --with-melious
-check "mclash: --seat codex with --with-melious is refused" rc_is mclash 2
-run mbadseat bash "$SCRIPT" "$T/change.diff" --seat melius
-check "mbadseat: the error lists melious" has mbadseat.err "codex, ollama, agy or melious"
+run mstale MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
+run mstale2 MELIOUS_MODEL=stub-melious MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mstale: the first run counted its tokens" grep -qE '^timings: melious [0-9]+s \(600 tokens\)$' "$T/mstale.out"
+check "mstale2: a reused raw dir does not lend it the old count, nor the old melious.full" \
+  sh -c 'grep -qE "^timings: melious [0-9]+s$" "$1" && ! grep -qF "melious finding one" "$2"' _ "$T/mstale2.out" "$T/mstale.raw/melious.full"
 
 # Real curl, not the stub: the key reaches curl only through `-H @-` (stdin), and the stub
 # implements that itself, so it cannot prove real curl honours it (round 5, glm). A local

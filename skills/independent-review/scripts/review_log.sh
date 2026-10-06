@@ -6,7 +6,7 @@
 #
 #   review_log.sh add --seat <name> [--model M] [--effort E] [--seconds S] [--tokens T]
 #                     [--gate plan|diff] [--depth light|normal|high] [--round N] [--outcome O]
-#       Append one line. independent_review.sh calls this for codex, ollama, agy and melious; the host
+#       Append one line. independent_review.sh calls this for codex, ollama, melious and agy; the host
 #       calls it for the seats it runs itself (fresh-eyes, code-review, double-knuth, owner).
 #       Repo, branch and head come from the current directory's git checkout, if any.
 #   review_log.sh new-gate

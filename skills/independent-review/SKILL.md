@@ -57,6 +57,16 @@ skip silently. With a config diff, send the code that reads the config too.
    `OLLAMA_MODEL=<name>:cloud` and the script calls ollama's HTTP API instead, authenticated by
    `OLLAMA_API_KEY` or the environment's API credential for `ollama.com` (the network policy must
    allow that host); `OLLAMA_TRANSPORT=api|cli` forces one. The API path also logs tokens.
+   **Melious fallback:** with `MELIOUS_MODEL=<model>` set (a name from its `/v1/models`; the
+   script names none), a round whose ollama seat did not count — no model or CLI, a failure such
+   as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
+   OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
+   `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
+   that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
+   thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
+   the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
+   alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
+   tokens too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
    only the artifact and the strict prompt, never the authoring conversation. No sub-agent
    primitive: a separate fresh session, or record the pass as *degraded*.
@@ -66,14 +76,6 @@ skip silently. With a config diff, send the code that reads the config too.
    `AGY_MODEL` overrides; `run_agy` in the script has the call.
 5. **ollama local** — a sanity pass; never satisfies the gate alone.
 6. **Paste** — the script prints the prompt for a human to paste into any model.
-7. **melious.ai — opt-in, for when ollama-cloud is out.** An API seat hosting open-weight families,
-   text only like ollama's API path. `--with-melious` adds it beside the pair (a round where
-   ollama-cloud fails can still count two); `--seat melious` runs it alone (the wording pass, a
-   re-gate). `MELIOUS_MODEL` must name the model; the key comes from `MELIOUS_API_KEY`,
-   `~/.config/reviewers/melious.env`, or a cloud environment's proxy (`references/setup-guide.md`). A reasoning model can spend
-   the whole reply budget thinking: the seat then FAILS and says to raise `MELIOUS_MAX_TOKENS`.
-   The provider can leak reasoning into the reply; the seat keeps what follows the final-review
-   marker it asks for (setup guide).
 
 The standard pair (1 + 2) is the default for both gates and runs in parallel. `--first-success`
 stops at the first reviewer that counts — a conscious choice, honored for a plan too. The script
@@ -82,10 +84,12 @@ flags any round with fewer than 2 counted reviewers: degraded unless that was th
 **Independence rule.** The tier of the HOST's own model family is the fresh-eyes seat, never
 cross-model. The gate needs at least one successful cross-model reviewer; same-family only is
 degraded and needs an explicit owner waiver. Cross-model per host — Claude Code: Codex,
-ollama-cloud and melious (by the family of the model used), Gemini. Codex: ollama-cloud, melious,
-Gemini, Claude. Antigravity: Codex, ollama-cloud, melious, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
-same opt-in rule). A human round adds findings but never counts as cross-model. A Light-depth
-gate is the one exception, by the owner's standing choice (Review depth).
+ollama-cloud (by the family of the tag used), Gemini. Codex: ollama-cloud, Gemini, Claude.
+Antigravity: Codex, ollama-cloud, Claude (an Anthropic seat via `agy`: `references/setup-guide.md`,
+same opt-in rule). Melious counts like ollama-cloud, by the family of `MELIOUS_MODEL` (a gpt-class
+model there is the Codex host's own family). A human round adds findings but never counts as
+cross-model. A Light-depth gate is the one exception, by the owner's standing choice (Review
+depth).
 
 ## Onboarding — first use
 

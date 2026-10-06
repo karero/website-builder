@@ -132,8 +132,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install the one runtime dependency the tests import
-        run: python -m pip install requests
+      # The full requirements, not only what the tests import: the 3.9 leg then fails
+      # when a floor in requirements.txt stops installing on macOS's stock python3.
+      - name: Install the skill's requirements (what SKILL.md's venv setup installs)
+        run: python -m pip install -r skills/search-console-insights/requirements.txt
       - name: Run the tracker + AI-check tests (stub servers, no real API calls)
         run: make test PYTHON=python
   macos-stock-tools:

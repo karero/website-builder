@@ -109,8 +109,10 @@ avoiding the terminal for this step, unlike the IDE-only Antigravity path.
 
 ### melious.ai (API key, no install)
 
-An extra text-only seat for when ollama-cloud is out of quota (SKILL.md, reviewer stack, item 7).
-Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path needs too.
+The fallback for the ollama seat (SKILL.md, reviewer stack, item 2): with `MELIOUS_MODEL` set, a
+round whose ollama seat did not count (no model or CLI, a quota refusal or other failure, a local
+sanity pass) sends the same text-only prompt here, so the pair keeps its second reviewer. Nothing
+to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path needs too.
 
 - **Key, on your own machine:** `~/.config/reviewers/melious.env`, `chmod 600`, one line
   `MELIOUS_API_KEY=<key>`. Never source, cat or echo it. Check it is there with
@@ -141,8 +143,9 @@ Nothing to install beyond `curl` and `perl` (with JSON::PP), which the ollama AP
   it from the end. A leak can also run on with no marker until the connection drops (seen once,
   after 38 minutes): the seat fails with "reply cut off" and keeps what came in `melious.resp`;
   run it again. The seat and its tests build think tags at runtime, so this repo's files carry none.
-- **Run:** `MELIOUS_MODEL=<id> scripts/independent_review.sh <artifact> --seat melious` (alone),
-  or `--with-melious` beside the standard pair. The cost log records the seat as `melious` with
+- **Run:** set `MELIOUS_MODEL=<id>` and run the pair as usual; the seat stands in when ollama did
+  not count. `--seat melious` runs it alone (the wording pass, a re-gate); `--seat ollama` never
+  falls back to it, and `--local-only` never calls it. The cost log records the seat as `melious` with
   the model in its own column.
 - **First use per repo:** ask the owner before a repo's content goes to melious.ai the first time
   (SKILL.md, Procedure step 1).
