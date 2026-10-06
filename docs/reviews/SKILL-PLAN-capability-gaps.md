@@ -13,13 +13,13 @@ it; a row is only as good as its evidence.
 
 | # | Step | State | Evidence |
 |---|---|---|---|
-| A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built and reviewed | karero/website-builder#145, the pull request that carries this row |
-| A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: needs a live probe first (decision row 2026-10-04) | — |
-| A3 | Checks: deeper message checks | not built: rules not chosen (decision row 2026-10-04) | — |
+| A1 | Checks: leftovers on the rendered site (`placeholders.spec.ts`) | built and reviewed; catching the starter's example values decided 2026-10-06, not built | karero/website-builder#145, the pull request that carries this row |
+| A2 | Checks: the publish gate holds on GitHub's side (`production` ruleset) | not built: probe on a throwaway public repo decided 2026-10-06; waits for the owner to create it | — |
+| A3 | Checks: deeper message checks | not built: rules chosen 2026-10-06 | — |
 | B | Proof: a scorecard each site can publish (`website-scorecard`) | built; verified in a scratch copy of the starter; a CI job installs and runs it on every change | the pull request that carries this row, and its `scorecard-skill` check |
 | C | Forms: contact form with a submission test | scenarios only; delivery path decided 2026-10-04 (a function with Cloudflare's own email sending, availability to confirm) | — |
 | D | Import: bring an existing site under the gate | scenarios only | — |
-| E | Install: one-line install, marketplace listing | blocked on the name (decision row 2026-10-04) | — |
+| E | Install: one-line install, marketplace listing | blocked on the rename; names decided 2026-10-06 (`webcroft`, `create-webcroft`) | — |
 
 ## Build order, and why
 
@@ -108,7 +108,8 @@ Known limits, on purpose:
   before this test; the hard stop belongs to the same publish step.
 - The starter's own example values (the name "Example", `hello@example.com`) and the
   slots in `public/llms.txt` are not caught. Both would put one more entry on the
-  exemption list from the first commit; asked as a decision row.
+  exemption list from the first commit. **Decided 2026-10-06:** catch them once
+  `SITE.url` is no longer `example.com`, exact values only (decision row). Not built.
 - The rule for slots is "an opening bracket followed by a capital letter", plus
   brackets opening with a typical slot word in small letters ("[your name]"). Genuine
   text of that shape (a "[PDF]" label, an editor's note in a quote) has to be
@@ -137,12 +138,13 @@ Not built yet for two reasons. GitHub's exact refusal message is needed for row 
 (`ship.sh` today recognises a rejected push only in its non-fast-forward wording), and
 a runbook for the live branch should not ship on documentation alone.
 
-### A3. Deeper message checks (rules not chosen)
+### A3. Deeper message checks (rules chosen 2026-10-06, not built)
 
-Candidates, each a hard test unless noted:
-- Two pages share the same title or the same description.
-- A content page has no positioning term at launch (today a warning).
-- The home page's headline is a greeting ("Welcome", "Willkommen") instead of the offer.
+- Two pages share the same title or the same description: a hard test.
+- A content page has no positioning term: a warning on a draft, a hard test once
+  `SITE.url` is no longer `example.com`.
+- The home page's headline is a greeting ("Welcome", "Willkommen") instead of the
+  offer: stays a warning, because a word list misfires across languages.
 
 ## B. Proof
 
