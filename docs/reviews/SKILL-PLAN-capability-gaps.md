@@ -227,8 +227,9 @@ when the interview says it needs a form that emails the owner, or later on reque
 
 Rows 1 to 9, 11, 13, 15 and the log lines of row 16 are pinned by `tests/forms.spec.ts`,
 run on 2026-10-04 in a scratch copy of the starter with the skill installed by its own
-steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). The
-same setup ran again on 2026-10-06 with the byte limit below in place: 117 passed, 1 skip. One of
+steps: 20 form tests, and the full suite with the form in place (81 passed, 1 skip). A fresh
+copy of the starter, set up the same way, ran on 2026-10-06, once the limit also counted the bytes of a post that
+declares no length: 117 passed, 1 skip. One of
 the tests enters the function the way a deployment does, through the export Cloudflare
 calls, with only the network call underneath replaced. Three rows are pinned more narrowly
 than they read. Row 2: the browser test presses send on an empty form only; the
@@ -238,8 +239,8 @@ seconds. Row 13: the test starts on the name field and checks that Tab reaches e
 then message and never the hidden field; it does not check that send comes next. Row 15's
 200 KB post without a declared length was added on 2026-10-06, after a review that day
 sent 200,062 bytes with no length and it went through. The 88 deliberate breakages of the
-function, the form or the privacy text, each caught by the tests, date from 2026-10-04:
-none of them touched the byte limit, which came later. Row 10 was read
+function, the form or the privacy text, each caught by the tests, date from 2026-10-04,
+before that counted read existed. Row 10 was read
 against the tone rules by hand. Row 12 was tried in a scratch site with English and German
 routes: the build stops on whichever page leaves the privacy address out, the default
 language's included, and with it the German page gets the German form. Row 14 is the
