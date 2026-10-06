@@ -63,6 +63,7 @@ PIPEFAIL_RE='^[[:space:]]*set[[:space:]]+(.*[[:space:]])?-[a-zA-Z]*o[[:space:]]+
 IFS= read -r -d '' LEXER <<'AWK' || true
 BEGIN {
   EXITRE = "(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)"
+  STOPRE = "(^|[^a-zA-Z0-9_])(break|exit|return)([^a-zA-Z0-9_]|$)"
   CONSUMERS = "^(g?head|read|[efgz]?grep|rg|g?sed|[gmn]?awk|xargs)$"
   WRAPPERS = "^(time|command|builtin|exec|eval|env|nohup|nice|ionice|chrt|taskset|timeout|gtimeout|stdbuf|gstdbuf|setsid|sudo|doas|chroot|flock|unbuffer|busybox|sh|bash|dash|ksh|zsh)$"
 }
@@ -217,8 +218,9 @@ function wordlen(x,   i, n, c, q) {
   for (i = 1; i <= n; i++) {
     c = substr(x, i, 1)
     if (q == "'") { if (c == "'") q = ""; continue }
-    if (q == "\"") { if (c == "\\") i++; else if (c == "\"") q = ""; continue }
+    if (q == "$'" || q == "\"") { if (c == "\\") i++; else if (c == substr(q, length(q))) q = ""; continue }
     if (c == "\\") { i++; continue }
+    if (c == "$" && substr(x, i + 1, 1) == "'") { q = "$'"; i++; continue }
     if (c == "'" || c == "\"") { q = c; continue }
     if (c ~ /[ \t\n]/) return i - 1
   }
@@ -273,7 +275,7 @@ function check(x, ln, cl,   w, kind, n0, k, rl) {
 }
 # Whether a loop condition c is one plain `read` (after `!` for until): the one condition that
 # ends only at end of input. An allow-list, so anything it does not know is flagged: simple
-# assignments (IFS= …), then `read` with only -r, -s, -e, -a, -d <word> and variable names. Not
+# assignments (IFS= …), then `read` with only -r, -s, -e, -a <name>, -d <word> and variable names. Not
 # -t (a timeout ends it), -u or a redirection (it reads elsewhere), nor a quoted option.
 function plainread(c, inv) {
   sub(/^[ \t\n]+/, "", c); sub(/[ \t\n]+$/, "", c)
@@ -281,7 +283,7 @@ function plainread(c, inv) {
   while (match(c, /^[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'[^']*'|\$'[^']*'|[^ \t\n"'<>|&;]*)[ \t\n]+/)) c = substr(c, RLENGTH + 1)
   if (c !~ /^read([ \t\n]|$)/) return 0
   c = substr(c, 5)
-  while (match(c, /^[ \t\n]+(-[rsea]*d[ \t\n]*('[^']*'|"[^"]*"|\$'[^']*'|[^ \t\n"'<>|&;]+)|-[rsea]+|[A-Za-z_][A-Za-z0-9_]*)/)) c = substr(c, RLENGTH + 1)
+  while (match(c, /^[ \t\n]+(-[rse]*d[ \t\n]*('[^']*'|"[^"]*"|\$'[^']*'|[^ \t\n"'<>|&;]+)|-[rse]*a[ \t\n]+[A-Za-z_][A-Za-z0-9_]*|-[rse]+|[A-Za-z_][A-Za-z0-9_]*)/)) c = substr(c, RLENGTH + 1)
   return c == ""
 }
 # Loops and compound commands, tracked for each command of a C frame. A frame is its own scope:
@@ -293,12 +295,14 @@ function plainread(c, inv) {
 # miss, as its closer would end the watch around it early.
 # Loops: a piped while/until loop is watched (check()). A command before its `do` is one more
 # condition command (`read -r l && [ "$l" != END ]`), which can end the loop early, except the
-# last-line idiom `read … || [ -n "$l" ]`, which ends only at end of input too. Any word
-# that reads as break, exit or return once unquoted flags every open watch, wherever it stands:
-# `2>/dev/null break`, `eval $'break'` and `command exit` need no parsing, and `echo break` costs
-# a false alarm. Even one that only leaves an inner loop counts, since `break 2` leaves more. A
+# last-line idiom `read … || [ -n "$l" ]`, which ends only at end of input too. Then a plain
+# search, as for awk's exit: the word break, exit or return anywhere in a command of the frame
+# (STOPRE, nothing removed) flags every open watch. `2>/dev/null break`, `break>/dev/null`,
+# `eval 'break;'` and `command exit` need no parsing; `echo "press return"` costs a false
+# alarm. Text inside $( ) is not searched: it is another frame, and an exit there ends that
+# subshell. Even a break that only leaves an inner loop counts, since `break 2` leaves more. A
 # `done` closes the watches it ends.
-function structure(x,   w, k, a, n) {
+function structure(x,   w, k) {
   sub(/^[ \t\n]+/, "", x)
   if (x ~ /^do([ \t\n]|$)/) { for (k = 1; k <= nwat[d]; k++) wcond[d, k] = 0 }
   else if (!(op[d] == "||" && x ~ /^\[[ \t]+-n[ \t]+"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"[ \t]+\]$/))
@@ -320,10 +324,9 @@ function structure(x,   w, k, a, n) {
     }
     x = substr(x, RLENGTH + 1)
   }
-  if (nwat[d] == 0) return
-  n = split(x, a, /[ \t\n]+/)
-  for (k = 1; k <= n; k++) { w = unquote(a[k]); if (w ~ /^(break|exit|return)$/) break }
-  if (k <= n) for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
+  if (nwat[d] == 0 || !match(x, STOPRE)) return
+  w = substr(x, RSTART, RLENGTH); gsub(/[^a-z]/, "", w)
+  for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
 }
 # The kind of early-exit consumer x is, or "" for none; x starts at its command name.
 function kindof(x,   w, nw, k, kind) {
@@ -794,6 +797,16 @@ cmd | while read -r l; do echo break; done
 cmd | while read -r l && [ -n "$l" ]; do :; done
 @@ bad/while-read-or-another-command
 cmd | while read -r l || true; do :; done
+@@ bad/break-glued-to-a-redirection
+cmd | while read -r l; do break>/dev/null; done
+@@ bad/eval-of-a-quoted-break
+cmd | while read -r l; do eval 'break;'; done
+@@ bad/read-a-without-a-name
+cmd | while read -a; do :; done
+@@ bad/read-a-then-an-option
+cmd | while read -a -r l; do :; done
+@@ bad/redirect-target-in-ansi-c-quotes-with-an-escaped-quote
+cmd | 2>$'a\' b' head -1
 @@ good/herestring
 grep -q foo <<<"$x"
 @@ good/or
@@ -914,6 +927,10 @@ cmd | until ! read -r l; do :; done
 cmd | while IFS= read -rd '' f; do :; done
 @@ good/while-read-or-last-line
 cmd | while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l"; done
+@@ good/read-into-an-array
+cmd | while read -ra parts; do :; done
+@@ good/exit-word-inside-a-substitution-in-a-piped-loop
+cmd | while read -r l; do v="$(echo exit)"; done
 CASES
 
 TAB=$'\t'
