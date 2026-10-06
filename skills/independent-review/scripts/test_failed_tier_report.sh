@@ -310,7 +310,7 @@ mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -1046,7 +1046,7 @@ check "mparallel: Melious started while codex was still running" \
   sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
 # Stopping the script stops a fallback started after ollama failed, as it does the pair.
 mkdir -p "$T/mstop.marks"
-env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u GIT_DIR -u GIT_WORK_TREE \
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
   bash "$SCRIPT" "$T/change.diff" >"$T/mstop.out" 2>"$T/mstop.err" &
@@ -1073,6 +1073,36 @@ check "mlocalonly: --local-only never calls Melious" \
 run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only --seat melious
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
+
+# 32b. SECOND_SEAT=melious (2026-10-06): Melious holds the second seat and ollama is its fallback,
+#      the other way round from section 32. The owner chose GLM 5.3 on Melious over ollama-cloud,
+#      whose shared quota fails about one run in four; a seat that has run out must still hand over.
+run sfirst SECOND_SEAT=melious MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "sfirst: Melious runs with Codex and counts" has sfirst.out "reviewers: codex OK, melious OK"
+check "sfirst: ollama is not run while Melious counts" [ ! -e "$T/sfirst.marks/ollama-ran" ]
+check "sfirst: two counted, so no fewer-than-2 note" lacks sfirst.out "fewer than the 2"
+run sfall SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff"
+check "sfall: Melious out of credits, ollama stands in and counts" \
+  has sfall.out "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
+check "sfall: ollama ran" [ -e "$T/sfall.marks/ollama-ran" ]
+run sparallel CODEX_STUB=waitmelious SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=slow bash "$SCRIPT" "$T/change.diff"
+check "sparallel: Melious started while codex was still running" \
+  sh -c 'grep -qF "melious OK" "$1/sparallel.out" && [ -e "$1/sparallel.marks/codex-done" ] && [ ! -e "$1/sparallel.marks/melious-after-codex" ]' _ "$T"
+run sfirstsucc CODEX_STUB=auth SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 bash "$SCRIPT" "$T/change.diff" --first-success
+check "sfirstsucc: --first-success tries Melious before ollama" \
+  has sfirstsucc.out "reviewers: codex FAILED (exit 1), melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud OK"
+run snomodel SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff"
+check "snomodel: SECOND_SEAT=melious without a model stops before any call, exit 2" \
+  sh -c '[ "$(cat "$1/snomodel.rc")" = 2 ] && grep -qF "needs MELIOUS_MODEL" "$1/snomodel.err" && [ ! -e "$1/snomodel.marks/codex-ran" ]' _ "$T"
+run sbad SECOND_SEAT=gpt MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "sbad: an unknown SECOND_SEAT is refused, exit 2" \
+  sh -c '[ "$(cat "$1/sbad.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbad.err" && [ ! -e "$1/sbad.marks/codex-ran" ]' _ "$T"
+run sseat SECOND_SEAT=melious bash "$SCRIPT" "$T/change.diff" --seat codex
+check "sseat: --seat ignores SECOND_SEAT, even with no model" \
+  sh -c 'grep -qF "reviewers: codex OK" "$1/sseat.out" && [ "$(cat "$1/sseat.rc")" = 0 ]' _ "$T"
+run slocal SECOND_SEAT=melious OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --local-only
+check "slocal: --local-only never calls Melious, whatever SECOND_SEAT says" \
+  sh -c '! grep -qF melious "$1/slocal.out" && [ ! -e "$1/slocal.marks/melious-url" ]' _ "$T"
 
 # 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
 #     with Perl::MinimumVersion. It replaced the one-construct guards that stood here (no r-flag
