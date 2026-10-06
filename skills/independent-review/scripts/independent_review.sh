@@ -725,9 +725,6 @@ run_ollama() {
 # Leaves the clean review in ollama.filtered. Returns 3 (unavailable) or 1 (failed, WHY set).
 ollama_via_cli() {
   command -v ollama >/dev/null 2>&1 || return 3
-  # The output filter below needs Perl 5.10 (`//`). Checked before the model runs: on an older
-  # Perl the filter would fail to compile only after the review request was spent.
-  perl -e 'require 5.010' 2>/dev/null || return 3
   # A model is named and the CLI is present, so a failing listing is an attempted tier
   # that failed (daemon down, broken install) — keep its error for the FAILED section.
   ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
@@ -785,7 +782,8 @@ ollama_via_cli() {
       $n = $line_len if $n > $line_len;
       substr($out, length($out) - $n, $n, "") if $n > 0;
     }
-    if ((pos($s) // 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
+    # No `//` (Perl 5.10) in this filter: it has no Perl version check, and runs on Perl 5.8 too.
+    if ((defined pos($s) ? pos($s) : 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
     print encode("UTF-8", $out);
   ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
   # The filter's exit status was previously discarded, and the section header was printed BEFORE

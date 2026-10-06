@@ -1029,20 +1029,24 @@ EOF
 check "no_rflag: the guard rejects every one-line r-flag form, comment mentions included, and passes plain code" [ "$rflag_selftest" = 1 ]
 check "no one-line r-flag substitution in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
 
-# 34. A Perl older than 5.10 (2026-10-06): every ollama and Melious transport checks for 5.10
-#     before it sends anything, so the tier is skipped rather than failing after a spent request.
-#     A wrapper perl fails exactly the `require 5.010` probe and runs the real perl otherwise.
+# 34. A Perl older than 5.10 (2026-10-06). The API transports need 5.10 and check for it before
+#     sending anything, so they are skipped. The CLI transport needs no 5.10 feature, so it still
+#     runs: its output filter must stay free of `//` (checked as code below). A wrapper perl fails
+#     exactly the `require 5.010` probe, one argument with nothing else in it, and runs the real
+#     perl otherwise (round 1: a looser match would also fail real work that mentions it).
 REALPERL="$(command -v perl)"
 mkdir -p "$T/oldperl"
 cat >"$T/oldperl/perl" <<EOF
 #!/bin/sh
-for a; do case "\$a" in *'require 5.010'*) echo "Perl v5.10.0 required--this is only v5.8.9" >&2; exit 2 ;; esac; done
+for a; do case "\$a" in 'require 5.010') echo "Perl v5.10.0 required--this is only v5.8.9" >&2; exit 2 ;; esac; done
 exec "$REALPERL" "\$@"
 EOF
 chmod +x "$T/oldperl/perl"
 run oldcli PATH="$T/oldperl:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff"
-check "oldcli: an old Perl skips the ollama CLI tier before the model runs" \
-  sh -c 'grep -qF "ollama-cloud SKIPPED (not available)" "$1/oldcli.out" && [ ! -e "$1/oldcli.marks/ollama-ran" ]' _ "$T"
+check "oldcli: an old Perl still runs the ollama CLI tier, and it counts" \
+  sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/oldcli.out" && [ -e "$1/oldcli.marks/ollama-ran" ]' _ "$T"
+check "the ollama CLI output filter uses no // (it must run on Perl 5.8)" \
+  sh -c '! sed -n "/^ollama_via_cli() {/,/^}/p" "$1" | grep -v "^[[:space:]]*#" | grep -q "//"' _ "$SCRIPT"
 run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
 check "oldapi: an old Perl skips the ollama API and Melious tiers, nothing sent" \
   sh -c 'grep -qF "ollama-cloud SKIPPED (not available)" "$1/oldapi.out" && grep -qF "melious SKIPPED (not available)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ]' _ "$T"
