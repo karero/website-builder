@@ -130,6 +130,10 @@ expect "no git, list present: the list does not report itself" 0 "OK — no priv
 cp "$R/scripts/.clean-denylist" "$N/docs/"
 expect "no git, a copy of the list in docs/: fails" 1 "docs/.clean-denylist" "$N"
 rm "$N/docs/.clean-denylist"
+# grep prints file:line:text, so this file's lines start like the list's own.
+printf 'ran zorblequux\n' >"$N/scripts/.clean-denylist:1:notes"
+expect "no git, a file named like the list plus a colon: fails" 1 "zorblequux" "$N"
+rm "$N/scripts/.clean-denylist:1:notes"
 
 [ "$fails" -eq 0 ] && { echo "test_clean_denylist: all passed"; exit 0; }
 echo "test_clean_denylist: $fails failed"; exit 1

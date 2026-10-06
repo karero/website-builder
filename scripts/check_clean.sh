@@ -120,13 +120,17 @@ if [ -f "$DENYLIST_FILE" ]; then
   # report whole: the filter would compile the same broken pattern, fail too, and turn the
   # error into a clean pass. The list itself sits in the scanned scripts/ and holds every
   # name, so its own lines are dropped, by exact path: a file of that name anywhere else
-  # (docs/ ships whole in the zip) is scanned like any other.
+  # (docs/ ships whole in the zip) is scanned like any other. A line from a file named
+  # like the list plus a colon (scripts/.clean-denylist:1:x) starts the same way, so with
+  # such a file present nothing is dropped: the list then reports itself, loudly.
   if [ -n "$NAMES" ]; then
+    self='^scripts/\.clean-denylist:[0-9]+:'
+    compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
     hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
       *) hits="$(printf '%s\n' "$hits" \
-           | grep -vE '^scripts/\.clean-denylist:[0-9]+:' \
+           | grep -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
