@@ -66,12 +66,12 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
   {
     label: 'buzzword',
     // "massgeschneidert" alongside "maßgeschneidert": Swiss German writes ß as ss, and
-    // the /i flag does not fold ß↔ss for us. entfesselt gets the same (?:e|er|es|en)?
-    // adjective-ending coverage as every other entry (was previously (?:e)? only).
+    // the /i flag does not fold ß↔ss for us. entfesselt gets the same endings as every
+    // other entry, its superlative in both spellings ("entfesseltste", "entfesselteste").
     // Endings cover all four cases incl. dative -em ("mit nahtlosem Übergang"
     // previously slipped through) and superlatives (-ste/-ster/-stes/-sten/-stem,
     // "die nahtloseste Erfahrung").
-    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?)?|nahtlos(?:e|er|es|en|em|este[mnrs]?)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?)?|transformativ(?:e|er|es|en|em|ste[mnrs]?)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?)?|entfesseln|entfesselt(?:e|er|es|en|em)?|spitzenreiter)(?!\p{L})/gui,
+    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?)?|nahtlos(?:e|er|es|en|em|este[mnrs]?)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?)?|transformativ(?:e|er|es|en|em|ste[mnrs]?)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?)?|entfesseln|entfesselt(?:e|er|es|en|em|e?ste[mnrs]?)?|spitzenreiter)(?!\p{L})/gui,
   },
   // Multi-word AI-tell phrases — own rule/label (not merged into the buzzword
   // list above). \s+ tolerates whitespace variation between words; same

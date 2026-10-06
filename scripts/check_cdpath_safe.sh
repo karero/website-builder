@@ -32,6 +32,7 @@ SUBJECTS=(
   scripts/check_template_coverage.sh
   scripts/check_skill_budgets.sh
   scripts/check_pipefail_pipes.sh
+  scripts/check_lf_checkout.sh
   scripts/whats-new.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/check_perl_minimum.sh
