@@ -1,6 +1,6 @@
 # DIFF review — karero/website-builder#168 — keep the repo's text LF in a CRLF checkout
 
-Base `a7de280`, after the merge `3dac351` · depth: **Normal** (repo-wide config that changes every checkout, plus the
+Base `a7de280`, after merging main `1b89bcb` · depth: **Normal** (repo-wide config that changes every checkout, plus the
 release zip's file list; no auth, data or deploy path) · verdict: **CLEAN** · authority used:
 POST AUTHORITY, WORKTREE-WRITE, BRANCH-COMMIT — atom A (this session made every commit on the
 branch and opened the PR) and atom B (owner, this session: "push it, open the PR and run the
@@ -17,6 +17,7 @@ tokens, passwords or contact data in the diff.
 | 3 `--verify` | `d90fe09` | delta since `2b34614` | codex (medium); kimi | codex 180 s/46,437; kimi 159 s | 0/2/0 |
 | re-gate (not a round; logged as `--round 4`) | `2d5cd5c` | delta since `d90fe09` | codex (medium); kimi | codex 86 s/19,805; kimi 179 s | 0/0/0 |
 | merge link (not a round; logged as `--round 5`) | `f507e77` | `merge_link.sh a7de280 2d5cd5c 3dac351`: the PR's 5 files, merge effects included | codex (medium); kimi | codex 144 s/69,191; kimi 217 s | 0/0/0 for this PR (2 RISK: 1 refuted, 1 not this PR's) |
+| merge link 2 (not a round; logged as `--round 6`) | `eefc9a9` | `merge_link.sh 3dac351 f507e77 1b89bcb`: 4 files | codex (medium); kimi | codex 127 s/63,173; kimi 78 s | 0/0/0 for this PR (kimi: 3 RISK, 2 NIT, all on #179's content) |
 
 | id | Sev | Source | Rnd | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -38,6 +39,7 @@ tokens, passwords or contact data in the diff.
 | R3-2 | RISK | codex | 3 | self-test `git add` still read global attributes | fixed, ext. reverified (re-gate) | global required clean filter `false`: `d90fe09` fails to build the self-test, `2d5cd5c` passes |
 | ML-1 | RISK | codex | merge | README's contact-form claim ("mails each message to the owner") rests on an unverified Cloudflare API contract | outside this PR | main's text from #174, not this change; passed to that PR's owner |
 | ML-2 | RISK | kimi | merge | `.gitattributes` not in the zip list or REQUIRED | refuted | it sees only lines changed since `2d5cd5c`; `package.sh:30` (zip) and `:53` (REQUIRED) hold it since `0bc0b56`; a fresh build contains it; codex: `zip -sf` lists every REQUIRED path |
+| ML2-1–5 | RISK ×3, NIT ×2 | kimi | merge 2 | #179's Perl check: Makefile says it skips without Perl::MinimumVersion; `actions/checkout@v7`; the seven `perl/*.pl` in REQUIRED; long help line; long CI comment | outside this PR | all #179's text, merged into main; codex compiled all seven `.pl` and found #179's wiring intact; passed to #179's owner |
 
 UNVERIFIABLE questions: round 1, 4 asked (Windows bash with CRLF; Windows unzip tools; script
 behavior; binary inventory), 0 confirmed. Rounds 2–3 and the re-gate repeated git and shell
@@ -50,7 +52,7 @@ Follow-ups:
 - FE4: a scaffolded site's own scripts and data read the same way. #165 (merged before this
   PR) gives the template a `.gitattributes` for `*.sh` and `scripts/hooks/*` only; whether the
   site's checks also read Markdown or JSON as data was not checked here.
-- ML-1 (#174's README claim) belongs to that change's owner.
+- ML-1 (#174's README claim) and ML2-1–5 (#179's Perl check) belong to those changes' owners.
 
 Notes: all three seats counted in round 1; the pair counted in every later link. No round past 3.
 The re-gate checked the round-3 fixes for the stamp, not a round. No wording pass: no round had a
@@ -59,3 +61,7 @@ was available locally; the CI `lf-checkout` job runs the guard under bash 5.
 Merge of main (`f507e77`): 88 commits; Makefile, package.sh, README and clean.yml conflicted on
 list entries and were resolved by keeping both sides. GitHub SSH was timing out, so the app's sync
 could not fetch; local `origin/main` matched the API's `3dac351`, and the merge was done here.
+Main then moved to `1b89bcb` (#179, touching four of this PR's files): a second merge (`eefc9a9`,
+one Makefile conflict) and merge link 2 — the second and last re-gate attempt clerk item 2 allows.
+Pushes went over HTTPS (`url.https://github.com/.insteadOf=ghdirect:` for one command), since the
+global insteadOf sends https://github.com/ to SSH.
