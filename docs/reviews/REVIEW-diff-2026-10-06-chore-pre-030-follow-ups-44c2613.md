@@ -8,3 +8,4 @@ Base `4e69534` · depth: Light (a template refactor with identical output, and o
 
 Evidence: `check_prompt_sync.sh` ok; `make check` exit 0 (skips: Perl::MinimumVersion not installed, `/proc` cases on macOS; CI runs both). The rendered hint is asserted per language by `forms.spec.ts` in CI's template-tests job.
 Follow-ups closed: #183's "pass `lang={language}` to EmailLink"; #150's R3-N1 / FR-N11 "PROMPT_PORTABLE lacks the unseen-text rule".
+Merge link (main merged in at `a116b52`, new base `bc3a63d`): main changed `ContactForm.astro`'s script block (#174 follow-ups: field lock, abort timer); this change's lines (the import, the EmailLink call) are untouched by it and the diff against the new base is the same three lines. `check_prompt_sync.sh` ok after the merge.
