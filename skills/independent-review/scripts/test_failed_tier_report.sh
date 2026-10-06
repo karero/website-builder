@@ -974,13 +974,14 @@ check "mlocalseat: --local-only refuses --seat melious, exit 2" \
 
 # 33. No s///r in the script (2026-10-06, a #167 follow-up): the API transports promise Perl 5.10,
 #     and /r needs 5.14, so on an older Perl their parser would fail to compile and report "HTTP 200".
-#     Read as code, not by eye: any s, tr or y whose modifiers include r, whatever its delimiter
-#     (/ | , # ! and the paired {} () [] <>), with or without =~. Whole-line comments are skipped and
-#     an inline comment is cut only at " # ", so a # inside a pattern still counts. It tests itself
-#     first on the forms it must catch and the lines it must pass (round 1: fresh-eyes, kimi-k3).
+#     Read as code, line by line: an s, tr or y whose modifiers include r, written on one line, with
+#     any delimiter (/ | , # ! and the paired {} () [] <>), with or without =~. Whole-line comments
+#     are skipped; an inline comment is NOT, so one that mentions an r-flag form fails the check (the
+#     safe direction; round 2 dropped cutting at " # ", which also cut strings and patterns). Not
+#     seen: a substitution split across lines, or a nested paired delimiter (s{a{b}}{c}r). It tests
+#     itself first on the forms it must catch and the lines it must pass (rounds 1-2, all seats).
 cat >"$T/no_rflag.pl" <<'EOF'
 next if /^\s*#/;
-s/\s#\s.*$//;
 $bad++, print STDERR "s///r at line $.: $_" if
   m~(?<![\w\$\@%&-])(?:s|tr|y)\s*(?:
       \{(?:\\.|[^\\}])*\}\s*\{(?:\\.|[^\\}])*\}
@@ -1010,6 +1011,8 @@ y/a/b/r
 s/a/b/gr for @x
 $x =~ s/#/ /gr
 print "token #123"; $x =~ s/a/b/r;
+my $t = "a # b"; $x =~ s/a/b/r;
+my $x = 1; # do not $y =~ s/a/b/r
 EOF
 while IFS= read -r l; do
   printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null || { echo "no_rflag over-matches: $l"; rflag_selftest=0; }
@@ -1017,13 +1020,13 @@ done <<'EOF'
 $s =~ s/[\s]+/ /g;
 my $x = "string";
 tr/a-z/A-Z/;
-(my $q = $line) =~ s/x/ /g;   # keep off s///r: the API
+(my $q = $line) =~ s/x/ /g;   # keep off the /r flag: the API
 print "a,b,r";
 $e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
-my $x = 1; # don't do $y =~ s/a/b/r
+$x =~ s/a/b/g; # a plain substitution with an inline comment
 EOF
 check "no_rflag: the guard catches every r-flag form and passes plain code" [ "$rflag_selftest" = 1 ]
-check "no s///r anywhere in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
+check "no one-line r-flag substitution in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

@@ -841,7 +841,7 @@ ollama_via_api() {
       next unless $line =~ /\S/;
       my $j = eval { $json->decode($line) };
       if (ref $j ne "HASH") {
-        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off s///r: the API transports need Perl 5.10, not 5.14
+        (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off the /r flag: the API transports need Perl 5.10, not 5.14
         $q =~ s/^ | $//g; $q = substr($q, 0, 300);
         # A non-200 body is the error reply of the server, quoted on the line; a 200 line may be
         # review text, so it goes below, indented, where the classifier does not read.
