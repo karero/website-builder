@@ -39,6 +39,12 @@ n="$(printf '%s' "$lists" | grep -c .)"; distinct="$(printf '%s' "$lists" | sort
 if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
   echo "ok   the two copies of the qualifier list are identical"
 else echo "FAIL expected two identical qualifier lists, found $n list(s), $distinct distinct"; fail=1; fi
+# The refusal phrase is written out twice (the severity-led count and check 1); the copies must not drift.
+refusals="$(printf '%s\n' "$fn" | grep -oE "\(cannot[^)]*\) \([a-z|]+\)")"
+n="$(printf '%s' "$refusals" | grep -c .)"; distinct="$(printf '%s' "$refusals" | sort -u | grep -c .)"
+if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
+  echo "ok   the two copies of the refusal phrase are identical"
+else echo "FAIL expected two identical refusal phrases, found $n, $distinct distinct"; fail=1; fi
 check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
 check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
 1. BUG — a.rb:1 — x is wrong now.
@@ -64,6 +70,13 @@ UNVERIFIABLE (not findings)
 - Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
 check accept "a lone severity-led finding" "RISK 1 — c.rb:3 — z could break on normal change."
 check reject "a lone severity-led refusal" "BUG: I cannot review this file because it is too long."
+# Unlike the list-marked pair above, two severity-led refusals reject: a severity-led line with the
+# refusal phrase is not counted (Codex, 2026-10-06 round 1: counting it newly accepted this reply).
+check reject "two severity-led refusals" "BUG: I cannot review the file.
+RISK: I cannot access the repository."
+check accept "severity-led findings: only the one with the refusal phrase drops out of the count" "RISK 1 — a.rb:3 — retries are unbounded.
+NIT 1 — b.rb:9 — the handler cannot return early here.
+NIT 2 — c.rb:4 — the name is misleading."
 check reject "a severity word leading a hyphenated word is not a finding" "Bug-free builds matter.
 Risk-averse teams agree. I cannot review this diff."
 check reject "thinking only: reasoning that names the severities, no findings" "Okay, let me look at the diff. The prompt wants BUG, RISK and NIT entries.
@@ -118,8 +131,6 @@ CLEAN: checked the caller's arguments."
 # change them on purpose.
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): two refusal-shaped findings count as a review" "1. BUG — I cannot review the file.
 2. RISK — I cannot access the repository."
-check accept "KNOWN WRONG (B-REFUSAL-TEXT): two severity-led refusals count as a review" "BUG: I cannot review the file.
-RISK: I cannot access the repository."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): the prescribed clean-verdict shape is discarded when an UNVERIFIABLE entry says a COMPONENT cannot do something" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: library X cannot provide the stated durability; settlement requires a crash-recovery test."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a lone real finding saying 'cannot return' is discarded" "1. BUG — api.rb:12 — The handler cannot return JSON because serialization raises before the response is built. Fix: serialize the supported fields."
