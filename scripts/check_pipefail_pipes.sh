@@ -292,7 +292,8 @@ function plainread(c, inv) {
 # definition; closers `}`, `fi`, `esac` and `done`. Missing an opener is the miscount that could
 # miss, as its closer would end the watch around it early.
 # Loops: a piped while/until loop is watched (check()). A command before its `do` is one more
-# condition command (`read -r l && [ "$l" != END ]`), which can end the loop early. Any word
+# condition command (`read -r l && [ "$l" != END ]`), which can end the loop early, except the
+# last-line idiom `read … || [ -n "$l" ]`, which ends only at end of input too. Any word
 # that reads as break, exit or return once unquoted flags every open watch, wherever it stands:
 # `2>/dev/null break`, `eval $'break'` and `command exit` need no parsing, and `echo break` costs
 # a false alarm. Even one that only leaves an inner loop counts, since `break 2` leaves more. A
@@ -300,7 +301,8 @@ function plainread(c, inv) {
 function structure(x,   w, k, a, n) {
   sub(/^[ \t\n]+/, "", x)
   if (x ~ /^do([ \t\n]|$)/) { for (k = 1; k <= nwat[d]; k++) wcond[d, k] = 0 }
-  else for (k = 1; k <= nwat[d]; k++) if (wcond[d, k]) flagloop(k, "its condition has more than one command")
+  else if (!(op[d] == "||" && x ~ /^\[[ \t]+-n[ \t]+"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"[ \t]+\]$/))
+    for (k = 1; k <= nwat[d]; k++) if (wcond[d, k]) flagloop(k, "its condition has more than one command")
   for (;;) {
     if (match(x, /^(!|do|then|else|elif|time)[ \t\n]+/)) { x = substr(x, RLENGTH + 1); continue }
     if (match(x, /^(\{|if|case)([ \t\n]+|$)/)) { cd[d]++; x = substr(x, RLENGTH + 1); continue }
@@ -328,7 +330,7 @@ function kindof(x,   w, nw, k, kind) {
   kind = ""
   if (x ~ /^g?head([ \t\n;]|$)/) kind = "head"
   else if (x ~ /^read([ \t\n;]|$)/) kind = "read"
-  else if (x ~ /^xargs([ \t\n;]|$)/) kind = "xargs (it stops reading when a command it runs exits 255, or at an -E end-of-file string)"
+  else if (x ~ /^xargs([ \t\n;]|$)/) kind = "xargs (it stops reading if a command it runs exits 255, or at an -E end-of-file string; neither is checked here)"
   else if (x ~ /^([efgz]?grep|rg)([ \t\n]|$)/) {
     nw = split(x, w, /[ \t\n]+/)
     for (k = 2; k <= nw; k++) {
@@ -367,7 +369,7 @@ function lex(s,   i, n, c, c2, t, j, w, ch, strip, piped) {
       if (c == "|") {
         if (i > 1 && substr(s, i - 1, 1) == ">") { add(c); continue }  # >| redirection
         c2 = substr(s, i + 1, 1)
-        if (c2 == "|") { endcmd("", 0); i++; continue }
+        if (c2 == "|") { endcmd("||", 0); i++; continue }  # kept for structure(): read … || [ -n "$l" ]
         if (c2 == "&") i++
         endcmd("|", 0); continue
       }
@@ -788,6 +790,10 @@ cmd | sh -c $'head -1'
 cmd | 2>"a b" head -1
 @@ bad/break-as-an-argument-keeps-the-finding
 cmd | while read -r l; do echo break; done
+@@ bad/while-read-and-a-test
+cmd | while read -r l && [ -n "$l" ]; do :; done
+@@ bad/while-read-or-another-command
+cmd | while read -r l || true; do :; done
 @@ good/herestring
 grep -q foo <<<"$x"
 @@ good/or
@@ -906,6 +912,8 @@ cmd | while IFS= read -r -d '' f; do printf '%s\n' "$f"; done
 cmd | until ! read -r l; do :; done
 @@ good/while-read-with-combined-options
 cmd | while IFS= read -rd '' f; do :; done
+@@ good/while-read-or-last-line
+cmd | while IFS= read -r l || [ -n "$l" ]; do printf '%s\n' "$l"; done
 CASES
 
 TAB=$'\t'
