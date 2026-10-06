@@ -3,10 +3,10 @@
 # as the argument). Exit 3: not valid UTF-8; exit 4: an escape the loop cannot parse.
 # Perl 5.8: this path has no Perl version check, so nothing newer may be used here.
 use 5.008;
+use Encode qw(decode encode FB_CROAK);
 
 local $/;   # the whole input is one record, as with -0777 -n
 while (<>) {
-  use Encode qw(decode encode FB_CROAK);
   my $s = eval { decode("UTF-8", $_, FB_CROAK) };
   if (!defined $s) { print STDERR "ollama output is not valid UTF-8 — refusing to filter it\n"; exit 3; }
   my $out = "";
