@@ -144,12 +144,29 @@ applies there; instead of steps 2 to 4, only this:
   publishes, the merge conditions above are the only gate: a red check or a leftover
   placeholder must never be merged.
 
-- Before the pull request: `npm ci` (installs the exact packages, also when
-  `package-lock.json` changed), then `npm run check`, `npm run build` and
-  `npx playwright test`. Everything must be green. Do not work around or disable red
-  tests; report them. If the environment cannot run the tests (e.g. no browser
-  installed): say so, do not claim "green".
-- Change only what the task asks for. Nothing "on the side".
+- **Checks before the pull request: one command, the same for every change.** Text
+  changes too: the tests catch the mistakes text edits typically make (banned
+  phrasing, title and description lengths, placeholders, broken internal links), so a text
+  change is the change most likely to fail them. Everything must be green.
+  - On your own computer the push is the check. Commit, then
+    `git push -u origin <branch>`: the pre-push hook runs `scripts/verify.mjs`, which
+    reinstalls the exact packages only when needed (first run, or `package-lock.json`
+    changed since), runs `npm run check`, then builds the site once and runs all tests.
+    It prints a short result, or the errors. Red: the push is refused; fix the cause,
+    commit, push again. Do not also run `npm ci`, `npm run check`, `npm run build` or
+    `npx playwright test` by hand first: the push runs the same steps, so doing both
+    only costs time.
+  - The hook is on when `git config --get core.hooksPath` prints `scripts/hooks`. If it
+    prints anything else or nothing, and always in Codex in the cloud: run
+    `npm run verify` yourself and push (or press "Create PR") only when it is green.
+    `npm run verify` is also the way to try a fix without pushing.
+  - Do not push with `--no-verify`: it skips the check, so red work reaches GitHub and
+    costs a CI round and someone's review. Do not work around or disable red tests;
+    report them. If the environment cannot run the tests (e.g. no browser installed;
+    `npx playwright install chromium` adds it): say so, do not claim "green".
+- Change only what the task asks for. Nothing "on the side". Several small changes
+  the person asks for together (e.g. a handful of text fixes) go on one branch and
+  into one pull request: one check covers them all.
 
 ## 3. Where the content lives
 

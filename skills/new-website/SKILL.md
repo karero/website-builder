@@ -274,7 +274,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
 1. **Scaffold + overlay:** `npm create astro@latest .` (Empty, TS strict), then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
-   `scripts/`, `.github/`, `.nvmrc`, root configs — see `templates/astro/README.md`
+   `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, root configs — see `templates/astro/README.md`
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
    and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
