@@ -782,7 +782,7 @@ ollama_via_cli() {
       $n = $line_len if $n > $line_len;
       substr($out, length($out) - $n, $n, "") if $n > 0;
     }
-    # No `//` (Perl 5.10) in this filter: it has no Perl version check, and runs on Perl 5.8 too.
+    # No `//` here (Perl 5.10): unlike the API transports, this path has no Perl version check.
     if ((defined pos($s) ? pos($s) : 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
     print encode("UTF-8", $out);
   ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
