@@ -82,8 +82,9 @@ applies there; instead of steps 2 to 4, only this:
   git ls-remote origin "refs/heads/$(git rev-parse --abbrev-ref HEAD)"   # reads only
   ```
   Same id: say the state is current. Different: say GitHub has moved on and that a
-  new task gets the newest state. No line from `ls-remote`: say this branch is not
-  (or no longer) on GitHub. Network off: say the comparison was not possible.
+  new task gets the newest state. `ls-remote` succeeds but prints no line: say this
+  branch is not (or no longer) on GitHub. It fails (network off, no access): say the
+  comparison was not possible.
 - If an **older** cloud task is being resumed, say: "Whether GitHub has moved on since
   is not checked. For the newest state, start a new task."
 - Fetch nothing, create or switch no branch. Codex works on this state; Codex creates
