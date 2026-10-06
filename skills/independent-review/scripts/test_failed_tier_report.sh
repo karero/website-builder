@@ -1105,6 +1105,9 @@ check "sseat: --seat runs without SECOND_SEAT's model" \
 run sbadseat SECOND_SEAT=gpt bash "$SCRIPT" "$T/change.diff" --seat codex
 check "sbadseat: a typo is refused under --seat too, exit 2" \
   sh -c '[ "$(cat "$1/sbadseat.rc")" = 2 ] && [ ! -e "$1/sbadseat.marks/codex-ran" ]' _ "$T"
+run sbadlocal SECOND_SEAT=gpt OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --local-only
+check "sbadlocal: a typo is refused under --local-only too, exit 2" \
+  sh -c '[ "$(cat "$1/sbadlocal.rc")" = 2 ] && grep -qF "expected ollama or melious" "$1/sbadlocal.err" && [ ! -e "$1/sbadlocal.marks/ollama-ran" ]' _ "$T"
 run sboth SECOND_SEAT=melious MELIOUS_MODEL=stub-melious MELIOUS_STUB=429 OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff"
 check "sboth: both seats refused, so the round is marked short" \
   sh -c 'grep -qF "reviewers: codex OK, melious FAILED (HTTP 429; quota/rate limit: wait or add credits), ollama-cloud FAILED" "$1" && grep -qF "fewer than the 2" "$1"' _ "$T/sboth.out"
