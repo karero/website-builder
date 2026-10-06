@@ -8,7 +8,7 @@
 // tests/forms.spec.ts checks these texts against words of its own (WORDS). That list
 // stays in the spec on purpose: it is an independent check, a few words per sentence,
 // that catches a sentence left in another language or swapped with another. It does
-// not read for meaning or tone.
+// not read for meaning. The tone rules are a separate check (see TEXT below).
 
 // The longest name, address and message the form takes. The form's fields stop there
 // and the function refuses anything longer.
@@ -20,12 +20,14 @@ export const LIMITS = { name: 100, email: 254, message: 5000 };
 // so a name still fits. The spec checks a new one as it stands, and fails above 90.
 export const MAIL = { subject: 'Website message from ', name: 'Name', email: 'Email' };
 
-// Everything a visitor reads, by language. The tone rules apply (tests/tone.spec.ts):
-// no long dash, no contraction, and in German no form of address, so the form fits a
-// "du" site and a "Sie" site alike. `page` is what a visitor without JavaScript reads
-// after sending: on a failure it sends them back to the form, where the address to
-// write to is always shown, by the browser's own Back button (the link under the
-// sentence loads the page afresh). A language that leaves one of these out fails
+// Everything a visitor reads, by language. tests/forms.spec.ts holds every text here to
+// the site's tone rules (tests/_helpers.ts): no long dash in any language, and the
+// rules of the text's own language where there are some (English: no contraction, no
+// buzzword; German: no buzzword, no stock AI phrase). In German they address nobody,
+// so the form fits a "du" site and a "Sie" site alike. `page` is what a visitor without
+// JavaScript reads after sending: on a failure it sends them back to the form, where
+// the address to write to is always shown, by the browser's own Back button (the link
+// under the sentence loads the page afresh). A language that leaves one of these out fails
 // `npm run check`.
 type Texts = {
   name: string; email: string; message: string; send: string;
