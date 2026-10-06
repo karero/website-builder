@@ -330,10 +330,8 @@ function structure(x,   w, k, u) {
     x = substr(x, RLENGTH + 1)
   }
   if (nwat[d] == 0) return
-  u = unquote(x)
   if (match(x, STOPRE)) w = substr(x, RSTART, RLENGTH)
-  else if (match(u, STOPRE)) w = substr(u, RSTART, RLENGTH)
-  else return
+  else { u = unquote(x); if (match(u, STOPRE)) w = substr(u, RSTART, RLENGTH); else return }
   gsub(/[^a-z]/, "", w)
   for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
 }
