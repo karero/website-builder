@@ -19,8 +19,9 @@ const PAGE = '';
 // The privacy page, e.g. '/privacy' or '/datenschutz'.
 const PRIVACY = '';
 
-// Words each of the form's sentences must contain, by language, so that a thank-you can
-// never be shown for a failure, nor one language's sentence in the other's place.
+// Words each of the form's sentences must contain, by language. Every sentence is held
+// against all of them: it must carry its own and none of the others', of any language
+// listed, so a thank-you beside a failure or an English sentence on a German page fails.
 // English and German are built in: add the words of any language added to the component.
 const WORDS: Record<string, Record<string, RegExp>> = {
   en: { 'data-sent': /has been sent/, 'data-invalid': /not valid/, 'data-failed': /could not be sent/ },
@@ -139,6 +140,8 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
     [{ ...GOOD, email: 'ada\u0085@example.org' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada\u200B@example.org' }, { email: 'invalid' }],
     [{ ...GOOD, email: 'ada@exam\u202Eple.org' }, { email: 'invalid' }],
+    [{ ...GOOD, email: 'ada\u3164@example.org' }, { email: 'invalid' }],
+    [{ ...GOOD, email: 'ada\u2800@example.org' }, { email: 'invalid' }],
     [{ ...GOOD, name: 'x'.repeat(LIMITS.name + 1) }, { name: 'too_long' }],
     [{ ...GOOD, message: 'x'.repeat(LIMITS.message + 1) }, { message: 'too_long' }],
     [{ name: '', email: 'nope', message: '', [TRAP]: '', lang: 'en' }, { name: 'required', email: 'invalid', message: 'required' }],
@@ -292,8 +295,9 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
   const html = await ok.text();
   expect(html).toContain('<html lang="de">');
   expect(html).toContain('Danke.');
-  // Each answer is the sentence for what happened and no other, in both languages built in.
-  for (const lang of ['en', 'de']) {
+  // Each answer is the sentence for what happened and no other, in every language listed
+  // in WORDS: one that is listed there and missing from the function gets an English page.
+  for (const lang of Object.keys(WORDS)) {
     const pages: Record<string, string> = {
       'data-sent': await (await handle(post({ ...GOOD, lang }, { accept: 'text/html' }), ENV, recorder().send)).text(),
       'data-invalid': await (await handle(post({ ...GOOD, lang, email: 'nope' }, { accept: 'text/html' }), ENV, recorder().send)).text(),
@@ -301,7 +305,9 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
     };
     for (const [is, answerPage] of Object.entries(pages)) {
       expect(answerPage, `${lang}: the ${is} page`).toContain(`<html lang="${lang}">`);
-      for (const [name, words] of Object.entries(WORDS[lang])) expect(words.test(answerPage), `${lang}: the ${is} page and the words for ${name}`).toBe(name === is);
+      for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
+        for (const [name, words] of Object.entries(byOutcome)) expect(words.test(answerPage), `${lang}: the ${is} page and the ${wordsOf} words for ${name}`).toBe(wordsOf === lang && name === is);
+      }
     }
   }
   // A language the page does not know, or a word that names something built in.
@@ -404,9 +410,19 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
   const sentences = await Promise.all(['data-sending', 'data-sent', 'data-invalid', 'data-failed'].map((name) => form.getAttribute(name)));
   expect(sentences.every((sentence) => sentence && sentence.trim() !== ''), 'four sentences').toBe(true);
   expect(new Set(sentences).size, 'four different sentences').toBe(4);
+  // The form's link leads to the privacy page this spec checks.
+  await expect(form.locator('.contact-form-note a')).toHaveAttribute('href', PRIVACY);
+  // The form speaks the language of its page, and that language's words are listed above.
   const language = (await form.locator('input[name="lang"]').getAttribute('value')) ?? '';
-  expect(WORDS[language], `the words of the form's language ("${language}") are in WORDS`).toBeTruthy();
-  for (const [name, words] of Object.entries(WORDS[language] ?? {})) expect(await form.getAttribute(name), name).toMatch(words);
+  const pageLanguage = ((await page.locator('html').getAttribute('lang')) ?? '').toLowerCase().split('-')[0];
+  expect(language, 'the form is in the language of its page').toBe(pageLanguage);
+  expect(Object.hasOwn(WORDS, language), `the words of the form's language ("${language}") are in WORDS`).toBe(true);
+  for (const attribute of ['data-sent', 'data-invalid', 'data-failed']) {
+    const sentence = (await form.getAttribute(attribute)) ?? '';
+    for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
+      for (const [name, words] of Object.entries(byOutcome)) expect(words.test(sentence), `${attribute} and the ${wordsOf} words for ${name}`).toBe(wordsOf === language && name === attribute);
+    }
+  }
   const trap = page.locator(`[name="${TRAP}"]`);
   await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');

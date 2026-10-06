@@ -48,15 +48,14 @@ const MAX_BODY_BYTES = 100_000;
 // One address, nothing that could start a second header or a second recipient. An
 // apostrophe is allowed (o'brien@…): the address travels as a JSON value, not a header line.
 const EMAIL = /^[^\s@<>",;:\\()[\]]+@[^\s@<>",;:\\()[\]]+\.[^\s@<>",;:\\()[\]]{2,}$/;
-// Characters nobody sees: control characters and invisible format characters have no
-// place in an address. (A few domain names carry a joiner, one of the format
-// characters, in their Unicode spelling. An address typed that way is refused too, and
-// its visitor is shown the address to write to.)
-const UNSEEN = /[\p{Cc}\p{Cf}]/u;
-// Whether a text holds more than spaces and characters that Unicode defines as not
-// shown (control, format and "default ignorable" characters, and the blank Braille
-// pattern): a name or a message made of those alone is an empty one. What a given
-// screen draws was not measured.
+// Characters with no place in an address: Unicode's control and format categories, its
+// default-ignorable set and the blank Braille pattern. (A few domain names carry a
+// joiner, one of the format characters, in their Unicode spelling. An address typed
+// that way is refused too, and its visitor is shown the address to write to.)
+const UNSEEN = /[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}\u2800]/u;
+// Whether a text holds more than spaces and the characters listed for UNSEEN: a name
+// or a message made of those alone counts as empty. This goes by Unicode's categories;
+// what a given screen draws was not measured.
 const visible = (text: string) => /[^\p{Cc}\p{Cf}\p{Z}\p{Default_Ignorable_Code_Point}\u2800]/u.test(text);
 
 // The mail goes out through Cloudflare's own API. true only when Cloudflare says it
