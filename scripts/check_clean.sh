@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
-# credentials may enter it. Scans skills/ + root docs and exits 1 (with file:line) on
-# any hit. Wired into `make check` and CI (.github/workflows/clean.yml).
+# credentials may enter it. Scans skills/ + root docs (and scripts/, for names only) and
+# exits 1 (with file:line) on any hit. Wired into `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:
 #   • DENYLIST — specific known-private identifiers, read from an OPTIONAL gitignored
@@ -20,8 +20,12 @@ SCAN="skills"   # the arch doc now lives in skills/new-website/references/, so s
 # self-match). The name denylist covers the same docs EXCEPT LICENSE, which legitimately
 # carries the owner's real name + clone URLs (2026-07-17: widened from skills/-only after
 # docs/reviews/*.md review artifacts slipped a client name past a skills/-only scan).
-SCAN_NAMES_ALL="$SCAN README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs"
-SCAN_DOCS_ALL="$SCAN_NAMES_ALL LICENSE"
+# It DOES cover scripts/: the names live in the gitignored list, not in any script, so
+# nothing there can match itself; the list's own lines are dropped below. (2026-10-06: a
+# client site's name sat in a comment in a script that ships in the handoff zip.)
+SCAN_BASE="$SCAN README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs"
+SCAN_NAMES_ALL="$SCAN_BASE scripts"
+SCAN_DOCS_ALL="$SCAN_BASE LICENSE"
 # Every target must be here. A missing path makes grep print a diagnostic and exit 2,
 # which this script used to send to /dev/null and read as "no hits" — so the final OK line
 # named files nobody had looked at, an OK that could not fail (found in the handoff zip,
@@ -33,7 +37,7 @@ SCAN_NAMES="$SCAN_NAMES_ALL"
 SCAN_DOCS="$SCAN_DOCS_ALL"
 # `set -f` so a target is never pathname-expanded — the loop wants the literal list.
 missing() { local t out=""; set -f; for t in $1; do [ -e "$t" ] || out="${out:+$out }$t"; done; set +f; printf '%s' "$out"; }
-MISSING="$(missing "$SCAN_DOCS_ALL")"
+MISSING="$(missing "$SCAN_DOCS_ALL $SCAN_NAMES_ALL")"
 if [ -n "$MISSING" ]; then
   echo "FAIL — these scan targets are missing, so nothing checked them: $MISSING"
   echo "All of them ship in the handoff zip and exist in a checkout. If a copy should"
@@ -41,6 +45,7 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 fail=0
+names_checked=0 names_skipped=""
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
 filter_ignored() { # stdin: grep output → stdout minus gitignored files
@@ -106,26 +111,38 @@ if [ -f "$DENYLIST_FILE" ]; then
   # karero/website-builder is this project's OWN public repo — self-links to it (README
   # badges, clone instructions, the security policy) and its short form in issue and PR
   # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
-  # reference, in lowercase, and not inside a longer name (other-karero/website-builder,
-  # karero/website-builder-x), then look again: dropping every line that held one also hid
+  # reference, in lowercase, and not inside a longer name (one with an extra prefix like
+  # `other-` or suffix like `-x`), then look again: dropping every line that held one also hid
   # any private name beside it. One reference at a time, until none is left: a global
   # replace consumes the character after one reference that the next needs before it
   # (karero/website-builder,karero/website-builder). Binary-file lines pass through for
   # filter_ignored. A scan error (g's "✗ scan error" block, first in its output) goes to
   # report whole: the filter would compile the same broken pattern, fail too, and turn the
-  # error into a clean pass.
+  # error into a clean pass. The list itself sits in the scanned scripts/ and holds every
+  # name, so its own lines are dropped, by exact path: a file of that name anywhere else
+  # (docs/ ships whole in the zip) is scanned like any other. A line from a file named
+  # like the list plus a colon (scripts/.clean-denylist:1:x) starts the same way, so with
+  # such a file present nothing is dropped: the list then reports itself, loudly.
   if [ -n "$NAMES" ]; then
+    self='^scripts/\.clean-denylist:[0-9]+:'
+    compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
     hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
       *) hits="$(printf '%s\n' "$hits" \
+           | grep -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
            | grep -iE "^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
     esac
     report "personal/site identifier" "$hits"
+    names_checked=1
+  else
+    names_skipped="$DENYLIST_FILE lists no names"
+    echo "· personal-name denylist skipped ($names_skipped) — generic checks still run"
   fi
 else
-  echo "· personal-name denylist skipped (no $DENYLIST_FILE) — generic checks still run"
+  names_skipped="no $DENYLIST_FILE"
+  echo "· personal-name denylist skipped ($names_skipped) — generic checks still run"
 fi
 
 # 2. Personal home paths (non-portable + identifying).
@@ -167,4 +184,10 @@ if [ "$fail" -ne 0 ]; then
   echo "tighten the pattern in scripts/check_clean.sh."
   exit 1
 fi
-echo "OK — no personal names, contact info, or credentials in: $SCAN_DOCS"
+# The OK line says itself whether names were checked: CI has no list, and a bare OK there
+# read as "no private names" while the same tree failed `make check` locally.
+if [ "$names_checked" -eq 1 ]; then
+  echo "OK — no private names in: $SCAN_NAMES; no contact info or credentials in: $SCAN_DOCS"
+else
+  echo "OK — no contact info or credentials in: $SCAN_DOCS (private-name check SKIPPED: $names_skipped)"
+fi
