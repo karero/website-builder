@@ -56,7 +56,7 @@ privacy page). Neither is built by this skill.
 | `functions/api/contact.ts` | `contact.ts` | the endpoint `POST /api/contact`: checks, bot trap, the mail call |
 | `src/components/ContactForm.astro` | `ContactForm.astro` | the form |
 | `src/components/contact-form.ts` | `contact-form.ts` | what the form and its answers say, in English and German; the lines of the owner's mail; the longest name, address and message it takes. The form and the function both import it, so a translation edits this file, plus a line of words in the spec |
-| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out) in every language of `contact-form.ts`, every text of `contact-form.ts` against the site's tone rules, the privacy text |
+| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out) in every language of `contact-form.ts`, every text of `TEXT` in `contact-form.ts` against the site's tone rules, the privacy text |
 
 The templates are at `~/.claude/skills/website-forms/templates/` (Codex:
 `~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install all
@@ -69,7 +69,10 @@ from an older starter lacks it, and `npm run check` says `has no exported member
 'toneViolations'`. Then first bring that file up to date from the starter's
 (`new-website/templates/astro/tests/_helpers.ts`): take `toneViolations` and the rules
 above it, keep the site's own `PAGES`. Take the starter's `tests/tone.spec.ts` with it,
-so the pages and the form read one list, not two.
+so the pages and the form read one list, not two. Before replacing the site's
+`tone.spec.ts`, compare its rules and its `ALLOWLIST` with the starter's: a word the
+site added to a rule, or an entry in its `ALLOWLIST`, goes into the same place in
+`_helpers.ts`, or the site loses it.
 
 ## 2. The owner's four settings (their Cloudflare dashboard)
 

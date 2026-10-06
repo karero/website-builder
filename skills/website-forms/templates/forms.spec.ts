@@ -343,27 +343,29 @@ test('contact — every language the form speaks has its words here, and says ea
   }
 });
 
-test('contact — every text of the form keeps to the site\'s tone rules, in every language', async () => {
+test('contact — every text of the form keeps to the site\'s tone rules, in every language', async ({ page }) => {
   // tone.spec.ts reads the pages, so it never sees the status sentences (shown only after
   // a visitor presses Send) nor the page a visitor without JavaScript gets back. These are
   // held here to the same rules, by the language they are written in.
   const texts: [string, string, string][] = [];
   const walk = (value: unknown, where: string, lang: string) => {
     if (typeof value === 'string') texts.push([where, value, lang]);
-    else for (const [key, inner] of Object.entries(value as object)) walk(inner, `${where}.${key}`, lang);
+    // `privacy` is the address of a page, not a text.
+    else for (const [key, inner] of Object.entries(value as object)) if (key !== 'privacy') walk(inner, `${where}.${key}`, lang);
   };
   for (const [lang, text] of Object.entries(TEXT)) {
     walk(text, `TEXT.${lang}`, lang);
-    // The answer pages as the function builds them, read in the language they declare.
+    // The answer pages as the function builds them, read as a browser shows them (title
+    // and text, character references decoded) in the language they declare.
     for (const [is, fields, result] of [
       ['sent', GOOD, true],
       ['invalid', { ...GOOD, email: 'nope' }, true],
       ['failed', GOOD, false],
     ] as const) {
-      const html = await (await handle(post({ ...fields, lang }, { accept: 'text/html' }), ENV, recorder(result).send)).text();
-      const declared = html.match(/<html lang="([^"]*)">/)?.[1] ?? '';
-      expect(declared, `${lang}: the ${is} page declares its language`).toBe(lang);
-      texts.push([`the ${is} page`, html.replace(/<[^>]*>/g, '\n'), declared]);
+      await page.setContent(await (await handle(post({ ...fields, lang }, { accept: 'text/html' }), ENV, recorder(result).send)).text());
+      const shown = await page.evaluate(() => ({ lang: document.documentElement.lang, text: `${document.title}\n${document.body.innerText}` }));
+      expect(shown.lang, `${lang}: the ${is} page declares its language`).toBe(lang);
+      texts.push([`the ${is} page`, shown.text, shown.lang]);
     }
   }
   keepTone(texts);

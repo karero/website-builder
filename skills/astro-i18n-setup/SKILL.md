@@ -300,7 +300,8 @@ manual dist/sitemap-0.xml grep needed).
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
 positioning term is translated, so each locale owns its own phrase.
 
-`tests/tone.spec.ts` already branches on `<html lang>`: universal rules (the em-dash ban)
+`tests/tone.spec.ts` already branches on `<html lang>` (through `toneViolations` in
+`tests/_helpers.ts`): universal rules (the em-dash ban)
 always apply, and English-specific rules layer on top for `lang` starting `en`, German-
 specific rules layer on top for `lang` starting `de` — other languages get only the
 universal rules. No change needed.
