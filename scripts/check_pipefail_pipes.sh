@@ -295,18 +295,23 @@ function plainread(c, inv) {
 # miss, as its closer would end the watch around it early.
 # Loops: a piped while/until loop is watched (check()). A command before its `do` is one more
 # condition command (`read -r l && [ "$l" != END ]`), which can end the loop early, except the
-# last-line idiom `read … || [ -n "$l" ]`, which ends only at end of input too. Then a plain
-# search, as for awk's exit: the word break, exit or return anywhere in a command of the frame
-# (STOPRE, nothing removed) flags every open watch. `2>/dev/null break`, `break>/dev/null`,
-# `eval 'break;'` and `command exit` need no parsing; `echo "press return"` costs a false
+# last-line idiom `while read … || [ -n "$l" ]`, which ends only at end of input too (in an
+# until loop the same text ends at the first line). Then a plain search, as for awk's exit: the
+# word break, exit or return in a command of the frame flags every open watch, found in its
+# text as written OR with quotes and backslashes removed (STOPRE on both), so neither reading
+# can lose what the other finds. `2>/dev/null break`, `break>/dev/null`, `eval 'break;'`,
+# `b"reak"`, `br\eak` and `command exit` need no parsing; `echo "press return"` costs a false
 # alarm. Text inside $( ) is not searched: it is another frame, and an exit there ends that
 # subshell. Even a break that only leaves an inner loop counts, since `break 2` leaves more. A
 # `done` closes the watches it ends.
 function structure(x,   w, k) {
   sub(/^[ \t\n]+/, "", x)
   if (x ~ /^do([ \t\n]|$)/) { for (k = 1; k <= nwat[d]; k++) wcond[d, k] = 0 }
-  else if (!(op[d] == "||" && x ~ /^\[[ \t]+-n[ \t]+"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"[ \t]+\]$/))
-    for (k = 1; k <= nwat[d]; k++) if (wcond[d, k]) flagloop(k, "its condition has more than one command")
+  else {
+    w = (op[d] == "||" && x ~ /^\[[ \t]+-n[ \t]+"\$\{?[A-Za-z_][A-Za-z0-9_]*\}?"[ \t]+\]$/)
+    for (k = 1; k <= nwat[d]; k++)
+      if (wcond[d, k] && !(w && wkw[d, k] == "while")) flagloop(k, "its condition has more than one command")
+  }
   for (;;) {
     if (match(x, /^(!|do|then|else|elif|time)[ \t\n]+/)) { x = substr(x, RLENGTH + 1); continue }
     if (match(x, /^(\{|if|case)([ \t\n]+|$)/)) { cd[d]++; x = substr(x, RLENGTH + 1); continue }
@@ -324,8 +329,10 @@ function structure(x,   w, k) {
     }
     x = substr(x, RLENGTH + 1)
   }
-  if (nwat[d] == 0 || !match(x, STOPRE)) return
-  w = substr(x, RSTART, RLENGTH); gsub(/[^a-z]/, "", w)
+  if (nwat[d] == 0 || !(match(x, STOPRE) || match(unquote(x), STOPRE))) return
+  w = (match(x, STOPRE) ? substr(x, RSTART, RLENGTH) : "")
+  if (w == "" && match(unquote(x), STOPRE)) w = substr(unquote(x), RSTART, RLENGTH)
+  gsub(/[^a-z]/, "", w)
   for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
 }
 # The kind of early-exit consumer x is, or "" for none; x starts at its command name.
@@ -807,6 +814,12 @@ cmd | while read -a; do :; done
 cmd | while read -a -r l; do :; done
 @@ bad/redirect-target-in-ansi-c-quotes-with-an-escaped-quote
 cmd | 2>$'a\' b' head -1
+@@ bad/partly-backslashed-break
+cmd | while read -r l; do br\eak; done
+@@ bad/partly-quoted-break
+cmd | while read -r l; do b"reak"; done
+@@ bad/until-read-or-last-line
+cmd | until ! read -r l || [ -n "$l" ]; do :; done
 @@ good/herestring
 grep -q foo <<<"$x"
 @@ good/or
