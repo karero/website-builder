@@ -23,7 +23,8 @@ name: clean
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
 # and blocks the right pushes and is wired only where the site is the root of its repo,
 # by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), and that the private-name check
-# runs in a linked worktree too (scripts/test_clean_denylist.sh). And it runs the
+# runs in a linked worktree too (scripts/test_clean_denylist.sh), and that the site's Claude Code
+# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh). And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
@@ -141,6 +142,18 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check the private-name check also runs in a linked worktree
         run: bash scripts/test_clean_denylist.sh
+  git-stand-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Without node the test skips and exits 0; this job must not stay green untested.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Check the site's Claude Code sync hook reports news, failures and retries correctly
+        run: |
+          command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
+          bash scripts/test_git_stand_hook.sh
   search-console-insights-tests:
     # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
     # (e.g. reusing a quote inside an f-string) once broke the report there.

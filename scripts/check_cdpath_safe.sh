@@ -47,6 +47,7 @@ NOT_RUN=(
   scripts/test_package_leak.sh                                  # runs package.sh in a throwaway dir with stub zip/unzip
   scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
   scripts/test_clean_denylist.sh                                # builds a throwaway repo and worktree; needs git
+  scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself
