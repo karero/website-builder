@@ -1029,62 +1029,9 @@ run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT"
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
-# 33. No one-line r-flag substitution in the script (2026-10-06, a #167 follow-up): the API
-#     transports promise Perl 5.10, and /r needs 5.14, so on an older Perl their parser would fail
-#     to compile and report "HTTP 200". Read as code, line by line: an s, tr or y whose modifiers
-#     include r, written on one line, with any delimiter (/ | , # ! and the paired {} () [] <>), with
-#     or without =~. Whole-line comments are skipped; an inline comment, a string or a heredoc line
-#     is NOT, so one that spells an r-flag form fails the check (the safe direction; round 2 dropped
-#     cutting at " # ", which also cut strings and patterns). Not seen: a substitution split across
-#     lines, or a nested paired delimiter (s{a{b}}{c}r). It tests itself first on the forms it must
-#     catch and the lines it must pass (rounds 1-3, all seats).
-cat >"$T/no_rflag.pl" <<'EOF'
-next if /^\s*#/;
-$bad++, print STDERR "s///r at line $.: $_" if
-  m~(?<![\w\$\@%&-])(?:s|tr|y)\s*(?:
-      \{(?:\\.|[^\\}])*\}\s*\{(?:\\.|[^\\}])*\}
-    | \((?:\\.|[^\\)])*\)\s*\((?:\\.|[^\\)])*\)
-    | \[(?:\\.|[^\\\]])*\]\s*\[(?:\\.|[^\\\]])*\]
-    | <(?:\\.|[^\\>])*>\s*<(?:\\.|[^\\>])*>
-    | ([^\w\s{(\[<])(?:\\.|(?!\1).)*?\1(?:\\.|(?!\1).)*?\1
-    )[a-z]*r[a-z]*(?![a-z])~x;
-END { exit($bad ? 1 : 0) }
-EOF
-rflag_selftest=1
-while IFS= read -r l; do
-  printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null && { echo "no_rflag misses: $l"; rflag_selftest=0; }
-done <<'EOF'
-$a =~ s/a/b/gr
-s/a\/x/b/ir
-$a =~ s{a}{b}r
-s(a)(b)r
-s[a][b]gr
-s<a><b>r
-s|a|b|gr
-s,a,b,r
-s#a#b#r
-s /a/b/r
-$a =~ tr/a/b/r
-y/a/b/r
-s/a/b/gr for @x
-$x =~ s/#/ /gr
-print "token #123"; $x =~ s/a/b/r;
-my $t = "a # b"; $x =~ s/a/b/r;
-my $x = 1; # do not $y =~ s/a/b/r
-EOF
-while IFS= read -r l; do
-  printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null || { echo "no_rflag over-matches: $l"; rflag_selftest=0; }
-done <<'EOF'
-$s =~ s/[\s]+/ /g;
-my $x = "string";
-tr/a-z/A-Z/;
-(my $q = $line) =~ s/x/ /g;   # keep off the /r flag: the API
-print "a,b,r";
-$e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
-$x =~ s/a/b/g; # a plain substitution with an inline comment
-EOF
-check "no_rflag: the guard rejects every one-line r-flag form, comment mentions included, and passes plain code" [ "$rflag_selftest" = 1 ]
-check "no one-line r-flag substitution in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
+# 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
+#     with Perl::MinimumVersion. It replaced the one-construct guards that stood here (no r-flag
+#     substitution in the script) and in section 35 (no `//` in the ollama CLI filter).
 
 # 34. #165 on top of the fallback: the key's sources and reach, the budget, the final-review marker
 #     against leaked reasoning, think blocks anywhere, finish reasons, a reply cut off mid-stream.
@@ -1248,10 +1195,9 @@ fi
 
 # 35. A Perl older than 5.10 (2026-10-06). The API transports need 5.10 and check for it before
 #     sending anything, so they are skipped. The CLI transport has no version check, so its output
-#     filter must not use `//`, the 5.10 operator it once had: checked below in that Perl program
-#     alone, not the surrounding shell. Other post-5.8 constructs are not checked. A wrapper perl
-#     fails exactly the `require 5.010` probe (one argument, nothing else in it), leaves a mark
-#     when it does, and runs the real perl otherwise.
+#     filter (perl/ollama_filter.pl) must stay within 5.8: check_perl_minimum.sh holds it there. A
+#     wrapper perl fails exactly the `require 5.010` probe (one argument, nothing else in it),
+#     leaves a mark when it does, and runs the real perl otherwise.
 REALPERL="$(command -v perl)"
 mkdir -p "$T/oldperl"
 cat >"$T/oldperl/perl" <<EOF
@@ -1263,8 +1209,6 @@ chmod +x "$T/oldperl/perl"
 run oldcli PATH="$T/oldperl:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff"
 check "oldcli: an old Perl still runs the ollama CLI tier, it counts, and no version probe ran" \
   sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/oldcli.out" && [ -e "$1/oldcli.marks/ollama-ran" ] && [ ! -e "$1/oldcli.marks/perl510-refused" ]' _ "$T"
-check "the ollama CLI output filter (its Perl program) uses no //" \
-  sh -c 'prog=$(sed -n "/^ollama_via_cli() {/,/^}/p" "$1" | sed -n "/perl -0777 -ne '\''/,/^  '\'' \"\$tmp\"/p" | grep -v "^[[:space:]]*#"); [ -n "$prog" ] && ! printf "%s\n" "$prog" | grep -q "//"' _ "$SCRIPT"
 run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
 check "oldapi: an old Perl skips the ollama API and Melious tiers, says why, nothing sent" \
   sh -c 'grep -qF "ollama-cloud SKIPPED (Perl 5.10 or newer not found), melious SKIPPED (Perl 5.10 or newer not found)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ] && [ -e "$1/oldapi.marks/perl510-refused" ]' _ "$T"

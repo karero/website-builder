@@ -1,0 +1,37 @@
+# The ollama HTTP API reply reader (ollama_via_api): arguments are the response file, the HTTP code and
+# the tokens file. Prints the review; errors go to stderr as "Error: HTTP <code>: ...". Exit 2: an
+# error reply; 3: not JSON or no body; 4: a truncated review.
+use 5.010;
+use JSON::PP;
+
+my ($file, $code, $tok) = @ARGV;
+open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
+my $json = JSON::PP->new->utf8;
+my ($c, $done) = ("", undef);
+while (my $line = <$f>) {
+  next unless $line =~ /\S/;
+  my $j = eval { $json->decode($line) };
+  if (ref $j ne "HASH") {
+    (my $q = $line) =~ s/[\s\x00-\x1f\x7f]+/ /g;   # keep off the /r flag: the API transports need Perl 5.10, not 5.14
+    $q =~ s/^ | $//g; $q = substr($q, 0, 300);
+    # A non-200 body is the error reply of the server, quoted on the line; a 200 line may be
+    # review text, so it goes below, indented, where the classifier does not read.
+    if ($code ne "200") { print STDERR "Error: HTTP $code: response is not JSON: $q\n" }
+    else { print STDERR "Error: HTTP $code: a stream line is not JSON\n    line began: $q\n" }
+    exit 3;
+  }
+  if (defined $j->{error}) {
+    my $e = $j->{error}; $e = JSON::PP->new->encode($e) if ref $e;
+    print STDERR "Error: HTTP $code: $e\n"; exit 2;
+  }
+  $c .= $j->{message}{content} // "" if ref $j->{message} eq "HASH";
+  $done = $j if $j->{done};
+}
+if ($code ne "200") { print STDERR "Error: HTTP $code: request failed\n"; exit 2 }
+# No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
+if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line — a truncated review\n"; exit 4 }
+binmode STDOUT, ":encoding(UTF-8)";
+print $c; print "\n" if length $c && $c !~ /\n\z/;
+if (defined $done->{eval_count} && open my $t, ">", $tok) {
+  print $t (($done->{prompt_eval_count} // 0) + $done->{eval_count}), "\n";
+}
