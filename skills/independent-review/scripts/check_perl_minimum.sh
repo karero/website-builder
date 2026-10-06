@@ -41,8 +41,9 @@ probe_version() {
   [ "$(printf '%s\n' "$v" | grep -c .)" = 1 ] && printf '%s\n' "$v"
 }
 # perl_lines <script>: each line, comments aside, that still mentions perl as a word (any case, so
-# "$PERL" too) once the allowed forms are taken out: a call perl "$PERL_DIR/<name>.pl", the PERL_DIR
-# path, `command -v perl`, the two probes, and a WHY="..." message holding no command substitution.
+# "$PERL" too, and a versioned perl5.34) once the allowed forms are taken out: a call
+# perl "$PERL_DIR/<name>.pl", the PERL_DIR path, `command -v perl`, the two probes, and a WHY="..."
+# message holding no command substitution (a $variable in it is fine).
 # An allowlist, not a pattern for inline programs: -E, -e"...", a heredoc, `-I lib -e` and
 # "$PERL" -e each slipped past such a pattern (round 1, fresh-eyes). A line with a trailing comment
 # that names perl fails too, the safe direction.
@@ -50,18 +51,18 @@ perl_lines() {
   perl -ne '
     next if /^\s*#/;
     my $l = $_;
-    $l =~ s{perl "\$PERL_DIR/[A-Za-z0-9_]+\.pl"}{}g;
+    $l =~ s{perl "\$PERL_DIR/[A-Za-z0-9_-]+\.pl"}{}g;
     $l =~ s{"\$SCRIPT_DIR/perl"}{}g;
     $l =~ s{command -v perl(?![A-Za-z0-9_])}{}g;
     $l =~ s{perl -e \x27require 5\.[0-9]+\x27}{}g;
     $l =~ s{perl -MJSON::PP -e 1(?![A-Za-z0-9_])}{}g;
-    $l =~ s{WHY="[^"\$\x60]*"}{}g;
-    print "$.: $_" if $l =~ /(?<![A-Za-z0-9_])perl(?![A-Za-z0-9_])/i;
+    $l =~ s{WHY="(?:[^"\$\x60]|\$(?!\())*"}{}g;
+    print "$.: $_" if $l =~ /(?<![A-Za-z0-9_])perl[0-9.]*(?![A-Za-z0-9_])/i;
   ' "$1"
 }
 # called_files <script>: the names the script runs as perl "$PERL_DIR/<name>.pl", comments aside.
 called_files() {
-  perl -ne 'next if /^\s*#/; print "$1\n" while /perl "\$PERL_DIR\/([A-Za-z0-9_]+\.pl)"/g' "$1" | sort -u
+  perl -ne 'next if /^\s*#/; print "$1\n" while /perl "\$PERL_DIR\/([A-Za-z0-9_-]+\.pl)"/g' "$1" | sort -u
 }
 # structure <script> <perl dir> <gated list> <ungated list>: prints each problem, one per line.
 structure() {
@@ -116,6 +117,7 @@ while IFS= read -r l; do
   [ -z "$(perl_lines "$T/line.sh")" ] || fail "self-test: perl_lines rejects an allowed line: $l"
 done <<'EOF'
   perl "$PERL_DIR/a_b.pl" "$x" >"$y" 2>>"$z"; prc=$?
+  perl "$PERL_DIR/a-b.pl" || { WHY="perl exit $? on $PERL_DIR"; return 1; }
   printf '%s' "$p" | perl "$PERL_DIR/b.pl" "$m" >"$body" || { WHY="could not build the API request"; return 1; }
 PERL_DIR="$SCRIPT_DIR/perl"
   command -v perl >/dev/null 2>&1 || { WHY="perl not found"; return 1; }
@@ -139,6 +141,8 @@ x | perl -MJSON::PP -e 'print 1'
 WHY="$(perl -e 1)"
 perl "$PERL_DIR/a.pl"; perl -e 1
 perl other.pl
+perl5.34 -e 1
+WHY="`perl -e 1`"
 perl -e 'require 5.010' && perl -e 'print 1'
 EOF
 mkdir -p "$T/pl" "$T/okpl"
@@ -151,8 +155,9 @@ expect "a file without a version line" "$out" "perl/b.pl declares no Perl versio
 expect "a file in both lists" "$out" "perl/b.pl is in both GATED and UNGATED"
 expect "a listed file that is gone" "$out" "perl/listed.pl is listed in this check but does not exist"
 expect "a run file that is gone" "$out" "runs perl/gone.pl, which does not exist"
-printf 'use 5.008;\n1;\n' >"$T/okpl/a.pl"; printf '  perl "$PERL_DIR/a.pl"\n' >"$T/okscript.sh"
-out="$(structure "$T/okscript.sh" "$T/okpl" "a.pl" "")"
+printf 'use 5.008;\n1;\n' >"$T/okpl/a.pl"; printf 'use 5.008;\n1;\n' >"$T/okpl/a-b.pl"
+printf '  perl "$PERL_DIR/a.pl"\n  perl "$PERL_DIR/a-b.pl"\n' >"$T/okscript.sh"
+out="$(structure "$T/okscript.sh" "$T/okpl" "a.pl a-b.pl" "")"
 [ -z "$out" ] || fail "self-test: structure fails a sound layout: $out"
 
 # --- the real files ---
