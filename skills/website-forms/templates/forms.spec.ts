@@ -201,26 +201,43 @@ test('contact — a missing or malformed field is refused and nothing is sent', 
   expect(await tooLarge.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
   expect(huge.sent).toHaveLength(0);
   // One that declares no length at all (sent in pieces, as a script can) is refused too,
-  // once its bytes pass the limit: the header is not what bounds it.
-  const pieces = new TextEncoder().encode(new URLSearchParams({ ...GOOD, message: 'x'.repeat(150_000) }).toString());
-  const streamed = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (let at = 0; at < pieces.length; at += 16_384) controller.enqueue(pieces.slice(at, at + 16_384));
-      controller.close();
-    },
-  });
-  const unsized = new Request(`${SITE_ORIGIN}/api/contact`, {
-    method: 'POST',
-    headers: { accept: 'application/json', origin: SITE_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
-    body: streamed,
-    duplex: 'half',
-  } as RequestInit);
-  expect(unsized.headers.get('content-length'), 'the request declares no length').toBeNull();
-  const endless = recorder();
-  const notDeclared = await handle(unsized, ENV, endless.send);
-  expect(notDeclared.status).toBe(400);
-  expect(await notDeclared.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
-  expect(endless.sent).toHaveLength(0);
+  // once its bytes pass the limit, and the rest is not read: the header is not what bounds
+  // it. The stream below never ends by itself. It breaks off after 100 pieces, so a
+  // function that reads on to the end fails here instead of hanging.
+  for (const copied of [false, true]) {
+    const source = { pulls: 0, cancelled: false };
+    const head = new TextEncoder().encode(`${new URLSearchParams({ name: GOOD.name, email: GOOD.email, [TRAP]: '', lang: 'en' })}&message=`);
+    const piece = new TextEncoder().encode('x'.repeat(16_384));
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        source.pulls += 1;
+        if (source.pulls > 100) controller.error(new Error('read on past the limit'));
+        else controller.enqueue(source.pulls === 1 ? head : piece);
+      },
+      cancel() { source.cancelled = true; },
+    });
+    const unsized = new Request(`${SITE_ORIGIN}/api/contact`, {
+      method: 'POST',
+      headers: { accept: 'application/json', origin: SITE_ORIGIN, 'content-type': 'application/x-www-form-urlencoded' },
+      body: endless,
+      duplex: 'half',
+    } as RequestInit);
+    expect(unsized.headers.get('content-length'), 'the request declares no length').toBeNull();
+    // A copy nobody reads, as a layer in front of the function might keep: the refusal
+    // must not wait for it.
+    const copy = copied ? unsized.clone() : null;
+    const none = recorder();
+    const notDeclared = await Promise.race([
+      handle(unsized, ENV, none.send),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`no answer within 5 s (copied: ${copied})`)), 5_000)),
+    ]);
+    expect(notDeclared.status).toBe(400);
+    expect(await notDeclared.json()).toEqual({ ok: false, error: 'invalid', fields: { form: 'too_large' } });
+    expect(none.sent).toHaveLength(0);
+    expect(source.pulls, `reading stopped near the limit (copied: ${copied})`).toBeLessThan(20);
+    if (!copied) expect(source.cancelled, 'the rest of the stream was cancelled').toBe(true);
+    await copy?.body?.cancel();
+  }
   // A message at the limit, with the CRLF line breaks a browser sends, is not too long.
   const paragraphs = Array.from({ length: 100 }, () => 'x'.repeat(49)).join('\r\n');
   expect(paragraphs.replace(/\r\n/g, '\n')).toHaveLength(LIMITS.message - 1);
@@ -612,6 +629,24 @@ test('contact — nothing can be typed while the message is on its way, so a suc
     await expect(page.locator(id)).toBeEditable();
     await expect(page.locator(id)).toHaveValue('');
   }
+});
+
+test('contact — a send that gets no answer gives up after 15 seconds and gives the fields back', async ({ page }) => {
+  test.skip(!PAGE, 'PAGE is not set');
+  await page.clock.install();
+  // The answer never comes.
+  await page.route('**/api/contact', () => {});
+  await page.goto(PAGE);
+  await page.fill('#contact-name', 'Ada Lovelace');
+  await page.fill('#contact-email', 'ada@example.org');
+  await page.fill('#contact-message', 'Hello, do you have time in May?');
+  await page.click('#contact-form button[type="submit"]');
+  await expect(page.locator('#contact-message')).not.toBeEditable();
+  await page.clock.runFor(15_000);
+  const failed = await page.locator('#contact-form').getAttribute('data-failed');
+  await expect(page.locator('#contact-form [role="status"]')).toHaveText(failed!);
+  await expect(page.locator('#contact-message')).toBeEditable();
+  await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
 });
 
 test('contact — an empty form is stopped in the browser, before anything is posted', async ({ page }) => {

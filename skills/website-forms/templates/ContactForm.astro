@@ -80,15 +80,22 @@ const privacy = Astro.props.privacy ?? t.privacy;
   if (form) {
     const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
-    const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input:not([type="hidden"]), textarea'));
+    // The form's own fields. Read-only does nothing on a checkbox, a radio button, a file
+    // or a select, so a field of another kind added later needs a lock of its own.
+    const fields = Array.from(form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[type="text"], input[type="email"], textarea'));
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       status.textContent = form.dataset.sending ?? '';
       button.disabled = true;
       // Nothing can be typed while the message is on its way, so a success, which empties
       // the form, never takes words that were not sent. Read-only, not disabled: a
-      // disabled field would be left out of the post.
-      for (const field of fields) field.readOnly = true;
+      // disabled field would be left out of the post. A field that was read-only already
+      // stays that way.
+      const locked = fields.filter((field) => !field.readOnly);
+      for (const field of locked) field.readOnly = true;
+      // Give up after 15 seconds, in every browser: the fields are locked until then.
+      const timeout = new AbortController();
+      const timer = setTimeout(() => timeout.abort(), 15000);
       let ok = false;
       let error: unknown;
       try {
@@ -96,8 +103,7 @@ const privacy = Astro.props.privacy ?? t.privacy;
           method: 'POST',
           body: new FormData(form),
           headers: { Accept: 'application/json' },
-          // Give up after 15 seconds. A browser that cannot do that waits as long as it likes.
-          signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined,
+          signal: timeout.signal,
         });
         const answer: unknown = await res.json();
         // Sent only when the function says so: a success status and ok exactly true. Any
@@ -106,9 +112,11 @@ const privacy = Astro.props.privacy ?? t.privacy;
         error = (answer as { error?: unknown } | null)?.error;
       } catch {
         error = 'send_failed';
+      } finally {
+        clearTimeout(timer);
+        for (const field of locked) field.readOnly = false;
+        button.disabled = false;
       }
-      for (const field of fields) field.readOnly = false;
-      button.disabled = false;
       if (ok) {
         form.reset();
         status.textContent = form.dataset.sent ?? '';
@@ -129,6 +137,7 @@ const privacy = Astro.props.privacy ?? t.privacy;
   }
   .contact-form button { font: inherit; padding: 0.6rem 1.2rem; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
   .contact-form button[disabled] { opacity: 0.6; cursor: default; }
+  .contact-form :is(input, textarea):read-only { opacity: 0.7; }
   .contact-form-note { color: var(--muted); max-width: 36rem; }
   .contact-form-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 </style>
