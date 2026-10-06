@@ -18,6 +18,9 @@ tokens, passwords or contact data in the diff.
 | re-gate (not a round; logged as `--round 4`) | `2d5cd5c` | delta since `d90fe09` | codex (medium); kimi | codex 86 s/19,805; kimi 179 s | 0/0/0 |
 | merge link (not a round; logged as `--round 5`) | `f507e77` | `merge_link.sh a7de280 2d5cd5c 3dac351`: the PR's 5 files, merge effects included | codex (medium); kimi | codex 144 s/69,191; kimi 217 s | 0/0/0 for this PR (2 RISK: 1 refuted, 1 not this PR's) |
 | merge link 2 (not a round; logged as `--round 6`) | `eefc9a9` | `merge_link.sh 3dac351 f507e77 1b89bcb`: 4 files | codex (medium); kimi | codex 127 s/63,173; kimi 78 s | 0/0/0 for this PR (kimi: 3 RISK, 2 NIT, all on #179's content) |
+| Windows job (owner-requested addition; logged as `--round 7`) | `4216d7b` | delta since `8b82584` | codex (medium); kimi | codex 123 s/51,723; kimi 324 s | 2/2/0 (both BUGs refuted) |
+| Windows verify 1 (`--round 8`) | `e6e3529` | delta since `4216d7b` | codex (medium); kimi **FAILED** (quota) | codex 115 s/27,707 | 0/1/0 |
+| Windows verify 2 (`--round 9`, `--seat codex`) | `57a63e9` | delta since `e6e3529` | codex (medium) only: **degraded**, ollama out of quota | codex 118 s/34,024 | 0/1/0 (re-raise, no new evidence) |
 
 | id | Sev | Source | Rnd | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -40,6 +43,9 @@ tokens, passwords or contact data in the diff.
 | ML-1 | RISK | codex | merge | README's contact-form claim ("mails each message to the owner") rests on an unverified Cloudflare API contract | outside this PR | main's text from #174, not this change; passed to that PR's owner |
 | ML-2 | RISK | kimi | merge | `.gitattributes` not in the zip list or REQUIRED | refuted | it sees only lines changed since `2d5cd5c`; `package.sh:30` (zip) and `:53` (REQUIRED) hold it since `0bc0b56`; a fresh build contains it; codex: `zip -sf` lists every REQUIRED path |
 | ML2-1–5 | RISK ×3, NIT ×2 | kimi | merge 2 | #179's Perl check: Makefile says it skips without Perl::MinimumVersion; `actions/checkout@v7`; the seven `perl/*.pl` in REQUIRED; long help line; long CI comment | outside this PR | all #179's text, merged into main; codex compiled all seven `.pl` and found #179's wiring intact; passed to #179's owner |
+| W-1 | RISK | codex | win | a control that proves `git clone` converts does not prove actions/checkout did | fixed in steps, then settled by the Windows run | `e6e3529` read core.autocrlf after checkout (codex: an override during checkout would not show); `57a63e9` replaces it with a canary: actions/checkout of `a7de280` (no `.gitattributes` anywhere) into `canary/` must come out CRLF. Locally: autocrlf=true → pass, false → fail. Codex re-raised it at `57a63e9` (ref/path differ) with no new evidence and named the settling observation, a Windows run; `lf-checkout-windows` passed on `57a63e9` (job 112296545457), and both its canary and its scan exit 1 on failure |
+| W-2, W-3 | BUG | kimi | win | under `node -e` the first argument is argv[2] | refuted | `node -e 'console.log(JSON.stringify(process.argv))' a b` → [node, a, b]; template-tests' verify-windows uses argv[1] and passes in CI |
+| W-4 | RISK | kimi | win | the control's source might be written CRLF | fixed (`e6e3529`), then superseded | the canary's blob is LF in the index |
 
 UNVERIFIABLE questions: round 1, 4 asked (Windows bash with CRLF; Windows unzip tools; script
 behavior; binary inventory), 0 confirmed. Rounds 2–3 and the re-gate repeated git and shell
@@ -65,3 +71,8 @@ Main then moved to `1b89bcb` (#179, touching four of this PR's files): a second 
 one Makefile conflict) and merge link 2 — the second and last re-gate attempt clerk item 2 allows.
 Pushes went over HTTPS (`url.https://github.com/.insteadOf=ghdirect:` for one command), since the
 global insteadOf sends https://github.com/ to SSH.
+The owner then asked for a Windows CI proof (brief R9-6, step 4): `lf-checkout-windows`, reviewed
+as an addition past round 3 (owner's request; no round there was earned by a substantive BUG, and
+the last pass was Codex alone while ollama-cloud was out of quota). Main moved to `4e69534`
+(#184–#186) without being merged in: only README.md overlaps, the trial merge was clean and
+`make check` passed on it, and PR CI tests the merge ref.
