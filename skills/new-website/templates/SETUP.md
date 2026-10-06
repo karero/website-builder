@@ -147,15 +147,15 @@ folder; it works the same for a site you already have.
 gh repo view --json nameWithOwner --jq '"repo: \(.nameWithOwner)"'   # check: your site?
 gh api -X PUT "repos/{owner}/{repo}/vulnerability-alerts"        # Dependabot alerts
 gh api -X PUT "repos/{owner}/{repo}/automated-security-fixes"    # Dependabot security updates
-gh api --silent "repos/{owner}/{repo}/vulnerability-alerts" && echo "alerts: on"
+gh api --silent "repos/{owner}/{repo}/vulnerability-alerts" 2>/dev/null && echo "alerts: on" || echo "alerts: off"
 gh api "repos/{owner}/{repo}/automated-security-fixes" \
   --jq 'if .paused then "security updates: paused" elif .enabled then "security updates: on" else "security updates: off" end'
 ```
 The first line names the repo the commands change: if it names another repo, or none,
-stop and move to the site's folder. The last two lines check the result: they should print `alerts: on`
-and `security updates: on`. Anything else (an error, `off` or `paused`): open the repo's
-**Settings → Code security** and turn on Dependabot alerts, then Dependabot security
-updates.
+stop and move to the site's folder. The last two lines check the result: they should
+print `alerts: on` and `security updates: on`. Anything else (`off`, `paused` or an
+error): open the repo's **Settings → Code security** and turn on Dependabot alerts, then
+Dependabot security updates.
 
 ### Pre-push quality gate (auto-wired by `npm install`)
 
