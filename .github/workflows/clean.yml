@@ -28,7 +28,10 @@ name: clean
 # (scripts/test_verify.sh), and that the private-name check
 # runs in a linked worktree too and that CI's masked mode prints no scanned text
 # (scripts/test_clean_denylist.sh), and that the site's Claude Code
-# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh). And it runs the
+# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), and
+# that every text file checks out LF even where Git converts to CRLF
+# (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
+# for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
@@ -207,6 +210,64 @@ jobs:
         run: |
           command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
           bash scripts/test_git_stand_hook.sh
+  lf-checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check every text file checks out LF, even where Git converts to CRLF
+        run: bash scripts/check_lf_checkout.sh
+  # lf-checkout simulates a Windows checkout on Ubuntu; this is the real one. Git for Windows
+  # converts to CRLF by default, and the root .gitattributes must keep this repo's scripts, the
+  # site hook and the Makefile LF anyway. Node reads the bytes: a CR handed to grep through Git
+  # Bash flagged LF files as CRLF (template-tests.yml's verify-windows). A canary checked out by
+  # the same action must come out CRLF first, or the action never converted here and the job
+  # would pass whatever the rule says.
+  lf-checkout-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Convert to CRLF on checkout, as Git for Windows does by default
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v7
+      # a7de280 is main just before #168: no .gitattributes anywhere, so nothing keeps it LF.
+      - name: Canary — the last commit without the rule, checked out by the same action
+        uses: actions/checkout@v7
+        with:
+          ref: a7de28013ced0df26a57614600ad4d4d9d288da4
+          path: canary
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: The canary's script came out CRLF, so this checkout converts
+        shell: bash
+        run: |
+          node -e '
+            if (!require("fs").readFileSync(process.argv[1]).includes(13)) {
+              console.log("::error::the canary came out LF: actions/checkout did not convert here, so the check below would prove nothing");
+              process.exit(1);
+            }
+            console.log("canary: a script with no .gitattributes rule came out CRLF");
+          ' canary/scripts/check_clean.sh
+      - name: This repo's shell scripts, the site hook and the Makefile checked out LF
+        shell: bash
+        run: |
+          git ls-files -z -- '*.sh' 'skills/new-website/templates/astro/scripts/hooks/*' Makefile \
+            >"$RUNNER_TEMP/lf-files"
+          node -e '
+            const fs = require("fs");
+            const files = fs.readFileSync(process.argv[1], "utf8").split("\0").filter(Boolean);
+            const sh = files.filter((f) => f.endsWith(".sh"));
+            const hook = files.some((f) => f.endsWith("/hooks/pre-push"));
+            const make = files.includes("Makefile");
+            // An empty or partial list would pass with nothing checked.
+            if (!sh.length || !hook || !make) {
+              console.log(`::error::too little to check: ${sh.length} .sh file(s), hook ${hook ? "found" : "missing"}, Makefile ${make ? "found" : "missing"}`);
+              process.exit(1);
+            }
+            const bad = files.filter((f) => fs.readFileSync(f).includes(13));
+            if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
+            console.log("line endings: LF in all " + sh.length + " .sh files, the site hook and the Makefile");
+          ' "$RUNNER_TEMP/lf-files"
   search-console-insights-tests:
     # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
     # (e.g. reusing a quote inside an f-string) once broke the report there.
