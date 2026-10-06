@@ -12,7 +12,9 @@ find "$REPO_DIR" -name .DS_Store -delete 2>/dev/null || true
 cd "$REPO_DIR"
 # Explicit file list (not the scripts/ dir) so the gitignored scripts/.clean-denylist
 # can never leak into the handoff. LICENSE + THIRD-PARTY-LICENSES.md ship the notices the
-# README points to; Makefile makes `make install` work for a zip recipient.
+# README points to; Makefile makes `make install` work for a zip recipient. .gitattributes keeps
+# scripts LF for a recipient who commits the unzipped folder to a new repo and later clones it on
+# Windows: the zip itself has no checkout to convert, but that repo would.
 # docs/reviews/ holds internal review trails + plan artifacts — never handoff material.
 # docs/local/ is excluded from git entirely (.git/info/exclude) for private, never-shipped
 # notes — but zip -r is git-agnostic and would sweep it in anyway if it exists on disk.
@@ -25,7 +27,7 @@ cd "$REPO_DIR"
 # node_modules from an unrelated earlier session balanced a 201-file zip into 9324 files (185MB)
 # before that exclusion existed; caught live 2026-08-29 (v0.23 release prep) for the other three.
 zip -r -X "$OUT/website-builder.zip" \
-  skills docs README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md Makefile \
+  skills docs README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md Makefile .gitattributes \
   scripts/install.sh scripts/install-codex.sh scripts/check_clean.sh scripts/package.sh \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
   scripts/test_install_pin.sh scripts/check_template_coverage.sh scripts/check_cdpath_safe.sh \
@@ -47,6 +49,7 @@ REQUIRED=(
   THIRD-PARTY-LICENSES.md
   SECURITY.md
   Makefile
+  .gitattributes
   scripts/install.sh
   scripts/install-codex.sh
   scripts/check_clean.sh
