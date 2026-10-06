@@ -1,6 +1,6 @@
 # DIFF review — karero/website-builder#168 — keep the repo's text LF in a CRLF checkout
 
-Base `a7de280` · depth: **Normal** (repo-wide config that changes every checkout, plus the
+Base `a7de280`, after the merge `3dac351` · depth: **Normal** (repo-wide config that changes every checkout, plus the
 release zip's file list; no auth, data or deploy path) · verdict: **CLEAN** · authority used:
 POST AUTHORITY, WORKTREE-WRITE, BRANCH-COMMIT — atom A (this session made every commit on the
 branch and opened the PR) and atom B (owner, this session: "push it, open the PR and run the
@@ -16,6 +16,7 @@ tokens, passwords or contact data in the diff.
 | 2 `--verify` | `2b34614` | delta since `0bc0b56` | codex (medium); kimi | codex 218 s/36,869; kimi 239 s | 0/2/1 |
 | 3 `--verify` | `d90fe09` | delta since `2b34614` | codex (medium); kimi | codex 180 s/46,437; kimi 159 s | 0/2/0 |
 | re-gate (not a round; logged as `--round 4`) | `2d5cd5c` | delta since `d90fe09` | codex (medium); kimi | codex 86 s/19,805; kimi 179 s | 0/0/0 |
+| merge link (not a round; logged as `--round 5`) | `f507e77` | `merge_link.sh a7de280 2d5cd5c 3dac351`: the PR's 5 files, merge effects included | codex (medium); kimi | codex 144 s/69,191; kimi 217 s | 0/0/0 for this PR (2 RISK: 1 refuted, 1 not this PR's) |
 
 | id | Sev | Source | Rnd | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -35,6 +36,8 @@ tokens, passwords or contact data in the diff.
 | R2-4 | NIT | host | 2 | failure branch took > 2 min under bash 3.2 (`${out//…}` over 328 paths) | fixed, ext. reverified (r3) | `d90fe09`: 0 s |
 | R3-1 | RISK | codex, kimi | 3 | failed `cd` into the export reads as "no CR" → passes unscanned | fixed, ext. reverified (re-gate) | `2d5cd5c`; harness on a missing dir: status 0 before, 1 after |
 | R3-2 | RISK | codex | 3 | self-test `git add` still read global attributes | fixed, ext. reverified (re-gate) | global required clean filter `false`: `d90fe09` fails to build the self-test, `2d5cd5c` passes |
+| ML-1 | RISK | codex | merge | README's contact-form claim ("mails each message to the owner") rests on an unverified Cloudflare API contract | outside this PR | main's text from #174, not this change; passed to that PR's owner |
+| ML-2 | RISK | kimi | merge | `.gitattributes` not in the zip list or REQUIRED | refuted | it sees only lines changed since `2d5cd5c`; `package.sh:30` (zip) and `:53` (REQUIRED) hold it since `0bc0b56`; a fresh build contains it; codex: `zip -sf` lists every REQUIRED path |
 
 UNVERIFIABLE questions: round 1, 4 asked (Windows bash with CRLF; Windows unzip tools; script
 behavior; binary inventory), 0 confirmed. Rounds 2–3 and the re-gate repeated git and shell
@@ -44,11 +47,15 @@ EXIT trap alone): 0 confirmed. Git for Windows' bash running a CRLF script stays
 Waivers and deferrals: O-R2b waived by the owner, 2026-10-06, verbatim above. No deferrals.
 
 Follow-ups:
-- FE4: a scaffolded site's own scripts and data read the same way. Another open PR adds the
-  template's `.gitattributes` for `*.sh` and `scripts/hooks/*` only; whether the site's checks
-  also read Markdown or JSON as data was not checked here.
+- FE4: a scaffolded site's own scripts and data read the same way. #165 (merged before this
+  PR) gives the template a `.gitattributes` for `*.sh` and `scripts/hooks/*` only; whether the
+  site's checks also read Markdown or JSON as data was not checked here.
+- ML-1 (#174's README claim) belongs to that change's owner.
 
 Notes: all three seats counted in round 1; the pair counted in every later link. No round past 3.
 The re-gate checked the round-3 fixes for the stamp, not a round. No wording pass: no round had a
 substantive BUG, and the change adds no record prose outside this trail. Only stock bash 3.2
 was available locally; the CI `lf-checkout` job runs the guard under bash 5.
+Merge of main (`f507e77`): 88 commits; Makefile, package.sh, README and clean.yml conflicted on
+list entries and were resolved by keeping both sides. GitHub SSH was timing out, so the app's sync
+could not fetch; local `origin/main` matched the API's `3dac351`, and the merge was done here.
