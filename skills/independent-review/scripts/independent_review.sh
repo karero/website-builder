@@ -1045,8 +1045,9 @@ run_melious() {
         ($fin eq "length" ? "; raise MELIOUS_MAX_TOKENS" : ""), "\n"; exit 4;
     }
     # Think blocks inlined in content: closed ones whose opener starts a line, anywhere in the
-    # reply, then such an opener never closed (all of the rest is thinking). The tags are built, not written out: with literal tags in this file, a
-    # review of a diff touching it made the provider end the reasoning at a quoted closing tag (#165).
+    # reply, then such an opener never closed (all of the rest is thinking). The tags are built,
+    # not written out: with literal tags in this file, a review of a diff touching it made the
+    # provider end the reasoning at a quoted closing tag (#165).
     # Only an opener that starts a line is a trace: a review may quote the tag inline while
     # discussing tag handling, and must not lose the text after it. What is cut is noted.
     my ($open, $close) = ("<" . "think>", "</" . "think>");
@@ -1062,16 +1063,20 @@ run_melious() {
     # can restate the ask, marker and all, before that. A marker that looks quoted is skipped: one
     # after other text on a finding line or right after a backtick, or one just inside a fence, so
     # a finding that quotes the marker does not cut the findings above it. A cut at a marker after
-    # other text is said. No usable marker: the reply is kept whole, with a warning.
+    # other text is said, and so is a cut when more than one marker had findings after it: a skip
+    # or a quote the rules miss can move the cut, and the reader then checks where the review
+    # starts. No usable marker: the reply is kept whole, with a warning.
     my $note = "";
     my $thinknote = $cut ? "(think block text dropped, " . ($cut < 1024 ? "under 1 KB" : "about " . int($cut / 1024 + 0.5) . " KB") . ($saved ? "; the full reply is in melious.full" : "") . ")\n" : "";
     my $wrap = qr/[ \t>*_#\x60]*/;
     my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
+    my $findings = qr/\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
+    my $usable = grep { substr($c, $_->[1]) =~ $findings } @at;
     my $kept_whole = 1;
     for my $m (reverse @at) {
       my ($start, $end) = @$m;
       my $after = substr($c, $end); $after =~ s/\A\r?\n//;
-      next unless $after =~ /\b(?:BUG|RISK|NIT)\b|No BUG\/RISK\/NIT findings/;
+      next unless $after =~ $findings;
       my $ls = rindex($c, "\n", $start - 1) + 1;   # where the marker line starts
       my $lead = substr($c, $ls, $start - $ls);
       my $glued = $lead !~ /\A$wrap\z/;
@@ -1083,7 +1088,7 @@ run_melious() {
       my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
       if ($before =~ /\S/) {
         my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
-        $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text, so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
+        $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text" : "") . ($usable > 1 ? "; the marker came $usable times with findings after it" : "") . ($glued || $usable > 1 ? ", so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
       }
       $c = $after; $kept_whole = 0; last;
     }

@@ -142,8 +142,9 @@ to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path n
   after the review does not count). Text before it on its line is fine too, as when the model
   glues it to its last line of reasoning, and the section then says so. A marker that looks
   quoted is skipped (after other text on a finding line, right after a backtick, or just inside
-  a fence), so a finding that quotes the marker does not cut the findings above it. The section
-  says how much was dropped, and
+  a fence), so a finding that quotes the marker does not cut the findings above it; when more
+  than one marker has findings after it, the section says so too, as a skip or a quote the rules
+  miss can move the cut. The section says how much was dropped, and
   the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
   reply is kept and the section always warns that it may be leaked reasoning rather than a
   finished review: read it from the end, and rerun the round if it is working notes (a 21 KB reply
