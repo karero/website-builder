@@ -181,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Check the private-name check also runs in a linked worktree
+      - name: Check the private-name check runs in a linked worktree, CI's masked mode never prints a name, and the secret step and push-denylist refuse an empty list
         run: bash scripts/test_clean_denylist.sh
   git-stand-hook:
     runs-on: ubuntu-latest

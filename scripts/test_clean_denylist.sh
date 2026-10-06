@@ -82,6 +82,10 @@ printf 'plain notes\n' >"$R/docs/notes.md"
 printf 'ran zorblequux\0\n' >"$R/docs/blob.bin"
 expect "a listed name in a binary file: fails" 1 "blob.bin" "$R"
 rm "$R/docs/blob.bin"
+# A newline in the file name splits GNU grep's message over two lines.
+printf 'ran zorblequux\0\n' >"$R/docs/nl"$'\n'"blob.bin"
+expect "a listed name in a binary file with a newline in its name: fails" 1 "personal/site identifier" "$R"
+rm "$R/docs/nl"$'\n'"blob.bin"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
 rm "$R/docs/notes:old.md"
@@ -115,9 +119,9 @@ masked() {
   fi
 }
 printf 'ran ZorbleQuux and zorblequux\n' >"$R/docs/notes.md"
-masked "masked: a listed name fails, and is not printed" 1 "docs/notes.md:1:ran [private name] and [private name]"
+masked "masked: a listed name fails, and is not printed" 1 "docs/notes.md:1:ran [***] and [***]"
 printf 'plain notes\n' >"$R/docs/notes.md"; printf 'ran zorblequux\n' >"$R/docs/zorblequux-notes.md"
-masked "masked: a listed name in a file name is not printed either" 1 "docs/[private name]-notes.md:1:"
+masked "masked: a listed name in a file name is not printed either" 1 "docs/[***]-notes.md:1:"
 rm "$R/docs/zorblequux-notes.md"
 # Masking must not undo the gitignore filter, which needs the real file name.
 printf 'docs/*-scratch\n' >>"$R/.gitignore"; printf 'ran zorblequux\n' >"$R/docs/zorblequux-scratch"
@@ -130,9 +134,19 @@ masked "masked: names inside words, emails and home paths, and file names with _
 rm "$R/docs/zorblequux_notes.md"
 # Masking the hits before report() filtered them again turned this hit into a pass: the
 # masked name no longer existed, and its gitignored prefix did.
-printf 'ran zorblequux\n' >"$R/docs/scratch:zorblequux.md"
+printf 'ignored\n' >"$R/docs/scratch"; printf 'ran zorblequux\n' >"$R/docs/scratch:zorblequux.md"
 masked "masked: a file named like an ignored path plus a colon and a name: still fails" 1 "personal/site identifier"
-rm "$R/docs/scratch:zorblequux.md"
+rm "$R/docs/scratch" "$R/docs/scratch:zorblequux.md"
+# A longer word holding a name, on a line with a hit, gives the name away: the whole word goes.
+printf 'ran zorblequux, zorblequuxes and ZorbleQuuxCloud\n' >"$R/docs/notes.md"
+masked "masked: a word holding a name is blanked whole" 1 "docs/notes.md:1:ran [***], [***] and [***]"
+printf 'plain notes\n' >"$R/docs/notes.md"
+# The script's own lines read the same whatever the list holds. Blanking an entry inside them
+# would give it away on every green run, and an entry inside the old marker "[private name]"
+# withheld every run of a clean tree.
+printf 'dent\nriva\n' >>"$R/scripts/.clean-denylist"
+masked "masked: entries inside the script's own words leave them alone, and pass" 0 "no contact info or credentials in:"
+cp "$T/list.bak" "$R/scripts/.clean-denylist"
 # perl's errors quote the whole pattern, every name in it: if perl fails, nothing is printed,
 # and the run still fails.
 mkdir -p "$T/badperl"; printf '#!/bin/sh\necho "Nested quantifiers in regex; m/zorblequux <-- HERE/" >&2\nexit 255\n' >"$T/badperl/perl"; chmod +x "$T/badperl/perl"
@@ -224,7 +238,7 @@ if [ -f "$WF" ]; then
   fi
   step "CI step: a secret with no names fails" "# none yet" false 1 "lists no names"
   step "CI step: no secret where secrets exist fails" "" false 1 "secret is missing"
-  step "CI step: no secret on a fork or Dependabot run warns" "" true 0 "::warning::"
+  step "CI step: no secret with NO_SECRETS=true warns" "" true 0 "::warning::"
 else
   echo "SKIP: CI step cases need .github/workflows/clean.yml (not in the handoff zip)"
 fi

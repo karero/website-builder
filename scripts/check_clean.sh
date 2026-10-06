@@ -35,17 +35,23 @@ NAMES=""
 [ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
 
 # 0. CI's logs are public. With CLEAN_MASK_NAMES=1 this script runs itself again, unmasked,
-#    and prints what that run printed with every listed name blanked out: anywhere in a
-#    line, file names and error messages included, not only whole words. Then grep, the
-#    engine that found the names, looks for them in the result. If one is left (perl reads
-#    a pattern differently), or perl failed (its errors quote the whole list), nothing is
-#    printed and the run fails. Masking one report at a time missed names in the other
-#    reports, in scan errors and next to `_`, and could turn a hit into a pass (#189 review).
+#    and prints what that run printed with every listed name blanked out of the scan output:
+#    the 4-space-indented lines, which hold every hit and grep's own errors. In those, each
+#    run of letters that holds a name becomes [***] (file names too, and "Names" or
+#    "Name_team", not only the whole word). This script's own lines are left alone: they read
+#    the same whatever the list holds, so they give no entry away, where blanking a short
+#    entry inside them ("cre[***]ials") would. Then grep, the engine that found the names,
+#    looks for them in the masked scan lines. If one is left (perl reads a pattern
+#    differently), or perl failed (its errors quote the whole list), nothing is printed and
+#    the run fails. Masking one report at a time missed names in the other reports, in scan
+#    errors and next to `_`, and could turn a hit into a pass (#189 review).
 if [ -n "${CLEAN_MASK_NAMES:-}" ] && [ -n "$NAMES" ]; then
   out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
-  masked="$(printf '%s\n' "$out" | NAMES="$NAMES" perl -pe 's/(?:$ENV{NAMES})/[private name]/gi' 2>/dev/null)"; prc=$?
-  grep -iqE -- "(${NAMES})" <<<"$masked" 2>/dev/null; grc=$?
-  if [ "$prc" -ne 0 ] || [ "$grc" -ne 1 ]; then
+  masked="$(printf '%s\n' "$out" | NAMES="$NAMES" perl -pe 'if (/^    /) { s/[A-Za-z]*(?:$ENV{NAMES})[A-Za-z]*/[***]/gi }' 2>/dev/null)"; prc=$?
+  # Through a pipe, not a here-string: bash may write a here-string to a temporary file, and
+  # if that fails grep never runs, yet the status reads like "no name found".
+  left="$(printf '%s\n' "$masked" | sed -n 's/^    //p' | grep -ciE -- "(${NAMES})" 2>/dev/null)"; grc=$?
+  if [ "$prc" -ne 0 ] || [ "$grc" -ne 1 ] || [ "$left" != 0 ]; then
     echo "FAIL — this run's output is withheld: a listed name could not be blanked out of it."
     echo "Run the check where the logs are private to see it: bash scripts/check_clean.sh"
     exit 1
@@ -115,7 +121,9 @@ g() { # <grep args…> → matches on stdout; a scan ERROR fails the run instead
   # GNU grep 3.5+ (CI's) reports a matching binary file on stderr with exit 0, where BSD grep
   # prints "Binary file X matches" on stdout. Turn the GNU form into the BSD one, or the hit
   # would be thrown away with the rest of stderr and a binary file holding a name would pass.
-  local bin; bin="$(sed -n 's/^grep: \(.*\): binary file matches$/Binary file \1 matches/p' "$err")"
+  # A file name holding a newline splits the message over two lines; the second still ends
+  # the same way, and a hit with a garbled name is reported rather than lost.
+  local bin; bin="$(sed -nE 's/^(grep: )?(.*): binary file matches$/Binary file \2 matches/p' "$err")"
   [ -n "$bin" ] && out="${out:+$out$'\n'}$bin"
   if [ "$rc" -gt 1 ]; then
     fail=1
