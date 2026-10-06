@@ -266,6 +266,8 @@ case "$url" in
               # line, so both must collapse or the text after them reaches column 0
               printf 'upstream\rError: bad gateway\033[1Gfailed' >"$out"; printf 502 ;;
       notstreamerr) printf '%s\n' '{"error":{"message":"Rate limit exceeded for your plan"}}' >"$out"; printf 200 ;;
+      html)   printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;   # a proxy's page
+      keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
@@ -291,6 +293,9 @@ case "${API_STUB:-ok}" in
          # quota line, so the cleanup must collapse control bytes, not only whitespace.
          printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: one"},"done":false}' >"$out"
          printf '"- RISK: retry on HTTP 429\rError: rate limit reached\033[1GError: HTTP 429 Too Many Requests\n' >>"$out"; printf 200 ;;
+  miderr200) printf '%s\n' '{"message":{"role":"assistant","content":"- BUG: partial"},"done":false}' '{"error":"upstream overloaded"}' >"$out"; printf 200 ;;
+  empty200) : >"$out"; printf 200 ;;
+  html200) printf '%s\n' '<html><body>Sign in to continue</body></html>' >"$out"; printf 200 ;;
   trunc429) # exactly 429 chunks and no done line: the count must not read as a quota refusal
          i=0; while [ $i -lt 429 ]; do printf '%s\n' '{"message":{"role":"assistant","content":"x"},"done":false}'; i=$((i+1)); done >"$out"
          printf 200 ;;
@@ -791,9 +796,19 @@ check "apitrunc429: a 429-chunk truncated stream is not read as quota" \
   sh -c 'grep -qF "ollama-cloud FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "quota/rate limit: wait" "$1"' _ "$T/apitrunc429.out"
 run apinonjson PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=nonjson200 bash "$SCRIPT" "$T/change.diff"
 check "apinonjson: review text on a non-JSON 200 line is quoted below, not read as quota" \
-  sh -c 'grep -qF "ollama-cloud FAILED (HTTP 200)" "$1" && ! grep -qF "quota/rate limit: wait" "$1" && grep -qF "line began:" "$1"' _ "$T/apinonjson.out"
+  sh -c 'grep -qF "ollama-cloud FAILED (a stream line that is not JSON (HTTP 200))" "$1" && ! grep -qF "quota/rate limit: wait" "$1" && grep -qF "line began:" "$1"' _ "$T/apinonjson.out"
+run apimiderr PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=miderr200 bash "$SCRIPT" "$T/change.diff"
+check "apimiderr: an error line in a 200 stream is named as an error mid-stream" \
+  sh -c 'grep -qF "ollama-cloud FAILED (error mid-stream (HTTP 200))" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/apimiderr.out"
+run apiempty PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=empty200 bash "$SCRIPT" "$T/change.diff"
+check "apiempty: an empty 200 reply is named as empty, not truncated" \
+  sh -c 'grep -qF "ollama-cloud FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/apiempty.out"
+run apihtml PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=html200 bash "$SCRIPT" "$T/change.diff"
+check "apihtml: a 200 page whose first line is not JSON is named as not a stream, as Melious names it" \
+  sh -c 'grep -qF "ollama-cloud FAILED (not a stream (HTTP 200))" "$1" && grep -qF "line began: <html>" "$1"' _ "$T/apihtml.out"
 run api502 PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=502 bash "$SCRIPT" "$T/change.diff"
 check "api502: a non-JSON error body is quoted" has api502.out "response is not JSON: upstream request failed"
+check "api502: ...and the summary keeps the status" has api502.out "ollama-cloud FAILED (HTTP 502)"
 run apidown PATH="$NOCLI" OLLAMA_MODEL="$STUB_TAG" API_STUB=down bash "$SCRIPT" "$T/change.diff"
 check "apidown: a network failure names curl's exit" has apidown.out "ollama-cloud FAILED (curl exit 56)"
 check "apidown: ...with a hint" has apidown.out "is the host allowed by the network policy?"
@@ -968,27 +983,33 @@ check "mthink: an inline think block is cut, and the review counts" \
   sh -c 'grep -qF "melious OK" "$1" && grep -qF -- "- RISK: inline finding" "$1" && ! grep -qF "could not read the file" "$1"' _ "$T/mthink.out"
 run mmiderr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff"
 check "mmiderr: an error object mid-stream fails the tier and is quoted" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
+  sh -c 'grep -qF "melious FAILED (error mid-stream (HTTP 200))" "$1" && grep -qF "upstream overloaded" "$1"' _ "$T/mmiderr.out"
 run mnotstream OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstream bash "$SCRIPT" "$T/change.diff"
 check "mnotstream: a plain JSON reply past 4 KB is named as not a stream, and quoted" \
   sh -c 'grep -qF "not a stream (stream:true ignored?)" "$1" && grep -qF "finding number 0" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mnotstream.out"
 check "mnotstream: a 429 inside the quoted review is not read as quota (round 3, fresh-eyes)" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mnotstream.out"
+  sh -c 'grep -qF "melious FAILED (not a stream (HTTP 200))" "$1" && ! grep -qE "melious FAILED \([^;]*; quota" "$1"' _ "$T/mnotstream.out"
 run msplit OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=splitchunk bash "$SCRIPT" "$T/change.diff"
 check "msplit: review text in a non-JSON chunk is quoted, not read as quota (re-gate, fresh-eyes)" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
+  sh -c 'grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200))" "$1" && ! grep -qE "melious FAILED \([^;]*; quota" "$1" && grep -qF "chunk began:" "$1"' _ "$T/msplit.out"
 run mcr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=crchunk bash "$SCRIPT" "$T/change.diff"
 check "mcr: a control byte in a quoted chunk cannot start an error line (second re-gate, fresh-eyes)" \
-  sh -c 'grep -qF "melious FAILED (HTTP 200)" "$1" && ! grep -qF "melious FAILED (HTTP 200; quota" "$1"' _ "$T/mcr.out"
+  sh -c 'grep -qF "melious FAILED (a stream chunk that is not JSON (HTTP 200))" "$1" && ! grep -qE "melious FAILED \([^;]*; quota" "$1"' _ "$T/mcr.out"
 run mbad502 OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=bad502 bash "$SCRIPT" "$T/change.diff"
 check "mbad502: a non-JSON 502 body is quoted on one line, control bytes collapsed" \
   sh -c 'grep -qF "response is not JSON: upstream Error: bad gateway [1Gfailed" "$1" && grep -qF "melious FAILED (HTTP 502)" "$1"' _ "$T/mbad502.out"
 run mnotstreamerr OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=notstreamerr bash "$SCRIPT" "$T/change.diff"
 check "mnotstreamerr: a 200 reply carrying an error message is classified by that message" \
-  has mnotstreamerr.out "melious FAILED (HTTP 200; quota/rate limit: wait or add credits)"
+  has mnotstreamerr.out "melious FAILED (error reply, not a stream (HTTP 200); quota/rate limit: wait or add credits)"
+run mhtml OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=html bash "$SCRIPT" "$T/change.diff"
+check "mhtml: a 200 page that is neither a stream nor JSON is named and quoted, not read as truncated" \
+  sh -c 'grep -qF "melious FAILED (not a stream (HTTP 200))" "$1" && grep -qF "reply began: <html>" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mhtml.out"
+run mkeepalive OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=keepalive bash "$SCRIPT" "$T/change.diff"
+check "mkeepalive: keep-alive comments, then a closed stream: a truncated review, not \"not a stream\"" \
+  sh -c 'grep -qF "melious FAILED (truncated review (HTTP 200))" "$1" && ! grep -qF "not a stream" "$1"' _ "$T/mkeepalive.out"
 run mempty OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=empty bash "$SCRIPT" "$T/change.diff"
 check "mempty: an empty 200 reply is named as empty, not truncated" \
-  sh -c 'grep -qF "an empty reply" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
+  sh -c 'grep -qF "an empty reply" "$1" && grep -qF "melious FAILED (empty reply (HTTP 200))" "$1" && ! grep -qF "truncated" "$1"' _ "$T/mempty.out"
 run mdown OLLAMA_STUB=429 MELIOUS_MODEL=stub-melious MELIOUS_STUB=down bash "$SCRIPT" "$T/change.diff"
 check "mdown: a network failure names curl's exit, with a hint" \
   sh -c 'grep -qF "melious FAILED (curl exit 56)" "$1" && grep -qF "is the host allowed by the network policy?" "$1"' _ "$T/mdown.out"
@@ -1029,62 +1050,9 @@ run mlocalseat OLLAMA_MODEL=stub-local MELIOUS_MODEL=stub-melious bash "$SCRIPT"
 check "mlocalseat: --local-only refuses --seat melious, exit 2" \
   sh -c '[ "$(cat "$1/mlocalseat.rc")" = 2 ] && [ ! -e "$1/mlocalseat.marks/melious-url" ]' _ "$T"
 
-# 33. No one-line r-flag substitution in the script (2026-10-06, a #167 follow-up): the API
-#     transports promise Perl 5.10, and /r needs 5.14, so on an older Perl their parser would fail
-#     to compile and report "HTTP 200". Read as code, line by line: an s, tr or y whose modifiers
-#     include r, written on one line, with any delimiter (/ | , # ! and the paired {} () [] <>), with
-#     or without =~. Whole-line comments are skipped; an inline comment, a string or a heredoc line
-#     is NOT, so one that spells an r-flag form fails the check (the safe direction; round 2 dropped
-#     cutting at " # ", which also cut strings and patterns). Not seen: a substitution split across
-#     lines, or a nested paired delimiter (s{a{b}}{c}r). It tests itself first on the forms it must
-#     catch and the lines it must pass (rounds 1-3, all seats).
-cat >"$T/no_rflag.pl" <<'EOF'
-next if /^\s*#/;
-$bad++, print STDERR "s///r at line $.: $_" if
-  m~(?<![\w\$\@%&-])(?:s|tr|y)\s*(?:
-      \{(?:\\.|[^\\}])*\}\s*\{(?:\\.|[^\\}])*\}
-    | \((?:\\.|[^\\)])*\)\s*\((?:\\.|[^\\)])*\)
-    | \[(?:\\.|[^\\\]])*\]\s*\[(?:\\.|[^\\\]])*\]
-    | <(?:\\.|[^\\>])*>\s*<(?:\\.|[^\\>])*>
-    | ([^\w\s{(\[<])(?:\\.|(?!\1).)*?\1(?:\\.|(?!\1).)*?\1
-    )[a-z]*r[a-z]*(?![a-z])~x;
-END { exit($bad ? 1 : 0) }
-EOF
-rflag_selftest=1
-while IFS= read -r l; do
-  printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null && { echo "no_rflag misses: $l"; rflag_selftest=0; }
-done <<'EOF'
-$a =~ s/a/b/gr
-s/a\/x/b/ir
-$a =~ s{a}{b}r
-s(a)(b)r
-s[a][b]gr
-s<a><b>r
-s|a|b|gr
-s,a,b,r
-s#a#b#r
-s /a/b/r
-$a =~ tr/a/b/r
-y/a/b/r
-s/a/b/gr for @x
-$x =~ s/#/ /gr
-print "token #123"; $x =~ s/a/b/r;
-my $t = "a # b"; $x =~ s/a/b/r;
-my $x = 1; # do not $y =~ s/a/b/r
-EOF
-while IFS= read -r l; do
-  printf '%s\n' "$l" | perl -n "$T/no_rflag.pl" 2>/dev/null || { echo "no_rflag over-matches: $l"; rflag_selftest=0; }
-done <<'EOF'
-$s =~ s/[\s]+/ /g;
-my $x = "string";
-tr/a-z/A-Z/;
-(my $q = $line) =~ s/x/ /g;   # keep off the /r flag: the API
-print "a,b,r";
-$e = $e->{message} // JSON::PP->new->encode($e) if ref $e eq "HASH";
-$x =~ s/a/b/g; # a plain substitution with an inline comment
-EOF
-check "no_rflag: the guard rejects every one-line r-flag form, comment mentions included, and passes plain code" [ "$rflag_selftest" = 1 ]
-check "no one-line r-flag substitution in independent_review.sh (Perl 5.10 floor)" perl -n "$T/no_rflag.pl" "$SCRIPT"
+# 33. (2026-10-06) The Perl programs' minimum versions: check_perl_minimum.sh, which reads perl/*.pl
+#     with Perl::MinimumVersion. It replaced the one-construct guards that stood here (no r-flag
+#     substitution in the script) and in section 35 (no `//` in the ollama CLI filter).
 
 # 34. #165 on top of the fallback: the key's sources and reach, the budget, the final-review marker
 #     against leaked reasoning, think blocks anywhere, finish reasons, a reply cut off mid-stream.
@@ -1248,10 +1216,9 @@ fi
 
 # 35. A Perl older than 5.10 (2026-10-06). The API transports need 5.10 and check for it before
 #     sending anything, so they are skipped. The CLI transport has no version check, so its output
-#     filter must not use `//`, the 5.10 operator it once had: checked below in that Perl program
-#     alone, not the surrounding shell. Other post-5.8 constructs are not checked. A wrapper perl
-#     fails exactly the `require 5.010` probe (one argument, nothing else in it), leaves a mark
-#     when it does, and runs the real perl otherwise.
+#     filter (perl/ollama_filter.pl) must stay within 5.8: check_perl_minimum.sh holds it there. A
+#     wrapper perl fails exactly the `require 5.010` probe (one argument, nothing else in it),
+#     leaves a mark when it does, and runs the real perl otherwise.
 REALPERL="$(command -v perl)"
 mkdir -p "$T/oldperl"
 cat >"$T/oldperl/perl" <<EOF
@@ -1263,8 +1230,6 @@ chmod +x "$T/oldperl/perl"
 run oldcli PATH="$T/oldperl:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff"
 check "oldcli: an old Perl still runs the ollama CLI tier, it counts, and no version probe ran" \
   sh -c 'grep -qF "reviewers: codex OK, ollama-cloud OK" "$1/oldcli.out" && [ -e "$1/oldcli.marks/ollama-ran" ] && [ ! -e "$1/oldcli.marks/perl510-refused" ]' _ "$T"
-check "the ollama CLI output filter (its Perl program) uses no //" \
-  sh -c 'prog=$(sed -n "/^ollama_via_cli() {/,/^}/p" "$1" | sed -n "/perl -0777 -ne '\''/,/^  '\'' \"\$tmp\"/p" | grep -v "^[[:space:]]*#"); [ -n "$prog" ] && ! printf "%s\n" "$prog" | grep -q "//"' _ "$SCRIPT"
 run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
 check "oldapi: an old Perl skips the ollama API and Melious tiers, says why, nothing sent" \
   sh -c 'grep -qF "ollama-cloud SKIPPED (Perl 5.10 or newer not found), melious SKIPPED (Perl 5.10 or newer not found)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ] && [ -e "$1/oldapi.marks/perl510-refused" ]' _ "$T"

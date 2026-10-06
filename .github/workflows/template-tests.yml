@@ -11,11 +11,13 @@ on:
     paths:
       - 'skills/new-website/templates/astro/**'
       - 'skills/website-scorecard/**'
+      - 'skills/website-forms/**'
       - '.github/workflows/template-tests.yml'
   pull_request:
     paths:
       - 'skills/new-website/templates/astro/**'
       - 'skills/website-scorecard/**'
+      - 'skills/website-forms/**'
       - '.github/workflows/template-tests.yml'
   workflow_dispatch:
 
@@ -278,7 +280,10 @@ jobs:
           sed -i "s|const PAGE = '';|const PAGE = '/';|" tests/scorecard.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport Scorecard from '../components/Scorecard.astro';|" src/pages/index.astro
           sed -i 's|^</Base>|  <div class="wrap"><Scorecard /></div>\n</Base>|' src/pages/index.astro
-          grep -q "const PAGE = '/';" tests/scorecard.spec.ts && grep -q '<Scorecard />' src/pages/index.astro && grep -q "import Scorecard" src/pages/index.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/scorecard.spec.ts
+          grep -q '<Scorecard />' src/pages/index.astro
+          grep -q "import Scorecard" src/pages/index.astro
           printf 'node_modules\ndist\n.astro\ntest-results\n' > .gitignore
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
@@ -336,3 +341,70 @@ jobs:
           sed -i 's|<p>Contact:|<p>FIXME</p><p>Contact:|' src/pages/index.astro && grep -q 'FIXME' src/pages/index.astro
           refused "a failing test"
           [ -z "$(git status --porcelain)" ]
+
+  # The website-forms skill, like the scorecard, ships files that live in a SITE. This
+  # builds a site from the starter, installs the skill the way its SKILL.md §3 says
+  # (the function, the component, its words, the test, the form on a page, the privacy
+  # paragraph), and runs the type check and the whole suite. A second form, in German,
+  # sits on the starter's German page with its own copy of the spec, so the German
+  # texts go through the tone rules and the page checks too. No email is sent: the
+  # tests stand in for Cloudflare's mail call.
+  forms-skill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the skill installed
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          K="$GITHUB_WORKSPACE/skills/website-forms/templates"
+          mkdir -p functions/api
+          cp "$K/contact.ts" functions/api/ && cp "$K/ContactForm.astro" "$K/contact-form.ts" src/components/ && cp "$K/forms.spec.ts" tests/
+          sed -i "s|const PAGE = '';|const PAGE = '/';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.spec.ts
+          # The German form: a German page on an English site, so it passes lang and
+          # privacy (§3 step 3), and the site's one privacy page is the English one.
+          cp "$K/forms.spec.ts" tests/forms.de.spec.ts
+          sed -i "s|const PAGE = '';|const PAGE = '/impressum';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.de.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/impressum.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontaktformular</h2><ContactForm fallback="hello@example.com" lang="de" privacy="/privacy" /></section>\n</Base>|' src/pages/impressum.astro
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><ContactForm fallback="hello@example.com" /></section>\n</Base>|' src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><p data-privacy-contact-form>Messages sent through the contact form on this website are delivered to our mailbox by Cloudflare, Inc., which acts as our processor. The website itself does not store them.</p></section>\n</Base>|' src/pages/privacy.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/forms.spec.ts
+          grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
+          grep -q '<ContactForm fallback' src/pages/index.astro
+          grep -q 'import ContactForm' src/pages/index.astro
+          grep -q 'data-privacy-contact-form' src/pages/privacy.astro
+          grep -q "const PAGE = '/impressum';" tests/forms.de.spec.ts
+          grep -q '<ContactForm fallback="hello@example.com" lang="de"' src/pages/impressum.astro
+          grep -q 'import ContactForm' src/pages/impressum.astro
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Type check and the whole suite, with the form in place
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm run check
+          npm test
+      # The function imports src/components/contact-form.ts from outside functions/.
+      # `wrangler pages deploy` bundles ./functions through the same buildFunctions as
+      # the command below (traced in wrangler 4.147.0); Cloudflare's own build from Git
+      # was not traced. The bundle names each file it took in, in a comment: the shared
+      # one must be there. The version is whatever npx fetches, as on a site's own deploy.
+      - name: The function's bundle takes in the shared file
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npx --yes wrangler pages functions build --outdir=functions-bundle
+          grep -qF '// ../src/components/contact-form.ts' functions-bundle/index.js || { echo '::error::the bundle does not contain src/components/contact-form.ts'; exit 1; }
+      # A form in a language it has no words for must stop the build, not go out in
+      # English. Last step: it leaves the site broken on purpose.
+      - name: A form in a language with no texts stops the build
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          sed -i 's|<ContactForm fallback="hello@example.com" />|<ContactForm fallback="hello@example.com" lang="xx" />|' src/pages/index.astro
+          grep -q 'lang="xx"' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
+          grep -q 'ContactForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }

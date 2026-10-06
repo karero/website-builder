@@ -268,7 +268,7 @@ skills/            the suite skills (canonical)
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
                    consistency audit, trap-test → wedge → guard-tests method)
-  astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
+  astro-i18n-setup, keystatic-setup, website-forms   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -300,8 +300,8 @@ docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do n
 
 ### Opt-in and on-demand setup skills
 
-Three skills are **not run** by the default build — the orchestrator copies the first two
-into a site only when the decision interview calls for them; the third travels with every
+Four skills are **not run** by the default build — the orchestrator copies the first three
+into a site only when the decision interview calls for them; the fourth travels with every
 site (like `website-motion`) but runs only when a team forms:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
@@ -316,6 +316,13 @@ site (like `website-motion`) but runs only when a team forms:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
+- **`website-forms`** — adds a **contact form** that mails each message to the owner
+  through the site's own Cloudflare account, with no third company in between: a form
+  component in English and German (another language is one file to translate and a few
+  words for its test), one small server function, a privacy paragraph in English and
+  German, and a test of the submission. It stores nothing. Needs the domain's DNS at
+  Cloudflare and four settings only the owner can create. Run when interview Q2 = *a form that emails
+  you*, or later when the owner asks for a form.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
@@ -326,7 +333,8 @@ site (like `website-motion`) but runs only when a team forms:
   first, pull request instead of a push, never invent facts, the new-page checklist) — this
   skill adds only what a team needs. Run once, when the second person joins.
 
-A site with one language, a developer-edited repo and a single owner runs none of them.
+A site with one language, a developer-edited repo, no contact form and a single owner runs
+none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
@@ -368,14 +376,15 @@ make check       # PII/secrets + model-agnostic + template coverage + per-skill 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
 catches (any real email, credential/token formats, secret-looking assignments). The
 denylist is a gitignored local file, so CI, which has no copy, runs only the generic
-catches. The script runs in CI on every pull request and every push to `main`
-(`.github/workflows/clean.yml`) and is a prerequisite of `make package`: in a checkout
-that has the list, a listed name in a file the script scans stops the build, unless the
-file is gitignored or the match is this repo's own `karero/website-builder` reference. It
-never looks for names in
-`scripts/`, whose files define its patterns, or in `LICENSE`, which carries the owner's
-name. A genuine false positive is fixed by tightening a pattern in the script — never by
-loosening it. The same `make check` (and the same CI workflow) also keeps
+catches, and its OK line says the name check was skipped. The script runs in CI on every
+pull request and every push to `main` (`.github/workflows/clean.yml`) and is a
+prerequisite of `make package`: in a checkout that has the list, a listed name in a file
+the script scans stops the build, unless the file is gitignored or the match is this
+repo's own `karero/website-builder` reference. The name check also covers `scripts/`,
+since those files ship in the zip; the generic catches leave `scripts/` out, because its
+files define their patterns. The name check skips only `LICENSE`, which carries the
+owner's name. A genuine false positive is fixed by tightening a pattern in the script —
+never by loosening it. The same `make check` (and the same CI workflow) also keeps
 `independent-review` free of concrete model names outside its setup guide
 (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).

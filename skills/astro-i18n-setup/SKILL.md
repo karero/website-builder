@@ -133,6 +133,10 @@ which makes Google ignore the pair) — now fails the build. Also add a visible
 `<a href="/ai-treffen-muenchen" lang="de" hreflang="de">Deutsch</a>` near the
 nav/footer: `alternates` only talks to crawlers, not visitors.
 
+A twin of the page that carries `<ContactForm>`: pass it `lang` and `privacy`
+yourself, since no build error reminds you on this path, and give the twin its own
+copy of `tests/forms.spec.ts`: see `website-forms` §3.
+
 Pick the heavy path (everything above this section) when most of the site is
 translated and you want prefixed routing + a language switcher; pick this light
 path for a few one-off translated pages. Don't mix both on the same SITE: a
@@ -222,10 +226,11 @@ export const PAGES = ROUTES.flatMap((r) =>
   ),
 ) as readonly string[];
 ```
-Only the PAGES export changes — KEEP the file's other exports (`THEMES`,
-`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`): the tone and i18n specs
-import them, and replacing the whole file with just this snippet breaks the
-suite at compile time.
+Only the PAGES export changes — KEEP the rest of the file (`THEMES`,
+`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`, and `toneViolations` with the
+tone rules it reads): the tone and i18n specs, and a contact form's spec, import
+them, and replacing the whole file with just this snippet breaks the suite at compile
+time.
 With no `locales` overrides this yields the identical set as before — `/`,
 `/privacy`, `/de`, `/de/privacy` (route-major order instead of locale-major; every
 consumer sorts or iterates, so nothing observes the order). A sparse route appears
@@ -251,6 +256,11 @@ const isCardExempt = (p: string) =>
 ```
 (import `neutralPath` from `../src/config`; replace the two `OWN_CARD_EXEMPT.has(path)`
 call sites with `isCardExempt(path)`.)
+
+### A site with a contact form (`website-forms`)
+Each language's form page passes `privacy="…"` to `<ContactForm>` (the build stops
+without it) and gets its own copy of `tests/forms.spec.ts` with that language's `PAGE`
+and `PRIVACY`: one copy guards one form and one privacy page (`website-forms` §3).
 
 ### `tests/i18n.spec.ts` (new) — hreflang contract
 Drop in the ready spec `references/i18n.spec.ts` (copy it to the project's `tests/`).
@@ -290,7 +300,8 @@ manual dist/sitemap-0.xml grep needed).
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
 positioning term is translated, so each locale owns its own phrase.
 
-`tests/tone.spec.ts` already branches on `<html lang>`: universal rules (the em-dash ban)
+`tests/tone.spec.ts` already branches on `<html lang>` (through `toneViolations` in
+`tests/_helpers.ts`): universal rules (the em-dash ban)
 always apply, and English-specific rules layer on top for `lang` starting `en`, German-
 specific rules layer on top for `lang` starting `de` — other languages get only the
 universal rules. No change needed.
