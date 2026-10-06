@@ -25,10 +25,10 @@ trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null"
 fails=0
-# expect <label> <exit code wanted> <text the output must contain, or ""> <dir>
+# expect <label> <exit code wanted> <text the output must contain, or ""> <dir> [VAR=value]
 expect() {
   local out rc
-  out="$(cd "$4" && bash scripts/check_clean.sh 2>&1)"; rc=$?
+  out="$(cd "$4" && env ${5:+"$5"} bash scripts/check_clean.sh 2>&1)"; rc=$?
   if [ "$rc" -eq "$2" ] && { [ -z "$3" ] || printf '%s' "$out" | grep -qF -- "$3"; }; then
     printf 'ok   %s\n' "$1"
   else
@@ -82,10 +82,14 @@ printf 'plain notes\n' >"$R/docs/notes.md"
 printf 'ran zorblequux\0\n' >"$R/docs/blob.bin"
 expect "a listed name in a binary file: fails" 1 "blob.bin" "$R"
 rm "$R/docs/blob.bin"
-# A newline in the file name splits GNU grep's message over two lines.
-printf 'ran zorblequux\0\n' >"$R/docs/nl"$'\n'"blob.bin"
-expect "a listed name in a binary file with a newline in its name: fails" 1 "personal/site identifier" "$R"
-rm "$R/docs/nl"$'\n'"blob.bin"
+# A newline in the file name splits GNU grep's message over two lines, and here the part
+# after it names the gitignored list, which the filter would drop.
+mkdir "$R/docs/nl"$'\n'"scripts"; printf 'ran zorblequux\0\n' >"$R/docs/nl"$'\n'"scripts/.clean-denylist"
+expect "a listed name in a binary file with a newline in its path: fails" 1 "personal/site identifier" "$R"
+rm -r "$R/docs/nl"$'\n'"scripts"
+# With nowhere to put grep's errors, grep never ran, and every scan read as clean.
+mkdir -p "$T/nomktemp"; printf '#!/bin/sh\nexit 1\n' >"$T/nomktemp/mktemp"; chmod +x "$T/nomktemp/mktemp"
+expect "no temporary file for grep's errors: fails as a scan error" 1 "mktemp failed" "$R" "PATH=$T/nomktemp:$PATH"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
 rm "$R/docs/notes:old.md"
@@ -107,11 +111,12 @@ cp "$T/list.bak" "$R/scripts/.clean-denylist"
 
 # CI runs with CLEAN_MASK_NAMES=1 and its logs are public: a hit must still fail the run,
 # and no listed name may appear in the output, in any case, in the text or a file name.
-# masked <label> <exit code wanted> <text the output must contain> [PATH prefix]
+# masked <label> <exit code wanted> <text the output must contain> [PATH prefix] [ERE it must not]
 masked() {
   local out rc
   out="$(cd "$R" && PATH="${4:+$4:}$PATH" CLEAN_MASK_NAMES=1 bash scripts/check_clean.sh 2>&1)"; rc=$?
-  if [ "$rc" -eq "$2" ] && printf '%s' "$out" | grep -qF -- "$3" && ! printf '%s' "$out" | grep -qi zorblequux; then
+  if [ "$rc" -eq "$2" ] && printf '%s' "$out" | grep -qF -- "$3" && ! printf '%s' "$out" | grep -qi zorblequux \
+     && { [ -z "${5:-}" ] || ! printf '%s' "$out" | grep -qiE -- "$5"; }; then
     printf 'ok   %s\n' "$1"
   else
     printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$2" "$out" | sed '2,$s/^/     /'
@@ -146,6 +151,17 @@ printf 'plain notes\n' >"$R/docs/notes.md"
 # withheld every run of a clean tree.
 printf 'dent\nriva\n' >>"$R/scripts/.clean-denylist"
 masked "masked: entries inside the script's own words leave them alone, and pass" 0 "no contact info or credentials in:"
+cp "$T/list.bak" "$R/scripts/.clean-denylist"
+# perl takes the first alternative that matches, so a short entry before a longer one that
+# starts with it left the rest of the longer one in clear; two overlapping entries likewise.
+printf 'zorblequux-widgetz\nwidgetz-quam\n' >>"$R/scripts/.clean-denylist"
+printf 'ran zorblequux-widgetz-quam today\n' >"$R/docs/notes.md"
+masked "masked: entries that share a prefix or overlap are blanked whole" 1 "docs/notes.md:1:ran [***] today" "" "widgetz|quam"
+cp "$T/list.bak" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
+# Every line that is not scan output is this script's own text, which never holds a whole
+# listed name; if one ever does, the output is withheld rather than printed.
+printf 'skills\n' >>"$R/scripts/.clean-denylist"
+masked "masked: a whole name in a line that is not scan output: withheld" 1 "output is withheld"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
 # perl's errors quote the whole pattern, every name in it: if perl fails, nothing is printed,
 # and the run still fails.
@@ -204,10 +220,10 @@ FAKE
     fi
   }
   push "push-denylist: sends the list to the repo gh names" "$R" 0 "args: secret set CLEAN_DENYLIST --repo owner/repo"
-  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null)" != "# made-up names" ]; then
-    printf 'FAIL push-denylist: the secret is not the list as written\n'; fails=$((fails+1))
+  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 -d)" != "$(cat "$R/scripts/.clean-denylist")" ]; then
+    printf 'FAIL push-denylist: the secret is not the list, base64-encoded\n'; fails=$((fails+1))
   fi
-  push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "zorblequux"
+  push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"
   push "push-denylist: refuses a list with no names" "$R" 2 "lists no names"
   printf 'zorblequux**\n' >"$R/scripts/.clean-denylist"
@@ -232,11 +248,13 @@ if [ -f "$WF" ]; then
       printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$4" "$out" | sed '2,$s/^/     /'; fails=$((fails+1))
     fi
   }
-  step "CI step: a secret with names is written" "$(printf '# x\r\nzorblequux\r')" false 0 ""
+  b64() { printf '%s' "$1" | base64 | tr -d '\n'; }
+  step "CI step: a secret with names is written" "$(b64 "$(printf '# x\r\nzorblequux\r')")" false 0 ""
   if [ "$(cat "$T/stepdir/scripts/.clean-denylist")" != "$(printf '# x\nzorblequux')" ]; then
     printf 'FAIL CI step: the list is not written as the secret holds it, less carriage returns\n'; fails=$((fails+1))
   fi
-  step "CI step: a secret with no names fails" "# none yet" false 1 "lists no names"
+  step "CI step: a secret with no names fails" "$(b64 "# none yet")" false 1 "lists no names"
+  step "CI step: a plain, not base64, secret fails" "zorble quux!" false 1 "::error::"
   step "CI step: no secret where secrets exist fails" "" false 1 "secret is missing"
   step "CI step: no secret with NO_SECRETS=true warns" "" true 0 "::warning::"
 else

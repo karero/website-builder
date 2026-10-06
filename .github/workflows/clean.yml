@@ -67,14 +67,21 @@ jobs:
       # repo has a secret of its own or none; those skip the name check with a warning.
       # Anywhere else a missing secret, or one that lists no names, fails the job: deleting
       # it must not bring back the silent skip. Only this step sees the secret; the file it
-      # writes is gitignored and read by the next step.
+      # writes is gitignored and read by the next step. The secret holds the list
+      # base64-encoded on one line: the runner blanks every line of a secret wherever it
+      # occurs in the log, so a plain list would turn an entry inside an ordinary word into
+      # "cre***ials" and give it away; one base64 line never occurs in the log.
       - name: Write the private-name list from the CLEAN_DENYLIST secret
         env:
           CLEAN_DENYLIST: ${{ secrets.CLEAN_DENYLIST }}
           NO_SECRETS: ${{ github.event.repository.fork || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]')) }}
         run: |
+          set -o pipefail
           if [ -n "$CLEAN_DENYLIST" ]; then
-            printf '%s\n' "$CLEAN_DENYLIST" | tr -d '\r' > scripts/.clean-denylist
+            if ! printf '%s' "$CLEAN_DENYLIST" | base64 -d 2>/dev/null | tr -d '\r' > scripts/.clean-denylist; then
+              echo "::error::The CLEAN_DENYLIST secret is not base64: set it again with 'make push-denylist'"
+              exit 1
+            fi
             if ! grep -qvE '^[[:space:]]*(#|$)' scripts/.clean-denylist; then
               echo "::error::The CLEAN_DENYLIST secret lists no names: run 'make push-denylist' in a checkout whose scripts/.clean-denylist does"
               exit 1
@@ -85,7 +92,7 @@ jobs:
             echo "::error::The CLEAN_DENYLIST secret is missing or empty: run 'make push-denylist' in a checkout that has scripts/.clean-denylist"
             exit 1
           fi
-      # This repo's CI logs are public, so every listed name is blanked out of the output.
+      # This repo's CI logs are public, so every listed name is blanked out of the scan output.
       - name: Scan skills for names / contact info / credentials
         env:
           CLEAN_MASK_NAMES: "1"

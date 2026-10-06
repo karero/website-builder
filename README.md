@@ -376,9 +376,9 @@ make check       # PII/secrets + model-agnostic + template coverage + per-skill 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
 catches (any real email, credential/token formats, secret-looking assignments). The
 denylist is a gitignored local file. CI gets it from the `CLEAN_DENYLIST` repository
-secret, which `make push-denylist` sets from the local list (run it after every change
-to the list). The logs are public, so CI blanks every listed name out of the check's
-output, and withholds the output if a name would still show. A pull request from a fork
+secret, which `make push-denylist` sets from the local list, base64-encoded (run it
+after every change to the list). The logs are public, so CI blanks every listed name out
+of the scan output it prints, and withholds the output if a name would still show. A pull request from a fork
 or from Dependabot gets no secrets, so it skips the name check with a warning, as does a
 fork of the repo; anywhere else a missing secret, or one with no names, fails the job.
 The script runs in CI on every pull request and every push to `main`
