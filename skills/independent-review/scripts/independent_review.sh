@@ -1069,7 +1069,7 @@ run_melious() {
     # Keep what follows the LAST marker that ends a line and has findings-shaped text after it: a
     # marker repeated at the end, or quoted in a fence after the review, must not win. Markdown
     # around the marker (bold, a heading, a quote, backticks) is allowed. The marker need not start
-    # its line: GLM glued it to the end of its last line of reasoning (#165, round 16c), and a trace
+    # its line: the ollama seat model glued it to the end of its last line of reasoning (#165, round 16c), and a trace
     # can restate the ask, marker and all, before that. A marker that looks quoted is skipped: one
     # after other text on a finding line or right after a backtick, or one just inside a fence, so
     # a finding that quotes the marker does not cut the findings above it. A cut at a marker after
@@ -1147,7 +1147,7 @@ NOT_A_REVIEW="output is not a review"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
-# (round 2, kimi).
+# (round 2, ollama).
 QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits)|exceeded your( current)? quota'
 why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
   if [ "$1" -ne 0 ]; then WHY="exit $1"; else WHY="exit 0 but no output"; fi
@@ -1160,7 +1160,7 @@ why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
 # NOT emulated (run_ollama's filter does that for the review body), so a quoted
 # redrawn line may keep fragments. Decoding substitutes U+FFFD for bad bytes rather
 # than failing: `tail -c` cuts on a byte, often inside a 3-byte spinner glyph, and a
-# strict or -C decode then kills perl and loses the quote (round 2, Fable).
+# strict or -C decode then kills perl and loses the quote (round 2, fresh-eyes).
 readable_tail() {
   [ -s "$1" ] || return 0
   tail -c 65536 "$1" | perl -0777 -MEncode=decode,encode -ne '
