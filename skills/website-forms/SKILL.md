@@ -129,7 +129,8 @@ preview address cannot send, and says so.
    "a line break in the name cannot start a new mail header" then need changing too:
    the exact subject takes the new prefix, and in the cut at 120 characters the name's
    length (98) becomes 119 minus the new prefix's length, or that check can no longer
-   fail.
+   fail. A prefix shorter than 21 characters leaves no name the form accepts (100 at
+   most) long enough to reach the cut: delete that check then.
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
