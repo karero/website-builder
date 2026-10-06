@@ -103,18 +103,20 @@ rm "$R/docs/example.bin"
 # An entry anchored with ^ found its lines but never reported them; it is refused, grouped
 # or not, while a ^ that negates a class is fine.
 cp "$R/scripts/.clean-denylist" "$T/list.pre"
-printf '(^zorblequux)\n' >"$R/scripts/.clean-denylist"; printf 'zorblequux leads this line\n' >"$R/docs/notes.md"
-expect "an entry anchored with ^, in a group: refused" 1 "anchored with ^" "$R"
+printf '^zorblequux\n' >"$R/scripts/.clean-denylist"; printf 'zorblequux leads this line\n' >"$R/docs/notes.md"
+expect "an entry anchored with ^: refused" 1 "holding ^" "$R"
+printf '(^zorblequux)\n' >"$R/scripts/.clean-denylist"
+expect "an entry anchored with ^, in a group: refused" 1 "holding ^" "$R"
 printf 'zorble[^x]uux\n' >"$R/scripts/.clean-denylist"
 expect "an entry with a negated class: not refused, and finds its name" 1 "personal/site identifier" "$R"
-if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "anchored with"; then
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "holding ^"; then
   printf 'FAIL a negated class was refused as an anchor\n'; fails=$((fails+1))
 fi
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
 # A file name holding ":<digit>…:" moved the text's start into the name, where an exemption
 # then dropped a real hit; such names are refused.
 mkdir "$R/docs/a:1:example.com"; printf 'write to bob@realmail.de\n' >"$R/docs/a:1:example.com/x.md"
-expect "a file name holding a colon, a digit and a colon: refused" 1 "a colon, a digit and a colon" "$R"
+expect "a file name holding a colon, a digit and a colon: refused" 1 "a colon, a digit and later another colon" "$R"
 rm -r "$R/docs/a:1:example.com"
 # If find fails, the names were not checked.
 mkdir -p "$T/badfind"; printf '#!/bin/sh\nexit 2\n' >"$T/badfind/find"; chmod +x "$T/badfind/find"
@@ -206,6 +208,10 @@ mv "$T/list.away" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs
 # A list that does not compile is named as the cause, not a name in the output.
 cp "$R/scripts/.clean-denylist" "$T/list.pre2"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
 masked "masked: a list that does not compile: withheld, and says why" 1 "does not compile"
+# The same with a long output: grep dies on the pattern unread, and printf of SIGPIPE.
+awk 'BEGIN { for (i = 0; i < 3000; i++) printf "mail bob%d@realmail.de about the plan for this week\n", i }' >"$R/docs/many.md"
+masked "masked: a list that does not compile, long output: says why" 1 "does not compile"
+rm "$R/docs/many.md"
 cp "$T/list.pre2" "$R/scripts/.clean-denylist"
 # They never hold a whole listed name; if one ever does, nothing is printed.
 printf 'skills\n' >>"$R/scripts/.clean-denylist"

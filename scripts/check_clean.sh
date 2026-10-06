@@ -48,7 +48,9 @@ if [ -n "${CLEAN_MASK_NAMES:-}" ]; then
   out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
   whole="$(printf '0\n0 1')"
   [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
-  if [ "${whole##*$'\n'}" = "0 2" ]; then   # grep's own status: the pattern did not compile
+  # grep's own status, the last field: when grep dies on a bad pattern without reading, a
+  # long output can kill printf with SIGPIPE first ("141 2").
+  if [ "${whole##* }" = 2 ]; then
     echo "FAIL — this run's output is withheld: the name list does not compile as a pattern."
     echo "Run the check where the logs are private to see grep's error: bash scripts/check_clean.sh"
     exit 1
@@ -101,15 +103,16 @@ names_checked=0 names_skipped=""
 # grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
 # where the file name ends. A file name holding a newline splits that line into pieces that
 # can pass for other files (an ignored one, or the list itself); one holding a colon, a digit
-# and a colon moves the text's start into the name, where an exemption ("example.com") then
-# drops a real hit. Refuse both kinds of name. They print 4-space-indented, so masked mode
+# and later another colon can hold ":<digits>:", which moves the text's start into the name,
+# where an exemption ("example.com") then drops a real hit. Refuse both kinds of name (the
+# second rule is broader than ":<digits>:" itself, so some harmless names are refused too). They print 4-space-indented, so masked mode
 # withholds them like any scan line. Gitignored files are refused too: they are on disk, where
 # grep reads them. If find fails, the names were not checked: fail too.
 odd_paths="$(find $SCAN_BASE scripts LICENSE \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
   || { fail=1; echo "✗ scan error (find failed) — file names were not checked"; }
 if [ -n "$odd_paths" ]; then
   fail=1
-  echo "✗ file names holding a newline, or a colon, a digit and a colon (rename them; grep's file:line: output cannot name them reliably):"
+  echo "✗ file names holding a newline, or a colon, a digit and later another colon (rename them; grep's file:line: output cannot name them reliably):"
   printf '%s\n' "$odd_paths" | sed 's/^/    /'
 fi
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
@@ -209,7 +212,7 @@ if [ -f "$DENYLIST_FILE" ]; then
     anchored="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | grep -cE '(^|[^[])\^')"
     if [ "${anchored:-0}" != 0 ]; then
       fail=1
-      echo "✗ $anchored list entr(ies) anchored with ^: the check finds a name anywhere in a line, and an anchor makes it miss; drop it"
+      echo "✗ $anchored list entr(ies) holding ^ (other than right after [): the check finds a name anywhere in a line, and an anchor makes it miss; drop it (a literal \\^ is refused too)"
     fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
