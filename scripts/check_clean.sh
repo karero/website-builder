@@ -31,11 +31,8 @@ if [ ! -f "$DENYLIST_FILE" ]; then
   main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
   [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
 fi
-# An entry anchored with ^ found its lines but was never reported: the post-filter below
-# looks for it after "file:line:", where ^ cannot match. The anchor is dropped (the entry
-# then matches anywhere, which reports more, never less).
 NAMES=""
-[ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | sed 's/^\^//' | paste -sd'|' -)"
+[ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
 
 # 0. CI's logs are public. With CLEAN_MASK_NAMES=1 this script runs itself again and prints
 #    that run's own lines only: each block of scan lines (the 4-space-indented lines, which
@@ -51,7 +48,11 @@ if [ -n "${CLEAN_MASK_NAMES:-}" ]; then
   out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
   whole="$(printf '0\n0 1')"
   [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
-  if [ "$whole" != "$(printf '0\n0 1')" ]; then
+  if [ "${whole##*$'\n'}" = "0 2" ]; then   # grep's own status: the pattern did not compile
+    echo "FAIL — this run's output is withheld: the name list does not compile as a pattern."
+    echo "Run the check where the logs are private to see grep's error: bash scripts/check_clean.sh"
+    exit 1
+  elif [ "$whole" != "$(printf '0\n0 1')" ]; then
     echo "FAIL — this run's output is withheld: one of its own lines holds a listed name."
     echo "Run the check where the logs are private to see the lines: bash scripts/check_clean.sh"
     echo "If none of them holds a listed name, a list entry matches a word of this script's"
@@ -97,14 +98,19 @@ if [ -n "$MISSING" ]; then
 fi
 fail=0
 names_checked=0 names_skipped=""
-# A file name holding a newline splits every line grep prints about it, and the pieces can
-# pass for other files (an ignored one, or the list itself) and be dropped: refuse such names.
-# They print 4-space-indented, so masked mode withholds them like any scan line.
-nl_paths="$(find $SCAN_NAMES_ALL $SCAN_DOCS_ALL -name "*"$'\n'"*" -print 2>/dev/null)"
-if [ -n "$nl_paths" ]; then
+# grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
+# where the file name ends. A file name holding a newline splits that line into pieces that
+# can pass for other files (an ignored one, or the list itself); one holding a colon, a digit
+# and a colon moves the text's start into the name, where an exemption ("example.com") then
+# drops a real hit. Refuse both kinds of name. They print 4-space-indented, so masked mode
+# withholds them like any scan line. Gitignored files are refused too: they are on disk, where
+# grep reads them. If find fails, the names were not checked: fail too.
+odd_paths="$(find $SCAN_BASE scripts LICENSE \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
+  || { fail=1; echo "✗ scan error (find failed) — file names were not checked"; }
+if [ -n "$odd_paths" ]; then
   fail=1
-  echo "✗ file names holding a newline (rename them; no check can name them reliably):"
-  printf '%s\n' "$nl_paths" | sed 's/^/    /'
+  echo "✗ file names holding a newline, or a colon, a digit and a colon (rename them; grep's file:line: output cannot name them reliably):"
+  printf '%s\n' "$odd_paths" | sed 's/^/    /'
 fi
 # Hits in gitignored files (__pycache__, local caches…) never ship in the handoff —
 # drop them. Outside a git checkout (e.g. a tarball) check-ignore fails → keep the hit.
@@ -197,15 +203,25 @@ if [ -f "$DENYLIST_FILE" ]; then
   # like the list plus a colon (scripts/.clean-denylist:1:x) starts the same way, so with
   # such a file present nothing is dropped: the list then reports itself, loudly.
   if [ -n "$NAMES" ]; then
+    # An entry anchored with ^ finds its lines but is never reported: the post-filter below
+    # looks for it after "file:line:", where ^ cannot match. Refuse such entries (a count
+    # only: the entries are private). A ^ right after [ negates a class, and is fine.
+    anchored="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | grep -cE '(^|[^[])\^')"
+    if [ "${anchored:-0}" != 0 ]; then
+      fail=1
+      echo "✗ $anchored list entr(ies) anchored with ^: the check finds a name anywhere in a line, and an anchor makes it miss; drop it"
+    fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
     hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
+      # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
-           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" ;;
+           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" \
+           || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
     esac
     report "personal/site identifier" "$hits"
     names_checked=1

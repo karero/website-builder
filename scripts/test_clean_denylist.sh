@@ -25,10 +25,10 @@ trap 'rm -rf "$T"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null"
 fails=0
-# expect <label> <exit code wanted> <text the output must contain, or ""> <dir> [VAR=value]
+# expect <label> <exit code wanted> <text the output must contain, or ""> <dir> [VAR=value] [VAR=value]
 expect() {
   local out rc
-  out="$(cd "$4" && env ${5:+"$5"} bash scripts/check_clean.sh 2>&1)"; rc=$?
+  out="$(cd "$4" && env ${5:+"$5"} ${6:+"$6"} bash scripts/check_clean.sh 2>&1)"; rc=$?
   if [ "$rc" -eq "$2" ] && { [ -z "$3" ] || printf '%s' "$out" | grep -qF -- "$3"; }; then
     printf 'ok   %s\n' "$1"
   else
@@ -100,16 +100,40 @@ rm "$R/docs/example.com.bin"
 printf 'api_key = "abcdefghijkl"\0\n' >"$R/docs/example.bin"
 expect "an assignment in a binary file named like an exemption: fails" 1 "secret-looking assignment" "$R"
 rm "$R/docs/example.bin"
-# An entry anchored with ^ found its lines but never reported them.
+# An entry anchored with ^ found its lines but never reported them; it is refused, grouped
+# or not, while a ^ that negates a class is fine.
 cp "$R/scripts/.clean-denylist" "$T/list.pre"
-printf '^zorblequux\n' >"$R/scripts/.clean-denylist"; printf 'zorblequux leads this line\n' >"$R/docs/notes.md"
-expect "an entry anchored with ^: still fails" 1 "personal/site identifier" "$R"
+printf '(^zorblequux)\n' >"$R/scripts/.clean-denylist"; printf 'zorblequux leads this line\n' >"$R/docs/notes.md"
+expect "an entry anchored with ^, in a group: refused" 1 "anchored with ^" "$R"
+printf 'zorble[^x]uux\n' >"$R/scripts/.clean-denylist"
+expect "an entry with a negated class: not refused, and finds its name" 1 "personal/site identifier" "$R"
+if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "anchored with"; then
+  printf 'FAIL a negated class was refused as an anchor\n'; fails=$((fails+1))
+fi
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
-# A filter grep that fails dropped every hit it was meant to filter.
+# A file name holding ":<digit>…:" moved the text's start into the name, where an exemption
+# then dropped a real hit; such names are refused.
+mkdir "$R/docs/a:1:example.com"; printf 'write to bob@realmail.de\n' >"$R/docs/a:1:example.com/x.md"
+expect "a file name holding a colon, a digit and a colon: refused" 1 "a colon, a digit and a colon" "$R"
+rm -r "$R/docs/a:1:example.com"
+# If find fails, the names were not checked.
+mkdir -p "$T/badfind"; printf '#!/bin/sh\nexit 2\n' >"$T/badfind/find"; chmod +x "$T/badfind/find"
+expect "find failing: a scan error" 1 "find failed" "$R" "PATH=$T/badfind:$PATH"
+# If sed fails in the name filter, its hits are lost: a scan error instead.
+mkdir -p "$T/badsed"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *SELF-REPO*) exit 4 ;; esac; done\nexec "%s" "$@"\n' "$(command -v sed)" >"$T/badsed/sed"
+chmod +x "$T/badsed/sed"; printf 'ran zorblequux\n' >"$R/docs/notes.md"
+expect "the name filter's sed failing: a scan error, not lost hits" 1 "the name filter failed" "$R" "PATH=$T/badsed:$PATH"
+printf 'plain notes\n' >"$R/docs/notes.md"
+# A filter grep that fails dropped every hit it was meant to filter. This grep fails when one
+# of its arguments holds FAILPAT; each filter in turn. (Which scan error is printed depends
+# on whether the stage writing into it dies of the closed pipe first; either fails the run.)
 mkdir -p "$T/badfilter"
-printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *"|^Binary file |"*) exit 2 ;; esac; done\nexec "%s" "$@"\n' "$(command -v grep)" >"$T/badfilter/grep"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *"$FAILPAT"*) exit 2 ;; esac; done\nexec "%s" "$@"\n' "$(command -v grep)" >"$T/badfilter/grep"
 chmod +x "$T/badfilter/grep"; printf 'ran zorblequux\n' >"$R/docs/notes.md"
-expect "a filter grep that fails: a scan error, not lost hits" 1 "filter grep exit 2" "$R" "PATH=$T/badfilter:$PATH"
+for f in "|^Binary file |" 'clean-denylist:[0-9]' '@(example' '(placeholder'; do
+  expect "a filter grep that fails ($f): a scan error, not lost hits" 1 "scan error" "$R" "PATH=$T/badfilter:$PATH" "FAILPAT=$f"
+done
 printf 'plain notes\n' >"$R/docs/notes.md"
 # With nowhere to put grep's errors, grep never ran, and every scan read as clean.
 mkdir -p "$T/nomktemp"; printf '#!/bin/sh\nexit 1\n' >"$T/nomktemp/mktemp"; chmod +x "$T/nomktemp/mktemp"
@@ -179,6 +203,10 @@ cp "$T/list.bak" "$R/scripts/.clean-denylist"
 mv "$R/scripts/.clean-denylist" "$T/list.away"; printf 'write to bob@realmail.de\n' >"$R/docs/notes.md"
 masked "masked, no list: generic hits are withheld too" 1 "✗ email address"
 mv "$T/list.away" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
+# A list that does not compile is named as the cause, not a name in the output.
+cp "$R/scripts/.clean-denylist" "$T/list.pre2"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
+masked "masked: a list that does not compile: withheld, and says why" 1 "does not compile"
+cp "$T/list.pre2" "$R/scripts/.clean-denylist"
 # They never hold a whole listed name; if one ever does, nothing is printed.
 printf 'skills\n' >>"$R/scripts/.clean-denylist"
 masked "masked: a whole name in a line that is not scan output: withheld" 1 "output is withheld"
@@ -233,6 +261,8 @@ FAKE
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"
   push "push-denylist: refuses a list with no names" "$R" 2 "lists no names"
+  printf '^zorblequux\n' >"$R/scripts/.clean-denylist"
+  push "push-denylist: refuses entries anchored with ^" "$R" 2 "anchored with ^"
   [ -f "$T/gh.log" ] && { printf 'FAIL push-denylist: gh was called for a refused list\n'; fails=$((fails+1)); }
   cp "$T/list.bak" "$R/scripts/.clean-denylist"; : >"$R/Makefile"; : >"$W/Makefile"
 else
