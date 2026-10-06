@@ -29,7 +29,8 @@ name: clean
 # runs in a linked worktree too (scripts/test_clean_denylist.sh), and that the site's Claude Code
 # sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), and
 # that every text file checks out LF even where Git converts to CRLF
-# (scripts/check_lf_checkout.sh). And it runs the
+# (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
+# for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
@@ -175,6 +176,57 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check every text file checks out LF, even where Git converts to CRLF
         run: bash scripts/check_lf_checkout.sh
+  # lf-checkout simulates a Windows checkout on Ubuntu; this is the real one. Git for Windows
+  # converts to CRLF by default, and the root .gitattributes must keep this repo's scripts, the
+  # site hook and the Makefile LF anyway. Node reads the bytes: a CR handed to grep through Git
+  # Bash flagged LF files as CRLF (template-tests.yml's verify-windows). A control repo with no
+  # .gitattributes must come out CRLF first, or this runner never converted and the job would
+  # pass whatever the rule says.
+  lf-checkout-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Convert to CRLF on checkout, as Git for Windows does by default
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Control — without .gitattributes, this runner checks a script out with CRLF
+        shell: bash
+        run: |
+          C="$RUNNER_TEMP/control"
+          git init -q "$C/src"
+          printf 'set -eu\necho ok\n' >"$C/src/a.sh"
+          git -C "$C/src" add a.sh
+          git -C "$C/src" -c user.name=ci -c user.email=ci@example.invalid commit -qm control
+          git clone -q "$C/src" "$C/clone"
+          node -e '
+            if (!require("fs").readFileSync(process.argv[1]).includes(13)) {
+              console.log("::error::the control script came out LF: this runner does not convert, so the check below would prove nothing");
+              process.exit(1);
+            }
+            console.log("control: a script with no .gitattributes rule came out CRLF");
+          ' "$C/clone/a.sh"
+      - name: This repo's shell scripts, the site hook and the Makefile checked out LF
+        shell: bash
+        run: |
+          git ls-files -z -- '*.sh' 'skills/new-website/templates/astro/scripts/hooks/*' Makefile \
+            >"$RUNNER_TEMP/lf-files"
+          node -e '
+            const fs = require("fs");
+            const files = fs.readFileSync(process.argv[1], "utf8").split("\0").filter(Boolean);
+            const sh = files.filter((f) => f.endsWith(".sh"));
+            const hook = files.some((f) => f.endsWith("/hooks/pre-push"));
+            const make = files.includes("Makefile");
+            // An empty or partial list would pass with nothing checked.
+            if (!sh.length || !hook || !make) {
+              console.log(`::error::too little to check: ${sh.length} .sh file(s), hook ${hook ? "found" : "missing"}, Makefile ${make ? "found" : "missing"}`);
+              process.exit(1);
+            }
+            const bad = files.filter((f) => fs.readFileSync(f).includes(13));
+            if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
+            console.log("line endings: LF in all " + sh.length + " .sh files, the site hook and the Makefile");
+          ' "$RUNNER_TEMP/lf-files"
   search-console-insights-tests:
     # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
     # (e.g. reusing a quote inside an f-string) once broke the report there.
