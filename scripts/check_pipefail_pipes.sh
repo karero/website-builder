@@ -12,7 +12,11 @@
 # (`grep -q x <<<"$v"`), or to use a consumer that reads to EOF (`awk 'NR==1'`).
 #
 # Early-exit consumers flagged after a single `|` or `|&`: head, read, grep -q/-m/-l/-L (and
-# their long forms), sed with a q/Q command, and awk with an `exit` before any END block.
+# their long forms), sed with a q/Q command, and awk with an `exit` before any END block. Also
+# found by a path (/usr/bin/head), quoted or backslashed (\head), behind a wrapper (timeout 5
+# head, env -i grep -q), and as any command of a piped `( … )`, `{ … }`, `if` or `case`, or of a
+# `>( … )`. A `while` or `until` loop fed by the pipe is flagged when it can break, exit or
+# return before its input ends.
 #
 # Why a LEXER, not a grep. A per-line grep for `| head` / `| grep -q` trips on `|| grep -q
 # … file` (OR, not a pipe), on comments that describe the pattern, on a `|` inside a quoted
@@ -22,7 +26,8 @@
 # Anything it cannot close by end of file is a FAIL, not a guess.
 #
 # Scope: only scripts that enable pipefail. Without it a pipeline's status is the consumer's,
-# so an early exit cannot flip it. Discovery is by shebang, as in check_cdpath_safe.sh.
+# so an early exit cannot flip it. Discovery is list_shell_scripts.sh's, shared with
+# check_cdpath_safe.sh.
 #
 # What it does not do: decide that a site's status is ignored. That judgement goes in EXEMPT,
 # one line of reason each, where a reviewer can see it.
@@ -30,36 +35,16 @@ set -uo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.." || { echo "FAIL — cannot cd to the repo root from $0."; exit 1; }
 
 # Sites that match but cannot flip a result. Format: 'path|needle' — needle is a fixed string
-# that must appear on the flagged line. An entry that matches nothing FAILS as stale, so a fixed
-# or moved site forces its entry out. Prefer rewriting a site to adding one here.
+# that must appear on the flagged line and name its consumer (`| head -1`, not text elsewhere on
+# the line). An entry covers ONE site; a line with two needs two. An entry that matches nothing
+# FAILS as stale, so a fixed or moved site forces its entry out. Prefer rewriting a site to
+# adding one here.
 EXEMPT=(
   # Both are astro template files copied into every site: a no-op edit shows up as drift in
   # every site's whats-new, and ship.sh's header requires a template-version bump per change.
   'skills/new-website/templates/astro/scripts/ship.sh| | head -1 || true)"'  # `|| true` discards the status
-  'skills/new-website/templates/astro/tests/check_ship_push.sh|version_of() { sed -n'  # sed prints 1 tiny line in one write; head never races it
+  'skills/new-website/templates/astro/tests/check_ship_push.sh|"$1" | head -1; }'  # sed prints 1 tiny line in one write; head never races it
 )
-
-# --- discovery (same approach as check_cdpath_safe.sh; see the reasoning there) --------------
-# git's file list where there is one (it skips nested checkouts under .claude/worktrees/), else
-# find: the handoff zip has no git, and zip recipients run `make check` too.
-discover() {
-  # Only when the suite root IS the toplevel: a zip unpacked inside some other repository would
-  # otherwise get that repository's index, which may track none, some or all of these files.
-  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] &&
-     [ -z "$(git rev-parse --show-prefix 2>/dev/null)" ] && [ -n "$(git ls-files 2>/dev/null)" ]; then
-    git ls-files 2>/dev/null
-  else
-    find . -type f ! -path './.git/*' ! -path './dist/*' ! -path '*/node_modules/*' \
-         ! -path './docs/reviews/*' ! -path './.claude/worktrees/*' -print 2>/dev/null |
-      sed 's|^\./||'
-  fi |
-  while IFS= read -r f; do
-    [ -f "$f" ] || continue
-    case "$(head -n 1 -- "$f" 2>/dev/null | LC_ALL=C tr -d '\0')" in
-      '#!'*sh|'#!'*sh' '*) printf '%s\n' "$f" ;;
-    esac
-  done | sort
-}
 
 # A `set` line enabling pipefail: `set -o pipefail`, `set -euo pipefail`, `set -o errexit -o
 # pipefail`, … Anchored at the start of the line, so a comment that mentions it does not count.
@@ -71,9 +56,13 @@ PIPEFAIL_RE='^[[:space:]]*set[[:space:]]+(.*[[:space:]])?-[a-zA-Z]*o[[:space:]]+
 # read, not "$(cat <<'AWK' … )": bash 3.2 (macOS /bin/bash) parses a heredoc inside $( ) for
 # quotes, and this awk body's unbalanced ' and ` stop the whole script from parsing there.
 IFS= read -r -d '' LEXER <<'AWK' || true
-BEGIN { EXITRE = "(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)" }
+BEGIN {
+  EXITRE = "(^|[^a-zA-Z0-9_])exit([^a-zA-Z0-9_]|$)"
+  CONSUMERS = "^(head|read|[ef]?grep|sed|[gmn]?awk)$"
+  WRAPPERS = "^(time|command|builtin|exec|env|nohup|nice|ionice|timeout|gtimeout|stdbuf|gstdbuf|setsid|sudo|doas)$"
+}
 function reset() {
-  d = 1; ft[1] = "C"; tm[1] = ""; own[1] = 1; sq[1] = 0; an[1] = 0
+  d = 1; ft[1] = "C"; tm[1] = ""; own[1] = 1; sq[1] = 0; an[1] = 0; ld[1] = 0; nwat[1] = 0; pc[1] = 0; cd[1] = 0; cwat[1] = 0
   buf[1] = ""; op[1] = ""; bl[1] = 0; nh = 0; hh = 0; cont = 0
 }
 function blank(x) { return x ~ /^[ \t\n]*$/ }
@@ -84,13 +73,19 @@ function add(x,   o) {
 }
 function push(t, term) {
   d++; ft[d] = t; tm[d] = term; sq[d] = 0; an[d] = 0
-  if (t == "C") { own[d] = d; buf[d] = ""; op[d] = ""; bl[d] = FNR } else own[d] = own[d - 1]
+  if (t == "C") { own[d] = d; buf[d] = ""; op[d] = ""; bl[d] = FNR; ld[d] = 0; nwat[d] = 0; pc[d] = 0; cd[d] = 0; cwat[d] = 0 } else own[d] = own[d - 1]
 }
 # Ends the current command in C frame d. A newline after a bare `|`, `&&` or `||` continues the
-# pipeline, so a newline on an empty command keeps the pending operator.
-function endcmd(newop, isnl) {
+# pipeline, so a newline on an empty command keeps the pending operator. A command reads the
+# pipe if a `|` feeds it, if its frame is a piped `( … )` or a `>( … )` (pc), or if it sits in
+# a piped `{ … }`, `if` or `case` that has not closed yet (cwat, the depth that one opened at):
+# any command in there can be the last to read, and the pipe closes when the last one exits.
+function endcmd(newop, isnl,   piped, base) {
   if (!blank(buf[d])) {
-    if (op[d] == "|") check(buf[d], bl[d])
+    piped = (op[d] == "|" || pc[d] || cwat[d]); base = cd[d]
+    structure(buf[d])
+    if (piped && !cwat[d] && cd[d] > base) cwat[d] = base + 1
+    if (piped) check(buf[d], bl[d])
     buf[d] = ""; op[d] = newop
   } else if (!isnl) op[d] = newop
 }
@@ -205,13 +200,77 @@ function unlit(s,   n, i, c, out, last) {
   }
   return out
 }
-function check(x, ln,   w, nw, k, kind) {
+# A command word as the shell runs it: quotes and backslashes go, and a path is cut to its last
+# part, so /usr/bin/head, \head and 'head' are all head.
+function cmdname(w) { gsub(/["'\\]/, "", w); sub(/.*\//, "", w); return w }
+# The piped command x, behind any `!`, `{`, `if`, `then`, `else`, `elif` or `do`. A loop is
+# watched (see structure()). A known consumer is judged where it stands. Behind an assignment
+# or a wrapper, every later word that names a consumer is judged, not only the one the wrapper
+# would run: `timeout -s KILL 5 head` and `env -u awk grep -q` need no option table, and a wrong
+# pick costs a false alarm, not a miss. A wrapper missing from WRAPPERS hides its consumer; add
+# it there. xargs is not one: it drains the pipe itself and hands its consumer the words as
+# file names.
+function check(x, ln,   w, kind) {
+  sub(/^[ \t\n]+/, "", x)
+  while (match(x, /^(!|\{|if|then|else|elif|do)[ \t\n]+/)) x = substr(x, RLENGTH + 1)
+  if (x ~ /^(while|until)([^A-Za-z0-9_=]|$)/) {
+    nwat[d]++; wdep[d, nwat[d]] = ld[d]; wln[d, nwat[d]] = ln; wkw[d, nwat[d]] = substr(x, 1, 5); wfl[d, nwat[d]] = 0
+    return
+  }
+  match(x, /^[^ \t\n;]*/); w = cmdname(substr(x, 1, RLENGTH))
+  if (w ~ CONSUMERS) kind = kindof(w substr(x, RLENGTH + 1))
+  else if (w ~ WRAPPERS || x ~ /^[A-Za-z_][A-Za-z0-9_]*=/) {
+    while (match(x, /[^ \t\n;]+/)) {
+      w = cmdname(substr(x, RSTART, RLENGTH)); x = substr(x, RSTART + RLENGTH)
+      if (w ~ CONSUMERS && (kind = kindof(w x)) != "") break
+    }
+  }
+  if (kind != "") print FILENAME "\t" ln "\t" kind
+}
+# Loops and compound commands, tracked for each command of a C frame. A frame is its own scope:
+# an exit inside $( ) or ( ) ends that subshell, not the loop around it.
+# Loops: one fed by a pipe reads it until its condition fails, unless a break, exit or return
+# ends it first. Openers are counted wherever the word stands (while, until, for, select), so a
+# stray one only keeps a watch open longer; a `done` closes the watches it ends; and any break,
+# exit or return word flags every open watch. Even one that only leaves an inner loop is
+# flagged; `break 2` is why.
+# Compounds: cd is the depth of `{`, `if` and `case`. A `{` counts wherever it stands as a word
+# (`f() {` opens one too); `if` and `case` only where a command starts, since prose like `echo
+# if` is commoner. `}`, `fi` and `esac` close only where a command starts. Counting an opener
+# too many keeps a watch open longer (a false alarm). Missing one is the miscount that can
+# miss: its closer then ends the watch around it early.
+function structure(x,   a, n, k) {
+  n = split(x, a, /[ \t\n]+/)
+  for (k = 1; k <= n; k++) {
+    if (a[k] ~ /^(while|until|for|select)([^A-Za-z0-9_]|$)/) ld[d]++
+    else if (a[k] == "{") cd[d]++
+    else if (a[k] ~ /^(break|exit|return)$/) stop = a[k]
+  }
   sub(/^[ \t\n]+/, "", x)
   for (;;) {
-    if (x ~ /^(!|\{|time|command|builtin|env|exec|nohup)([ \t\n]|$)/) { sub(/^[^ \t\n]*[ \t\n]*/, "", x); continue }
-    if (x ~ /^[A-Za-z_][A-Za-z0-9_]*=[^ \t\n]*[ \t\n]/) { sub(/^[^ \t\n]*[ \t\n]+/, "", x); continue }
+    if (match(x, /^(!|\{|do|then|else|elif|while|until)[ \t\n]+/)) { x = substr(x, RLENGTH + 1); continue }
+    if (match(x, /^(if|case)[ \t\n]+/)) { cd[d]++; x = substr(x, RLENGTH + 1); continue }
     break
   }
+  while (match(x, /^(\}|fi|esac)([ \t\n]+|$)/)) {
+    if (cd[d] > 0) cd[d]--
+    if (cwat[d] > cd[d]) cwat[d] = 0
+    x = substr(x, RLENGTH + 1)
+  }
+  if (x ~ /^done([ \t\n;&|<>)]|$)/) {
+    while (nwat[d] > 0 && wdep[d, nwat[d]] >= ld[d]) nwat[d]--
+    if (ld[d] > 0) ld[d]--
+  }
+  if (stop != "") {
+    for (k = 1; k <= nwat[d]; k++) if (!wfl[d, k]) {
+      wfl[d, k] = 1
+      print FILENAME "\t" wln[d, k] "\t" wkw[d, k] " loop that can stop reading early (" stop " on line " FNR ")"
+    }
+    stop = ""
+  }
+}
+# The kind of early-exit consumer x is, or "" for none; x starts at its command name.
+function kindof(x,   w, nw, k, kind) {
   kind = ""
   if (x ~ /^head([ \t\n;]|$)/) kind = "head"
   else if (x ~ /^read([ \t\n;]|$)/) kind = "read"
@@ -232,7 +291,7 @@ function check(x, ln,   w, nw, k, kind) {
     if (k == 1) kind = "awk with exit"
     else if (k == 2) kind = "awk -f: its program file is not checked; read it, and EXEMPT the site if it never exits early"
   }
-  if (kind != "") print FILENAME "\t" ln "\t" kind
+  return kind
 }
 function lex(s,   i, n, c, c2, t, j, w, ch, strip, piped) {
   n = length(s)
@@ -263,9 +322,10 @@ function lex(s,   i, n, c, c2, t, j, w, ch, strip, piped) {
       if (c == ";") { endcmd("", 0); continue }
       if (c == "(") {
         if (substr(s, i + 1, 1) == "(" && blank(buf[d])) { add("(("); push("A", ""); i++; continue }
-        # `cmd | ( … )`: the subshell is the consumer, so its first command reads the pipe.
-        piped = (op[d] == "|" && blank(buf[d]))
-        add(c); push("C", ")"); if (piped) op[d] = "|"; continue
+        # `cmd | ( … )`: the subshell is the consumer, so every command in it can read the pipe;
+        # so can every command in a `>( … )`, which whatever writes to it feeds.
+        piped = ((op[d] == "|" || pc[d] || cwat[d]) && blank(buf[d])) || (i > 1 && substr(s, i - 1, 1) == ">")
+        add(c); push("C", ")"); pc[d] = piped; continue
       }
       if (c == ")") { if (tm[d] == ")") popc(c); else endcmd("", 0); continue }  # else: a case pattern
       if (c == "<" && substr(s, i + 1, 1) == "<") {
@@ -322,6 +382,54 @@ FNR == 1 { if (NR > 1) finish(cur); reset(); cur = FILENAME }
 }
 END { if (NR > 0) finish(cur) }
 AWK
+
+# --- exemptions ---------------------------------------------------------------------------------
+# resolve <entry>...: reads the lexer's records on stdin; prints a FAIL for each site no entry
+# exempts, then for each entry that exempted nothing (stale), and returns 1 if it printed any.
+# Sets `exempted` to the count. An entry exempts ONE site: in its file, on a line that holds its
+# needle, and only if the needle names the site's consumer (head, read, grep, sed, awk, while,
+# until), so other text on the line cannot stand in for it. Once used, an entry is spent: a
+# second consumer added to an exempted line fails like any other site.
+resolve() {
+  local f ln kind src word e i hit taken r=0 used=" "
+  exempted=0
+  while IFS=$'\t' read -r f ln kind; do
+    [ -n "$f" ] || continue
+    if [ "$ln" = 0 ]; then
+      echo "FAIL — $f: cannot lex it (${kind#PARSE: }). Fix the script, or teach this guard the construct."
+      r=1; continue
+    fi
+    src="$(sed -n "${ln}p" <"$f")"
+    word="${kind%% *}"
+    hit=""; taken=""; i=0
+    for e in "$@"; do
+      i=$((i + 1))
+      [ "${e%%|*}" = "$f" ] && [[ "$src" == *"${e#*|}"* && "${e#*|}" == *"$word"* ]] || continue
+      case "$used" in *" $i "*) taken="$e"; continue ;; esac
+      hit="$i"; break
+    done
+    if [ -n "$hit" ]; then
+      used="$used$hit "; exempted=$((exempted + 1)); continue
+    fi
+    echo "FAIL — $f:$ln pipes into an early-exit consumer ($kind) under pipefail:"
+    echo "    ${src#"${src%%[![:space:]]*}"}"
+    [ -z "$taken" ] || echo "    (EXEMPT entry '$taken' already covers another site; an entry covers one)"
+    r=1
+  done
+  if [ "$r" -ne 0 ]; then
+    echo "Past ~64 KiB of output the producer dies of SIGPIPE/EPIPE and pipefail reports it. Capture"
+    echo "once and match a herestring (grep -q x <<<\"\$v\"), or use a consumer that reads to EOF"
+    echo "(awk 'NR==1'). If the status provably cannot matter, add the site to EXEMPT in $0 with a reason."
+  fi
+  i=0
+  for e in "$@"; do
+    i=$((i + 1))
+    case "$used" in *" $i "*) continue ;; esac
+    echo "FAIL — stale EXEMPT entry in $0 (it exempts no flagged site; its needle must name the consumer): $e"
+    r=1
+  done
+  return "$r"
+}
 
 # --- self-test, both directions ------------------------------------------------------------------
 # A guard that cannot fire is worse than none; one that fires on the fixed form is its mirror.
@@ -455,6 +563,91 @@ cat <<EOF
 body | head -1
 EOF
 cmd | head -1
+@@ bad/consumer-by-path
+cmd | /usr/bin/head -1
+@@ bad/consumer-backslashed
+cmd | \head -1
+@@ bad/consumer-name-quoted
+cmd | 'grep' -q x
+@@ bad/timeout-wrapper
+cmd | timeout 5 head -1
+@@ bad/timeout-wrapper-with-signal
+cmd | timeout -s KILL 5 grep -q x
+@@ bad/env-wrapper-with-options
+cmd | env -i PATH=/bin grep -q x
+@@ bad/env-wrapper-by-path
+cmd | /usr/bin/env head -1
+@@ bad/command-wrapper-with-option
+cmd | command -p head -1
+@@ bad/nice-wrapper
+cmd | nice -n 5 sed 1q
+@@ bad/stdbuf-wrapper
+cmd | stdbuf -oL awk 'NR == 1 { exit }'
+@@ bad/time-wrapper-with-option
+cmd | time -p head -1
+@@ bad/nested-wrappers
+cmd | nice timeout 5 env LC_ALL=C grep -q x
+@@ bad/wrapper-then-path
+cmd | timeout 5 /usr/bin/head -1
+@@ bad/wrapper-argument-named-like-a-consumer
+cmd | env -u awk grep -q x
+@@ bad/if-consumer
+cmd | if grep -q x; then :; fi
+@@ bad/tee-into-process-substitution
+cmd | tee >(head -1) >/dev/null
+@@ bad/redirect-into-process-substitution
+cmd > >(grep -q x)
+@@ bad/while-read-break
+cmd | while IFS= read -r l; do
+  [ "$l" = x ] && break
+done
+@@ bad/while-read-break-one-line
+cmd | while read -r l; do break; done
+@@ bad/while-read-exit-in-case
+cmd | while read -r l; do
+  case $l in x) exit 1 ;; esac
+done
+@@ bad/until-loop-return
+f() {
+  cmd | until ! read -r l; do return; done
+}
+@@ bad/while-in-group-consumer
+cmd | { while read -r l; do break; done; }
+@@ bad/while-in-subshell-consumer
+cmd | ( while read -r l; do exit; done )
+@@ bad/while-on-the-next-line
+cmd |
+  while read -r l; do break; done
+@@ bad/while-break-after-inner-loop
+cmd | while read -r l; do
+  for x in a b; do :; done
+  break
+done
+@@ bad/while-break-2-from-inner-loop
+cmd | while read -r l; do for x in a; do break 2; done; done
+@@ bad/while-break-after-then
+cmd | while read -r l; do if [ -z "$l" ]; then break; fi; done
+@@ bad/consumer-later-in-a-piped-subshell
+cmd | ( echo start; head -1 )
+@@ bad/consumer-later-in-a-piped-group
+cmd | { echo start; grep -q x; }
+@@ bad/consumer-in-a-piped-if
+cmd | if true; then head -1; fi
+@@ bad/consumer-in-a-piped-else
+cmd | if false; then :; else sed 1q; fi
+@@ bad/consumer-in-a-piped-case
+cmd | case $1 in
+  a) head -1 ;;
+esac
+@@ bad/consumer-later-in-a-process-substitution
+cmd | tee >(echo start; head -1) >/dev/null
+@@ bad/loop-later-in-a-piped-group
+cmd | { echo start; while read -r l; do break; done; }
+@@ bad/consumer-after-a-nested-if-in-a-piped-group
+cmd | {
+  if true; then :; fi
+  head -1
+}
 @@ good/herestring
 grep -q foo <<<"$x"
 @@ good/or
@@ -527,6 +720,39 @@ cmd 2>&1 >|out | tr a b
 echo "${#x} ${x#*|}" | tr a b
 @@ good/head-as-producer
 head -n 1 file | tr -d '\0'
+@@ good/wrapper-around-draining-consumer
+cmd | timeout 5 grep -c x
+@@ good/path-to-draining-consumer
+cmd | /usr/bin/grep -v x | sort
+@@ good/wrapped-head-as-producer
+timeout 5 head -n 1 file | tr -d '\0'
+@@ good/xargs-runs-head-on-files
+cmd | xargs head -n 1
+@@ good/while-read-drains
+cmd | while IFS= read -r l; do printf '%s\n' "$l"; done
+@@ good/while-read-continue
+cmd | while read -r l; do [ -n "$l" ] || continue; echo "$l"; done
+@@ good/exit-after-the-piped-loop
+cmd | while read -r l; do
+  for x in a; do echo "$x"; done
+done
+exit 0
+@@ good/break-in-a-loop-not-piped
+while read -r l; do break; done <file
+@@ good/exit-in-a-substitution-in-the-loop
+cmd | while read -r l; do v="$(exit 1)"; done
+@@ good/input-process-substitution
+cmd | diff - <(head -n 1 file)
+@@ good/tee-into-draining-process-substitution
+cmd | tee >(sort >out) >/dev/null
+@@ good/consumer-after-a-piped-group-ends
+cmd | { cat; }
+head -n 1 file
+@@ good/consumer-after-a-piped-if-ends
+cmd | if true; then cat; fi
+head -n 1 file
+@@ good/consumer-in-a-group-not-piped
+{ echo start; head -n 1 file; }
 CASES
 
 TAB=$'\t'
@@ -556,14 +782,26 @@ done
 for off in '# set -o pipefail' 'set +o pipefail' 'set -eu' 'echo set -o pipefail'; do
   if grep -qE "$PIPEFAIL_RE" <<<"$off"; then echo "FAIL — self-test: PIPEFAIL_RE matches '$off'."; exit 1; fi
 done
+# EXEMPT, through the lexer and the same resolve() the scan uses. Each case gives how many FAIL
+# lines it must print: an entry covers one site, and its needle must name that site's consumer.
+ex="$tmp/exempt"; mkdir "$ex"
+printf '%s\n' 'a="$(cmd | head -1 || true)"' >"$ex/one"
+printf '%s\n' 'a="$(cmd | head -1 || true)"; b="$(cmd | head -1 || true)"' >"$ex/two"
+printf '%s\n' 'a="$(cmd | head -1 || true)"; b="$(cmd | sed 1q || true)"' >"$ex/pair"
+printf '%s\n' 'v() { sed -n 1p "$1" | head -1; }' >"$ex/unnamed"
+exempt_case() {  # <FAIL lines wanted> <what a mismatch means> <file> <entry>...
+  local want="$1" what="$2" f="$3" out got; shift 3
+  out="$(resolve "$@" <<<"$(LC_ALL=C awk "$LEXER" "$f")")"
+  got="$(grep -c '^FAIL' <<<"$out")"
+  [ "$got" = "$want" ] || { echo "FAIL — self-test: EXEMPT $what ($got FAIL line(s), not $want):"; sed 's/^/    /' <<<"$out"; exit 1; }
+}
+exempt_case 0 'misses its one site' "$ex/one" "$ex/one"'| | head -1 || true)"'
+exempt_case 1 'covers a second site on its line' "$ex/two" "$ex/two"'| | head -1 || true)"'
+exempt_case 0 'entries cannot cover two sites on one line' "$ex/pair" "$ex/pair|a=\"\$(cmd | head -1" "$ex/pair|b=\"\$(cmd | sed 1q"
+exempt_case 2 'covers a site its needle does not name' "$ex/unnamed" "$ex/unnamed|v() { sed -n"
 
 # --- scan ---------------------------------------------------------------------------------------
-all_scripts="$(discover)"
-if [ "$(grep -c . <<<"$all_scripts")" -lt 10 ]; then
-  echo "FAIL — discovery found fewer than 10 shell scripts; it cannot have run correctly."
-  echo "Run this from a checkout or an unpacked handoff zip, with find and head on PATH."
-  exit 1
-fi
+all_scripts="$(bash scripts/list_shell_scripts.sh)" || { printf '%s\n' "$all_scripts"; exit 1; }
 SCOPE=()
 while IFS= read -r f; do
   grep -qE "$PIPEFAIL_RE" -- "$f"; grc=$?
@@ -584,39 +822,7 @@ if [ "$lrc" -ne 0 ]; then
   exit 1
 fi
 
-rc=0
-used=()
-exempted=0
-while IFS=$'\t' read -r f ln kind; do
-  [ -n "$f" ] || continue
-  if [ "$ln" = 0 ]; then
-    echo "FAIL — $f: cannot lex it (${kind#PARSE: }). Fix the script, or teach this guard the construct."
-    rc=1; continue
-  fi
-  src="$(sed -n "${ln}p" <"$f")"
-  hit=""
-  for i in "${!EXEMPT[@]}"; do
-    e="${EXEMPT[$i]}"
-    if [ "${e%%|*}" = "$f" ] && [[ "$src" == *"${e#*|}"* ]]; then hit="$i"; break; fi
-  done
-  if [ -n "$hit" ]; then
-    used+=("$hit"); exempted=$((exempted + 1)); continue
-  fi
-  echo "FAIL — $f:$ln pipes into an early-exit consumer ($kind) under pipefail:"
-  echo "    ${src#"${src%%[![:space:]]*}"}"
-  rc=1
-done <<<"$found"
-if [ "$rc" -ne 0 ]; then
-  echo "Past ~64 KiB of output the producer dies of SIGPIPE/EPIPE and pipefail reports it. Capture"
-  echo "once and match a herestring (grep -q x <<<\"\$v\"), or use a consumer that reads to EOF"
-  echo "(awk 'NR==1'). If the status provably cannot matter, add the site to EXEMPT in $0 with a reason."
-fi
-
-for i in "${!EXEMPT[@]}"; do
-  case " ${used[*]:-} " in *" $i "*) continue ;; esac
-  echo "FAIL — stale EXEMPT entry in $0 (it matches no flagged site): ${EXEMPT[$i]}"
-  rc=1
-done
+resolve ${EXEMPT[@]+"${EXEMPT[@]}"} <<<"$found"; rc=$?
 
 [ "$rc" = 0 ] && echo "OK — no early-exit pipe under pipefail in ${#SCOPE[@]} scripts (${exempted} exempt, each with a reason in $0)."
 exit $rc
