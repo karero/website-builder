@@ -97,7 +97,8 @@ need is the actual mistake.**
 (free), **unmetered bandwidth**. → You will *never* hit these at 50 pages. Effectively unlimited.
 
 ### Tier 2 — Static Astro + Cloudflare Pages Functions / Server Islands  ← light dynamic
-**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails,
+**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails
+(the `website-forms` skill builds exactly this),
 site search, live-stats widget, gated content, webhook receiver, proxy to hide an API key, light A/B.
 **How:** keep the site static; add `functions/*.ts` (Pages Functions) or Astro **server islands**
 for just the dynamic fragment. Add **Workers KV** for tiny state (flags, counters, cached responses).
@@ -202,7 +203,8 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 1. **How many pages, and what content types?** (flat pages vs. repeated collections → Content Collections.)
 2. **Any dynamic/backend features?** → pick the tier:
    - None → **Tier 1** static.
-   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands).
+   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands;
+     a contact form that emails the owner: the **`website-forms`** skill).
    - Accounts / DB / checkout / per-request SSR → **Tier 3** (Workers + D1) — or off-platform if it
      trips a Part-3 escape hatch.
 3. **Who edits content after launch?** You/Claude Code (default, no CMS) vs. non-technical client
