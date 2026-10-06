@@ -79,7 +79,7 @@ if ($c !~ /\S/) { print STDERR "Error: HTTP $code: the reply holds no text", ($t
 # Keep what follows the LAST marker that ends a line and has findings-shaped text after it: a
 # marker repeated at the end, or quoted in a fence after the review, must not win. Markdown
 # around the marker (bold, a heading, a quote, backticks) is allowed. The marker need not start
-# its line: GLM glued it to the end of its last line of reasoning (#165, round 16c), and a trace
+# its line: the ollama seat model glued it to the end of its last line of reasoning (#165, round 16c), and a trace
 # can restate the ask, marker and all, before that. A marker that looks quoted is skipped: one
 # after other text on a finding line or right after a backtick, or one just inside a fence, so
 # a finding that quotes the marker does not cut the findings above it. A cut at a marker after

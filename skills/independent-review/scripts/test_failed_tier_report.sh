@@ -406,7 +406,7 @@ check "listfail: summary names the preflight" has listfail.out "ollama-cloud FAI
 run listfailauto CODEX_STUB=ok OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff"
 check "listfailauto: skipped, with the startup note on stderr" has listfailauto.err "'ollama list' failed — cannot auto-detect"
 check "listfailauto: summary says SKIPPED" has listfailauto.out "reviewers: codex OK, ollama SKIPPED (not available)"
-check "listfailauto: the note fits a skip, not a failure (round 2, kimi)" has listfailauto.out "the standard pair did not both run"
+check "listfailauto: the note fits a skip, not a failure (round 2, ollama)" has listfailauto.out "the standard pair did not both run"
 check "listfailauto: no pointer to a FAILED section that is not there" lacks listfailauto.out "each FAILED section above"
 
 # 11. Escapes outside the simple ESC[..letter shape are stripped too.
@@ -415,7 +415,7 @@ check "oddesc: the error text survives" has oddesc.out "    Error: bad model"
 check "oddesc: no escape bytes reach stdout" lacks oddesc.out $'\033'
 check "oddesc: no BEL reaches stdout" lacks oddesc.out $'\007'
 
-# 12. stderr cut mid-glyph (tail -c cuts on bytes) must not kill the quote (round 2, Fable).
+# 12. stderr cut mid-glyph (tail -c cuts on bytes) must not kill the quote (round 2, fresh-eyes).
 run utf8cut CODEX_STUB=ok OLLAMA_STUB=utf8cut bash "$SCRIPT" "$T/change.diff"
 check "utf8cut: the error is still quoted" has utf8cut.out "    Error: 429 Too Many Requests: weekly usage limit reached"
 check "utf8cut: and classified as quota" has utf8cut.out "reviewers: codex OK, ollama-cloud FAILED (exit 1; quota/rate limit: wait or add credits)"
@@ -441,7 +441,7 @@ for m in $bq_modes; do
 done
 
 # 13. A reply rejected as not a review: its own outcome, never quota or setup advice,
-#     even with an error-shaped 429 line in it (round 2, Fable; the other branch's reviewers).
+#     even with an error-shaped 429 line in it (round 2, fresh-eyes; the other branch's reviewers).
 run notreview CODEX_STUB=ok OLLAMA_STUB=notreview bash "$SCRIPT" "$T/change.diff"
 check "notreview: exit 0 (codex counted)" rc_is notreview 0
 check "notreview: FAILED section" has notreview.out "## Independent review — ollama-cloud — FAILED"
@@ -471,7 +471,7 @@ check "oddbody: no escape bytes" lacks oddbody.out $'\033'
 run strayesc CODEX_STUB=ok OLLAMA_STUB=strayesc bash "$SCRIPT" "$T/change.diff"
 check "strayesc: FAILED, not a truncated review" has strayesc.out "reviewers: codex OK, ollama-cloud FAILED (output filter failed (exit 4))"
 
-# 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, kimi).
+# 18. "disk quota exceeded" is a setup failure, not a provider refusal (round 2, ollama).
 run diskquota CODEX_STUB=diskquota bash "$SCRIPT" "$T/change.diff"
 check "diskquota: not read as a provider quota" has diskquota.out "reviewers: codex FAILED (exit 1), ollama-cloud OK"
 
@@ -1039,7 +1039,7 @@ MK=stub-melious-secret
 run mbody MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbody: default budget 96000 and the final-review marker ask" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /holds exactly === FINAL REVIEW [0-9a-f]{8,} ===/)' "$T/mbody.marks/melious-body"
-check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, glm)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
+check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, ollama)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
 run mbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
   perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; exit !(decode_json(<$f>)->{max_tokens} == 48000)' "$T/mbudget.marks/melious-body"
@@ -1079,7 +1079,7 @@ check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped
 run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
 run mglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=glued bash "$SCRIPT" "$T/change.diff" --seat melious
-check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, glm)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
+check "mglued: a marker glued to the end of a reasoning line still cuts there (round 16c, ollama)" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "Thinking it over" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mglued.out"
 check "mglued: a cut at a glued marker says so" grep -qF "the marker ended a line of other text" "$T/mglued.out"
 run mechoglued MELIOUS_MODEL=stub-melious MELIOUS_STUB=echoglued bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mechoglued: reasoning that restates the marker on a line of its own, then glues the real one: cut at the glued one, and said" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "More reasoning" "$1" && grep -qF "the marker ended a line of other text" "$1"' _ "$T/mechoglued.out"
@@ -1131,7 +1131,7 @@ check "mstale2: a reused raw dir does not lend it the old count, nor the old mel
   sh -c 'grep -qE "^timings: melious [0-9]+s$" "$1" && ! grep -qF "melious finding one" "$2"' _ "$T/mstale2.out" "$T/mstale.raw/melious.full"
 
 # Real curl, not the stub: the key reaches curl only through `-H @-` (stdin), and the stub
-# implements that itself, so it cannot prove real curl honours it (round 5, glm). A local
+# implements that itself, so it cannot prove real curl honours it (round 5, ollama). A local
 # server records the Authorization header of a keyed call and of a keyless one.
 REAL_CURL="$(command -v curl || true)"
 # python3 must be able to serve, not merely exist (a stock Mac's /usr/bin/python3 can be a stub).
@@ -1171,7 +1171,7 @@ PY
   if [ ! -s "$T/echo.port" ]; then
     echo "real-curl cases: the local server wrote no port in 30 s; its stderr:"; sed 's/^/    /' "$T/echo.err"
     kill -0 "$echo_pid" 2>/dev/null && echo "    (the server process is still running)" || echo "    (the server process has exited)"
-    # One clear failure, not six curl errors against an empty port (round 8, glm).
+    # One clear failure, not six curl errors against an empty port (round 8, ollama).
     echo "FAIL real-curl cases: no local server, so none of them ran"; fails=$((fails+1))
   else
     RC_PATH="$(dirname "$REAL_CURL"):/usr/bin:/bin"

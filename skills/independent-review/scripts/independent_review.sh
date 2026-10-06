@@ -967,7 +967,7 @@ NOT_A_REVIEW="output is not a review"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
-# (round 2, kimi).
+# (round 2, ollama).
 QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits)|exceeded your( current)? quota'
 why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
   if [ "$1" -ne 0 ]; then WHY="exit $1"; else WHY="exit 0 but no output"; fi
@@ -980,7 +980,7 @@ why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
 # NOT emulated (run_ollama's filter does that for the review body), so a quoted
 # redrawn line may keep fragments. Decoding substitutes U+FFFD for bad bytes rather
 # than failing: `tail -c` cuts on a byte, often inside a 3-byte spinner glyph, and a
-# strict or -C decode then kills perl and loses the quote (round 2, Fable).
+# strict or -C decode then kills perl and loses the quote (round 2, fresh-eyes).
 readable_tail() {
   [ -s "$1" ] || return 0
   tail -c 65536 "$1" | perl "$PERL_DIR/readable_tail.pl" 2>/dev/null

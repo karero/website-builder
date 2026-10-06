@@ -180,7 +180,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
 > `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
-> `.nvmrc`, `.claude/settings.json`, and `.claude/hooks/git-stand.mjs`) are **frozen
+> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `.claude/settings.json`, and `.claude/hooks/git-stand.mjs`) are **frozen
 > one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
@@ -268,7 +268,7 @@ skills/            the suite skills (canonical)
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
                    consistency audit, trap-test → wedge → guard-tests method)
-  astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
+  astro-i18n-setup, keystatic-setup, website-forms   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -280,7 +280,9 @@ scripts/
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
+  test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+  test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
@@ -298,8 +300,8 @@ docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do n
 
 ### Opt-in and on-demand setup skills
 
-Three skills are **not run** by the default build — the orchestrator copies the first two
-into a site only when the decision interview calls for them; the third travels with every
+Four skills are **not run** by the default build — the orchestrator copies the first three
+into a site only when the decision interview calls for them; the fourth travels with every
 site (like `website-motion`) but runs only when a team forms:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
@@ -314,6 +316,13 @@ site (like `website-motion`) but runs only when a team forms:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
+- **`website-forms`** — adds a **contact form** that mails each message to the owner
+  through the site's own Cloudflare account, with no third company in between: a form
+  component in English and German (another language is one file to translate and a few
+  words for its test), one small server function, a privacy paragraph in English and
+  German, and a test of the submission. It stores nothing. Needs the domain's DNS at
+  Cloudflare and four settings only the owner can create. Run when interview Q2 = *a form that emails
+  you*, or later when the owner asks for a form.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
@@ -324,7 +333,8 @@ site (like `website-motion`) but runs only when a team forms:
   first, pull request instead of a push, never invent facts, the new-page checklist) — this
   skill adds only what a team needs. Run once, when the second person joins.
 
-A site with one language, a developer-edited repo and a single owner runs none of them.
+A site with one language, a developer-edited repo, no contact form and a single owner runs
+none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
