@@ -138,10 +138,11 @@ git config --global fetch.prune true   # once per machine; use --local to scope 
 ```
 
 Then let GitHub warn you about security holes in the site's building blocks (the npm
-packages it installs) and send the fix as a pull request. Both are free on every plan, but
-a private repo starts with them off. A fix pull request is checked by CI like any other;
-merge it once it is green. Run this in the site's folder; it works the same for a site
-you already have.
+packages it installs) and, where a fixed version exists, send the fix as a pull request.
+When none can be applied, the warning still shows under the repo's **Security** tab.
+Both are free on every plan, but a private repo starts with them off. A fix pull request
+is checked by CI like any other; merge it once it is green. Run this in the site's
+folder; it works the same for a site you already have.
 ```bash
 gh repo view --json nameWithOwner --jq '"repo: \(.nameWithOwner)"'   # check: your site?
 gh api -X PUT "repos/{owner}/{repo}/vulnerability-alerts"        # Dependabot alerts
