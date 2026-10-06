@@ -107,9 +107,11 @@ Known limits, on purpose:
   that still carries one is not refused there (CI turns red afterwards). That was so
   before this test; the hard stop belongs to the same publish step.
 - The starter's own example values (the name "Example", `hello@example.com`) and the
-  slots in `public/llms.txt` are not caught. Both would put one more entry on the
+  bracket slots in `public/llms.txt` are not caught (a leftover `example.com` in
+  `llms.txt` already fails in `tests/seo.spec.ts`). Both would put one more entry on the
   exemption list from the first commit. **Decided 2026-10-06:** catch them once
-  `SITE.url` is no longer `example.com`, exact values only (decision row). Not built.
+  `SITE.url` is no longer `example.com`, exact values only, the starter's default home
+  title and description included (decision row). Not built.
 - The rule for slots is "an opening bracket followed by a capital letter", plus
   brackets opening with a typical slot word in small letters ("[your name]"). Genuine
   text of that shape (a "[PDF]" label, an editor's note in a quote) has to be
@@ -136,13 +138,20 @@ Done when row 2 has been seen on a real site. The rule is a repository setting:
 
 Not built yet for two reasons. GitHub's exact refusal message is needed for row 4
 (`ship.sh` today recognises a rejected push only in its non-fast-forward wording), and
-a runbook for the live branch should not ship on documentation alone.
+a runbook for the live branch should not ship on documentation alone. **Decided
+2026-10-06:** the message comes from a throwaway public repo the owner creates, with
+the same ruleset; the probe also pushes a green `main` and checks that `production`
+moved (row 3). Row 2 on a real site still closes the step.
 
 ### A3. Deeper message checks (rules chosen 2026-10-06, not built)
 
-- Two pages share the same title or the same description: a hard test.
-- A content page has no positioning term: a warning on a draft, a hard test once
-  `SITE.url` is no longer `example.com`.
+- Two pages share the same title or the same description: a hard test, over the page
+  list, comparing pages within one language, with an exempt set as the social-card
+  test has.
+- A content page has no positioning term: a warning in the test run, a hard stop in
+  the publish step (A2). Not in CI: a live site's preview already carries the real
+  `SITE.url`, so a URL switch cannot tell a draft from a launch. A site with no
+  positioning terms declared stays exempt, as today.
 - The home page's headline is a greeting ("Welcome", "Willkommen") instead of the
   offer: stays a warning, because a word list misfires across languages.
 
