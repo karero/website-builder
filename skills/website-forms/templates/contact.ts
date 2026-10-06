@@ -25,6 +25,11 @@
 //
 // Typed with minimal local interfaces, like functions/_middleware.ts, so it compiles
 // under the project's strict tsconfig without @cloudflare/workers-types.
+//
+// What visitors read, the owner's mail lines and the limits live in
+// src/components/contact-form.ts, shared with the form: a translation edits that file.
+import { LIMITS, MAIL, TEXT, hasText } from '../../src/components/contact-form';
+
 export interface Env {
   CONTACT_TO?: string;
   CONTACT_FROM?: string;
@@ -34,7 +39,6 @@ export interface Env {
 export type Message = { to: string; from: string; reply_to: string; subject: string; text: string };
 export type Send = (message: Message, env: Required<Env>) => Promise<boolean>;
 
-export const LIMITS = { name: 100, email: 254, message: 5000 };
 // The hidden field's name. Deliberately not "website", "url" or "company": a browser
 // or a password manager may fill those for a real visitor, whose message would then be
 // dropped. Keep it in step with ContactForm.astro.
@@ -172,8 +176,8 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
         from: CONTACT_FROM,
         reply_to: email,
         // By characters, not code units, so a name cannot be cut in the middle of one.
-        subject: Array.from(`Website message from ${name}`).slice(0, 120).join(''),
-        text: `Name: ${name}\nEmail: ${email}\n\n${message}\n`,
+        subject: Array.from(`${MAIL.subject}${name}`).slice(0, 120).join(''),
+        text: `${MAIL.name}: ${name}\n${MAIL.email}: ${email}\n\n${message}\n`,
       },
       { CONTACT_TO, CONTACT_FROM, CF_ACCOUNT_ID, CF_EMAIL_TOKEN },
     );
@@ -188,27 +192,6 @@ export async function decide(request: Request, env: Env, send: Send = sendViaClo
   }
   return { outcome: sent ? { status: 200, body: { ok: true } } : { status: 502, body: { ok: false, error: 'send_failed' } }, lang };
 }
-
-// What a visitor without JavaScript reads after sending. No form of address, so it
-// fits a "du" site and a "Sie" site alike. On a failure it sends them back to the
-// form, where the address to write to is always shown, and by the browser's own Back
-// button: the link under the sentence loads the page afresh.
-const PLAIN: Record<string, { title: string; sent: string; invalid: string; failed: string; back: string }> = {
-  en: {
-    title: 'Contact',
-    sent: 'Thank you. The message has been sent.',
-    invalid: 'Some details are missing or not valid. Please use the Back button of the browser and check them.',
-    failed: 'The message could not be sent. Please use the Back button of the browser: the address to write to is shown with the form.',
-    back: 'Back to the website',
-  },
-  de: {
-    title: 'Kontakt',
-    sent: 'Danke. Die Nachricht wurde gesendet.',
-    invalid: 'Einige Angaben fehlen oder sind ungültig. Bitte mit der Zurück-Taste des Browsers zurückgehen und prüfen.',
-    failed: 'Die Nachricht konnte nicht gesendet werden. Bitte mit der Zurück-Taste des Browsers zurückgehen: Die Adresse für eine direkte Nachricht steht beim Formular.',
-    back: 'Zurück zur Website',
-  },
-};
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -234,8 +217,10 @@ export async function handle(request: Request, env: Env, send: Send = sendViaClo
   if ((request.headers.get('accept') ?? '').includes('application/json')) {
     return new Response(JSON.stringify(outcome.body), { status: outcome.status, headers: { ...headers, 'content-type': 'application/json; charset=utf-8' } });
   }
-  const known = Object.hasOwn(PLAIN, lang) ? lang : 'en';
-  const t = PLAIN[known];
+  // A language the site has no texts for gets English: the form only ever sends one it
+  // has, so this is a post that did not come from it.
+  const known = hasText(lang) ? lang : 'en';
+  const t = TEXT[known].page;
   const line = outcome.body.ok ? t.sent : outcome.body.error === 'invalid' ? t.invalid : t.failed;
   const page =
     `<!doctype html><html lang="${known}"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +

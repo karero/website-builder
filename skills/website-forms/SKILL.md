@@ -54,12 +54,14 @@ privacy page). Neither is built by this skill.
 | File | From this skill's `templates/` | What it is |
 |---|---|---|
 | `functions/api/contact.ts` | `contact.ts` | the endpoint `POST /api/contact`: checks, bot trap, the mail call |
-| `src/components/ContactForm.astro` | `ContactForm.astro` | the form; English and German built in |
-| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out), the privacy text |
+| `src/components/ContactForm.astro` | `ContactForm.astro` | the form |
+| `src/components/contact-form.ts` | `contact-form.ts` | what the form and its answers say, in English and German; the lines of the owner's mail; the longest name, address and message it takes. The form and the function both import it, so a translation edits this file only |
+| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out) in every language of `contact-form.ts`, the privacy text |
 
 The templates are at `~/.claude/skills/website-forms/templates/` (Codex:
 `~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install all
-three: the test imports the function.
+four: the form and the function import `contact-form.ts`, and the test imports the
+function and `contact-form.ts`.
 
 ## 2. The owner's four settings (their Cloudflare dashboard)
 
@@ -105,7 +107,7 @@ preview address cannot send, and says so.
 
 ## 3. Install (on a branch, as a pull request: `AGENTS.md` §2)
 
-1. Copy the three files to the places in §1 (`mkdir -p functions/api` first).
+1. Copy the four files to the places in §1 (`mkdir -p functions/api` first).
 2. Put the form on a page, inside that page's `<Base>`:
    ```astro
    ---
@@ -121,16 +123,11 @@ preview address cannot send, and says so.
 3. Language: the form speaks the site's language (`SITE.locale`), or on a site with
    several languages the page's (`Astro.currentLocale`); `lang="de"` overrides. English
    and German are built in, with no form of address in German, so it fits a "du" site
-   and a "Sie" site. Another language: add it to `TEXT` in the component, to `PLAIN`
-   in the function and to `WORDS` in the spec (words for all four sentences). The tone
-   rules apply (`tests/tone.spec.ts`). The mail the owner receives is in English
-   ("Website message from …", "Name:", "Email:"): two strings in the function, to
-   change if the owner wants them in another language. Two checks in the spec's test
-   "a line break in the name cannot start a new mail header" then need changing too:
-   the exact subject takes the new prefix, and in the cut at 120 characters the name's
-   length (98) becomes 119 minus the new prefix's length, or that check can no longer
-   fail. A prefix whose JavaScript `.length` is under 21 leaves no name the form accepts
-   (100 at most) long enough to reach the cut: delete that check then.
+   and a "Sie" site. Any other language: "Add a language" below, before the form goes
+   on a page in it. A form in a language with no texts stops the build. The mail the
+   owner receives is in English ("Website message from …", "Name:", "Email:"), whatever
+   the visitor's language: `MAIL` in `contact-form.ts`, to change if the owner reads
+   mail in another language. The spec follows a new subject line by itself.
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
@@ -154,6 +151,53 @@ preview address cannot send, and says so.
 
 `npm run dev` and `astro preview` do not run Pages Functions, so the form cannot send
 from a local machine: there the tests stand in for the endpoint. The real check is §5.
+
+### Add a language
+
+For a form in any language but English and German: on a new site in that language, or
+when a site gains it later. Translate from the English, all of it in one go. The build
+and the spec fail until every part is in place, so a half-done translation never reaches
+a visitor.
+
+1. **Read the site's voice first.** Its `CONTENT_GUIDE.md` (in German the register, "du"
+   or "Sie") and the rules in `tests/tone.spec.ts`: no long dash in any language, and
+   the rules for the language itself if that file has any. Where the language allows,
+   do as the German texts do and address nobody, so the form fits whatever the site
+   later decides. Where that reads stiffly, use the site's own form of address.
+2. **The texts.** In `src/components/contact-form.ts`, copy the `en` entry of `TEXT`
+   under the language's two-letter code (the form uses the first part of a code only:
+   `fr`, not `fr-CA`) and translate every value. `npm run check` fails while one is
+   missing.
+
+   | Key | Where the visitor reads it |
+   |---|---|
+   | `name`, `email`, `message`, `send` | the three labels and the button |
+   | `note`, `privacyLink` | the line under the fields, and its link to the privacy page |
+   | `privacy` | not a text: the address of the privacy page in this language. Not used on a site with several languages, where each page passes `privacy` (§3 step 3) |
+   | `trap` | the label of the hidden field. Screen readers skip it and the page's styles hide it, but a browser without those styles shows it |
+   | `sending`, `sent`, `invalid`, `failed` | the status line after a visitor presses the button. `failed` points to the address under the form |
+   | `direct` | the words before the address under the form |
+   | `page.title`, `page.sent`, `page.invalid`, `page.failed`, `page.back` | the small page a visitor without JavaScript gets back. Its `invalid` and `failed` send them back with the browser's own Back button |
+3. **The test's words.** In `WORDS` in `tests/forms.spec.ts`, add the language with
+   words for all four status sentences: for each, a word or two that only that sentence
+   has (English: "Sending", "has been sent", "not valid", "could not be sent"). The spec
+   holds every sentence, in every language of `contact-form.ts`, against all of these: it
+   fails while the language is missing, when a sentence lacks its own words, and when it
+   carries another sentence's. A site with more than one copy of the spec adds the line
+   to each.
+4. **The privacy page in that language** gets the paragraph from §4, translated, marked
+   `data-privacy-contact-form` and naming Cloudflare. Like the English and German ones
+   it is a baseline, not legal advice: say so to the owner.
+5. **The owner's mail**, only if the owner reads mail in this language: `MAIL` in
+   `contact-form.ts`, the start of the subject line and the two labels.
+6. **The page and its test**, as in §3 steps 2, 3 and 5: `lang` and `privacy` where the
+   form's page needs them, and a copy of the spec for that page with its `PAGE` and
+   `PRIVACY`. On a site in that language only, the one `tests/forms.spec.ts` is that copy.
+7. `npm run check && npm test`. Then read the four status sentences and the answer page
+   against the tone rules yourself: `tests/tone.spec.ts` reads what is on the page, the
+   labels and the note, but not those. The checks catch a sentence in the wrong
+   language or one that says the wrong thing, not a clumsy one: if the owner speaks the
+   language, ask them to read the form once.
 
 ## 4. The privacy text
 
@@ -250,8 +294,10 @@ Only then is the form done.
   without JavaScript could not send. The starter's policy
   (`strict-origin-when-cross-origin`) is fine; on a site that changed it, look at
   `public/_headers` and for a `<meta name="referrer">` in the layout.
-- **This repo's CI builds the English form only.** The German texts were read against
-  the tone rules by hand; a site in German runs them through its own suite.
+- **This repo's CI builds an English form and a German one.** Each language's four
+  status sentences are held against its words on every run; the tone rules see the
+  labels and the note of both. The status sentences and the answer page were read
+  against the tone rules by hand.
 - **No file uploads, no newsletter sign-up.** Different problems (size limits, consent
   records); do not bend this form into them.
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { decide, handle, onRequestPost, sendViaCloudflare, LIMITS, TRAP, type Env, type Message } from '../functions/api/contact';
+import { decide, handle, onRequestPost, sendViaCloudflare, TRAP, type Env, type Message } from '../functions/api/contact';
+import { LIMITS, MAIL, TEXT } from '../src/components/contact-form';
 
 // Guards the contact form (the website-forms skill). `astro preview` never runs a
 // Cloudflare Pages Function, so the function is called directly, the way
@@ -23,13 +24,25 @@ const PRIVACY = '';
 // held against all of them: it must carry its own language's words for what it says,
 // and no language's words for any other sentence, so a thank-you beside a failure or an
 // English sentence on a German page fails. Two languages may share the words for the
-// same sentence. English and German are built in: add all four for any language added
-// to the component.
+// same sentence. English and German are built in. A language added to
+// src/components/contact-form.ts needs its words here too, all four: the spec fails
+// until they are.
 const WORDS: Record<string, Record<string, RegExp>> = {
   en: { 'data-sending': /Sending/, 'data-sent': /has been sent/, 'data-invalid': /not valid/, 'data-failed': /could not be sent/ },
   de: { 'data-sending': /Wird gesendet/, 'data-sent': /wurde gesendet/, 'data-invalid': /ungültig/, 'data-failed': /konnte nicht gesendet/ },
 };
 const SENTENCES = ['data-sending', 'data-sent', 'data-invalid', 'data-failed'];
+
+// Holds one sentence against all of WORDS: `is` names what it says, `lang` its language.
+// It must carry that language's words for `is`, and no language's words for anything else.
+function saysOnly(sentence: string, is: string, lang: string, where: string) {
+  for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
+    for (const [name, words] of Object.entries(byOutcome)) {
+      if (name === is && wordsOf !== lang) continue;
+      expect(words.test(sentence), `${where}: ${is} and the ${wordsOf} words for ${name}`).toBe(name === is);
+    }
+  }
+}
 
 const ENV: Env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc', CF_EMAIL_TOKEN: 'tok' };
 const GOOD = { name: 'Ada Lovelace', email: 'ada@example.org', message: 'Hello, do you have time in May?', [TRAP]: '', lang: 'en' };
@@ -188,16 +201,25 @@ test('contact — a line break in the name cannot start a new mail header', asyn
     expect(message.text.split('\n')[0], 'the name line of the mail').not.toMatch(/[\p{Cc}\p{Zl}\p{Zp}\u202A-\u202E\u2066-\u2069]/u);
   }
   // Each run of such characters became one space, wherever it stood in the name.
-  expect(sent[1].subject).toBe('Website message from Ada  Love lace Bcc: eve x y z');
+  expect(sent[1].subject).toBe(`${MAIL.subject}Ada  Love lace Bcc: eve x y z`);
   // A name made of nothing else is no name.
   const none = recorder();
   expect((await handle(post({ ...GOOD, name: '\u0000\u0001' }), ENV, none.send)).status).toBe(400);
   expect(none.sent).toHaveLength(0);
-  // A long name with a two-unit character at the cut is not split in half.
+  // A long name with a two-unit character at the cut (120) is not split in half. The
+  // name puts that character exactly on the cut: 119 units before it, prefix included.
+  // A prefix shorter than 21 (JavaScript length) leaves no name the form takes long
+  // enough to reach the cut; then the longest one it takes goes into the subject whole.
   const long = recorder();
-  // 21 characters of prefix and 98 of name put the two-unit character exactly on the cut.
-  await handle(post({ ...GOOD, name: 'x'.repeat(98) + '😀' }), ENV, long.send);
-  expect(long.sent[0].subject).not.toMatch(/[\uD800-\uDBFF]$/);
+  const before = 119 - MAIL.subject.length;
+  if (before <= LIMITS.name - 2) {
+    await handle(post({ ...GOOD, name: 'x'.repeat(before) + '😀' }), ENV, long.send);
+    expect(long.sent[0].subject).not.toMatch(/[\uD800-\uDBFF]$/);
+  } else {
+    const longest = 'x'.repeat(LIMITS.name - 2) + '😀';
+    await handle(post({ ...GOOD, name: longest }), ENV, long.send);
+    expect(long.sent[0].subject).toBe(MAIL.subject + longest);
+  }
 });
 
 test('contact — a bot that fills the hidden field gets a thank-you and nothing is sent', async () => {
@@ -290,6 +312,17 @@ test('contact — a post that names another origin is refused, one that names no
   expect(sent).toHaveLength(1);
 });
 
+test('contact — every language the form speaks has its words here, and says each thing in them', () => {
+  // Every language in src/components/contact-form.ts, not only the one on this site's
+  // page: a translation is checked the moment it is added.
+  const said = { 'data-sending': 'sending', 'data-sent': 'sent', 'data-invalid': 'invalid', 'data-failed': 'failed' } as const;
+  for (const [lang, text] of Object.entries(TEXT)) {
+    expect(Object.hasOwn(WORDS, lang), `WORDS lists "${lang}", a language of src/components/contact-form.ts`).toBe(true);
+    expect(Object.keys(WORDS[lang]).sort(), `WORDS.${lang} lists all four sentences`).toEqual([...SENTENCES].sort());
+    for (const is of SENTENCES) saysOnly(text[said[is as keyof typeof said]], is, lang, `${lang}: the form`);
+  }
+});
+
 test('contact — without JavaScript the visitor gets a small page in the form\'s language', async () => {
   const { send } = recorder();
   const ok = await handle(post({ ...GOOD, lang: 'de-AT' }, { accept: 'text/html' }), ENV, send);
@@ -309,12 +342,7 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
     };
     for (const [is, answerPage] of Object.entries(pages)) {
       expect(answerPage, `${lang}: the ${is} page`).toContain(`<html lang="${lang}">`);
-      for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
-        for (const [name, words] of Object.entries(byOutcome)) {
-          if (name === is && wordsOf !== lang) continue;
-          expect(words.test(answerPage), `${lang}: the ${is} page and the ${wordsOf} words for ${name}`).toBe(name === is);
-        }
-      }
+      saysOnly(answerPage, is, lang, `${lang}: the page`);
     }
   }
   // A language the page does not know, or a word that names something built in.
@@ -412,6 +440,10 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
     await expect(page.locator(`label[for="${id}"]`), `a visible label for #${id}`).toBeVisible();
     await expect(page.locator(`#${id}`)).toHaveAttribute('required', '');
   }
+  // The fields stop where the function's limits are, so nothing typed is refused for length.
+  for (const [id, limit] of [['contact-name', LIMITS.name], ['contact-email', LIMITS.email], ['contact-message', LIMITS.message]] as const) {
+    await expect(page.locator(`#${id}`), `#${id} stops at ${limit}`).toHaveAttribute('maxlength', String(limit));
+  }
   // The sentences the form's script chooses from are all there and all different: the
   // outcome tests below take the expected sentence from these same attributes.
   const sentences = await Promise.all(SENTENCES.map((name) => form.getAttribute(name)));
@@ -424,15 +456,7 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
   const pageLanguage = ((await page.locator('html').getAttribute('lang')) ?? '').toLowerCase().split('-')[0];
   expect(language, 'the form is in the language of its page').toBe(pageLanguage);
   expect(Object.hasOwn(WORDS, language), `the words of the form's language ("${language}") are in WORDS`).toBe(true);
-  for (const attribute of SENTENCES) {
-    const sentence = (await form.getAttribute(attribute)) ?? '';
-    for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
-      for (const [name, words] of Object.entries(byOutcome)) {
-        if (name === attribute && wordsOf !== language) continue;
-        expect(words.test(sentence), `${attribute} and the ${wordsOf} words for ${name}`).toBe(name === attribute);
-      }
-    }
-  }
+  for (const attribute of SENTENCES) saysOnly((await form.getAttribute(attribute)) ?? '', attribute, language, 'the form');
   const trap = page.locator(`[name="${TRAP}"]`);
   await expect(trap).toHaveCount(1);
   await expect(page.locator('.contact-form-trap')).toHaveAttribute('aria-hidden', 'true');
