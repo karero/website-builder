@@ -110,8 +110,8 @@ Known limits, on purpose:
   bracket slots in `public/llms.txt` are not caught (a leftover `example.com` in
   `llms.txt` already fails in `tests/seo.spec.ts`). Both would put one more entry on the
   exemption list from the first commit. **Decided 2026-10-06:** catch them once
-  `SITE.url` is no longer `example.com`, exact values only, the starter's default home
-  title and description included (decision row). Not built.
+  `SITE.url` is no longer `example.com`, exact values only, the legal name "Example GmbH"
+  and the starter's default home title and description included (decision row). Not built.
 - The rule for slots is "an opening bracket followed by a capital letter", plus
   brackets opening with a typical slot word in small letters ("[your name]"). Genuine
   text of that shape (a "[PDF]" label, an editor's note in a quote) has to be
