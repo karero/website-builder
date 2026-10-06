@@ -30,6 +30,9 @@
 # so an early exit cannot flip it. Discovery is list_shell_scripts.sh's, shared with
 # check_cdpath_safe.sh.
 #
+# It reads commands as they are written. A command name built at run time ($cmd, $'\x68ead',
+# eval "$prog") is not followed, any more than a script it calls.
+#
 # What it does not do: decide that a site's status is ignored. That judgement goes in EXEMPT,
 # one line of reason each, where a reviewer can see it.
 set -uo pipefail
@@ -205,8 +208,22 @@ function unlit(s,   n, i, c, out, last) {
   }
   return out
 }
-# A word as the shell runs it: quotes and backslashes go (`"break"` and `\head` still run).
-function unquote(w) { gsub(/["'\\]/, "", w); return w }
+# A word as the shell runs it: quotes, $'…' and $"…" markers and backslashes go (`"break"`,
+# `\head` and $'head' still run).
+function unquote(w) { gsub(/\$['"]/, "'", w); gsub(/["'\\]/, "", w); return w }
+# The length of the shell word x starts with: up to unquoted whitespace.
+function wordlen(x,   i, n, c, q) {
+  n = length(x); q = ""
+  for (i = 1; i <= n; i++) {
+    c = substr(x, i, 1)
+    if (q == "'") { if (c == "'") q = ""; continue }
+    if (q == "\"") { if (c == "\\") i++; else if (c == "\"") q = ""; continue }
+    if (c == "\\") { i++; continue }
+    if (c == "'" || c == "\"") { q = c; continue }
+    if (c ~ /[ \t\n]/) return i - 1
+  }
+  return n
+}
 # A command name as the shell runs it: unquoted, and a path cut to its last part, so
 # /usr/bin/head, \head and 'head' are all head.
 function cmdname(w) { w = unquote(w); sub(/.*\//, "", w); return w }
@@ -227,7 +244,9 @@ function check(x, ln, cl,   w, kind, n0, k, rl) {
   sub(/^[ \t\n]+/, "", x); n0 = length(x)
   for (;;) {
     if (match(x, /^(!|\{|if|then|else|elif|do)[ \t\n]+/)) { x = substr(x, RLENGTH + 1); continue }
-    if (match(x, /^[0-9]*(<|<<<|>|>>|>[|]|>&|<&|&>|&>>|<>)[ \t\n]*[^ \t\n]+[ \t\n]+/)) { x = substr(x, RLENGTH + 1); continue }
+    if (match(x, /^[0-9]*(<<<|<>|<&|<|>>|>[|]|>&|>|&>>|&>)[ \t\n]*/)) {
+      x = substr(x, RLENGTH + 1); x = substr(x, wordlen(x) + 1); sub(/^[ \t\n]+/, "", x); continue
+    }
     break
   }
   if (x ~ /^(while|until)([^A-Za-z0-9_=]|$)/) {
@@ -253,15 +272,17 @@ function check(x, ln, cl,   w, kind, n0, k, rl) {
   if (kind != "") flag(ln, cl + n0 - length(x), kind)
 }
 # Whether a loop condition c is one plain `read` (after `!` for until): the one condition that
-# ends only at end of input. Not with -t (a timeout ends it) or -u (it reads another fd).
-function plainread(c, inv,   a, n, k) {
-  sub(/^[ \t\n]+/, "", c)
+# ends only at end of input. An allow-list, so anything it does not know is flagged: simple
+# assignments (IFS= …), then `read` with only -r, -s, -e, -a, -d <word> and variable names. Not
+# -t (a timeout ends it), -u or a redirection (it reads elsewhere), nor a quoted option.
+function plainread(c, inv) {
+  sub(/^[ \t\n]+/, "", c); sub(/[ \t\n]+$/, "", c)
   if (inv) { if (!match(c, /^![ \t\n]+/)) return 0; c = substr(c, RLENGTH + 1) }
-  while (match(c, /^[A-Za-z_][A-Za-z0-9_]*=[^ \t\n]*[ \t\n]+/)) c = substr(c, RLENGTH + 1)
+  while (match(c, /^[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'[^']*'|\$'[^']*'|[^ \t\n"'<>|&;]*)[ \t\n]+/)) c = substr(c, RLENGTH + 1)
   if (c !~ /^read([ \t\n]|$)/) return 0
-  n = split(c, a, /[ \t\n]+/)
-  for (k = 2; k <= n; k++) if (a[k] ~ /^-[a-zA-Z]*[tu]/) return 0
-  return 1
+  c = substr(c, 5)
+  while (match(c, /^[ \t\n]+(-[rsea]*d[ \t\n]*('[^']*'|"[^"]*"|\$'[^']*'|[^ \t\n"'<>|&;]+)|-[rsea]+|[A-Za-z_][A-Za-z0-9_]*)/)) c = substr(c, RLENGTH + 1)
+  return c == ""
 }
 # Loops and compound commands, tracked for each command of a C frame. A frame is its own scope:
 # an exit inside $( ) or ( ) ends that subshell, not the loop around it.
@@ -271,11 +292,12 @@ function plainread(c, inv,   a, n, k) {
 # definition; closers `}`, `fi`, `esac` and `done`. Missing an opener is the miscount that could
 # miss, as its closer would end the watch around it early.
 # Loops: a piped while/until loop is watched (check()). A command before its `do` is one more
-# condition command (`read -r l && [ "$l" != END ]`), which can end the loop early. A break,
-# exit or return (also quoted, or behind command, builtin or eval) flags every open watch: even
-# one that only leaves an inner loop, since `break 2` leaves more. A `done` closes the watches
-# it ends.
-function structure(x,   w, k) {
+# condition command (`read -r l && [ "$l" != END ]`), which can end the loop early. Any word
+# that reads as break, exit or return once unquoted flags every open watch, wherever it stands:
+# `2>/dev/null break`, `eval $'break'` and `command exit` need no parsing, and `echo break` costs
+# a false alarm. Even one that only leaves an inner loop counts, since `break 2` leaves more. A
+# `done` closes the watches it ends.
+function structure(x,   w, k, a, n) {
   sub(/^[ \t\n]+/, "", x)
   if (x ~ /^do([ \t\n]|$)/) { for (k = 1; k <= nwat[d]; k++) wcond[d, k] = 0 }
   else for (k = 1; k <= nwat[d]; k++) if (wcond[d, k]) flagloop(k, "its condition has more than one command")
@@ -296,14 +318,10 @@ function structure(x,   w, k) {
     }
     x = substr(x, RLENGTH + 1)
   }
-  while (match(x, /^[A-Za-z_][A-Za-z0-9_]*=[^ \t\n]*[ \t\n]+/)) x = substr(x, RLENGTH + 1)
-  match(x, /^[^ \t\n;]*/); w = unquote(substr(x, 1, RLENGTH))
-  if (w ~ /^(command|builtin|eval)$/)
-    while (match(x, /[^ \t\n;]+/)) {
-      if (unquote(substr(x, RSTART, RLENGTH)) ~ /^(break|exit|return)$/) { w = unquote(substr(x, RSTART, RLENGTH)); break }
-      x = substr(x, RSTART + RLENGTH)
-    }
-  if (w ~ /^(break|exit|return)$/) for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
+  if (nwat[d] == 0) return
+  n = split(x, a, /[ \t\n]+/)
+  for (k = 1; k <= n; k++) { w = unquote(a[k]); if (w ~ /^(break|exit|return)$/) break }
+  if (k <= n) for (k = 1; k <= nwat[d]; k++) flagloop(k, w " on line " FNR)
 }
 # The kind of early-exit consumer x is, or "" for none; x starts at its command name.
 function kindof(x,   w, nw, k, kind) {
@@ -756,6 +774,20 @@ cmd | {
   f() { :; }
   head -1
 }
+@@ bad/read-with-a-quoted-timeout-option
+cmd | while read '-t' 1 l; do :; done
+@@ bad/read-from-another-file-in-the-condition
+cmd | while read -r l </dev/null; do :; done
+@@ bad/redirected-break
+cmd | while read -r l; do 2>/dev/null break; done
+@@ bad/ansi-c-quoted-break-in-eval
+cmd | while read -r l; do eval $'break'; done
+@@ bad/ansi-c-quoted-shell-program
+cmd | sh -c $'head -1'
+@@ bad/redirect-target-with-a-space
+cmd | 2>"a b" head -1
+@@ bad/break-as-an-argument-keeps-the-finding
+cmd | while read -r l; do echo break; done
 @@ good/herestring
 grep -q foo <<<"$x"
 @@ good/or
@@ -866,12 +898,12 @@ head -n 1 file
 echo for while
 cmd | while read -r l; do :; done
 exit 0
-@@ good/break-as-an-argument-in-a-piped-loop
-cmd | while read -r l; do echo break; done
 @@ good/while-read-with-ifs-and-options
 cmd | while IFS= read -r -d '' f; do printf '%s\n' "$f"; done
 @@ good/until-not-read
 cmd | until ! read -r l; do :; done
+@@ good/while-read-with-combined-options
+cmd | while IFS= read -rd '' f; do :; done
 CASES
 
 TAB=$'\t'
