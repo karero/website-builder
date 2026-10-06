@@ -179,51 +179,38 @@ jobs:
   # lf-checkout simulates a Windows checkout on Ubuntu; this is the real one. Git for Windows
   # converts to CRLF by default, and the root .gitattributes must keep this repo's scripts, the
   # site hook and the Makefile LF anyway. Node reads the bytes: a CR handed to grep through Git
-  # Bash flagged LF files as CRLF (template-tests.yml's verify-windows). A control repo with no
-  # .gitattributes must come out CRLF first, or this runner never converted and the job would
-  # pass whatever the rule says.
+  # Bash flagged LF files as CRLF (template-tests.yml's verify-windows). A canary checked out by
+  # the same action must come out CRLF first, or the action never converted here and the job
+  # would pass whatever the rule says.
   lf-checkout-windows:
     runs-on: windows-latest
     steps:
       - name: Convert to CRLF on checkout, as Git for Windows does by default
         run: git config --global core.autocrlf true
       - uses: actions/checkout@v7
+      # a7de280 is main just before #168: no .gitattributes anywhere, so nothing keeps it LF.
+      - name: Canary — the last commit without the rule, checked out by the same action
+        uses: actions/checkout@v7
+        with:
+          ref: a7de28013ced0df26a57614600ad4d4d9d288da4
+          path: canary
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-      - name: Control — without .gitattributes, this runner checks a script out with CRLF
+      - name: The canary's script came out CRLF, so this checkout converts
         shell: bash
         run: |
-          C="$RUNNER_TEMP/control"
-          git init -q "$C/src"
-          printf 'set -eu\necho ok\n' >"$C/src/a.sh"
-          git -C "$C/src" add a.sh
-          git -C "$C/src" -c user.name=ci -c user.email=ci@example.invalid commit -qm control
-          git clone -q "$C/src" "$C/clone"
           node -e '
-            const fs = require("fs");
-            // Written LF, so a CR in the clone can only come from the checkout converting it.
-            if (fs.readFileSync(process.argv[1]).includes(13)) {
-              console.log("::error::the control source was written with CRLF: it cannot show a conversion");
+            if (!require("fs").readFileSync(process.argv[1]).includes(13)) {
+              console.log("::error::the canary came out LF: actions/checkout did not convert here, so the check below would prove nothing");
               process.exit(1);
             }
-            if (!fs.readFileSync(process.argv[2]).includes(13)) {
-              console.log("::error::the control script came out LF: this runner does not convert, so the check below would prove nothing");
-              process.exit(1);
-            }
-            console.log("control: a script written LF, with no .gitattributes rule, came out CRLF");
-          ' "$C/src/a.sh" "$C/clone/a.sh"
+            console.log("canary: a script with no .gitattributes rule came out CRLF");
+          ' canary/scripts/check_clean.sh
       - name: This repo's shell scripts, the site hook and the Makefile checked out LF
         shell: bash
         run: |
-          # The control proves `git clone` converts here; this proves actions/checkout's own git
-          # checkout ran with conversion on (no local override). With no git on PATH, checkout
-          # downloads a zip instead and converts nothing: then there is no repo, and this fails.
-          autocrlf="$(git config --get core.autocrlf)" || true
-          [ "$autocrlf" = true ] || {
-            echo "::error::this checkout has core.autocrlf=${autocrlf:-unset}, not true: it did not convert"
-            exit 1
-          }
           git ls-files -z -- '*.sh' 'skills/new-website/templates/astro/scripts/hooks/*' Makefile \
             >"$RUNNER_TEMP/lf-files"
           node -e '
