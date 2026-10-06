@@ -64,6 +64,8 @@ REQUIRED=(
   scripts/test_clean_denylist.sh
   scripts/test_git_stand_hook.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
+  skills/independent-review/scripts/check_perl_minimum.sh
+  skills/independent-review/scripts/perl/melious_stream.pl
   docs/ANTIGRAVITY.md
   docs/ANTIGRAVITY-TEST.md
   docs/CODEX.md
