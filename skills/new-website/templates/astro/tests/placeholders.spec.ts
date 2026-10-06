@@ -55,7 +55,7 @@ const RULES: Rule[] = [
     re: /\b(?:your\s+(?:headline|tagline|copy)\s+(?:goes\s+)?here|(?:text|copy|content|headline)\s+goes\s+here|placeholder\s+(?:text|copy|content|image)|dummy\s+(?:text|copy|content)|(?:john|jane)\s+doe)\b/gi,
   },
   // German. \p{L} lookarounds instead of \b, which does not see ä/ö/ü/ß as letters
-  // (same reasoning as GERMAN_RULES in tone.spec.ts). "Mustertext" is not here: a
+  // (same reasoning as GERMAN_RULES in _helpers.ts). "Mustertext" is not here: a
   // site offering template letters uses it genuinely.
   {
     label: 'placeholder wording',

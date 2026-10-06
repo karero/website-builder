@@ -226,10 +226,11 @@ export const PAGES = ROUTES.flatMap((r) =>
   ),
 ) as readonly string[];
 ```
-Only the PAGES export changes — KEEP the file's other exports (`THEMES`,
-`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`): the tone and i18n specs
-import them, and replacing the whole file with just this snippet breaks the
-suite at compile time.
+Only the PAGES export changes — KEEP the rest of the file (`THEMES`,
+`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`, and `toneViolations` with the
+tone rules it reads): the tone and i18n specs, and a contact form's spec, import
+them, and replacing the whole file with just this snippet breaks the suite at compile
+time.
 With no `locales` overrides this yields the identical set as before — `/`,
 `/privacy`, `/de`, `/de/privacy` (route-major order instead of locale-major; every
 consumer sorts or iterates, so nothing observes the order). A sparse route appears
@@ -299,7 +300,8 @@ manual dist/sitemap-0.xml grep needed).
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
 positioning term is translated, so each locale owns its own phrase.
 
-`tests/tone.spec.ts` already branches on `<html lang>`: universal rules (the em-dash ban)
+`tests/tone.spec.ts` already branches on `<html lang>` (through `toneViolations` in
+`tests/_helpers.ts`): universal rules (the em-dash ban)
 always apply, and English-specific rules layer on top for `lang` starting `en`, German-
 specific rules layer on top for `lang` starting `de` — other languages get only the
 universal rules. No change needed.
