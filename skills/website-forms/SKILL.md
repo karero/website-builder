@@ -156,8 +156,9 @@ from a local machine: there the tests stand in for the endpoint. The real check 
 
 For a form in any language but English and German: on a new site in that language, or
 when a site gains it later. Translate from the English, all of it in one go. The build
-and the spec fail until every part is in place, so a half-done translation never reaches
-a visitor.
+stops on a form in a language with no texts, `npm run check` on a text left out, and
+the spec on a status sentence without its words. Nothing checks that the privacy
+paragraph was translated, nor the tone of what step 7 names: those are yours to read.
 
 1. **Read the site's voice first.** Its `CONTENT_GUIDE.md` (in German the register, "du"
    or "Sie") and the rules in `tests/tone.spec.ts`: no long dash in any language, and
