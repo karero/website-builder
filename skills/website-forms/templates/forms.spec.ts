@@ -621,6 +621,7 @@ test('contact — nothing can be typed while the message is on its way, so a suc
     // Astro scopes the form's styles to its own elements by an attribute: the added ones
     // get it too, as they would if the owner wrote them into the component.
     const scope = Array.from(document.getElementById('contact-name')!.attributes).filter((a) => a.name.startsWith('data-astro-cid'));
+    if (!scope.length) throw new Error('the form\'s fields carry no data-astro-cid attribute: the opacity checks below would prove nothing');
     for (const el of document.querySelectorAll('#added-phone, #added-agree, #added-ref')) for (const a of scope) el.setAttribute(a.name, a.value);
   });
   const typeable = ['#contact-name', '#contact-email', '#contact-message', '#added-phone'];
@@ -636,6 +637,7 @@ test('contact — nothing can be typed while the message is on its way, so a suc
   // The visitor goes on typing while the answer is held back.
   for (const id of typeable) await expect(page.locator(id)).not.toBeEditable();
   expect(await opacity('#contact-message'), 'a locked field is dimmed').toBe('0.7');
+  expect(await opacity('#added-phone'), 'an added field is reached by the form\'s styles and dimmed too').toBe('0.7');
   expect(await opacity('#added-ref'), 'a field read-only on purpose is not dimmed').toBe('1');
   await page.locator('#contact-message').press('End');
   await page.keyboard.type(' And in June?');
@@ -651,6 +653,7 @@ test('contact — nothing can be typed while the message is on its way, so a suc
     await expect(page.locator(id)).toHaveValue('');
   }
   expect(await opacity('#contact-message'), 'no longer dimmed').toBe('1');
+  expect(await opacity('#added-phone'), 'no longer dimmed').toBe('1');
   await expect(page.locator('#added-ref'), 'read-only on purpose, still read-only').not.toBeEditable();
 });
 
@@ -676,7 +679,7 @@ test('contact — a send that gets no answer gives up after 15 seconds and gives
   await page.clock.runFor(1);
   const failed = await page.locator('#contact-form').getAttribute('data-failed');
   await expect(page.locator('#contact-form [role="status"]')).toHaveText(failed!);
-  await expect(page.locator('#contact-message')).toBeEditable();
+  for (const id of ['#contact-name', '#contact-email', '#contact-message']) await expect(page.locator(id)).toBeEditable();
   await expect(page.locator('#contact-message')).toHaveValue('Hello, do you have time in May?');
 });
 

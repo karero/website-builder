@@ -81,9 +81,13 @@ const privacy = Astro.props.privacy ?? t.privacy;
     const status = form.querySelector<HTMLElement>('[data-contact-status]')!;
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     // Every field read-only works on, found when the form is sent, so a field added later
-    // is locked too. It does nothing on a checkbox, a radio button, a file, a range, a
-    // colour or a select: a field of one of those kinds needs a lock of its own.
-    const typeable = 'input:not([type="hidden"], [type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="submit"], [type="reset"], [type="button"], [type="image"]), textarea';
+    // is locked too. Left out: the kinds read-only does nothing on, which are hidden
+    // fields, buttons (submit, reset, button, image), a checkbox, a radio button, a file,
+    // a range and a colour, and a select is not an input at all. One of those that needs
+    // locking needs a lock of its own. One :not() per kind: a list inside a single :not()
+    // is newer and an older browser would throw on it.
+    const typeable = ['hidden', 'submit', 'reset', 'button', 'image', 'checkbox', 'radio', 'file', 'range', 'color']
+      .reduce((selector, kind) => `${selector}:not([type="${kind}"])`, 'input') + ', textarea';
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       status.textContent = form.dataset.sending ?? '';
