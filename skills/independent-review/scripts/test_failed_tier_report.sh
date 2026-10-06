@@ -1266,8 +1266,35 @@ check "oldcli: an old Perl still runs the ollama CLI tier, it counts, and no ver
 check "the ollama CLI output filter (its Perl program) uses no //" \
   sh -c 'prog=$(sed -n "/^ollama_via_cli() {/,/^}/p" "$1" | sed -n "/perl -0777 -ne '\''/,/^  '\'' \"\$tmp\"/p" | grep -v "^[[:space:]]*#"); [ -n "$prog" ] && ! printf "%s\n" "$prog" | grep -q "//"' _ "$SCRIPT"
 run oldapi PATH="$T/oldperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
-check "oldapi: an old Perl skips the ollama API and Melious tiers, nothing sent" \
-  sh -c 'grep -qF "ollama-cloud SKIPPED (not available)" "$1/oldapi.out" && grep -qF "melious SKIPPED (not available)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ] && [ -e "$1/oldapi.marks/perl510-refused" ]' _ "$T"
+check "oldapi: an old Perl skips the ollama API and Melious tiers, says why, nothing sent" \
+  sh -c 'grep -qF "ollama-cloud SKIPPED (Perl 5.10 or newer not found), melious SKIPPED (Perl 5.10 or newer not found)" "$1/oldapi.out" && [ ! -e "$1/oldapi.marks/curl-url" ] && [ ! -e "$1/oldapi.marks/melious-url" ] && [ -e "$1/oldapi.marks/perl510-refused" ]' _ "$T"
+
+# 36. The API transports' other missing tools are named in the summary too: a Perl without
+#     JSON::PP (a wrapper perl fails exactly the module probe), and no curl or no perl at all.
+mkdir -p "$T/nojsonperl"
+cat >"$T/nojsonperl/perl" <<EOF
+#!/bin/sh
+if [ "\$#" = 3 ] && [ "\$1" = -MJSON::PP ] && [ "\$2" = -e ] && [ "\$3" = 1 ]; then
+  : >"\$STUB_MARKS/jsonpp-refused"; echo "Can't locate JSON/PP.pm in @INC" >&2; exit 2
+fi
+exec "$REALPERL" "\$@"
+EOF
+chmod +x "$T/nojsonperl/perl"
+run nojson PATH="$T/nojsonperl:$NOCLI" OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "nojson: no JSON::PP: both API tiers skipped, the module named, nothing sent" \
+  sh -c 'grep -qF "ollama-cloud SKIPPED (Perl module JSON::PP not found), melious SKIPPED (Perl module JSON::PP not found)" "$1/nojson.out" && [ ! -e "$1/nojson.marks/curl-url" ] && [ ! -e "$1/nojson.marks/melious-url" ] && [ -e "$1/nojson.marks/jsonpp-refused" ]' _ "$T"
+# A PATH of links to every tool in /usr/bin and /bin, less one: two ln calls, not one per file.
+# The ollama API transport is pinned, so an ollama CLI on the host cannot change the path taken.
+mkdir -p "$T/bin3"; cp "$T/bin/codex" "$T/bin3/"
+for drop in curl perl; do
+  mkdir -p "$T/no$drop"; ln -s /usr/bin/* "$T/no$drop/" 2>/dev/null; ln -s /bin/* "$T/no$drop/" 2>/dev/null; rm -f "$T/no$drop/$drop"
+done
+run nocurl PATH="$T/bin3:$T/nocurl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "nocurl: no curl: both API tiers skipped, curl named" \
+  has nocurl.out "reviewers: codex OK, ollama-cloud SKIPPED (curl not found), melious SKIPPED (curl not found)"
+run noperl PATH="$T/bin3:$T/noperl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG" MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff"
+check "noperl: no perl at all: named as missing, not as too old" \
+  has noperl.out "ollama-cloud SKIPPED (perl not found), melious SKIPPED (perl not found)"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
