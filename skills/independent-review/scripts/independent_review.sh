@@ -1092,6 +1092,9 @@ run_melious() {
       }
       $c = $after; $kept_whole = 0; last;
     }
+    # A cut with nothing before it has no dropped-text note, but a skipped marker can still mean
+    # the reply opens with reasoning: said all the same.
+    $note = "(the final-review marker came $usable times with findings after it, so check that the section starts with the review)\n\n" if !$kept_whole && $note eq "" && $usable > 1;
     # No usable marker: the model did not mark its final answer. Kept, and always said: a 21 KB
     # reply of working notes with no marker counted as a review and carried no warning (#165,
     # round 16), so size alone does not tell a leak from a short review.

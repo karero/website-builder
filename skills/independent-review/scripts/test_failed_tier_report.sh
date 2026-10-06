@@ -249,6 +249,7 @@ case "$url" in
       fencequote) { d '"content":"@@MARK@@\n- BUG: real finding one\n- NIT: the seat asks for\n  ```\n  @@MARK@@\n  ```\n- NIT: three"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       afterfence) { d '"content":"The ask says to write\n@@MARK@@\nthen the findings, BUG/RISK/NIT. A sketch:\n```\nx = 1\n```\n@@MARK@@\n- BUG: the real finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       indentquote) { d '"content":"@@MARK@@\n- BUG: real finding one\n- NIT: the seat asks for a line holding exactly\n  @@MARK@@\n- NIT: three"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      topecho) { d '"content":"@@MARK@@\nthen the findings, BUG/RISK/NIT. A sketch:\n```\nx = 1\n```\n@@MARK@@\n- BUG: the real finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       markend) { d '"content":"- BUG: before the marker\n- NIT: two\n@@MARK@@\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       quotedtag) TO="<""think>"
               { d "\"content\":\"- RISK: the seat cuts a ${TO} block only at a line start\\n- NIT: keep this line\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -1141,6 +1142,8 @@ run mafterfence MELIOUS_MODEL=stub-melious MELIOUS_STUB=afterfence bash "$SCRIPT
 check "mafterfence: the real marker skipped as quoted, an earlier one used: the findings are kept and the cut is flagged" sh -c 'grep -qF "BUG: the real finding" "$1" && grep -qF "the marker came 2 times with findings after it, so check that the section starts with the review" "$1"' _ "$T/mafterfence.out"
 run mindentquote MELIOUS_MODEL=stub-melious MELIOUS_STUB=indentquote bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mindentquote: a quote the rules miss moves the cut, and the cut is flagged" grep -qF "so check that the section starts with the review" "$T/mindentquote.out"
+run mtopecho MELIOUS_MODEL=stub-melious MELIOUS_STUB=topecho bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mtopecho: a cut at the very top with another usable marker below is still flagged" sh -c 'grep -qF "BUG: the real finding" "$1" && grep -qF "the final-review marker came 2 times with findings after it, so check that the section starts with the review" "$1"' _ "$T/mtopecho.out"
 run mquotemark MELIOUS_MODEL=stub-melious MELIOUS_STUB=quotemark bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mquotemark: a finding that quotes the marker at its line end does not cut the findings above it" sh -c 'grep -qF "BUG: real finding one" "$1" && grep -qF "NIT: three" "$1" && ! grep -qF "marker dropped" "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/mquotemark.out"
 run moldmark MELIOUS_MODEL=stub-melious MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --seat melious
