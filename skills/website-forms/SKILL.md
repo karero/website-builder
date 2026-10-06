@@ -56,12 +56,20 @@ privacy page). Neither is built by this skill.
 | `functions/api/contact.ts` | `contact.ts` | the endpoint `POST /api/contact`: checks, bot trap, the mail call |
 | `src/components/ContactForm.astro` | `ContactForm.astro` | the form |
 | `src/components/contact-form.ts` | `contact-form.ts` | what the form and its answers say, in English and German; the lines of the owner's mail; the longest name, address and message it takes. The form and the function both import it, so a translation edits this file, plus a line of words in the spec |
-| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out) in every language of `contact-form.ts`, the privacy text |
+| `tests/forms.spec.ts` | `forms.spec.ts` | the function's behaviour, what the visitor is shown (including the line a screen reader is told to read out) in every language of `contact-form.ts`, every text of `contact-form.ts` against the site's tone rules, the privacy text |
 
 The templates are at `~/.claude/skills/website-forms/templates/` (Codex:
 `~/.agents/skills/…`), or in the site's own bundled copy on a handed-off repo. Install all
 four: the form and the function import `contact-form.ts`, and the test imports the
 function and `contact-form.ts`.
+
+The test also imports `toneViolations` from the site's own `tests/_helpers.ts`: the tone
+rules its pages are held to, so the form's texts are held to the same list. A site made
+from an older starter lacks it, and `npm run check` says `has no exported member
+'toneViolations'`. Then first bring that file up to date from the starter's
+(`new-website/templates/astro/tests/_helpers.ts`): take `toneViolations` and the rules
+above it, keep the site's own `PAGES`. Take the starter's `tests/tone.spec.ts` with it,
+so the pages and the form read one list, not two.
 
 ## 2. The owner's four settings (their Cloudflare dashboard)
 
@@ -158,14 +166,14 @@ from a local machine: there the tests stand in for the endpoint. The real check 
 For a form in any language but English and German: on a new site in that language, or
 when a site gains it later. Translate from the English, all of it in one go. The build
 stops on a form in a language with no texts, `npm run check` on a text left out, and
-the spec on a status sentence without its words. Nothing checks that the privacy
-paragraph was translated, nor the tone of what step 7 names: those are yours to read.
+the spec on a status sentence without its words or a text that breaks the site's tone
+rules. Nothing checks that the privacy paragraph was translated: that is yours to read.
 
 1. **Read the site's voice first.** Its `CONTENT_GUIDE.md` (in German the register, "du"
-   or "Sie") and the rules in `tests/tone.spec.ts`: no long dash in any language, and
-   the rules for the language itself if that file has any. Where the language allows,
-   do as the German texts do and address nobody, so the form fits whatever the site
-   later decides. Where that reads stiffly, use the site's own form of address.
+   or "Sie") and the tone rules in `tests/_helpers.ts`: no long dash in any language,
+   and the rules for the language itself if that file has any. Where the language
+   allows, do as the German texts do and address nobody, so the form fits whatever the
+   site later decides. Where that reads stiffly, use the site's own form of address.
 2. **The texts.** In `src/components/contact-form.ts`, copy the `en` entry of `TEXT`
    under the language's two-letter code (the form uses the first part of a code only:
    `fr`, not `fr-CA`) and translate every value. `npm run check` fails while one is
@@ -200,12 +208,13 @@ paragraph was translated, nor the tone of what step 7 names: those are yours to 
 6. **The page and its test**, as in §3 steps 2, 3 and 5: `lang` and `privacy` where the
    form's page needs them, and a copy of the spec for that page with its `PAGE` and
    `PRIVACY`. On a site in that language only, the one `tests/forms.spec.ts` is that copy.
-7. `npm run check && npm test`. Then read the four status sentences and the answer page
-   against the tone rules yourself: `tests/tone.spec.ts` reads what is on the page, the
-   labels and the note, but not those. `WORDS` looks for a few words in each sentence:
-   it catches a sentence left in another language or put in the wrong place, not one
-   that says something else around those words, nor a clumsy one. If the owner speaks
-   the language, ask them to read the form once.
+7. `npm run check && npm test`. The spec holds every text of the new language, the
+   status sentences and the answer page included, to the tone rules. For a language
+   without rules of its own in `tests/_helpers.ts` that is the ban on the long dash
+   alone: read the texts against step 1 yourself. `WORDS` looks for a few words in
+   each sentence: it catches a sentence left in another language or put in the wrong
+   place, not one that says something else around those words, nor a clumsy one. If
+   the owner speaks the language, ask them to read the form once.
 
 ## 4. The privacy text
 
@@ -303,9 +312,8 @@ Only then is the form done.
   (`strict-origin-when-cross-origin`) is fine; on a site that changed it, look at
   `public/_headers` and for a `<meta name="referrer">` in the layout.
 - **This repo's CI builds an English form and a German one.** Each language's four
-  status sentences are held against its words on every run; the tone rules see the
-  labels and the note of both. The status sentences and the answer page were read
-  against the tone rules by hand.
+  status sentences are held against its words on every run, and every text of both
+  languages, the answer page included, against the tone rules.
 - **No file uploads, no newsletter sign-up.** Different problems (size limits, consent
   records); do not bend this form into them.
 

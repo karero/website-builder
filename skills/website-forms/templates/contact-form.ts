@@ -20,9 +20,9 @@ export const LIMITS = { name: 100, email: 254, message: 5000 };
 // so a name still fits. The spec checks a new one as it stands, and fails above 90.
 export const MAIL = { subject: 'Website message from ', name: 'Name', email: 'Email' };
 
-// Everything a visitor reads, by language. The tone rules apply (tests/tone.spec.ts):
-// no long dash, no contraction, and in German no form of address, so the form fits a
-// "du" site and a "Sie" site alike. `page` is what a visitor without JavaScript reads
+// Everything a visitor reads, by language. tests/forms.spec.ts holds every text here to
+// the site's tone rules (tests/_helpers.ts): no long dash, and in English no contraction.
+// In German they address nobody, so the form fits a "du" site and a "Sie" site alike. `page` is what a visitor without JavaScript reads
 // after sending: on a failure it sends them back to the form, where the address to
 // write to is always shown, by the browser's own Back button (the link under the
 // sentence loads the page afresh). A language that leaves one of these out fails
