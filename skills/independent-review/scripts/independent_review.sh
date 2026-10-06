@@ -928,11 +928,22 @@ melious_key() {   # prints the key, or nothing
 # reply text, 100-290 KB ahead of the review, with no tags at all. Nothing in the reply marks where
 # the trace ends, so the seat asks for a marker line before the final answer and keeps what follows
 # the LAST marker line with findings after it (the model may mention the marker while reasoning,
-# or repeat it after the review). Without a usable marker the whole reply is kept, with a warning
-# when it is large. The untrimmed reply stays in melious.full either way. Seen live: a 79 KB leaky
-# reply trimmed to its 1.2 KB review.
-MELIOUS_MARKER="=== FINAL REVIEW ==="
-MELIOUS_MARKER_ASK="Output format for this reply: put your final answer after a line that holds exactly ${MELIOUS_MARKER} and nothing else, and write nothing after the final answer."
+# or repeat it after the review). Without a usable marker the whole reply is kept, with a warning.
+# The untrimmed reply stays in melious.full either way. Seen live: a 79 KB leaky reply trimmed to
+# its 1.2 KB review.
+# The marker is new on every run (=== FINAL REVIEW <random hex> ===) and never one the artifact
+# holds: a diff about this seat is full of marker text, and twice (#165, rounds 16 and 16a) the
+# model echoed the fixed marker inline while reasoning and never set one on a line of its own.
+melious_marker() {   # prints a marker line the reviewed text does not contain
+  local n m i=0
+  while :; do
+    n="$(od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    [ -n "$n" ] || n="$$$RANDOM$i"
+    m="=== FINAL REVIEW $n ==="
+    case "$PROMPT_TEXTONLY" in *"$m"*) [ $i -lt 5 ] || break; i=$((i+1)) ;; *) break ;; esac
+  done
+  printf '%s' "$m"
+}
 run_melious() {
   [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
   command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
@@ -943,7 +954,9 @@ run_melious() {
   esac
   [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
   url="${url%/}/chat/completions"
-  printf '%s\n\n%s\n' "$PROMPT_TEXTONLY" "$MELIOUS_MARKER_ASK" | perl -MJSON::PP -MEncode=decode -e '
+  local mark; mark="$(melious_marker)"
+  printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
+    "$PROMPT_TEXTONLY" "$mark" | perl -MJSON::PP -MEncode=decode -e '
     local $/; my $p = decode("UTF-8", scalar <STDIN>);
     print JSON::PP->new->utf8->canonical->encode({ model => $ARGV[0], stream => JSON::PP::true,
       stream_options => { include_usage => JSON::PP::true }, max_tokens => 0 + $ARGV[1],
@@ -1065,7 +1078,7 @@ run_melious() {
       my $total = $usage->{total_tokens} // (($usage->{prompt_tokens} // 0) + ($usage->{completion_tokens} // 0));
       print $t "$total\n";
     }
-  ' "$resp" "$code" "$RAW_DIR/melious.tokens" "$MELIOUS_MARKER" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
+  ' "$resp" "$code" "$RAW_DIR/melious.tokens" "$mark" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
   [ $prc -eq 4 ] && { WHY="truncated review (HTTP $code)"; return 1; }
   [ $prc -eq 5 ] && { WHY="HTTP $code but no review text"; return 1; }
   [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }

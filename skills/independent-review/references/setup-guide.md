@@ -136,7 +136,8 @@ to install beyond `curl` and `perl` (with JSON::PP), which the ollama API path n
   closing think tag the model writes or quotes (from the artifact, or typed while reasoning
   about tag handling), and send the rest of the trace as the reply (seen 2026-10-05: 100-290 KB
   of trace, the review at the very end). The seat therefore asks for a marker line,
-  `=== FINAL REVIEW ===`, before the final answer and keeps what follows the last marker line
+  `=== FINAL REVIEW <random hex> ===`, new on each run so the reviewed diff cannot contain it,
+  before the final answer and keeps what follows the last marker line
   that has findings after it (Markdown around the marker is fine; a marker repeated at the end
   or quoted after the review does not count); the section then says how much was dropped, and
   the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole

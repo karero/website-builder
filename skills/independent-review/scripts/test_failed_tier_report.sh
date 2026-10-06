@@ -189,6 +189,8 @@ case "$url" in
   https://api.melious.ai/*|*/chat/completions)   # the Melious seat: an OpenAI-style SSE stream
     printf '%s\n' "$url" >"$STUB_MARKS/melious-url"
     cp "$body" "$STUB_MARKS/melious-body"
+    # The marker this run asked for (new each run); canned replies say @@MARK@@ where it goes.
+    M="$(perl -MJSON::PP -0777 -ne 'my $j = decode_json($_); print $1 if $j->{messages}[0]{content} =~ /holds exactly (=== FINAL REVIEW \S+ ===)/' "$body")"
     [ -e "$STUB_MARKS/curl-hdr" ] && mv "$STUB_MARKS/curl-hdr" "$STUB_MARKS/melious-hdr"
     [ -e "$STUB_MARKS/curl-hdr-stdin" ] && mv "$STUB_MARKS/curl-hdr-stdin" "$STUB_MARKS/melious-hdr-stdin"
     d() { printf 'data: {"choices":[{"index":0,"delta":{%s},"finish_reason":%s}],"usage":%s}\n\n' "$1" "$2" "${3:-null}"; }
@@ -230,16 +232,17 @@ case "$url" in
       # line of its own (a draft), then the real marker line and the answer.
       leak|leaknofull)
               [ "$MELIOUS_STUB" = leaknofull ] && mkdir -p "$REVIEW_RAW_DIR/melious.full"   # after the startup purge
-              { d '"content":"Let me think. I will write === FINAL REVIEW === before the answer.\n=== FINAL REVIEW ===\n- BUG: draft finding, superseded\nMore thinking about the retry loop.\n"' null
-                d '"content":"=== FINAL REVIEW ===\n- BUG: the real finding\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+              { d '"content":"Let me think. I will write @@MARK@@ before the answer.\n@@MARK@@\n- BUG: draft finding, superseded\nMore thinking about the retry loop.\n"' null
+                d '"content":"@@MARK@@\n- BUG: the real finding\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       bignomark) x=$(printf '%70000s' '' | tr ' ' x)
               { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
-      markdup) { d '"content":"Thinking about it at length.\n=== FINAL REVIEW ===\n- BUG: kept finding\n- NIT: two\n=== FINAL REVIEW ===\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
-      markfence) { d '"content":"Thinking first.\n=== FINAL REVIEW ===\n- RISK: fenced case kept\n- NIT: the seat asks for this line:\n```\n=== FINAL REVIEW ===\n```\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
-      markwrap) { d '"content":"Reasoning that leaked.\n**=== FINAL REVIEW ===**\n- BUG: wrapped marker kept\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markdup) { d '"content":"Thinking about it at length.\n@@MARK@@\n- BUG: kept finding\n- NIT: two\n@@MARK@@\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markfence) { d '"content":"Thinking first.\n@@MARK@@\n- RISK: fenced case kept\n- NIT: the seat asks for this line:\n```\n@@MARK@@\n```\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markwrap) { d '"content":"Reasoning that leaked.\n**@@MARK@@**\n- BUG: wrapped marker kept\n- NIT: two"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       bigmarkend) x=$(printf '%70000s' '' | tr ' ' x)
-              { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n=== FINAL REVIEW ===\\n\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
-      markend) { d '"content":"- BUG: before the marker\n- NIT: two\n=== FINAL REVIEW ===\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+              { d "\"content\":\"$x\\n- BUG: at the end\\n- NIT: two\\n@@MARK@@\\n\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      oldmark) { d '"content":"=== FINAL REVIEW ===\n- BUG: a draft that quotes the old fixed marker\n@@MARK@@\n- BUG: the real finding\n- NIT: two\n=== FINAL REVIEW ===\n- NIT: quoted after the review"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      markend) { d '"content":"- BUG: before the marker\n- NIT: two\n@@MARK@@\n"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       quotedtag) TO="<""think>"
               { d "\"content\":\"- RISK: the seat cuts a ${TO} block only at a line start\\n- NIT: keep this line\"" '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       oddfinish) { d '"content":"- BUG: x"' null; d '"content":null' '"429 rate limit\nError: HTTP 429"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
@@ -256,6 +259,7 @@ case "$url" in
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
       stubborn) trap '' TERM; echo $$ >"$STUB_MARKS/melious-pid"; sleep 30 ;;
     esac
+    [ -n "$M" ] && [ -f "$out" ] && M="$M" perl -pi -e 's/\@\@MARK\@\@/$ENV{M}/g' "$out"
     exit 0 ;;
 esac
 printf '%s\n' "$url" >"$STUB_MARKS/curl-url"
@@ -1013,7 +1017,7 @@ check "mlocalseat: --local-only refuses --seat melious, exit 2" \
 MK=stub-melious-secret
 run mbody MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbody: default budget 96000 and the final-review marker ask" \
-  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /=== FINAL REVIEW ===/)' "$T/mbody.marks/melious-body"
+  perl -MJSON::PP -e 'local $/; open my $f, "<", $ARGV[0] or exit 1; my $j = decode_json(<$f>); exit !($j->{max_tokens} == 96000 && $j->{messages}[0]{content} =~ /holds exactly === FINAL REVIEW [0-9a-f]{8,} ===/)' "$T/mbody.marks/melious-body"
 check "mbody: no marker, small reply: kept whole, with the no-marker warning (round 16, glm)" sh -c 'grep -qF "melious OK" "$1" && grep -qF "no usable final-review marker" "$1" && ! grep -qF "text before the final-review marker dropped" "$1"' _ "$T/mbody.out"
 run mbudget MELIOUS_MODEL=stub-melious MELIOUS_MAX_TOKENS=48000 MELIOUS_BASE_URL=https://example.test/v9/ bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbudget: MELIOUS_MAX_TOKENS reaches the request" \
@@ -1053,6 +1057,10 @@ run mmarkwrap MELIOUS_MODEL=stub-melious MELIOUS_STUB=markwrap bash "$SCRIPT" "$
 check "mmarkwrap: a marker in bold is still found" sh -c 'grep -qF "BUG: wrapped marker kept" "$1" && ! grep -qF "Reasoning that leaked" "$1"' _ "$T/mmarkwrap.out"
 run mbigmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=bigmarkend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mbigmarkend: markers but none usable, reply large: kept whole, with the warning" sh -c 'grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbigmarkend.out"
+run moldmark MELIOUS_MODEL=stub-melious MELIOUS_STUB=oldmark bash "$SCRIPT" "$T/change.diff" --seat melious
+check "moldmark: the old fixed marker, as a diff about the seat carries it, is not this run's marker" sh -c 'grep -qF "BUG: the real finding" "$1" && ! grep -qF "a draft that quotes" "$1" && grep -qF "text before the final-review marker dropped" "$1"' _ "$T/moldmark.out"
+run mbody2 MELIOUS_MODEL=stub-melious bash "$SCRIPT" "$T/change.diff" --seat melious
+check "mbody2: each run asks for a marker of its own" sh -c 'a=$(grep -o "FINAL REVIEW [0-9a-f]* ===" "$1" | head -n 1); b=$(grep -o "FINAL REVIEW [0-9a-f]* ===" "$2" | head -n 1); [ -n "$a" ] && [ -n "$b" ] && [ "$a" != "$b" ]' _ "$T/mbody.marks/melious-body" "$T/mbody2.marks/melious-body"
 run mmarkend MELIOUS_MODEL=stub-melious MELIOUS_STUB=markend bash "$SCRIPT" "$T/change.diff" --seat melious
 check "mmarkend: a marker with nothing after it: the reply is kept whole" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "BUG: before the marker" "$1"' _ "$T/mmarkend.out"
 run mthinkonly MELIOUS_MODEL=stub-melious MELIOUS_STUB=thinkonly bash "$SCRIPT" "$T/change.diff" --seat melious
