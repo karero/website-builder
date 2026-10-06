@@ -19,14 +19,17 @@ const PAGE = '';
 // The privacy page, e.g. '/privacy' or '/datenschutz'.
 const PRIVACY = '';
 
-// Words each of the form's sentences must contain, by language. Every sentence is held
-// against all of them: it must carry its own and none of the others', of any language
-// listed, so a thank-you beside a failure or an English sentence on a German page fails.
-// English and German are built in: add the words of any language added to the component.
+// Words each of the form's four sentences must contain, by language. Every sentence is
+// held against all of them: it must carry its own language's words for what it says,
+// and no language's words for any other sentence, so a thank-you beside a failure or an
+// English sentence on a German page fails. Two languages may share the words for the
+// same sentence. English and German are built in: add all four for any language added
+// to the component.
 const WORDS: Record<string, Record<string, RegExp>> = {
-  en: { 'data-sent': /has been sent/, 'data-invalid': /not valid/, 'data-failed': /could not be sent/ },
-  de: { 'data-sent': /wurde gesendet/, 'data-invalid': /ungültig/, 'data-failed': /konnte nicht gesendet/ },
+  en: { 'data-sending': /Sending/, 'data-sent': /has been sent/, 'data-invalid': /not valid/, 'data-failed': /could not be sent/ },
+  de: { 'data-sending': /Wird gesendet/, 'data-sent': /wurde gesendet/, 'data-invalid': /ungültig/, 'data-failed': /konnte nicht gesendet/ },
 };
+const SENTENCES = ['data-sending', 'data-sent', 'data-invalid', 'data-failed'];
 
 const ENV: Env = { CONTACT_TO: 'owner@example.com', CONTACT_FROM: 'website@example.com', CF_ACCOUNT_ID: 'acc', CF_EMAIL_TOKEN: 'tok' };
 const GOOD = { name: 'Ada Lovelace', email: 'ada@example.org', message: 'Hello, do you have time in May?', [TRAP]: '', lang: 'en' };
@@ -298,6 +301,7 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
   // Each answer is the sentence for what happened and no other, in every language listed
   // in WORDS: one that is listed there and missing from the function gets an English page.
   for (const lang of Object.keys(WORDS)) {
+    expect(Object.keys(WORDS[lang]).sort(), `WORDS.${lang} lists all four sentences`).toEqual([...SENTENCES].sort());
     const pages: Record<string, string> = {
       'data-sent': await (await handle(post({ ...GOOD, lang }, { accept: 'text/html' }), ENV, recorder().send)).text(),
       'data-invalid': await (await handle(post({ ...GOOD, lang, email: 'nope' }, { accept: 'text/html' }), ENV, recorder().send)).text(),
@@ -306,7 +310,10 @@ test('contact — without JavaScript the visitor gets a small page in the form\'
     for (const [is, answerPage] of Object.entries(pages)) {
       expect(answerPage, `${lang}: the ${is} page`).toContain(`<html lang="${lang}">`);
       for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
-        for (const [name, words] of Object.entries(byOutcome)) expect(words.test(answerPage), `${lang}: the ${is} page and the ${wordsOf} words for ${name}`).toBe(wordsOf === lang && name === is);
+        for (const [name, words] of Object.entries(byOutcome)) {
+          if (name === is && wordsOf !== lang) continue;
+          expect(words.test(answerPage), `${lang}: the ${is} page and the ${wordsOf} words for ${name}`).toBe(name === is);
+        }
       }
     }
   }
@@ -407,20 +414,23 @@ test('contact — every field has a label, and the bot trap is out of everyone\'
   }
   // The sentences the form's script chooses from are all there and all different: the
   // outcome tests below take the expected sentence from these same attributes.
-  const sentences = await Promise.all(['data-sending', 'data-sent', 'data-invalid', 'data-failed'].map((name) => form.getAttribute(name)));
+  const sentences = await Promise.all(SENTENCES.map((name) => form.getAttribute(name)));
   expect(sentences.every((sentence) => sentence && sentence.trim() !== ''), 'four sentences').toBe(true);
   expect(new Set(sentences).size, 'four different sentences').toBe(4);
   // The form's link leads to the privacy page this spec checks.
-  await expect(form.locator('.contact-form-note a')).toHaveAttribute('href', PRIVACY);
+  await expect(form.locator('.contact-form-note a'), `the form's privacy link (the component's default, or privacy="…") is ${PRIVACY}`).toHaveAttribute('href', PRIVACY);
   // The form speaks the language of its page, and that language's words are listed above.
   const language = (await form.locator('input[name="lang"]').getAttribute('value')) ?? '';
   const pageLanguage = ((await page.locator('html').getAttribute('lang')) ?? '').toLowerCase().split('-')[0];
   expect(language, 'the form is in the language of its page').toBe(pageLanguage);
   expect(Object.hasOwn(WORDS, language), `the words of the form's language ("${language}") are in WORDS`).toBe(true);
-  for (const attribute of ['data-sent', 'data-invalid', 'data-failed']) {
+  for (const attribute of SENTENCES) {
     const sentence = (await form.getAttribute(attribute)) ?? '';
     for (const [wordsOf, byOutcome] of Object.entries(WORDS)) {
-      for (const [name, words] of Object.entries(byOutcome)) expect(words.test(sentence), `${attribute} and the ${wordsOf} words for ${name}`).toBe(wordsOf === language && name === attribute);
+      for (const [name, words] of Object.entries(byOutcome)) {
+        if (name === attribute && wordsOf !== language) continue;
+        expect(words.test(sentence), `${attribute} and the ${wordsOf} words for ${name}`).toBe(name === attribute);
+      }
     }
   }
   const trap = page.locator(`[name="${TRAP}"]`);

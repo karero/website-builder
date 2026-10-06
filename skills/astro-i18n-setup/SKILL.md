@@ -103,10 +103,6 @@ routing setup above is more machinery than the job needs. The default kit
 `Base.astro` ships an optional `alternates` prop instead — no astro.config changes,
 no locale prefixes, no `LOCALES`:
 
-(A twin of the page that carries `<ContactForm>`: pass it `lang` and `privacy`
-yourself, since no build error reminds you on this path, and give the twin its own
-copy of `tests/forms.spec.ts`: see `website-forms` §3.)
-
 Give each paired page its own localized slug (see "Localized slugs" in
 `seo-audit/references/international-seo.md`) — e.g. `/ai-events-munich` (EN) and
 `/ai-treffen-muenchen` (DE) — and pass BOTH pages the full cluster, including a
@@ -136,6 +132,10 @@ page with no `alternates`, so its German twin's hreflang went unreciprocated,
 which makes Google ignore the pair) — now fails the build. Also add a visible
 `<a href="/ai-treffen-muenchen" lang="de" hreflang="de">Deutsch</a>` near the
 nav/footer: `alternates` only talks to crawlers, not visitors.
+
+A twin of the page that carries `<ContactForm>`: pass it `lang` and `privacy`
+yourself, since no build error reminds you on this path, and give the twin its own
+copy of `tests/forms.spec.ts`: see `website-forms` §3.
 
 Pick the heavy path (everything above this section) when most of the site is
 translated and you want prefixed routing + a language switcher; pick this light

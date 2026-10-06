@@ -122,13 +122,14 @@ preview address cannot send, and says so.
    several languages the page's (`Astro.currentLocale`); `lang="de"` overrides. English
    and German are built in, with no form of address in German, so it fits a "du" site
    and a "Sie" site. Another language: add it to `TEXT` in the component, to `PLAIN`
-   in the function and to `WORDS` in the spec. The tone rules apply
-   (`tests/tone.spec.ts`). The mail the owner receives is in English ("Website message
-   from …", "Name:", "Email:"): two strings in the function, to change if the owner
-   wants them in another language. Two checks in the spec's test "a line break in the
-   name cannot start a new mail header" then need the same change: the exact subject,
-   and the cut at 120 characters, which counts on the 21 characters of the English
-   prefix.
+   in the function and to `WORDS` in the spec (words for all four sentences). The tone
+   rules apply (`tests/tone.spec.ts`). The mail the owner receives is in English
+   ("Website message from …", "Name:", "Email:"): two strings in the function, to
+   change if the owner wants them in another language. Two checks in the spec's test
+   "a line break in the name cannot start a new mail header" then need changing too:
+   the exact subject takes the new prefix, and in the cut at 120 characters the name's
+   length (98) becomes 119 minus the new prefix's length, or that check can no longer
+   fail.
    - **Several languages** (`astro-i18n-setup`): pass `privacy="…"` with the privacy
      page of that page's language (`/de/privacy`, not `/datenschutz`). The component
      stops the build if it is missing there, because it cannot know the site's routes.
@@ -139,8 +140,10 @@ preview address cannot send, and says so.
 4. **Privacy page.** Add the sentences from §4. A site with a contact form has to say
    what happens to a message.
 5. In `tests/forms.spec.ts` set `PAGE` (the page with the form) and `PRIVACY` (the
-   privacy page). Both are required: the spec fails while either is empty, and fails
-   when the privacy page lacks the marked text or that text does not name Cloudflare.
+   privacy page). Both are required: the spec fails while either is empty, fails when
+   the privacy page lacks the marked text or that text does not name Cloudflare, and
+   fails when the form's privacy link is not `PRIVACY` (the component's default, or
+   its `privacy` prop).
    One copy of the spec guards one form and one privacy page: on a site with several
    languages, copy it once per language (`tests/forms.de.spec.ts`), each with that
    language's `PAGE` and `PRIVACY`. The same when a language is added later: the
