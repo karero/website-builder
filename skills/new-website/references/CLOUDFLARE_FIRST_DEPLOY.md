@@ -148,22 +148,40 @@ on the live domain too, counts as a Functions request. On the free plan those co
 **100,000 requests a day**, shared by every Pages Function and Worker in the account, reset
 at midnight UTC.
 
+Don't add a `_routes.json` to exclude the files from the middleware. Cloudflare suggests it
+to keep static requests free, but it matches paths only, never the host: the excluded files
+would then reach previews without the middleware's noindex, and the `<project>.pages.dev`
+alias would stop redirecting them.
+
 One small site rarely gets near that; several sites in one account, or a busy crawler, can.
-What happens then is up to the project's **Fail open / closed** setting:
+What happens then is up to the project's **Fail open / closed** setting, which the free
+plan offers:
 
 - **Fail open** (recommended): the static site is served without the middleware until
   midnight UTC. Nothing changes on the live domain, which the middleware passes through
   untouched. Previews still carry the `X-Robots-Tag: noindex` that Cloudflare adds to every
   preview deployment itself. `<project>.pages.dev` is the one address that changes: for the
-  rest of that day it neither redirects (once `CANONICAL_URL` is set, below) nor carries
-  noindex.
+  rest of that day it loses what the middleware gives it, the redirect (once
+  `CANONICAL_URL` is set, below) and the noindex.
 - **Fail closed**: every request, on the live domain too, gets an error page until midnight
-  UTC. That suits a Function that guards something; the kit's does not.
+  UTC. That suits a Function that guards something; the kit's does not. If a site later
+  gets one that does, choose again.
+
+Either way, any other Function stops until midnight UTC too: on a site with the
+`website-forms` contact form, the form cannot send.
 
 Set it once, right after the first deploy: dashboard → **Workers & Pages** → the project →
 **Settings → Runtime → Fail open / closed**. Cloudflare's docs do not say which one a new
 project starts with, so look rather than assume. Workers Paid ($5/month) removes the daily
 limit (10 million requests a month included, then billed per million).
+
+Sources, read 2026-10-07: Cloudflare's
+[Functions pricing](https://developers.cloudflare.com/pages/functions/pricing/),
+[routing and Fail open / closed](https://developers.cloudflare.com/pages/functions/routing/),
+[middleware](https://developers.cloudflare.com/pages/functions/middleware/),
+[daily request limit](https://developers.cloudflare.com/workers/platform/limits/#daily-requests),
+[preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/)
+and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/).
 
 ---
 

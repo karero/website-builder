@@ -52,14 +52,16 @@ case for switching is heavy Next.js SSR → Vercel (no OpenNext friction). The o
 living proof of that tax (`@opennextjs/cloudflare`, `.open-next/worker.js`, dual output modes).
 Astro avoids the tax entirely (first-class CF adapter). **Stay on Cloudflare for content sites.**
 
-**Pages or Workers?** Cloudflare's Pages docs now open with "Start new projects with
-Workers"; Pages is still listed as available on all plans, and the docs name no end date
-(read 2026-10-07). The kit stays on Pages for now. It is written for Pages: the
-middleware's `*.pages.dev` host rules, the `CF_PAGES_*` build variables that gate analytics
-and stamp `build.txt`, and the deploy and preview steps in these docs. And when the free plan's daily Functions requests run out, a Pages project
-can still serve the static site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a
-Worker set to run before its static files answers 429 instead. Moving the kit to Workers is
-one decision for the whole kit, not one to make per site.
+**Pages or Workers?** Cloudflare's Pages docs now open with "Start new projects with Workers";
+[Pages](https://developers.cloudflare.com/pages/) is still listed as available on all plans,
+and the docs name no end date (read 2026-10-07). The kit stays on Pages for now. It is written
+for Pages: the middleware's `*.pages.dev` host rules, the `CF_PAGES_*` build variables that
+gate analytics and stamp `build.txt`, and the deploy and preview steps in these docs. And when
+the free plan's daily Functions requests run out, a Pages project can still serve the static
+site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a Worker set to run before its static
+files answers 429 instead ([Workers static
+assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)).
+Moving the kit to Workers is one decision for the whole kit, not one to make per site.
 
 ---
 
