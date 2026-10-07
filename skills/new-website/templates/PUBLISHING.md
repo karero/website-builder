@@ -143,7 +143,7 @@ time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't l
 `npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
 run it again.
 On Windows, the command does not work in PowerShell: ask your assistant to run it for you,
-or to set up Ubuntu (WSL2) on your computer so you can.
+or to set up Ubuntu (WSL2) on your computer so you can run it yourself.
 
 ---
 
