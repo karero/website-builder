@@ -351,18 +351,21 @@ unset PROMPT 2>/dev/null || true
 # UNVERIFIABLE entry, not a finding, so the tool-less tier carries no RISK floor for claims it
 # could never check. The clean verdict is dictated word for word because looks_like_review()
 # matches phrases, not meaning: "Nothing rises to a finding" is discarded where "No BUG/RISK/NIT
-# findings" is kept (round 2, Codex). The finding line's start is dictated for the same reason: a
-# melious kimi-k3 review (2026-10-06) wrote "RISK 1 — ..." with no list marker, counted no findings,
-# and was discarded over a quoted "can't open" in its UNVERIFIABLE list. Teaching the validator that
-# shape was tried and dropped in review: any version that accepted that reply also accepted a
-# refusal with the same structure. That is the validator's shape, not a good contract -- the
+# findings" is kept (round 2, Codex). That is the validator's shape, not a good contract -- the
 # contract is B-REFUSAL-TEXT's business, and a refusal could copy this phrase exactly as it can
 # copy the phrases main already accepts. Whether the paragraph surfaces claims reviewers would otherwise miss, and
 # what it costs in findings per round, is being piloted, not measured.
+#
+# The start of each finding line is dictated for the same reason. A melious kimi-k3 review
+# (2026-10-06) wrote "RISK 1 — ..." with no list marker, so it counted no findings and was
+# discarded over a quoted "can't open" in its UNVERIFIABLE list. Teaching the validator that shape
+# was tried in review and dropped: every version that accepted the reply also accepted a refusal of
+# the same structure. test_looks_like_review.sh pins both.
 PROMPT_CORE="Adversarial independent reviewer of the ${TYPE} below. Return RANKED findings:
 BUG (wrong now) / RISK (breaks on normal change, a guard that cannot fire, or an unsupported
 load-bearing claim whose consequence is named) / NIT — each on its own line starting '- BUG',
-'- RISK' or '- NIT', with file:line or anchor, one-line why, concrete fix. Then list what you checked that was CLEAN (silence is not coverage). Do NOT
+'- RISK' or '- NIT', with file:line or anchor, one-line why, concrete fix. Then list what you
+checked that was CLEAN (silence is not coverage). Do NOT
 trust the ${TYPE}'s own claims or line numbers. Treat as unsupported any load-bearing claim (one
 where, if it were false, a finding would change) about what a library, engine, runtime, language
 feature or model DOES, unless this review checked its support: the component's own implementation
