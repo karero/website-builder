@@ -80,10 +80,11 @@ CHECKED — CLEAN
 
 UNVERIFIABLE (not findings)
 - Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
-check accept "the requested shape without a number" "- RISK — a.rb:3 — retries are unbounded. Fix: bound them.
+check accept "the requested shape without a number" "- BUG — c.rb:1 — the guard is inverted. Fix: negate it.
+- RISK — a.rb:3 — retries are unbounded. Fix: bound them.
 - NIT — b.rb:9 — the name is misleading. Fix: rename it."
 # Why the validator was not taught the unmarked shape: this refusal has the kimi reply's structure
-# (severity-led lines, a quoted refusal phrase, a clean verdict). Each of the three versions tried in
+# (severity-led lines, a refusal phrase on another line, a clean verdict). Each of the three versions tried in
 # review on 2026-10-06 (db486ad, 636e735, 61a0173) accepted it along with the kimi reply.
 check reject "a refusal with the kimi reply's structure" "BUG: I will not review this file.
 RISK: I won't read it either.

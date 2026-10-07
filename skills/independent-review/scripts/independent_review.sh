@@ -360,7 +360,8 @@ unset PROMPT 2>/dev/null || true
 # (2026-10-06) wrote "RISK 1 — ..." with no list marker, so it counted no findings and was
 # discarded over a quoted "can't open" in its UNVERIFIABLE list. Teaching the validator that shape
 # was tried in review and dropped: every version that accepted the reply also accepted a refusal of
-# the same structure. test_looks_like_review.sh pins both.
+# the same structure. test_looks_like_review.sh pins the kimi reply, that refusal, and the shape
+# asked for.
 PROMPT_CORE="Adversarial independent reviewer of the ${TYPE} below. Return RANKED findings:
 BUG (wrong now) / RISK (breaks on normal change, a guard that cannot fire, or an unsupported
 load-bearing claim whose consequence is named) / NIT — each on its own line starting '- BUG',
