@@ -7,9 +7,10 @@
 # hand (`CF_PAGES_BRANCH=<production-branch> npm run build` for the live site, PUBLISHING.md;
 # `CF_PAGES_BRANCH= npm run build` for a preview, new-website's CLOUDFLARE_FIRST_DEPLOY.md).
 # Both ways it fails silently: off on the live site, it counts no visitors and nothing says
-# so; on for a preview, every look at the preview is counted as a real visitor. The Playwright suite cannot see either, since it
-# builds once with whatever the shell had. So this builds the site four ways, the way the
-# docs tell the owner to, and reads the built HTML.
+# so; on for a preview, every look at the preview is counted as a real visitor. The
+# Playwright suite cannot see either, since it builds once with whatever the shell had. So
+# this builds the site four ways, the way the docs tell the owner to, and reads the built
+# HTML. The toolkit's own CI runs it (template-tests.yml); a site's CI does not.
 #
 # It runs `astro build`, the step of `npm run build` that renders the pages and so decides
 # the tag, into a temporary folder: the site's own dist/ is left alone. The two post-build
@@ -39,44 +40,77 @@ checked=0
 # build <case> <unset|set> [value] — one `astro build` into $work/<case>, with
 # CF_PAGES_BRANCH unset or set to value (which may be empty). Every case sets or unsets
 # it explicitly, so a value in the calling shell cannot leak into a case.
+astro=./node_modules/.bin/astro
+if [ ! -x "$astro" ]; then
+  echo "✗ analytics gate: $astro not found. Run npm ci first."
+  exit 1
+fi
 build() {
   local name="$1" how="$2" value="${3-}" rc=0
   if [ "$how" = unset ]; then
-    env -u CF_PAGES_BRANCH npx astro build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
+    env -u CF_PAGES_BRANCH "$astro" build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
   else
-    CF_PAGES_BRANCH="$value" npx astro build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
+    CF_PAGES_BRANCH="$value" "$astro" build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
   fi
-  if [ "$rc" -ne 0 ] || [ ! -f "$work/$name/index.html" ]; then
+  if [ "$rc" -ne 0 ]; then
     echo "✗ analytics gate: the $name build failed (exit $rc). Its last lines:"
     tail -n 20 "$work/$name.log"
+    exit 1
+  fi
+  if [ ! -f "$work/$name/index.html" ]; then
+    echo "✗ analytics gate: the $name build made no index.html in $work/$name."
     exit 1
   fi
 }
 
 # The tag Base.astro writes: <script defer data-domain="…" src="<scriptHost>/js/script.js">.
-# Counted as a real <script> tag with both attributes, in any order, outside HTML comments.
+# For each page, prints "<full> <part> <path>": how many <script> tags carry both
+# attributes (a working analytics tag) and how many carry either. HTML comments are
+# dropped first, and attributes are read one at a time, so text inside a quoted value
+# never counts as an attribute and <script-x> is not a script.
+tags_program() {
+  cat <<'PERL'
+s/<!--.*?-->//gs;
+my ($full, $part) = (0, 0);
+while (/<script(?=[\s\/>])/gi) {
+  my %a;
+  while (/\G\s*([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gc) {
+    $a{lc $1} = defined $2 ? $2 : defined $3 ? $3 : defined $4 ? $4 : "";
+  }
+  my $domain = defined $a{"data-domain"} && $a{"data-domain"} ne "";
+  my $src = defined $a{src} && $a{src} =~ m{/js/script\.js(?:[?#]|$)};
+  $full++ if $domain && $src;
+  $part++ if $domain || $src;
+}
+print "$full $part $ARGV\n";
+PERL
+}
+count_tags() {
+  find "$1" -name '*.html' -exec perl -0 -ne "$(tags_program)" {} +
+}
+
+# On means on for every page: every page is built from Base.astro.
 expect_on() {
-  local name="$1" what="$2" tags
+  local name="$1" what="$2" counts missing
   checked=$((checked + 1))
-  tags="$(perl -0ne 's/<!--.*?-->//gs; my $n = 0; while (/<script\b([^>]*)>/g) { my $a = $1; $n++ if $a =~ /(?:^|\s)data-domain="[^"]+"/ && $a =~ /(?:^|\s)src="[^"]*\/js\/script\.js"/ } print $n' "$work/$name/index.html")"
-  if [ "${tags:-0}" -ge 1 ]; then
-    echo "✓ $what: analytics script in index.html"
+  counts="$(count_tags "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
+  missing="$(printf '%s\n' "$counts" | awk '$1 == 0 { sub(/^[^ ]* [^ ]* /, ""); print }')"
+  if [ -z "$missing" ]; then
+    echo "✓ $what: analytics script on every page"
   else
-    echo "✗ $what: NO analytics script in index.html — the live site would count no visitors."
+    echo "✗ $what: NO analytics script on these pages — the live site would not count their visitors:"
+    printf '%s\n' "$missing" | sed "s|^$work/$name/|    |"
     fail=1
   fi
 }
 
-# Off means off on every page, not just the home page.
+# Off means no analytics tag, nor half of one, on any page.
 expect_off() {
-  local name="$1" what="$2" hits rc=0
+  local name="$1" what="$2" counts hits
   checked=$((checked + 1))
-  # grep: 0 found, 1 none, 2 an error, which must not read as "none".
-  hits="$(grep -rlE --include='*.html' 'data-domain=|/js/script\.js' "$work/$name")" || rc=$?
-  if [ "$rc" -gt 1 ]; then
-    echo "✗ $what: grep failed (exit $rc), so the build was not checked."
-    fail=1
-  elif [ "$rc" -eq 1 ]; then
+  counts="$(count_tags "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
+  hits="$(printf '%s\n' "$counts" | awk '$2 > 0 { sub(/^[^ ]* [^ ]* /, ""); print }')"
+  if [ -z "$hits" ]; then
     echo "✓ $what: no analytics script on any page"
   else
     echo "✗ $what: analytics script found — every visit to this build would be counted as real:"
