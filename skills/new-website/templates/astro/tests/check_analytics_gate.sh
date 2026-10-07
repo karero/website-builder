@@ -113,7 +113,7 @@ expect_on() {
     echo "✓ $what: analytics script on every page"
   else
     echo "✗ $what: NO analytics script on these pages — the live site would not count their visitors:"
-    printf '%s\n' "$missing" | sed "s|^$work/$name/|    |"
+    while IFS= read -r page; do printf '    %s\n' "${page#"$work/$name/"}"; done <<< "$missing"
     fail=1
   fi
 }
@@ -129,7 +129,7 @@ expect_off() {
   else
     echo "✗ $what: an analytics tag, or half of one, on these pages."
     echo "  (A full tag counts every visit to this build as real.)"
-    printf '%s\n' "$hits" | sed "s|^$work/$name/|    |"
+    while IFS= read -r page; do printf '    %s\n' "${page#"$work/$name/"}"; done <<< "$hits"
     fail=1
   fi
 }
