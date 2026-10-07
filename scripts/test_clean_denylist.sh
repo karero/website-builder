@@ -113,10 +113,18 @@ if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "holding ^"; then
   printf 'FAIL a negated class was refused as an anchor\n'; fails=$((fails+1))
 fi
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
+# With GNU grep (CI's) in the C locale, \b never matched beside a non-ASCII letter, so a name
+# that starts or ends with one was never found in CI. (BSD grep found it; GNU is the test.)
+printf 'zorbleqé\nÖzorbleq\n' >"$R/scripts/.clean-denylist"
+printf 'met Zorbleqé.\n' >"$R/docs/notes.md"
+expect "a name ending in a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
+printf 'see Özorbleq now\n' >"$R/docs/notes.md"
+expect "a name starting with a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
+cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
 # A file name holding ":<digit>…:" moved the text's start into the name, where an exemption
 # then dropped a real hit; such names are refused.
 mkdir "$R/docs/a:1:example.com"; printf 'write to bob@realmail.de\n' >"$R/docs/a:1:example.com/x.md"
-expect "a file name holding a colon, a digit and a colon: refused" 1 "a colon, a digit and later another colon" "$R"
+expect "a file name holding a colon, a digit and later another colon: refused" 1 "a colon, a digit and later another colon" "$R"
 rm -r "$R/docs/a:1:example.com"
 # If find fails, the names were not checked.
 mkdir -p "$T/badfind"; printf '#!/bin/sh\nexit 2\n' >"$T/badfind/find"; chmod +x "$T/badfind/find"
@@ -198,7 +206,7 @@ else
 fi
 chmod 755 "$R/docs/zorblequux-locked"; rm -r "$R/docs/zorblequux-locked"
 # The script's own lines read the same whatever the list holds, and are printed as they are.
-printf 'dent\nriva\n' >>"$R/scripts/.clean-denylist"
+printf 'dent\nriva\nmakefil\n' >>"$R/scripts/.clean-denylist"   # inside, and at the start of, its words
 masked "masked: entries inside the script's own words leave them alone, and pass" 0 "no contact info or credentials in:"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
 # Masked mode prints no scanned text even without a list (an email here).
@@ -208,7 +216,7 @@ mv "$T/list.away" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs
 # A list that does not compile is named as the cause, not a name in the output.
 cp "$R/scripts/.clean-denylist" "$T/list.pre2"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
 masked "masked: a list that does not compile: withheld, and says why" 1 "does not compile"
-# The same with a long output: grep dies on the pattern unread, and printf of SIGPIPE.
+# The same with a long output: grep dies on the pattern unread, and printf dies of SIGPIPE.
 awk 'BEGIN { for (i = 0; i < 3000; i++) printf "mail bob%d@realmail.de about the plan for this week\n", i }' >"$R/docs/many.md"
 masked "masked: a list that does not compile, long output: says why" 1 "does not compile"
 rm "$R/docs/many.md"
@@ -254,7 +262,7 @@ FAKE
   push() { # <label> <dir> <exit code wanted (make exits 2 when the recipe fails)> <text the output or the gh log must contain>
     local out rc; rm -f "$T/gh.log"
     out="$(cd "$2" && PATH="$T/fakegh:$PATH" make -s push-denylist 2>&1)"; rc=$?
-    if [ "$rc" -eq "$3" ] && { printf '%s' "$out"; cat "$T/gh.log" 2>/dev/null; } | grep -qF -- "$4"; then
+    if [ "$rc" -eq "$3" ] && { printf '%s' "$out"; cat "$T/gh.log" 2>/dev/null || :; } | grep -qF -- "$4"; then
       printf 'ok   %s\n' "$1"
     else
       printf 'FAIL %s (exit %s, wanted %s)\n%s\n' "$1" "$rc" "$3" "$out" | sed '2,$s/^/     /'; fails=$((fails+1))
@@ -264,13 +272,26 @@ FAKE
   if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 --decode)" != "$(printf '# CLEAN_DENYLIST v1\n'; cat "$R/scripts/.clean-denylist")" ]; then
     printf 'FAIL push-denylist: the secret is not the marker and the list, base64-encoded\n'; fails=$((fails+1))
   fi
+  # It keeps the checksum of what it sent; the check fails once the list changes after that,
+  # since CI would still check the old one.
+  if [ "$(cat "$R/scripts/.clean-denylist.pushed" 2>/dev/null)" != "$(cksum <"$R/scripts/.clean-denylist")" ]; then
+    printf 'FAIL push-denylist: no checksum of the list it sent\n'; fails=$((fails+1))
+  fi
+  expect "the list as pushed: passes, with no reminder" 0 "OK — no private names in:" "$R"
+  if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -qF "has not been pushed"; then
+    printf 'FAIL a pushed list still gets the never-pushed reminder\n'; fails=$((fails+1))
+  fi
+  printf 'flibbertquux\n' >>"$R/scripts/.clean-denylist"
+  expect "the list changed after the push: fails" 1 "changed since the last make push-denylist" "$R"
+  cp "$T/list.bak" "$R/scripts/.clean-denylist"
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"
   push "push-denylist: refuses a list with no names" "$R" 2 "lists no names"
   printf '^zorblequux\n' >"$R/scripts/.clean-denylist"
-  push "push-denylist: refuses entries anchored with ^" "$R" 2 "anchored with ^"
+  push "push-denylist: refuses entries anchored with ^" "$R" 2 "holding ^"
   [ -f "$T/gh.log" ] && { printf 'FAIL push-denylist: gh was called for a refused list\n'; fails=$((fails+1)); }
   cp "$T/list.bak" "$R/scripts/.clean-denylist"; : >"$R/Makefile"; : >"$W/Makefile"
+  rm -f "$R/scripts/.clean-denylist.pushed"
 else
   echo "SKIP: push-denylist cases need make"
 fi

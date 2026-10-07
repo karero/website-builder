@@ -31,6 +31,11 @@ if [ ! -f "$DENYLIST_FILE" ]; then
   main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
   [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
 fi
+# A name's edges: anything but an ASCII letter, digit or _. Not \b: with GNU grep (CI's) in
+# the C locale, \b never matches beside a non-ASCII letter, so a name that starts or ends with
+# one (an é, an Ö) was never found in CI. A byte of a non-ASCII letter counts as an edge here,
+# so a listed "Caf" also matches inside "Café": more reports, never fewer.
+E='[^A-Za-z0-9_]'
 NAMES=""
 [ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
 
@@ -47,7 +52,7 @@ NAMES=""
 if [ -n "${CLEAN_MASK_NAMES:-}" ]; then
   out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
   whole="$(printf '0\n0 1')"
-  [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*)?\\b(${NAMES})\\b" 2>/dev/null; echo "${PIPESTATUS[*]}")"
+  [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*$E|[^ A-Za-z0-9_])?(${NAMES})($E|\$)" 2>/dev/null; echo "${PIPESTATUS[*]}")"
   # grep's own status, the last field: when grep dies on a bad pattern without reading, a
   # long output can kill printf with SIGPIPE first ("141 2").
   if [ "${whole##* }" = 2 ]; then
@@ -102,12 +107,13 @@ fail=0
 names_checked=0 names_skipped=""
 # grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
 # where the file name ends. A file name holding a newline splits that line into pieces that
-# can pass for other files (an ignored one, or the list itself); one holding a colon, a digit
+# can pass for other files (an ignored one, or the list itself). One holding a colon, a digit
 # and later another colon can hold ":<digits>:", which moves the text's start into the name,
 # where an exemption ("example.com") then drops a real hit. Refuse both kinds of name (the
-# second rule is broader than ":<digits>:" itself, so some harmless names are refused too). They print 4-space-indented, so masked mode
-# withholds them like any scan line. Gitignored files are refused too: they are on disk, where
-# grep reads them. If find fails, the names were not checked: fail too.
+# second rule is broader than ":<digits>:" itself, so some harmless names are refused too).
+# They print 4-space-indented, so masked mode withholds them like any scan line. Gitignored
+# files are refused too: they are on disk, where grep reads them. If find fails, the names
+# were not checked: fail too.
 odd_paths="$(find $SCAN_BASE scripts LICENSE \( -name "*"$'\n'"*" -o -name '*:[0-9]*:*' \) -print 2>/dev/null)" \
   || { fail=1; echo "✗ scan error (find failed) — file names were not checked"; }
 if [ -n "$odd_paths" ]; then
@@ -214,16 +220,27 @@ if [ -f "$DENYLIST_FILE" ]; then
       fail=1
       echo "✗ $anchored list entr(ies) holding ^ (other than right after [): the check finds a name anywhere in a line, and an anchor makes it miss; drop it (a literal \\^ is refused too)"
     fi
+    # make push-denylist keeps the checksum of the list it sent next to the list. A list that
+    # has changed since is not the one CI checks (CI reads the secret), so fail until it is
+    # pushed again. CI has no such file, so this never fires there.
+    if [ -f "$DENYLIST_FILE.pushed" ]; then
+      if [ "$(cksum <"$DENYLIST_FILE")" != "$(cat "$DENYLIST_FILE.pushed")" ]; then
+        fail=1
+        echo "✗ the name list changed since the last make push-denylist: CI still checks the old one; run make push-denylist"
+      fi
+    elif [ -z "${CI:-}" ]; then
+      echo "· the name list has not been pushed from here (no .pushed file beside it): CI may check an older one; run make push-denylist"
+    fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
-    hits="$(g -rinE "\\b(${NAMES})\\b" $SCAN_NAMES)"
+    hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
       # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
-           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:.*\\b(${NAMES})\\b")" \
+           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:(.*$E)?(${NAMES})($E|\$)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
     esac
     report "personal/site identifier" "$hits"
