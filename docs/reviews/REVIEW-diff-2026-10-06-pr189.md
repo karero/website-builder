@@ -1,7 +1,7 @@
 # DIFF review — karero/website-builder#189 — CI checks private names: the list from a repo secret, scanned text withheld from the public log
-Base `d065dbd` (first artifact: `4e69534`) · depth: High (a secret, and what reaches a public log) · verdict: OPEN — merged on the owner's instruction ("Merge", 2026-10-07) with 2 RISK and 5 NIT open as follow-ups, below · authority used: POST AUTHORITY, WORKTREE-WRITE, BRANCH-COMMIT — atom A (this session created the PR, its worktree and its branch); GATED-THIS-DIFF — atom A (codex's chain: full redesign round, then each delta and the merge link to `d35ab50`)
+Base `3a7207d` (first artifact: `4e69534`; redesign: `b8d7136`) · depth: High (a secret, and what reaches a public log) · verdict: CLEAN at `684a377` — every finding fixed or refuted (the follow-up rounds below); the last code fixes and the last wording fix each confirmed by Codex, the seat with an unbroken chain · authority used: POST AUTHORITY, WORKTREE-WRITE, BRANCH-COMMIT — atom A (this session created the PR, its worktree and its branch); GATED-THIS-DIFF — atom A (codex's chain: full redesign round, then each delta and the merge link to `d35ab50`)
 
-Owner's OK to send this repo's diffs out (2026-10-06, this session): "Yes, Normal depth (Recommended)" — Codex + ollama-cloud. Owner's design call after round 4: "Withhold hit lines (Recommended)". Owner on each later round's findings: "go ahead and fix all five", "go ahead and fix all four", "go ahead and fix what round 3 finds".
+Owner's OK to send this repo's diffs out (2026-10-06, this session): "Yes, Normal depth (Recommended)" — Codex + ollama-cloud. melious.ai (2026-10-07, this session): "Yes, use melious (Recommended)". Owner's design call after round 4: "Withhold hit lines (Recommended)". Owner on each later round's findings: "go ahead and fix all five", "go ahead and fix all four", "go ahead and fix what round 3 finds".
 
 | Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -39,3 +39,24 @@ Follow-ups (open at merge; the owner said "Merge" while the decision on the two 
 - Refuted (final read): "`^✗ scan error` in the name post-filter is dead" — `gf()`'s own error line reaches that filter.
 
 Notes: rounds past 3 of the first artifact: round 4, earned by round 3's BUGs (survivor status, secret-line masking, perl alternation). After round 4 the convergence check failed (each round found new holes in the name-blanking code) and the owner chose a redesign, reviewed as a new artifact. Redesign rounds 1–2 ran with one cross-model seat (ollama's usage limit); the final full read by glm-5.3 restored a second model. Live CI: with the secret set, `no-pii-secrets` on `d35ab50` (run 37533028146) shows `CLEAN_DENYLIST: ***` and an OK line that says private names were checked.
+
+## Follow-up rounds (2026-10-07)
+
+Before merging, the owner asked to fix the two RISKs and five NITs left open above ("Fix them"), then "fix what the review finds, then merge" for each later round.
+
+| Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
+|---|---|---|---|---|---|
+| follow-up 1 | `13eff0a` | delta `daaf3d6..13eff0a` | codex (config effort); melious glm-5.3 (HTTP API); fresh-eyes Opus | codex 416/67492; melious 305/40966; fresh 737/141218 | 1/4/6 |
+| follow-up 2 | `5c2f680` | merge link `13eff0a`→`5c2f680` (fixes `5bf2979` + main `63e2353`) | same three | codex 557/107031; melious 105/28352; fresh 513/147193 | 2/1/4 |
+| follow-up 3 | `779b7d5` | merge link `5c2f680`→`779b7d5` (fixes `90a4e09` + main `471a04f`) | same three | codex 501/88145; melious 58/14077; fresh 546/131162 | 2/2/2 |
+| confirmation | `f13d114` | merge link `779b7d5`→`f13d114` (fixes `5520031` + main `3a7207d`) | codex (--seat codex, config effort) | codex 212/57404 | 1/0/0 (wording) |
+| confirmation of that fix | `684a377` | delta `f13d114..684a377`, prose only (comments and a BUGLOG row; no executable line) | codex (--seat codex) | codex 151/41765 | 0/0/0 |
+
+| Round | Fixed | Refuted |
+|---|---|---|
+| follow-up 1 | non-ASCII name edges (explicit edges); stale secret (checksum of what was pushed, kept beside the list, `make check` fails on a change); the five NITs; then from its review: edges lost punctuation-edged names (each pattern now tries edges OR `\b`), stale check skipped an emptied list, encode/checksum read the list twice, README overstated the guard, reminder in masked mode / untested / worded for zip users, checksum-write failure message, names-only checksum | — |
+| follow-up 2 | push and check read "the names" in different locales (recipe exports `LC_ALL=C`); emptied-list dead end (says to add a name back); BSD-grep comment; test expectations mirror the recipe | "pre-existing whole-file checksums fail once" — that version never merged |
+| follow-up 3 | the UTF-8 test was vacuous on Linux (now an em space in C.UTF-8, guarded, skips loudly); the masked check's `\b` alternative is pinned by a test; comment and BUGLOG wording | "the check side is not pinned to C" — `check_clean.sh` line 18 exports `LC_ALL=C` |
+
+Accepted as a stated limit: a push of another copy of the list from another checkout cannot be seen locally (gh never reads a secret back); the README and the check's comment say so.
+The confirmation's one finding: "\b misses a non-ASCII-edged name wherever another character touches that letter" overstated it; now "can miss … with a space beside it for one" (`684a377`), confirmed against BSD grep by Codex; GNU grep 3.8 showed the same misses in Docker (putting `\b` back turned both non-ASCII cases red).
