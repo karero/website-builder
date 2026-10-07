@@ -149,9 +149,9 @@ on the live domain too, counts as a Functions request. On the free plan those co
 at midnight UTC.
 
 Don't add a `_routes.json` to exclude the files from the middleware. Cloudflare suggests it
-to keep static requests free, but it matches paths only, never the host: the excluded files
-would then reach previews without the middleware's noindex, and the `<project>.pages.dev`
-alias would stop redirecting them.
+to keep static requests free, but it matches paths only, never the host: on the
+`<project>.pages.dev` alias the excluded files would then skip the middleware, so they would
+neither redirect nor carry noindex.
 
 One small site rarely gets near that; several sites in one account, or a busy crawler, can.
 What happens then is up to the project's **Fail open / closed** setting, which the free
