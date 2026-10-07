@@ -88,8 +88,8 @@ live fast with zero dashboard time.
 ### Commands you run (token in env)
 
 ```bash
-# 1. Create the Pages project (direct-upload).
-npx wrangler pages project create <project> --production-branch <main|production>
+# 1. Create the Pages project (direct-upload). <production-branch> is main or production.
+npx wrangler pages project create <project> --production-branch <production-branch>
 
 # 2. Build, then deploy the static output. Both lines take the production branch from step 1.
 #    CF_PAGES_BRANCH: analytics is switched on at build time, only when this equals
@@ -100,8 +100,9 @@ npx wrangler pages project create <project> --production-branch <main|production
 #    (set to empty, so an exported value can't switch analytics on), then deploy with any
 #    other --branch.
 #    --branch: without it wrangler uses the local git branch and may make a preview deployment.
-CF_PAGES_BRANCH=<main|production> npm run build
-npx wrangler pages deploy dist --project-name <project> --branch <main|production>
+#    On Windows, run these in Git Bash or WSL.
+CF_PAGES_BRANCH=<production-branch> npm run build
+npx wrangler pages deploy dist --project-name <project> --branch <production-branch>
 
 # 3. Custom domain: NO Wrangler command exists for Pages custom domains.
 #    Attach it in the dashboard (Workers & Pages -> your project -> Custom domains ->
@@ -186,9 +187,10 @@ Either way, any other Function stops until midnight UTC too: on a site with the
 `website-forms` contact form, the form cannot send.
 
 Set it once, right after the first deploy: dashboard → **Workers & Pages** → the project →
-**Settings → Runtime → Fail open / closed**. Cloudflare's docs do not say which one a new
-project starts with, so look rather than assume. Workers Paid ($5/month) removes the daily
-limit (10 million requests a month included, then billed per million).
+**Settings → Runtime → Fail open / closed**. Cloudflare's docs once called Fail open the
+default but no longer say, and the setting was missing from the dashboard for a while in
+2024–25, so look rather than assume. Workers Paid ($5/month) removes the daily limit (10 million
+requests a month included, then billed per million).
 
 Sources, read 2026-10-07: Cloudflare's
 [Functions pricing](https://developers.cloudflare.com/pages/functions/pricing/),
@@ -196,7 +198,10 @@ Sources, read 2026-10-07: Cloudflare's
 [middleware](https://developers.cloudflare.com/pages/functions/middleware/),
 [daily request limit](https://developers.cloudflare.com/workers/platform/limits/#daily-requests),
 [preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/)
-and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/).
+and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/); for the
+setting's history, the cloudflare-docs pull requests that
+[removed](https://github.com/cloudflare/cloudflare-docs/pull/17200) (2024) and
+[restored](https://github.com/cloudflare/cloudflare-docs/pull/22331) (2025) its docs.
 
 ---
 
