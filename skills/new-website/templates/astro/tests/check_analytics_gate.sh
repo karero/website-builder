@@ -58,7 +58,7 @@ build() {
 expect_on() {
   local name="$1" what="$2" tags
   checked=$((checked + 1))
-  tags="$(perl -0ne 's/<!--.*?-->//gs; my $n = 0; while (/<script\b([^>]*)>/g) { my $a = $1; $n++ if $a =~ /\bdata-domain="[^"]+"/ && $a =~ /\bsrc="[^"]*\/js\/script\.js"/ } print $n' "$work/$name/index.html")"
+  tags="$(perl -0ne 's/<!--.*?-->//gs; my $n = 0; while (/<script\b([^>]*)>/g) { my $a = $1; $n++ if $a =~ /(?:^|\s)data-domain="[^"]+"/ && $a =~ /(?:^|\s)src="[^"]*\/js\/script\.js"/ } print $n' "$work/$name/index.html")"
   if [ "${tags:-0}" -ge 1 ]; then
     echo "✓ $what: analytics script in index.html"
   else
