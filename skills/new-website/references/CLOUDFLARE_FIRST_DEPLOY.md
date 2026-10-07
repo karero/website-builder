@@ -100,8 +100,7 @@ npx wrangler pages project create <project> --production-branch <production-bran
 #    (set to empty, so an exported value can't switch analytics on), then deploy with any
 #    other --branch.
 #    --branch: without it wrangler uses the local git branch and may make a preview deployment.
-#    `VAR=value command` needs a POSIX shell (macOS, Linux, WSL2); PowerShell rejects it.
-#    On Windows, use WSL2.
+#    On Windows, run these in Git Bash or WSL.
 CF_PAGES_BRANCH=<production-branch> npm run build
 npx wrangler pages deploy dist --project-name <project> --branch <production-branch>
 
