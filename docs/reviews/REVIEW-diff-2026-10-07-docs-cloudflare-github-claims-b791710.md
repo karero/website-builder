@@ -1,12 +1,13 @@
 # DIFF review — docs/cloudflare-github-claims — Cloudflare and GitHub claims re-checked against the vendors' docs
 
-Base `origin/main` (`63e2353`) · depth: **Normal** (cost, quota and uptime claims an owner acts on; docs only, no code) · verdict: **CLEAN** — no BUG found; every RISK refuted with the vendors' pages or fixed. Authority used: WORKTREE-WRITE and BRANCH-COMMIT, atom A (this session created the worktree and the branch, replaying a never-pushed commit from 2026-10-05 at the owner's "finish it"); GATED-THIS-DIFF, atom A (Codex holds an unbroken chain: round 1 full, round 2 delta, the prose re-gate delta).
+Base `origin/main` (`63e2353`) · depth: **Normal** (cost, quota and uptime claims an owner acts on; docs only, no code) · verdict: **CLEAN** — no BUG found; every RISK refuted with the vendors' pages or fixed. Authority used: WORKTREE-WRITE and BRANCH-COMMIT, atom A (this session created the worktree and the branch, replaying a never-pushed commit from 2026-10-05 at the owner's "finish it"); GATED-THIS-DIFF, atom A (Codex holds an unbroken chain: round 1 full, round 2 delta, the prose re-gate delta, the merge link).
 
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `b791710` | `origin/main...b791710`, `docs/reviews/` excluded | Codex `gpt-6.1-sol` (config effort), read-only; Melious `glm-5.3`, HTTP API; fresh-eyes Sonnet sub-agent (read the vendor pages) | codex 212 s/55,438; glm 75 s/13,429; fresh-eyes 136 s/122,333 | 0 / 5 / 8 |
 | 2 `--verify` | `be1b98b` | delta since `b791710`, with round 1's dispositions | Codex (medium); Melious glm-5.3 | codex 99 s/34,679; glm 47 s/11,557 | 0 / 2 / 1 |
 | re-gate | `a60fd2f` | prose-only delta since `be1b98b` (`--seat codex`) | Codex (medium) | codex 82 s/30,656 | 0 / 0 / 0 |
+| link | `b636600` | `merge_link.sh 63e2353 a60fd2f 1902c4e` (main with #171 merged in) | Codex (medium); Melious glm-5.3 | codex 119 s/41,375; glm 76 s/8,197 | 1 / 1 / 0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -22,6 +23,8 @@ Base `origin/main` (`63e2353`) · depth: **Normal** (cost, quota and uptime clai
 | C10 | NIT | fresh-eyes | 1 | "Workers Standard" vs "Workers Paid" | refuted | the Workers pricing page names the plan "Workers Paid" |
 | G1 | RISK | codex | 2 | C1 and C2 re-raised: links are not evidence | refuted (re-raise, no new evidence; codex had no network) | quotes above |
 | G2 | NIT | glm | 2 | the `_routes.json` warning named a preview loss the same file rules out | fixed `a60fd2f`; externally_reverified (re-gate) | previews keep Cloudflare's own noindex; only the alias loses the middleware's |
+
+Merge link: both Codex findings concern #171's step-2 lines, which this PR does not edit — the preview build inheriting an exported `CF_PAGES_BRANCH` (fixed in #207, `5216139`) and an unbuilt Astro output matrix (follow-up). Melious: clean.
 
 Waivers: none. Deferrals: none. Follow-ups: the Actions row's unchanged "~5 min per run" and "single biggest saver" estimates (codex, outside scope); the live dashboard path for Fail open / closed and a new project's default were not observed.
 
