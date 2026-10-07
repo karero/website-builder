@@ -85,9 +85,15 @@ live fast with zero dashboard time.
 # 1. Create the Pages project (direct-upload).
 npx wrangler pages project create <project> --production-branch <main|production>
 
-# 2. Build, then deploy the static output. --branch = the production branch from step 1;
-#    without it wrangler uses the local git branch and may make a preview deployment.
-npm run build
+# 2. Build, then deploy the static output. Both lines take the production branch from step 1.
+#    CF_PAGES_BRANCH: analytics is switched on at build time, only when this equals
+#    PROD_BRANCH in src/config.ts. Cloudflare sets it only when IT builds; this build runs
+#    here, so without it the live site ships with no analytics script (no error, no data).
+#    The kit ships PROD_BRANCH = 'production': if step 1 chose main, first set PROD_BRANCH
+#    in src/config.ts to 'main'. For a preview deploy, build with plain `npm run build`
+#    (no variable), then deploy with any other --branch.
+#    --branch: without it wrangler uses the local git branch and may make a preview deployment.
+CF_PAGES_BRANCH=<main|production> npm run build
 npx wrangler pages deploy dist --project-name <project> --branch <main|production>
 
 # 3. Custom domain: NO Wrangler command exists for Pages custom domains.
@@ -105,9 +111,10 @@ npx wrangler pages deploy dist --project-name <project> --branch <main|productio
 > the accidental Worker (not a pre-existing one with a similar name), then delete it and
 > re-run `wrangler pages deploy`.
 
-Ongoing deploys under (A): re-run
+Ongoing deploys under (A): re-run both lines of step 2, the variable included —
+`CF_PAGES_BRANCH=<production-branch> npm run build`, then
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
-(wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
+(wrap them in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
 Then continue with `search-console-setup` for GSC/Bing + Crawler Hints.
 
