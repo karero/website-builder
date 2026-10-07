@@ -75,7 +75,7 @@ tags_program() {
 for my $file (@ARGV) {
   open(my $fh, '<', $file) or die "cannot read $file: $!\n";
   local $_ = do { local $/; <$fh> };
-  close($fh) or die "cannot read $file: $!\n";
+  close($fh) or die "cannot finish reading $file: $!\n";
   $_ = '' unless defined;
   s/<!--.*?-->//gs;
   my ($full, $part) = (0, 0);
@@ -127,7 +127,8 @@ expect_off() {
   if [ -z "$hits" ]; then
     echo "✓ $what: no analytics script on any page"
   else
-    echo "✗ $what: an analytics tag, or half of one, on these pages — a full tag counts every visit to this build as real:"
+    echo "✗ $what: an analytics tag, or half of one, on these pages."
+    echo "  (A full tag counts every visit to this build as real.)"
     printf '%s\n' "$hits" | sed "s|^$work/$name/|    |"
     fail=1
   fi
