@@ -280,6 +280,7 @@ scripts/
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
+  list_shell_scripts.sh     every shell script in the suite, found by shebang (the two guards above use it)
   test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list, and CI's masked mode prints no scanned text (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
   test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)

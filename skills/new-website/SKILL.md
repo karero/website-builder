@@ -547,6 +547,10 @@ hold Search Console Request Indexing until then.
       translation or replacement MUST keep the "For AI assistants — deploy-time
       guardrails" section (translated is fine, dropped is not — it is the post-handoff
       agent's only copy of those rules).
+- [ ] **Dependabot security fixes on** for the site's GitHub repo: run `SETUP.md`'s
+      Dependabot lines from the site folder; the output must name this repo and show
+      `alerts: on` and `security updates: on`. Not skippable: the site's lockfile is its
+      own, so no suite update ever patches it.
 - [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
       this build, Production variable `CANONICAL_URL` set and redeployed; `curl -sI` on the
       alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").
