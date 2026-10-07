@@ -10,6 +10,12 @@ them** rather than handing over a dashboard tour.
 > Cloudflare.** (B) and (C) are perfectly fine and stay on offer — they just cost the owner
 > more time and patience. State the deploy-model tradeoff in (A) before they mint anything.
 
+> **Cloudflare now suggests Workers for new projects.** Its Pages docs open with "Start new
+> projects with Workers" (read 2026-10-07). Create a **Pages** project anyway: the kit's
+> `functions/_middleware.ts`, its build variables and the steps below are written for Pages,
+> which Cloudflare still lists as available on all plans. `WEBSITE_ARCHITECTURE.md` Part 1
+> has the reasons.
+
 ---
 
 ## A. Token-assisted bootstrap — RECOMMENDED for Cloudflare newcomers
@@ -145,6 +151,52 @@ If the owner won't mint a token and won't do the dashboard alone: drive the dash
 your runtime's browser automation (**Claude in Chrome** under Claude Code; the agent's own
 browser tool otherwise — see `search-console-setup`), or read them the clicks one by one.
 Both work; both eat time and patience — which is why **(A) is recommended for true newcomers**.
+
+---
+
+## After the first deploy, whichever option: set "Fail open"
+
+Cloudflare serves static files free and without limit only while no Function runs. The
+kit's `functions/_middleware.ts` sits at the root of `functions/`, and Pages then runs it in
+front of every request, files included. So every page view, image, font and crawler hit,
+on the live domain too, counts as a Functions request. On the free plan those come out of
+**100,000 requests a day**, shared by every Pages Function and Worker in the account, reset
+at midnight UTC.
+
+Don't add a `_routes.json` to exclude the files from the middleware. Cloudflare suggests it
+to keep static requests free, but it matches paths only, never the host: on the
+`<project>.pages.dev` alias the excluded files would then skip the middleware, so they would
+neither redirect nor carry noindex.
+
+One small site rarely gets near that; several sites in one account, or a busy crawler, can.
+What happens then is up to the project's **Fail open / closed** setting, which the free
+plan offers:
+
+- **Fail open** (recommended): the static site is served without the middleware until
+  midnight UTC. Nothing changes on the live domain, which the middleware passes through
+  untouched. Previews still carry the `X-Robots-Tag: noindex` that Cloudflare adds to every
+  preview deployment itself. `<project>.pages.dev` is the one address that changes: for the
+  rest of that day it loses what the middleware gives it, the redirect (once
+  `CANONICAL_URL` is set, below) and the noindex.
+- **Fail closed**: every request, on the live domain too, gets an error page until midnight
+  UTC. That suits a Function that guards something; the kit's does not. If a site later
+  gets one that does, choose again.
+
+Either way, any other Function stops until midnight UTC too: on a site with the
+`website-forms` contact form, the form cannot send.
+
+Set it once, right after the first deploy: dashboard → **Workers & Pages** → the project →
+**Settings → Runtime → Fail open / closed**. Cloudflare's docs do not say which one a new
+project starts with, so look rather than assume. Workers Paid ($5/month) removes the daily
+limit (10 million requests a month included, then billed per million).
+
+Sources, read 2026-10-07: Cloudflare's
+[Functions pricing](https://developers.cloudflare.com/pages/functions/pricing/),
+[routing and Fail open / closed](https://developers.cloudflare.com/pages/functions/routing/),
+[middleware](https://developers.cloudflare.com/pages/functions/middleware/),
+[daily request limit](https://developers.cloudflare.com/workers/platform/limits/#daily-requests),
+[preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/)
+and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/).
 
 ---
 
