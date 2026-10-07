@@ -339,9 +339,9 @@ gate.
   `motionExceptions` cannot filter individual ones.
 - **What this spec does NOT cover.** It runs at one viewport, so wrapping and
   section placement on mobile are unchecked — the below-fold set differs there.
-  And the toolkit's `template-tests.yml` triggers only on
-  `skills/new-website/templates/astro/**`, so this template is not exercised by
-  CI at all; it was verified by running it against a real site instead.
+  And the toolkit's `template-tests.yml` tests only the Astro starter and two
+  other skills, never this template, so CI does not exercise it at all; it was
+  verified by running it against a real site instead.
 - **A preview pane may report `visibilityState: "hidden"`.** Where it does,
   `IntersectionObserver` never fires, CSS transitions freeze at their start
   value, and deep-scroll screenshots come back blank. None of this reproduces a
