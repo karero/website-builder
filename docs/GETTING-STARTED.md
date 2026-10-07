@@ -112,3 +112,5 @@ Cloudflare account comes in). Again — it walks you through it.
 If you're comfortable with a terminal, or you're curious what the assistant is actually
 running under the hood, see the **[Manual install & technical reference](../README.md#manual-install--technical-reference)**
 section of the README — every exact command is listed there.
+
+<!-- probe for #203: a change outside the tested paths; this PR is closed unmerged -->
