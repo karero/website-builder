@@ -5,24 +5,81 @@ name: template-tests
 # indexability guard (open robots.txt + llms.txt present), which the repo's only other
 # workflow (`clean`, a PII/secrets scan) never touches. CI is set by Actions, so the
 # Playwright config starts its own preview server (no reuseExistingServer).
+#
+# It starts on every pull request and every push to main, but its test jobs run only when
+# a change touches the paths in the `changes` job below; otherwise they are skipped. The
+# last job, `template-tests-ok`, is the one check main's ruleset requires: a workflow left
+# out by a `paths:` filter never reports, and a required check that never reports blocks
+# every merge, while a job skipped by its `if:` counts as passed.
 on:
   push:
-    paths:
-      - 'skills/new-website/templates/astro/**'
-      - 'skills/website-scorecard/**'
-      - '.github/workflows/template-tests.yml'
+    branches: [main]
   pull_request:
-    paths:
-      - 'skills/new-website/templates/astro/**'
-      - 'skills/website-scorecard/**'
-      - '.github/workflows/template-tests.yml'
+  workflow_dispatch:
+
+# Same events and concurrency group expression as clean.yml; the reasons are written
+# there. The workflow name in the group keeps the two workflows' runs apart.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
     working-directory: skills/new-website/templates/astro
 
 jobs:
+  # Whether this change touches what the jobs below test. A run started by hand tests
+  # everything. On a pull request the change is the branch since it left main, as a
+  # `paths:` filter reads it; on main it is the push.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: paths
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          # --no-renames: a moved file counts at both its old and its new path, so moving a
+          # tested file out of these folders still runs the tests. core.quotePath=false: git
+          # lists an accented name as written, not quoted and escaped; a name it still quotes
+          # (one with a quote mark or a control character) runs the tests. A diff that fails
+          # stops this step, and the last job then fails too.
+          all=false files=
+          case "$EVENT" in
+            pull_request) files="$(git -c core.quotePath=false diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" ;;
+            push)
+              # A push with no commit before it (a new branch) has nothing to compare with.
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true; else files="$(git -c core.quotePath=false diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
+            *) all=true ;;
+          esac
+          run=$all n=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            n=$((n + 1))
+            case "$f" in
+              # whats-new.sh: verify-windows runs the recovery command it prints.
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-forms/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              \"*) run=true ;;
+            esac
+          done <<EOF
+          $files
+          EOF
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          if [ "$all" = true ]; then echo "$EVENT: nothing to compare with, so every test job runs"
+          else echo "$EVENT: $n changed path(s); template tests run: $run"; fi
+
   playwright:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,6 +123,8 @@ jobs:
   # package.json without its packages: "prepare" needs none of them, and the install then
   # takes a second.
   prepare-any-shell:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -124,12 +183,139 @@ jobs:
           [ "$root" = scripts/hooks ] || { echo "::error::the install did not wire the site at its repo's root"; exit 1; }
           [ -z "$big" ] || { echo "::error::an install in a subfolder set core.hooksPath=$big in the bigger repo"; exit 1; }
 
+  # scripts/verify.mjs has a Windows-only branch: started directly (the pre-push hook), it finds
+  # npm on PATH, which on Windows is npm.cmd, and Node starts a .cmd only through a shell; run as
+  # `npm run verify`, it takes npm's own entry from npm_execpath, here a C:\ path with
+  # backslashes. Nothing else exercises either. This builds a site from the starter at the root
+  # of its own repo, so the install wires the hook, and runs verify both ways, then pushes
+  # through the hook: a green change goes through, a tone violation is refused.
+  verify-windows:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, at the root of its own repo, with a bare origin
+        shell: bash
+        run: |
+          S="$RUNNER_TEMP/site"
+          # Absolute: this workflow's default working-directory is the template folder.
+          cp -r "$GITHUB_WORKSPACE/skills/new-website/templates/astro" "$S"
+          # Git for Windows checks text out with CRLF. Its own bash runs a CRLF hook (this job
+          # passed on one before), but WSL's or a container's sh stops at the first `set -e`,
+          # so the template's .gitattributes keeps the hook and shell scripts LF.
+          file "$S/scripts/hooks/pre-push" "$S/tests/check_ship_push.sh" || true
+          # Node reads the bytes: a CR handed to grep through Git Bash flagged LF files as CRLF.
+          node -e '
+            const fs = require("fs"), path = require("path"), bad = [], seen = [];
+            (function walk(d) {
+              for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+                const p = path.join(d, e.name);
+                if (e.isDirectory()) { if (e.name !== "node_modules") walk(p); }
+                else if (e.name.endsWith(".sh") || p.endsWith(path.join("hooks", "pre-push"))) {
+                  seen.push(p); if (fs.readFileSync(p).includes(13)) bad.push(p);
+                }
+              }
+            })(process.argv[1]);
+            // A copy without the hook or any .sh would pass with nothing checked.
+            if (!seen.some((p) => p.endsWith("pre-push")) || !seen.some((p) => p.endsWith(".sh"))) {
+              console.log("::error::the copied site has no hook or no .sh to check"); process.exit(1);
+            }
+            if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
+            console.log("line endings: LF in the hook and all " + seen.filter((p) => p.endsWith(".sh")).length + " .sh files");
+          ' "$S"
+          cd "$S"
+          git init -q
+          git config user.name ci && git config user.email ci@example.invalid
+          git add -A && git commit -qm "site"
+          git init -q --bare "$RUNNER_TEMP/origin.git"
+          git remote add origin "$RUNNER_TEMP/origin.git"
+          git push -q origin HEAD:refs/heads/main
+      # The default shell, PowerShell, as a Windows user would run these.
+      - name: npm ci (its prepare script wires the pre-push hook)
+        working-directory: ${{ runner.temp }}/site
+        run: npm ci --no-audit --no-fund
+      - name: Playwright's browser
+        working-directory: ${{ runner.temp }}/site
+        run: npx playwright install chromium
+      # VERIFY_TRACE=1 makes verify.mjs name the way it started npm, so each step can prove its branch.
+      - name: verify.mjs started directly (npm.cmd from PATH, through a shell; first run installs)
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        env:
+          VERIFY_TRACE: '1'
+        run: |
+          node scripts/verify.mjs 2>&1 | tee verify1.log
+          grep -q "verify: npm from PATH (through a shell)" verify1.log
+          grep -q "verify: all green" verify1.log
+          # Node deprecates an args array with shell: true (DEP0190); verify.mjs passes one string.
+          if grep -q "DEP0190" verify1.log; then echo "::error::verify.mjs printed Node's DEP0190 warning"; exit 1; fi
+      - name: npm run verify (npm's own npm-cli.js under a C:\ path); the second run does not reinstall
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        env:
+          VERIFY_TRACE: '1'
+        run: |
+          npm run verify 2>&1 | tee verify2.log
+          grep -q "verify: npm via npm_execpath (npm-cli.js)" verify2.log
+          grep -q "verify: all green" verify2.log
+          if grep -q "installing the exact packages" verify2.log; then echo "::error::the second run reinstalled"; exit 1; fi
+      - name: The pre-push hook runs verify (a green push goes through, a red one is refused)
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: |
+          [ "$(git config --get core.hooksPath)" = scripts/hooks ] || { echo "::error::npm ci did not wire the hook"; exit 1; }
+          base="$(git rev-parse HEAD)"
+          git switch -q -c content/green
+          git commit -q --allow-empty -m "green"
+          git push origin content/green 2>&1 | tee push-green.log
+          grep -q "pre-push gate passed" push-green.log
+          git ls-remote --exit-code origin refs/heads/content/green >/dev/null
+          git switch -q -c content/red "$base"
+          sed -i 's/This starter page exists/This seamless starter page exists/' src/pages/index.astro
+          git diff --quiet && { echo "::error::the tone violation was not written"; exit 1; }
+          git commit -qam "red"
+          if git push origin content/red 2>&1 | tee push-red.log; then echo "::error::a push with a tone violation went through"; exit 1; fi
+          grep -q "verify: npm test failed" push-red.log
+          if git ls-remote --exit-code origin refs/heads/content/red >/dev/null; then echo "::error::the red branch reached origin"; exit 1; fi
+      # whats-new.sh tells a Windows working copy made before .gitattributes how to get LF copies
+      # back. Run that exact command (read from whats-new.sh, not retyped) in Git Bash: it needs
+      # `xargs -0` there, and paths with spaces.
+      - name: whats-new's CRLF recovery command works in Git Bash
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          line="$(grep -A1 'templates/astro/.gitattributes)' "$GITHUB_WORKSPACE/scripts/whats-new.sh" | tail -1 | sed 's/ ;;$//')"
+          cmd="$(bash -c "$line" | grep -o '`[^`]*`' | tr -d '`')"
+          case "$cmd" in "git ls-files "*) echo "command: $cmd" ;; *) echo "::error::no recovery command found in whats-new.sh"; exit 1 ;; esac
+          crs() { node -e 'let n = 0; for (const f of process.argv.slice(1)) if (require("fs").readFileSync(f).includes(13)) n++; console.log(n)' "$@"; }
+          mkdir crlf-fix && cd crlf-fix && git init -q && git config user.name ci && git config user.email ci@example.invalid
+          mkdir -p scripts/hooks tests "my dir"
+          printf '#!/bin/sh\nset -e\n' >scripts/hooks/pre-push; printf 'echo a\n' >tests/x.sh; printf 'echo b\n' >"my dir/sp ace.sh"
+          git -c core.autocrlf=false add -A && git -c core.autocrlf=false commit -qm lf
+          # A working copy as Git for Windows writes it by default: CRLF, with a clean status.
+          git config core.autocrlf true
+          git ls-files -z | xargs -0 rm -f && git checkout -- .
+          before="$(crs scripts/hooks/pre-push tests/x.sh "my dir/sp ace.sh")"
+          [ "$before" = 3 ] || { echo "::error::the setup did not produce CRLF copies ($before of 3)"; exit 1; }
+          cp "$GITHUB_WORKSPACE/skills/new-website/templates/astro/.gitattributes" . && git add .gitattributes && git commit -qm attrs
+          eval "$cmd"
+          after="$(crs scripts/hooks/pre-push tests/x.sh "my dir/sp ace.sh")"
+          [ "$after" = 0 ] || { echo "::error::$after file(s) still CRLF after the recovery command"; exit 1; }
+          echo "recovery command: 3 CRLF files, 0 after"
+
   # The website-scorecard skill ships three files that live in a SITE, never in the
   # starter, so the job above does not run them. This builds a site from the starter,
   # installs the skill the way its SKILL.md §2 says, writes a card and runs the suite
   # with it. A starter change that breaks those files (they lean on src/config.ts, the
   # Base layout, the Playwright config and its JSON report) turns red here.
   scorecard-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -146,7 +332,10 @@ jobs:
           sed -i "s|const PAGE = '';|const PAGE = '/';|" tests/scorecard.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport Scorecard from '../components/Scorecard.astro';|" src/pages/index.astro
           sed -i 's|^</Base>|  <div class="wrap"><Scorecard /></div>\n</Base>|' src/pages/index.astro
-          grep -q "const PAGE = '/';" tests/scorecard.spec.ts && grep -q '<Scorecard />' src/pages/index.astro && grep -q "import Scorecard" src/pages/index.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/scorecard.spec.ts
+          grep -q '<Scorecard />' src/pages/index.astro
+          grep -q "import Scorecard" src/pages/index.astro
           printf 'node_modules\ndist\n.astro\ntest-results\n' > .gitignore
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
@@ -204,3 +393,98 @@ jobs:
           sed -i 's|<p>Contact:|<p>FIXME</p><p>Contact:|' src/pages/index.astro && grep -q 'FIXME' src/pages/index.astro
           refused "a failing test"
           [ -z "$(git status --porcelain)" ]
+
+  # The website-forms skill, like the scorecard, ships files that live in a SITE. This
+  # builds a site from the starter, installs the skill the way its SKILL.md §3 says
+  # (the function, the component, its words, the test, the form on a page, the privacy
+  # paragraph), and runs the type check and the whole suite. A second form, in German,
+  # sits on the starter's German page with its own copy of the spec, so the German
+  # texts go through the tone rules and the page checks too. No email is sent: the
+  # tests stand in for Cloudflare's mail call.
+  forms-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the skill installed
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          K="$GITHUB_WORKSPACE/skills/website-forms/templates"
+          mkdir -p functions/api
+          cp "$K/contact.ts" functions/api/ && cp "$K/ContactForm.astro" "$K/contact-form.ts" src/components/ && cp "$K/forms.spec.ts" tests/
+          sed -i "s|const PAGE = '';|const PAGE = '/';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.spec.ts
+          # The German form: a German page on an English site, so it passes lang and
+          # privacy (§3 step 3), and the site's one privacy page is the English one.
+          cp "$K/forms.spec.ts" tests/forms.de.spec.ts
+          sed -i "s|const PAGE = '';|const PAGE = '/impressum';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.de.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/impressum.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontaktformular</h2><ContactForm fallback="hello@example.com" lang="de" privacy="/privacy" /></section>\n</Base>|' src/pages/impressum.astro
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><ContactForm fallback="hello@example.com" /></section>\n</Base>|' src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><p data-privacy-contact-form>Messages sent through the contact form on this website are delivered to our mailbox by Cloudflare, Inc., which acts as our processor. The website itself does not store them.</p></section>\n</Base>|' src/pages/privacy.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/forms.spec.ts
+          grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
+          grep -q '<ContactForm fallback' src/pages/index.astro
+          grep -q 'import ContactForm' src/pages/index.astro
+          grep -q 'data-privacy-contact-form' src/pages/privacy.astro
+          grep -q "const PAGE = '/impressum';" tests/forms.de.spec.ts
+          grep -q '<ContactForm fallback="hello@example.com" lang="de"' src/pages/impressum.astro
+          grep -q 'import ContactForm' src/pages/impressum.astro
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Type check and the whole suite, with the form in place
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm run check
+          npm test
+      # The function imports src/components/contact-form.ts from outside functions/.
+      # `wrangler pages deploy` bundles ./functions through the same buildFunctions as
+      # the command below (traced in wrangler 4.147.0); Cloudflare's own build from Git
+      # was not traced. The bundle names each file it took in, in a comment: the shared
+      # one must be there. The version is whatever npx fetches, as on a site's own deploy.
+      - name: The function's bundle takes in the shared file
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npx --yes wrangler pages functions build --outdir=functions-bundle
+          grep -qF '// ../src/components/contact-form.ts' functions-bundle/index.js || { echo '::error::the bundle does not contain src/components/contact-form.ts'; exit 1; }
+      # A form in a language it has no words for must stop the build, not go out in
+      # English. Last step: it leaves the site broken on purpose.
+      - name: A form in a language with no texts stops the build
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          sed -i 's|<ContactForm fallback="hello@example.com" />|<ContactForm fallback="hello@example.com" lang="xx" />|' src/pages/index.astro
+          grep -q 'lang="xx"' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
+          grep -q 'ContactForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
+
+  # The one check main's ruleset requires from this workflow. It passes when every job
+  # above passed (the change touched their paths) or every job was skipped (it did not),
+  # and fails on anything else: a failure, a cancel, a skip where a run was due.
+  template-tests-ok:
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, forms-skill]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - working-directory: .
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.forms-skill.result }}
+        run: |
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, forms-skill: $RESULTS"
+          [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
+          case "$RUN" in
+            true) want=success ;;
+            false) want=skipped ;;
+            *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
+          esac
+          for r in $RESULTS; do
+            [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
+          done
+          echo "template tests: every job $want"

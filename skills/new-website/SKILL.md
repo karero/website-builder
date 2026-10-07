@@ -34,8 +34,11 @@ Everything needed is bundled here:
   (Codex, Claude Code) follows in the repo: fetch the latest state first, pull request
   instead of a direct push, when a merge is allowed, never invent facts, the new-page
   checklist. `CLAUDE.md` is one line (`@AGENTS.md`), so both tools read the same rules.
-- `templates/.gitignore`, `templates/claude/settings.json` — git ignore + the
-  permission allowlist to copy into the repo.
+- `templates/.gitignore`, `templates/claude/settings.json`, `templates/claude/hooks/git-stand.mjs`
+  — git ignore, the permission allowlist, and the Claude Code hook that fetches from
+  GitHub at session start (and again after 2 hours) and reports what is new, so
+  `AGENTS.md` §1 happens even when the assistant skips it. The settings register the
+  hook: copy both, or every session start fails to find the script.
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
 - `references/WEBSITE_ARCHITECTURE.md` (bundled with this skill) — the Cloudflare
   **tier 1/2/3** decision tree + limits (the tiers are also summarized in §1, question 2).
@@ -94,7 +97,9 @@ non-expert can answer, and record the answers in the project `README.md`.
      static** (~90% of sites).
    - Exactly one small server task — a form that emails you, site search,
      hiding a third-party API key, one live widget (e.g. a next-event box fed
-     by an API) → **Tier 2** (one Pages Function or server island).
+     by an API) → **Tier 2** (one Pages Function or server island). A contact
+     form that emails the owner: run **`website-forms`** (it checks first
+     whether the site meets what Cloudflare's email sending needs).
    - State per user — accounts/login, a database, checkout, user-generated
      content → **Tier 3** (SSR + D1). Rare; challenge the requirement first.
 
@@ -271,7 +276,7 @@ Assemble the project at `<site>/` so it travels without any global setup:
    ```
 1. **Scaffold + overlay:** `npm create astro@latest .` (Empty, TS strict), then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
-   `scripts/`, `.github/`, `.nvmrc`, root configs — see `templates/astro/README.md`
+   `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, root configs — see `templates/astro/README.md`
    for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`)
    and `src/config.ts`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
@@ -294,8 +299,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    cp "$SKILLS_ROOT"/new-website/templates/AGENTS.md .         # working rules for every assistant (Codex + Claude)
    cp "$SKILLS_ROOT"/new-website/templates/CLAUDE.md .         # one line: @AGENTS.md
    # Claude Code only:
-   mkdir -p .claude
+   mkdir -p .claude/hooks
    cp "$SKILLS_ROOT"/new-website/templates/claude/settings.json .claude/settings.json
+   cp "$SKILLS_ROOT"/new-website/templates/claude/hooks/git-stand.mjs .claude/hooks/   # sync hook the settings register
    ```
    *Codex / Antigravity: skip the `.claude/settings.json` copy — it's Claude Code-specific.
    Use their own approval systems instead (Codex: `AGENTS.md` + Codex rules/config;
@@ -309,8 +315,9 @@ Assemble the project at `<site>/` so it travels without any global setup:
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
    rule, who publishes) ships with single-owner defaults, not slots; `website-team-setup`
-   rewrites it when a team forms. Non-English owner: translate `AGENTS.md` in-session
-   like `PUBLISHING.md` — rules and commands intact.
+   rewrites it when a team forms. `AGENTS.md` stays English for every owner, like the
+   skills: agents read it, and its Language rule has them reply in the person's
+   language. Only the human-facing `PUBLISHING.md` gets translated (see §4).
 3. **Skills travel with the repo** — copy the twenty-five always-on skills in, plus any
    conditional setup skills selected by the interview, so the handoffs resolve for the
    receiving party. "Always-on" here means always **copied** into the project, not
@@ -369,10 +376,12 @@ Assemble the project at `<site>/` so it travels without any global setup:
    the frozen handoff set.
 
    **Conditional setup skills** — run the matching line ONLY when the interview
-   selected it (they don't ship with a declared one-language, CMS-free site;
+   selected it (they don't ship with a declared one-language, CMS-free site without a form;
    a multilingual-PHASED site is single-locale at scaffold time and still
    gets astro-i18n-setup):
    ```bash
+   # If Q2 = "a form that emails you" (a contact form):
+   cp -RL "$SKILLS_ROOT"/website-forms "$PROJECT_SKILLS_DIR"/
    # If Q3 = "non-technical editor" (Keystatic):
    cp -RL "$SKILLS_ROOT"/keystatic-setup "$PROJECT_SKILLS_DIR"/
    # If Q4 = "2+ languages at launch" OR "multilingual, one language first"
@@ -538,6 +547,10 @@ hold Search Console Request Indexing until then.
       translation or replacement MUST keep the "For AI assistants — deploy-time
       guardrails" section (translated is fine, dropped is not — it is the post-handoff
       agent's only copy of those rules).
+- [ ] **Dependabot security fixes on** for the site's GitHub repo: run `SETUP.md`'s
+      Dependabot lines from the site folder; the output must name this repo and show
+      `alerts: on` and `security updates: on`. Not skippable: the site's lockfile is its
+      own, so no suite update ever patches it.
 - [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
       this build, Production variable `CANONICAL_URL` set and redeployed; `curl -sI` on the
       alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").

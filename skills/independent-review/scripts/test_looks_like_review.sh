@@ -43,6 +43,53 @@ check accept "plain single finding" "1. RISK — c.rb:3 — z could break on nor
 check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
 1. BUG — a.rb:1 — x is wrong now.
 2. RISK — b.rb:2 — y breaks on normal change."
+# 2026-10-06: a genuine melious kimi-k3 review (website-builder PR #179, round 1), cut down. Its
+# findings start "RISK 1 —" with no list marker, so they count as none, and the quoted error message
+# "can't open perl script" then reads as a refusal. PROMPT_CORE now asks for '- BUG'/'- RISK'/'- NIT'
+# lines; the validator was left alone, because every version tried that accepted this reply also
+# accepted a refusal of the same structure.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): the 2026-10-06 kimi-k3 review, findings without a list marker" "
+RANKED FINDINGS
+
+RISK 1 — .github/workflows/clean.yml, the Install Perl::MinimumVersion step: the new perl-minimum job depends on one apt package name existing on ubuntu-latest. Fix: add a CPAN fallback.
+
+NIT 1 — .github/workflows/clean.yml comment block: one line was left overflowed. Fix: re-wrap it.
+
+NIT 2 — skills/independent-review/scripts/check_perl_minimum.sh, the overlap loop: a name in both lists fires fail twice. Fix: iterate one list.
+
+No BUG findings.
+
+CHECKED — CLEAN
+- Extraction fidelity, all seven files: exit codes 2/3/4/5 preserved.
+
+UNVERIFIABLE (not findings)
+- Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
+check accept "the same review in the shape PROMPT_CORE asks for" "
+RANKED FINDINGS
+
+- RISK 1 — .github/workflows/clean.yml, the Install Perl::MinimumVersion step: the new perl-minimum job depends on one apt package name existing on ubuntu-latest. Fix: add a CPAN fallback.
+
+- NIT 1 — .github/workflows/clean.yml comment block: one line was left overflowed. Fix: re-wrap it.
+
+- NIT 2 — skills/independent-review/scripts/check_perl_minimum.sh, the overlap loop: a name in both lists fires fail twice. Fix: iterate one list.
+
+No BUG findings.
+
+CHECKED — CLEAN
+- Extraction fidelity, all seven files: exit codes 2/3/4/5 preserved.
+
+UNVERIFIABLE (not findings)
+- Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
+check accept "the requested shape without a number" "- BUG — c.rb:1 — the guard is inverted. Fix: negate it.
+- RISK — a.rb:3 — retries are unbounded. Fix: bound them.
+- NIT — b.rb:9 — the name is misleading. Fix: rename it."
+# Why the validator was not taught the unmarked shape: this refusal has the kimi reply's structure
+# (severity-led lines, a refusal phrase on another line, a clean verdict). Each of the three versions tried in
+# review on 2026-10-06 (db486ad, 636e735, 61a0173) accepted it along with the kimi reply.
+check reject "a refusal with the kimi reply's structure" "BUG: I will not review this file.
+RISK: I won't read it either.
+I cannot access the repository.
+No findings."
 check accept "clean verdict: no findings" "No findings."
 check accept "clean verdict: findings none" "Ranked findings: none."
 check accept "clean verdict: no BUG / RISK / NIT" "No BUG / RISK / NIT findings in this diff."

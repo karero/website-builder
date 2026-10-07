@@ -33,7 +33,7 @@
 //
 // The copy passes the a11y / seo / tone suites incl. the German rules: one
 // <h1>, description in the 120-160 window, no em dashes, Sie-register
-// throughout (don't mix in du), every email behind <EmailLink>.
+// throughout (don't mix in du), every email behind <EmailLink lang="de">.
 // A solid baseline, not legal advice. When in doubt, have it reviewed.
 import Base from '../layouts/Base.astro';
 import EmailLink from '../components/EmailLink.astro';
@@ -58,7 +58,7 @@ import { SITE } from '../config';
       [NAME DES VERANTWORTLICHEN]<br />
       [STRASSE UND HAUSNUMMER]<br />
       [PLZ, ORT, LAND]<br />
-      Kontakt: <EmailLink address="hello@example.com" subject="Datenschutzanfrage" />
+      Kontakt: <EmailLink address="hello@example.com" subject="Datenschutzanfrage" lang="de" />
     </p>
 
     <h2>2. Hosting und Server-Logs</h2>

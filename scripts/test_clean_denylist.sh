@@ -7,7 +7,8 @@
 # worktree has no copy of it, and the check skipped itself there and still printed OK.
 # Commits are made in worktrees, so the check was off exactly where it mattered: a client
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
-# checkout's list, that a copy with no git still skips (and says so), and that this repo's
+# checkout's list, that a copy with no git still skips (and says so, on its OK line too),
+# that scripts/ is scanned for names without the list matching itself, and that this repo's
 # own short name in an issue or PR reference is not a leak. The names are made up; the
 # real list never appears in this repo.
 #
@@ -46,8 +47,10 @@ $git init -q "$R"; $git -C "$R" add -A; $git -C "$R" commit -qm base
 printf '# made-up names\nzorblequux\nkarero\n' >"$R/scripts/.clean-denylist"
 $git -C "$R" worktree add -q --detach "$W"
 
-expect "main checkout, clean: passes" 0 "OK —" "$R"
-expect "worktree, clean: passes without skipping the list" 0 "OK —" "$W"
+# The list itself sits in the scanned scripts/ folder and holds every name; it must not
+# report itself.
+expect "main checkout, clean: passes, and says names were checked" 0 "OK — no private names in:" "$R"
+expect "worktree, clean: passes without skipping the list" 0 "OK — no private names in:" "$W"
 if (cd "$W" && bash scripts/check_clean.sh 2>&1) | grep -q 'denylist skipped'; then
   printf 'FAIL worktree still reports the list as skipped\n'; fails=$((fails+1))
 fi
@@ -55,16 +58,24 @@ fi
 printf 'ran the live check on zorblequux\n' >>"$W/docs/notes.md"
 expect "worktree, a listed name: fails" 1 "zorblequux" "$W"
 
+# Scripts ship in the handoff zip, and a client name once sat unnoticed in a script's
+# comment because the name check skipped scripts/ along with the generic checks.
+printf '#!/usr/bin/env bash\n# first tried on the zorblequux site\n' >"$R/scripts/tool.sh"
+expect "a listed name in a scripts/*.sh comment: fails" 1 "scripts/tool.sh" "$R"
+rm "$R/scripts/tool.sh"
+
 # In the main checkout, where the list is read either way, so only the self-reference
 # allowance decides these cases.
 printf 'fixed in karero/website-builder#131\nsee https://github.com/karero/website-builder.\ngit clone https://github.com/karero/website-builder.git\nkarero/website-builder karero/website-builder,karero/website-builder\n' >"$R/docs/notes.md"
 expect "this repo's own name in a reference: passes" 0 "OK —" "$R"
 printf 'ran zorblequux; fixed in karero/website-builder#131\n' >"$R/docs/notes.md"
 expect "a listed name beside a self-reference: still fails" 1 "zorblequux" "$R"
-printf 'see karero/website-builder-private\n' >"$R/docs/notes.md"
+# The org name is split so this file, which the real check scans, holds no bare copy of it.
+org="kar""ero"
+printf 'see %s/website-builder-private\n' "$org" >"$R/docs/notes.md"
 expect "a longer name that starts like this repo: fails" 1 "website-builder-private" "$R"
-printf 'see other-karero/website-builder\n' >"$R/docs/notes.md"
-expect "a longer name that ends like this repo: fails" 1 "other-karero" "$R"
+printf 'see other-%s/website-builder\n' "$org" >"$R/docs/notes.md"
+expect "a longer name that ends like this repo: fails" 1 "other-$org" "$R"
 printf 'plain notes\n' >"$R/docs/notes.md"
 printf 'ran zorblequux\n' >"$R/docs/notes:old.md"
 expect "a listed name in a file whose name holds a colon: fails" 1 "zorblequux" "$R"
@@ -80,6 +91,9 @@ rm "$R/docs/scratch" "$R/docs/scratch:notes.md"
 # A pattern grep cannot compile is a scan error, which must fail the run, not read as clean.
 cp "$R/scripts/.clean-denylist" "$T/list.bak"; printf 'zorble(\n' >>"$R/scripts/.clean-denylist"
 expect "a broken pattern in the list: fails as a scan error" 1 "scan error" "$R"
+# A list of nothing but comments checks no names, so it must not earn the names-checked OK.
+printf '# no names yet\n' >"$R/scripts/.clean-denylist"
+expect "a list with no names: the OK line says so" 0 "private-name check SKIPPED: scripts/.clean-denylist lists no names" "$R"
 cp "$T/list.bak" "$R/scripts/.clean-denylist"
 
 # A main checkout whose git data lives elsewhere (--separate-git-dir): git records no path to
@@ -106,6 +120,20 @@ fi
 mkdir -p "$N"; (cd "$W" && tar -cf - --exclude .git .) | tar -xf - -C "$N"
 printf 'ran the live check on zorblequux\n' >>"$N/docs/notes.md"
 expect "no git, no list: skips the list and says so" 0 "denylist skipped" "$N"
+# CI has no list either. Its OK line is all a reader of the green run sees, so the skip
+# must be there, not only in the earlier line.
+expect "no git, no list: the OK line says names were skipped" 0 "private-name check SKIPPED: no scripts/.clean-denylist" "$N"
+# With no git, check-ignore cannot drop the list's own lines; only the exclusion by path can.
+printf 'plain notes\n' >"$N/docs/notes.md"; cp "$R/scripts/.clean-denylist" "$N/scripts/"
+expect "no git, list present: the list does not report itself" 0 "OK — no private names in:" "$N"
+# That exclusion is for the list's own path only: a file of the same name elsewhere ships.
+cp "$R/scripts/.clean-denylist" "$N/docs/"
+expect "no git, a copy of the list in docs/: fails" 1 "docs/.clean-denylist" "$N"
+rm "$N/docs/.clean-denylist"
+# grep prints file:line:text, so this file's lines start like the list's own.
+printf 'ran zorblequux\n' >"$N/scripts/.clean-denylist:1:notes"
+expect "no git, a file named like the list plus a colon: fails" 1 "zorblequux" "$N"
+rm "$N/scripts/.clean-denylist:1:notes"
 
 [ "$fails" -eq 0 ] && { echo "test_clean_denylist: all passed"; exit 0; }
 echo "test_clean_denylist: $fails failed"; exit 1

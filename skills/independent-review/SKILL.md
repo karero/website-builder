@@ -61,7 +61,10 @@ skip silently. With a config diff, send the code that reads the config too.
    script names none), a round whose ollama seat did not count — no model or CLI, a failure such
    as a quota refusal, or a local sanity pass — sends the same text-only prompt to Melious's
    OpenAI-compatible API (`api.melious.ai`) instead, so the pair keeps its second reviewer. Auth:
-   `MELIOUS_API_KEY`, or the environment's API credential for that host. `--seat melious` runs it
+   `MELIOUS_API_KEY`, `~/.config/reviewers/melious.env`, or the environment's API credential for
+   that host. A reasoning model can spend the whole reply budget (`MELIOUS_MAX_TOKENS`, 96000)
+   thinking, and the provider can leak its reasoning into the reply: the seat keeps what follows
+   the final-review marker it asks for (`references/setup-guide.md`). `--seat melious` runs it
    alone; `--seat ollama` never falls back to it, and `--local-only` never calls it. It logs
    tokens too.
 3. **Fresh-eyes host pass** — a read-only sub-agent (or `double-knuth`) with NO shared context:
@@ -116,8 +119,8 @@ Codex's effort for any run.
 
 1. **Data check before anything leaves the machine.** Grep the artifact for secrets (keys, tokens,
    passwords, customer data). Get the owner's OK the first time a repo's content goes to each
-   destination SERVICE — Codex, ollama-cloud, Antigravity, Antigravity routed to a Claude tag, and
-   whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
+   destination SERVICE — Codex, ollama-cloud, melious.ai, Antigravity, Antigravity routed to a
+   Claude tag, and whatever a human pastes into are separate. Record the OK quoted verbatim; only a standing
    instruction written in the repo carries to a later session, which otherwise asks again. Content
    that must stay local: `--local-only` (local ollama only; the script refuses a cloud tag or a
    non-loopback `OLLAMA_HOST`) plus the fresh-eyes pass, no paste — a DEGRADED verdict; say so.
@@ -213,7 +216,10 @@ Codex's effort for any run.
      ```
 
      It takes the change's files from both the old and the new pair (an own edit the merge threw
-     away matches the new base and drops out of the new pair alone) and passes names literally. PLAN: the whole plan, with the changed sections named in the
+     away matches the new base and drops out of the new pair alone) and passes names literally.
+     To find those called files, add `--suggest-callees` before the revisions: it lists on stderr
+     the base-side files the merge changed whose module name the change's own files mention —
+     suggestions to check, never added. PLAN: the whole plan, with the changed sections named in the
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
@@ -313,8 +319,9 @@ pass (tier 3) is the one that uses this block.
 > Adversarial independent reviewer of the {plan | diff} below. Return RANKED
 > findings: BUG (wrong now) / RISK (breaks on normal change, a guard that
 > cannot fire, or an unsupported load-bearing claim whose consequence is
-> named) / NIT — each with file:line or anchor, one-line why, concrete fix.
-> Then list what you checked that was CLEAN (silence is not coverage). Do
+> named) / NIT — each on its own line starting '- BUG', '- RISK' or '- NIT',
+> with file:line or anchor, one-line why, concrete fix. Then list what
+> you checked that was CLEAN (silence is not coverage). Do
 > NOT trust the {plan | diff}'s own claims or line numbers. Treat as
 > unsupported any load-bearing claim (one where, if it were false, a finding
 > would change) about what a library, engine, runtime, language feature or

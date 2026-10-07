@@ -107,6 +107,59 @@ After install, model download and every future run happens from a terminal
 (`ollama pull <model>`, `ollama run <model>`) regardless of OS — there's no
 avoiding the terminal for this step, unlike the IDE-only Antigravity path.
 
+### melious.ai (API key, no install)
+
+The fallback for the ollama seat (SKILL.md, reviewer stack, item 2): with `MELIOUS_MODEL` set, a
+round whose ollama seat did not count (no model or CLI, a quota refusal or other failure, a local
+sanity pass) sends the same text-only prompt here, so the pair keeps its second reviewer. Nothing
+to install beyond `curl` and Perl 5.10 or newer (with JSON::PP), which the ollama API path needs
+too. When one is missing, the Melious seat is skipped, and so is ollama on its API path; the
+summary names what is missing, as in `melious SKIPPED (curl not found)`.
+
+- **Key, on your own machine:** `~/.config/reviewers/melious.env`, `chmod 600`, one line
+  `MELIOUS_API_KEY=<key>`, the key alone (a trailing comment would become part of it). Never
+  source, cat or echo it. Check it is there with
+  `grep -c '^MELIOUS_API_KEY=' ~/.config/reviewers/melious.env` (prints 1). Another path:
+  `MELIOUS_ENV_FILE`.
+- **Key, in a cloud session:** an API credential for `api.melious.ai` in the environment's
+  settings (cloud environment menu → Edit): the proxy adds it to each call, and the seat sends no
+  key of its own when `MELIOUS_API_KEY` and the env file are both absent. An environment variable
+  `MELIOUS_API_KEY` works too. The host must be allowed under Network access, or every call fails
+  with a proxy 403, which the FAILED section reports as "is the host allowed by the network
+  policy?". Settings take effect in a NEW session.
+- **Model:** `MELIOUS_MODEL=<id>`, an id from `GET https://api.melious.ai/v1/models`. The seat
+  names no default.
+- **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
+  27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
+  model whose output cap is lower answers with an error, quoted in the FAILED section: lower the
+  budget for it. A reasoning model can still spend all of it thinking and return no text; the
+  seat fails and says so. Raise it and run again.
+- **Reasoning that leaks into the reply:** the provider can end a reasoning model's thinking at a
+  closing think tag the model writes or quotes (from the artifact, or typed while reasoning
+  about tag handling), and send the rest of the trace as the reply (seen 2026-10-05: 100-290 KB
+  of trace, the review at the very end). The seat therefore asks for a marker line,
+  `=== FINAL REVIEW <random hex> ===`, new on each run so the reviewed diff cannot contain it,
+  before the final answer and keeps what follows the last marker that ends a line and has
+  findings after it (Markdown around the marker is fine; a marker repeated at the end or quoted
+  after the review does not count). Text before it on its line is fine too, as when the model
+  glues it to its last line of reasoning, and the section then says so. A marker that looks
+  quoted is skipped (after other text on a finding line, right after a backtick, or just inside
+  a fence), so a finding that quotes the marker does not cut the findings above it; when more
+  than one marker has findings after it, the section says so too, as a skip or a quote the rules
+  miss can move the cut. The section says how much was dropped, and
+  the reply as it came is in `melious.full` in the raw dir. With no usable marker the whole
+  reply is kept and the section always warns that it may be leaked reasoning rather than a
+  finished review: read it from the end, and rerun the round if it is working notes (a 21 KB reply
+  of notes with no marker was seen; size alone does not tell). A leak can also run on with no marker until the connection drops (seen once,
+  after 38 minutes): the seat fails with "reply cut off" and keeps what came in `melious.resp`;
+  run it again. The seat and its tests build think tags at runtime, so this repo's files carry none.
+- **Run:** set `MELIOUS_MODEL=<id>` and run the pair as usual; the seat stands in when ollama did
+  not count. `--seat melious` runs it alone (the wording pass, a re-gate); `--seat ollama` never
+  falls back to it, and `--local-only` never calls it. The cost log records the seat as `melious` with
+  the model in its own column.
+- **First use per repo:** ask the owner before a repo's content goes to melious.ai the first time
+  (SKILL.md, Procedure step 1).
+
 ## Picking a model — RAM decides this, don't guess
 
 **Check installed RAM first, then pick from the table — don't let the user
