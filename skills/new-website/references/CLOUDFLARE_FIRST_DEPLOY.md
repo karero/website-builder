@@ -11,7 +11,7 @@ them** rather than handing over a dashboard tour.
 > more time and patience. State the deploy-model tradeoff in (A) before they mint anything.
 
 > **Cloudflare now suggests Workers for new projects.** Its Pages docs open with "Start new
-> projects with Workers" (read 2026-10-05). Create a **Pages** project anyway: the kit's
+> projects with Workers" (read 2026-10-07). Create a **Pages** project anyway: the kit's
 > `functions/_middleware.ts`, its build variables and the steps below are written for Pages,
 > which Cloudflare still lists as available on all plans. `WEBSITE_ARCHITECTURE.md` Part 1
 > has the reasons.

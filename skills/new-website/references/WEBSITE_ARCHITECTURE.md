@@ -54,7 +54,7 @@ Astro avoids the tax entirely (first-class CF adapter). **Stay on Cloudflare for
 
 **Pages or Workers?** Cloudflare's Pages docs now open with "Start new projects with
 Workers"; Pages is still listed as available on all plans, and the docs name no end date
-(read 2026-10-05). The kit stays on Pages for now. It is written for Pages: the
+(read 2026-10-07). The kit stays on Pages for now. It is written for Pages: the
 middleware's `*.pages.dev` host rules, the `CF_PAGES_*` build variables that gate analytics
 and stamp `build.txt`, and the deploy and preview steps in these docs. And when the free plan's daily Functions requests run out, a Pages project
 can still serve the static site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a
