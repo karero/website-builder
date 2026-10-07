@@ -114,19 +114,22 @@ commands.** They publish what's in your folder, so save and upload your changes 
 (commit and push, as above): anything not saved would go live without being on GitHub.
 
 ```bash
-# 1. Get the newest state from GitHub
-git switch main
+# 1. Get the newest published state from GitHub
+git switch <production-branch>
 git pull
 
 # 2. Build the site, then upload it to Cloudflare — this goes LIVE
-npm run build
+CF_PAGES_BRANCH=<production-branch> npm run build
 npx wrangler pages deploy dist --project-name <your-project> --branch <production-branch>
 ```
 
 `<your-project>` is your site's project name in Cloudflare. `<production-branch>` is the
 branch the project was created with: `main` on a single-stage site, `production` on a
-two-stage one. Don't leave `--branch` out: without it, the upload can land as a preview
-instead of on the live site. If the command says you aren't logged in, run
+two-stage one. Use the same name in all three places. Don't leave out the
+`CF_PAGES_BRANCH=` part: it switches on your visitor statistics, and without it the live
+site counts no visitors, with no error to tell you. Don't leave `--branch` out either:
+without it, the upload can land as a preview instead of on the live site. If the command
+says you aren't logged in, run
 `npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
 run it again.
 
