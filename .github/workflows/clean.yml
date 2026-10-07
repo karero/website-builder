@@ -53,8 +53,8 @@ on:
 # - On main every commit gets its own group, so each merge keeps a result of its own.
 # - Groups are shared by every workflow in the repo; the workflow name in the group keeps
 #   clean and template-tests from cancelling each other.
-# template-tests.yml uses the same events and group expression, adds path filters of its
-# own, and points here.
+# template-tests.yml uses the same events and group expression, and points here. It runs
+# on every change too, and skips its test jobs when no tested path changed.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true

@@ -5,25 +5,20 @@ name: template-tests
 # indexability guard (open robots.txt + llms.txt present), which the repo's only other
 # workflow (`clean`, a PII/secrets scan) never touches. CI is set by Actions, so the
 # Playwright config starts its own preview server (no reuseExistingServer).
+#
+# It starts on every pull request and every push to main, but its test jobs run only when
+# a change touches the paths in the `changes` job below; otherwise they are skipped. The
+# last job, `template-tests-ok`, is the one check main's ruleset requires: a workflow left
+# out by a `paths:` filter never reports, and a required check that never reports blocks
+# every merge, while a job skipped by its `if:` counts as passed.
 on:
   push:
     branches: [main]
-    paths:
-      - 'skills/new-website/templates/astro/**'
-      - 'skills/website-scorecard/**'
-      - 'skills/website-forms/**'
-      - '.github/workflows/template-tests.yml'
   pull_request:
-    paths:
-      - 'skills/new-website/templates/astro/**'
-      - 'skills/website-scorecard/**'
-      - 'skills/website-forms/**'
-      - '.github/workflows/template-tests.yml'
   workflow_dispatch:
 
-# Same events and concurrency group expression as clean.yml, plus this file's path
-# filters; the reasons are written there. The workflow name in the group keeps the two
-# workflows' runs apart.
+# Same events and concurrency group expression as clean.yml; the reasons are written
+# there. The workflow name in the group keeps the two workflows' runs apart.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
@@ -33,7 +28,58 @@ defaults:
     working-directory: skills/new-website/templates/astro
 
 jobs:
+  # Whether this change touches what the jobs below test. A run started by hand tests
+  # everything. On a pull request the change is the branch since it left main, as a
+  # `paths:` filter reads it; on main it is the push.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: paths
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          # --no-renames: a moved file counts at both its old and its new path, so moving a
+          # tested file out of these folders still runs the tests. core.quotePath=false: git
+          # lists an accented name as written, not quoted and escaped; a name it still quotes
+          # (one with a quote mark or a control character) runs the tests. A diff that fails
+          # stops this step, and the last job then fails too.
+          all=false files=
+          case "$EVENT" in
+            pull_request) files="$(git -c core.quotePath=false diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" ;;
+            push)
+              # A push with no commit before it (a new branch) has nothing to compare with.
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true; else files="$(git -c core.quotePath=false diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
+            *) all=true ;;
+          esac
+          run=$all n=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            n=$((n + 1))
+            case "$f" in
+              # whats-new.sh: verify-windows runs the recovery command it prints.
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-forms/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              \"*) run=true ;;
+            esac
+          done <<EOF
+          $files
+          EOF
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          if [ "$all" = true ]; then echo "$EVENT: nothing to compare with, so every test job runs"
+          else echo "$EVENT: $n changed path(s); template tests run: $run"; fi
+
   playwright:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -77,6 +123,8 @@ jobs:
   # package.json without its packages: "prepare" needs none of them, and the install then
   # takes a second.
   prepare-any-shell:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -142,6 +190,8 @@ jobs:
   # of its own repo, so the install wires the hook, and runs verify both ways, then pushes
   # through the hook: a green change goes through, a tone violation is refused.
   verify-windows:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -264,6 +314,8 @@ jobs:
   # with it. A starter change that breaks those files (they lean on src/config.ts, the
   # Base layout, the Playwright config and its JSON report) turns red here.
   scorecard-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -350,10 +402,12 @@ jobs:
   # texts go through the tone rules and the page checks too. No email is sent: the
   # tests stand in for Cloudflare's mail call.
   forms-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: A site from the starter, with the skill installed
@@ -408,3 +462,29 @@ jobs:
           grep -q 'lang="xx"' src/pages/index.astro
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
           grep -q 'ContactForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
+
+  # The one check main's ruleset requires from this workflow. It passes when every job
+  # above passed (the change touched their paths) or every job was skipped (it did not),
+  # and fails on anything else: a failure, a cancel, a skip where a run was due.
+  template-tests-ok:
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, forms-skill]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - working-directory: .
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.forms-skill.result }}
+        run: |
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, forms-skill: $RESULTS"
+          [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
+          case "$RUN" in
+            true) want=success ;;
+            false) want=skipped ;;
+            *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
+          esac
+          for r in $RESULTS; do
+            [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
+          done
+          echo "template tests: every job $want"
