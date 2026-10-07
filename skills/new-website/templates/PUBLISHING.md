@@ -16,7 +16,8 @@ read the glossary once, then follow the steps for your site's model.
 | **merge** | **Copy the changes** from one branch into another — e.g. take everything in `main` and bring it into `production` to publish. |
 
 A normal edit is always the same three moves: **commit** (save) → **push** (upload) →
-the site rebuilds automatically. The only question is *which branch* you push to, and that's
+the site rebuilds automatically (except on a site that deploys by command, see "Deploy by
+command"). The only question is *which branch* you push to, and that's
 what your model below decides.
 
 ---
@@ -109,33 +110,35 @@ git push
 
 Some sites are put online with a Cloudflare token instead of a GitHub connection (your
 README's "Deploy" section says if yours is one; if you're not sure, ask your assistant).
-Such a site has no preview, and `git push` only updates GitHub. **Nothing goes online until
-someone runs the commands below.** They publish what's in your folder, so first check your
-change locally (`npm run dev`), then save and upload it with `git add -A`, `git commit` and
-`git push` as above. Skip `npm run ship` here: it waits for Cloudflare to build, and on
+Such a site has no preview step, and `git push` only updates GitHub. **Nothing goes online
+until someone runs the commands below.** They publish `main`, so first check your change
+locally (`npm run dev`), then save and upload it on `main` with `git add -A`, `git commit`
+and `git push` as above. Skip `npm run ship` here: it waits for Cloudflare to build, and on
 such a site Cloudflare never does.
 
 ```bash
-# 1. Get the newest state from GitHub
-git switch main && git pull
-
-# 2. Build the site, then upload it to Cloudflare — this goes LIVE
-CF_PAGES_BRANCH=<production-branch> npm run build &&
+# Get the newest main from GitHub, build the site, then upload it to Cloudflare.
+# One command over four lines: copy all of it. The last line puts the site LIVE.
+git switch main &&
+  git pull &&
+  CF_PAGES_BRANCH=<production-branch> npm run build &&
   npx wrangler pages deploy dist --project-name <your-project> --branch <production-branch>
 ```
 
 `<your-project>` is your site's project name in Cloudflare. `<production-branch>` is the
 branch the project was created with: `main` on a single-stage site, `production` on a
-two-stage one. You upload from `main` either way, because with no preview `main` is what you
-just checked. Put the same branch name in both places, and leave both in:
+two-stage one. You upload from `main` either way: with no preview step, `main` holds the
+change you just checked and saved. Put the same branch name in both places, and leave both in:
 
 - `CF_PAGES_BRANCH=` turns on your visitor statistics. Without it the live site counts no
   visitors, with no error to tell you. (It only works when the name matches `PROD_BRANCH`
   in `src/config.ts`. If you're not sure it does, ask your assistant to check.)
 - Without `--branch`, the upload can land as a preview instead of on the live site.
 
-The `&&` means each command runs only if the one before it worked. If anything stops with an
-error, nothing went live: ask for help rather than running the upload on its own. The first
+The `&&` means each line runs only if the one before it worked. If `git` or the build stops
+with an error, nothing was uploaded: ask for help rather than running the upload on its own.
+If the upload itself shows an error, part of it may have gone live anyway: ask for help
+before running it again. The first
 time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't logged in, run
 `npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
 run it again.

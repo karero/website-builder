@@ -110,7 +110,8 @@ Ongoing deploys under (A): re-run
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
 The owner's version, for after handoff, is `templates/PUBLISHING.md`, "Deploy by command":
-keep its build and deploy lines in step with step 2 above. Before handoff, add one sentence
+keep the two in step: both build with `CF_PAGES_BRANCH=<production-branch>` and deploy
+with the same `--branch`. Before handoff, add one sentence
 to the site README's "Deploy" paragraph: this site deploys by command, with no GitHub
 connection in Cloudflare (project `<project>`, production branch `<production-branch>`), and
 `PUBLISHING.md`, "Deploy by command", has the steps. That sentence is how the owner, and the
