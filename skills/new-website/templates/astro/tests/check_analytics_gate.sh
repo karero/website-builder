@@ -65,28 +65,42 @@ build() {
 
 # The tag Base.astro writes: <script defer data-domain="…" src="<scriptHost>/js/script.js">.
 # For each page, prints "<full> <part> <path>": how many <script> tags carry both
-# attributes (a working analytics tag) and how many carry either. HTML comments are
-# dropped first, and attributes are read one at a time, so text inside a quoted value
-# never counts as an attribute and <script-x> is not a script.
+# attributes with a value (a working analytics tag) and how many carry either one at all.
+# HTML comments are dropped first, and attributes are read one at a time, so text inside a
+# quoted value never counts as an attribute and <script-x> is not a script. It reads the
+# markup Astro emits from this template; it is not an HTML parser, so a script tag spelled
+# out inside another attribute's value or inside a script's code would fool it.
 tags_program() {
   cat <<'PERL'
-s/<!--.*?-->//gs;
-my ($full, $part) = (0, 0);
-while (/<script(?=[\s\/>])/gi) {
-  my %a;
-  while (/\G\s*([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gc) {
-    $a{lc $1} = defined $2 ? $2 : defined $3 ? $3 : defined $4 ? $4 : "";
+for my $file (@ARGV) {
+  open(my $fh, '<', $file) or die "cannot read $file: $!\n";
+  local $_ = do { local $/; <$fh> };
+  close($fh) or die "cannot read $file: $!\n";
+  $_ = '' unless defined;
+  s/<!--.*?-->//gs;
+  my ($full, $part) = (0, 0);
+  while (/<script(?=[\s\/>])/gi) {
+    my %a;
+    while (/\G\s*([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gc) {
+      $a{lc $1} = defined $2 ? $2 : defined $3 ? $3 : defined $4 ? $4 : '';
+    }
+    my $src = exists $a{src} && $a{src} =~ m{/js/script\.js(?:[?#]|$)};
+    $full++ if $src && exists $a{'data-domain'} && $a{'data-domain'} ne '';
+    $part++ if $src || exists $a{'data-domain'};
   }
-  my $domain = defined $a{"data-domain"} && $a{"data-domain"} ne "";
-  my $src = defined $a{src} && $a{src} =~ m{/js/script\.js(?:[?#]|$)};
-  $full++ if $domain && $src;
-  $part++ if $domain || $src;
+  print "$full $part $file\n";
 }
-print "$full $part $ARGV\n";
 PERL
 }
+# Every page gets exactly one line, or the check fails: a page that could not be read
+# must not drop out of the count.
 count_tags() {
-  find "$1" -name '*.html' -exec perl -0 -ne "$(tags_program)" {} +
+  local dir="$1" out pages lines
+  out="$(find "$dir" -name '*.html' -exec perl -e "$(tags_program)" {} +)" || return 1
+  pages="$(find "$dir" -name '*.html' | wc -l | tr -d ' ')"
+  lines="$(printf '%s\n' "$out" | grep -c . || true)"
+  [ "$pages" -gt 0 ] && [ "$pages" = "$lines" ] || return 1
+  printf '%s\n' "$out"
 }
 
 # On means on for every page: every page is built from Base.astro.
@@ -113,7 +127,7 @@ expect_off() {
   if [ -z "$hits" ]; then
     echo "✓ $what: no analytics script on any page"
   else
-    echo "✗ $what: analytics script found — every visit to this build would be counted as real:"
+    echo "✗ $what: an analytics tag, or half of one, on these pages — a full tag counts every visit to this build as real:"
     printf '%s\n' "$hits" | sed "s|^$work/$name/|    |"
     fail=1
   fi
