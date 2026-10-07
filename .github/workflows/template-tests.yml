@@ -49,14 +49,16 @@ jobs:
           PUSH_AFTER: ${{ github.sha }}
         run: |
           # --no-renames: a moved file counts at both its old and its new path, so moving a
-          # tested file out of these folders still runs the tests. A diff that fails stops
-          # this step, and the last job then fails too.
+          # tested file out of these folders still runs the tests. core.quotePath=false: git
+          # lists an accented name as written, not quoted and escaped; a name it still quotes
+          # (one with a quote mark or a control character) runs the tests. A diff that fails
+          # stops this step, and the last job then fails too.
           all=false files=
           case "$EVENT" in
-            pull_request) files="$(git diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" ;;
+            pull_request) files="$(git -c core.quotePath=false diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" ;;
             push)
               # A push with no commit before it (a new branch) has nothing to compare with.
-              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true; else files="$(git diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true; else files="$(git -c core.quotePath=false diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
             *) all=true ;;
           esac
           run=$all n=0
@@ -66,6 +68,7 @@ jobs:
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
               skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-forms/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              \"*) run=true ;;
             esac
           done <<EOF
           $files
