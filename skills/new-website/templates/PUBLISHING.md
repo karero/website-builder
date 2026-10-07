@@ -142,6 +142,8 @@ before running it again. The first
 time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't logged in, run
 `npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
 run it again.
+On Windows, run the command in Ubuntu (WSL2, see `SETUP.md`), not in PowerShell, where
+the build line does not work.
 
 ---
 

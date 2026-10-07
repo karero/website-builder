@@ -136,8 +136,10 @@ wins over the auto-slug and never drifts.
 
 Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
 project settings set the **production branch to `production`** (must equal
-`PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every preview
-`*.pages.dev` host is noindexed by the function). Once the live domain serves the
+`PROD_BRANCH` in `src/config.ts`). On a site connected to GitHub in Cloudflare, `main`
+stays the preview (every preview `*.pages.dev` host is noindexed by the function); a
+site deployed by command has no preview step, and `PUBLISHING.md`, "Deploy by command", has
+its steps. Once the live domain serves the
 site, set the Production variable `CANONICAL_URL` (e.g. `https://example.com`) and
 redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so
 people following an AI answer that cites the alias land on the real domain. Until then the alias is noindexed
