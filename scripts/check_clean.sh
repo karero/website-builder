@@ -31,10 +31,13 @@ if [ ! -f "$DENYLIST_FILE" ]; then
   main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
   [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
 fi
-# A name's edges: anything but an ASCII letter, digit or _. Not \b: with GNU grep (CI's) in
-# the C locale, \b never matches beside a non-ASCII letter, so a name that starts or ends with
-# one (an é, an Ö) was never found in CI. A byte of a non-ASCII letter counts as an edge here,
-# so a listed "Caf" also matches inside "Café": more reports, never fewer.
+# A name's edges. In the C locale, \b never matches beside a non-ASCII letter (GNU grep, CI's,
+# and this Mac's grep alike), so a name that starts or ends with one (an é, an Ö) was never
+# found. So each name pattern below tries both: edges of anything but an ASCII letter, digit
+# or _ (a byte of a non-ASCII letter counts, so a listed "Caf" also matches inside "Café"),
+# OR the old \b match, which alone finds an entry that starts or ends with punctuation next
+# to a letter (a trailing hyphen, say). Two separate alternatives: BSD grep finds nothing when
+# \b shares one group with ^ or $. More reports than either alone, never fewer.
 E='[^A-Za-z0-9_]'
 NAMES=""
 [ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
@@ -50,9 +53,9 @@ NAMES=""
 #    stage's status: under pipefail, a failed stage before a grep that found nothing reads
 #    like "none".
 if [ -n "${CLEAN_MASK_NAMES:-}" ]; then
-  out="$(CLEAN_MASK_NAMES= bash scripts/check_clean.sh 2>&1)"; rc=$?
+  out="$(CLEAN_MASK_NAMES= CLEAN_INNER=1 bash scripts/check_clean.sh 2>&1)"; rc=$?
   whole="$(printf '0\n0 1')"
-  [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}([^ ].*$E|[^ A-Za-z0-9_])?(${NAMES})($E|\$)" 2>/dev/null; echo "${PIPESTATUS[*]}")"
+  [ -n "$NAMES" ] && whole="$(printf '%s\n' "$out" | grep -ciE -- "^ {0,3}(([^ ].*$E|[^ A-Za-z0-9_])?(${NAMES})($E|\$)|([^ ].*)?\\b(${NAMES})\\b)" 2>/dev/null; echo "${PIPESTATUS[*]}")"
   # grep's own status, the last field: when grep dies on a bad pattern without reading, a
   # long output can kill printf with SIGPIPE first ("141 2").
   if [ "${whole##* }" = 2 ]; then
@@ -196,6 +199,19 @@ report() { # <label> <grep-output>
 #    so private names never ship in the repo. Absent (e.g. a fresh clone) → skipped;
 #    the generic checks below still run.
 if [ -f "$DENYLIST_FILE" ]; then
+  # make push-denylist keeps a checksum of the names it sent (comments and blank lines left
+  # out) beside the list. Names that have changed since are not the ones CI checks (CI reads
+  # the secret), so fail until they are pushed again, an emptied list included. CI has no
+  # such file. A push from another checkout, of another copy of the list, cannot be seen
+  # from here: gh never reads a secret back.
+  if [ -f "$DENYLIST_FILE.pushed" ]; then
+    if [ "$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | cksum)" != "$(cat "$DENYLIST_FILE.pushed")" ]; then
+      fail=1
+      echo "✗ the name list changed since the last make push-denylist: CI still checks the old one; run make push-denylist"
+    fi
+  elif [ -z "${CI:-}" ] && [ -z "${CLEAN_INNER:-}" ]; then
+    echo "· the name list has not been pushed from this checkout (no .pushed file beside it): if CI checks names, it may hold an older list; maintainers: make push-denylist"
+  fi
   # karero/website-builder is this project's OWN public repo — self-links to it (README
   # badges, clone instructions, the security policy) and its short form in issue and PR
   # references (karero/website-builder#131) are the point, not a leak. Blank out exactly that
@@ -220,27 +236,16 @@ if [ -f "$DENYLIST_FILE" ]; then
       fail=1
       echo "✗ $anchored list entr(ies) holding ^ (other than right after [): the check finds a name anywhere in a line, and an anchor makes it miss; drop it (a literal \\^ is refused too)"
     fi
-    # make push-denylist keeps the checksum of the list it sent next to the list. A list that
-    # has changed since is not the one CI checks (CI reads the secret), so fail until it is
-    # pushed again. CI has no such file, so this never fires there.
-    if [ -f "$DENYLIST_FILE.pushed" ]; then
-      if [ "$(cksum <"$DENYLIST_FILE")" != "$(cat "$DENYLIST_FILE.pushed")" ]; then
-        fail=1
-        echo "✗ the name list changed since the last make push-denylist: CI still checks the old one; run make push-denylist"
-      fi
-    elif [ -z "${CI:-}" ]; then
-      echo "· the name list has not been pushed from here (no .pushed file beside it): CI may check an older one; run make push-denylist"
-    fi
     self='^scripts/\.clean-denylist:[0-9]+:'
     compgen -G 'scripts/.clean-denylist:*' >/dev/null && self='^$'
-    hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)" $SCAN_NAMES)"
+    hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
     case "$hits" in
       "✗ scan error"*) ;;
       # gf() never fails, so under pipefail a failure here is sed's, and its hits are lost.
       *) hits="$(printf '%s\n' "$hits" \
            | gf -vE "$self" \
            | sed -E -e ':a' -e 's#(^|[^A-Za-z0-9_.-])karero/website-builder(\.git)?([^A-Za-z0-9_.-]|\.[^A-Za-z0-9_-]|\.?$)#\1SELF-REPO\3#' -e 'ta' \
-           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:(.*$E)?(${NAMES})($E|\$)")" \
+           | gf -iE "^✗ scan error|^Binary file |:[0-9]+:((.*$E)?(${NAMES})($E|\$)|.*\\b(${NAMES})\\b)")" \
            || hits="✗ scan error (the name filter failed) — hits may be missing" ;;
     esac
     report "personal/site identifier" "$hits"

@@ -113,13 +113,22 @@ if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "holding ^"; then
   printf 'FAIL a negated class was refused as an anchor\n'; fails=$((fails+1))
 fi
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
-# With GNU grep (CI's) in the C locale, \b never matched beside a non-ASCII letter, so a name
-# that starts or ends with one was never found in CI. (BSD grep found it; GNU is the test.)
+# In the C locale, \b never matched beside a non-ASCII letter (GNU grep and this Mac's grep
+# alike), so a name that starts or ends with one was never found.
 printf 'zorbleqé\nÖzorbleq\n' >"$R/scripts/.clean-denylist"
 printf 'met Zorbleqé.\n' >"$R/docs/notes.md"
 expect "a name ending in a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
 printf 'see Özorbleq now\n' >"$R/docs/notes.md"
 expect "a name starting with a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
+# The new edges alone missed an entry that starts or ends with punctuation next to a letter,
+# which \b found; both are tried. A name inside a longer word still passes.
+printf -- '-zorbleq\nflumm-\n' >"$R/scripts/.clean-denylist"
+printf 'see acme-zorbleq\n' >"$R/docs/notes.md"
+expect "an entry starting with punctuation, after a letter: fails" 1 "personal/site identifier" "$R"
+printf 'the flumm-site\n' >"$R/docs/notes.md"
+expect "an entry ending with punctuation, before a letter: fails" 1 "personal/site identifier" "$R"
+printf 'zorbleq\n' >"$R/scripts/.clean-denylist"; printf 'zorbleqs and zorbleqx\n' >"$R/docs/notes.md"
+expect "a name inside a longer word: passes" 0 "OK — no private names in:" "$R"
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
 # A file name holding ":<digit>…:" moved the text's start into the name, where an exemption
 # then dropped a real hit; such names are refused.
@@ -269,12 +278,12 @@ FAKE
     fi
   }
   push "push-denylist: sends the list to the repo gh names" "$R" 0 "args: secret set CLEAN_DENYLIST --repo owner/repo"
-  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 --decode)" != "$(printf '# CLEAN_DENYLIST v1\n'; cat "$R/scripts/.clean-denylist")" ]; then
-    printf 'FAIL push-denylist: the secret is not the marker and the list, base64-encoded\n'; fails=$((fails+1))
+  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 --decode)" != "$(printf '# CLEAN_DENYLIST v1\n'; grep -vE '^[[:space:]]*(#|$)' "$R/scripts/.clean-denylist")" ]; then
+    printf 'FAIL push-denylist: the secret is not the marker and the names, base64-encoded\n'; fails=$((fails+1))
   fi
   # It keeps the checksum of what it sent; the check fails once the list changes after that,
   # since CI would still check the old one.
-  if [ "$(cat "$R/scripts/.clean-denylist.pushed" 2>/dev/null)" != "$(cksum <"$R/scripts/.clean-denylist")" ]; then
+  if [ "$(cat "$R/scripts/.clean-denylist.pushed" 2>/dev/null)" != "$(grep -vE '^[[:space:]]*(#|$)' "$R/scripts/.clean-denylist" | cksum)" ]; then
     printf 'FAIL push-denylist: no checksum of the list it sent\n'; fails=$((fails+1))
   fi
   expect "the list as pushed: passes, with no reminder" 0 "OK — no private names in:" "$R"
@@ -283,6 +292,10 @@ FAKE
   fi
   printf 'flibbertquux\n' >>"$R/scripts/.clean-denylist"
   expect "the list changed after the push: fails" 1 "changed since the last make push-denylist" "$R"
+  printf '# none left\n' >"$R/scripts/.clean-denylist"
+  expect "the list emptied after the push: fails" 1 "changed since the last make push-denylist" "$R"
+  { cat "$T/list.bak"; printf '# a comment added later\n\n'; } >"$R/scripts/.clean-denylist"
+  expect "a comment added after the push: passes" 0 "OK — no private names in:" "$R"
   cp "$T/list.bak" "$R/scripts/.clean-denylist"
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"
@@ -292,6 +305,11 @@ FAKE
   [ -f "$T/gh.log" ] && { printf 'FAIL push-denylist: gh was called for a refused list\n'; fails=$((fails+1)); }
   cp "$T/list.bak" "$R/scripts/.clean-denylist"; : >"$R/Makefile"; : >"$W/Makefile"
   rm -f "$R/scripts/.clean-denylist.pushed"
+  # With no checksum, a local run reminds you to push; CI (which sets CI) does not.
+  expect "never pushed, locally: a reminder" 0 "has not been pushed from this checkout" "$R" "CI="
+  if (cd "$R" && CI=true bash scripts/check_clean.sh 2>&1) | grep -qF "has not been pushed"; then
+    printf 'FAIL the never-pushed reminder printed in CI\n'; fails=$((fails+1))
+  fi
 else
   echo "SKIP: push-denylist cases need make"
 fi
