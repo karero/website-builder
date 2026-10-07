@@ -121,7 +121,8 @@ expect "a name ending in a non-ASCII letter: fails" 1 "personal/site identifier"
 printf 'see Özorbleq now\n' >"$R/docs/notes.md"
 expect "a name starting with a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
 # The new edges alone missed an entry that starts or ends with punctuation next to a letter,
-# which \b found; both are tried. A name inside a longer word still passes.
+# which \b found; both are tried. A name with ASCII letters at both ends, inside a longer
+# word, still passes.
 printf -- '-zorbleq\nflumm-\n' >"$R/scripts/.clean-denylist"
 printf 'see acme-zorbleq\n' >"$R/docs/notes.md"
 expect "an entry starting with punctuation, after a letter: fails" 1 "personal/site identifier" "$R"
@@ -278,12 +279,13 @@ FAKE
     fi
   }
   push "push-denylist: sends the list to the repo gh names" "$R" 0 "args: secret set CLEAN_DENYLIST --repo owner/repo"
-  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 --decode)" != "$(printf '# CLEAN_DENYLIST v1\n'; grep -vE '^[[:space:]]*(#|$)' "$R/scripts/.clean-denylist")" ]; then
+  names="$(LC_ALL=C tr -d '\r' <"$R/scripts/.clean-denylist" | LC_ALL=C grep -vE '^[[:space:]]*(#|$)')"
+  if [ "$(sed -n '2p' "$T/gh.log" 2>/dev/null | base64 --decode)" != "$(printf '# CLEAN_DENYLIST v1\n%s\n' "$names")" ]; then
     printf 'FAIL push-denylist: the secret is not the marker and the names, base64-encoded\n'; fails=$((fails+1))
   fi
   # It keeps the checksum of what it sent; the check fails once the list changes after that,
   # since CI would still check the old one.
-  if [ "$(cat "$R/scripts/.clean-denylist.pushed" 2>/dev/null)" != "$(grep -vE '^[[:space:]]*(#|$)' "$R/scripts/.clean-denylist" | cksum)" ]; then
+  if [ "$(cat "$R/scripts/.clean-denylist.pushed" 2>/dev/null)" != "$(printf '%s\n' "$names" | cksum)" ]; then
     printf 'FAIL push-denylist: no checksum of the list it sent\n'; fails=$((fails+1))
   fi
   expect "the list as pushed: passes, with no reminder" 0 "OK — no private names in:" "$R"
@@ -293,9 +295,15 @@ FAKE
   printf 'flibbertquux\n' >>"$R/scripts/.clean-denylist"
   expect "the list changed after the push: fails" 1 "changed since the last make push-denylist" "$R"
   printf '# none left\n' >"$R/scripts/.clean-denylist"
-  expect "the list emptied after the push: fails" 1 "changed since the last make push-denylist" "$R"
+  expect "the list emptied after the push: fails, and says to add a name back" 1 "add a name back" "$R"
   { cat "$T/list.bak"; printf '# a comment added later\n\n'; } >"$R/scripts/.clean-denylist"
   expect "a comment added after the push: passes" 0 "OK — no private names in:" "$R"
+  # push-denylist and the check must read "the names" alike: a comment indented with a
+  # no-break space is a name to both in the C locale, but not to a UTF-8 grep, and the
+  # checksum then never matched, however often the list was pushed.
+  { cat "$T/list.bak"; printf '\302\240# a pasted note\n'; } >"$R/scripts/.clean-denylist"
+  LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 push "push-denylist in a UTF-8 locale: sends" "$R" 0 "args: secret set"
+  expect "a list with a no-break space, as pushed: passes" 0 "OK — no private names in:" "$R"
   cp "$T/list.bak" "$R/scripts/.clean-denylist"
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"

@@ -36,8 +36,9 @@ fi
 # found. So each name pattern below tries both: edges of anything but an ASCII letter, digit
 # or _ (a byte of a non-ASCII letter counts, so a listed "Caf" also matches inside "Café"),
 # OR the old \b match, which alone finds an entry that starts or ends with punctuation next
-# to a letter (a trailing hyphen, say). Two separate alternatives: BSD grep finds nothing when
-# \b shares one group with ^ or $. More reports than either alone, never fewer.
+# to a letter (a trailing hyphen, say). Two separate alternatives: on BSD grep, \b beside ^ in
+# one group, as in (^|\b)-name, finds no punctuation-led entry. More reports than either alone,
+# never fewer: a name with a non-ASCII letter at an edge is also found inside a longer word.
 E='[^A-Za-z0-9_]'
 NAMES=""
 [ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"
@@ -207,7 +208,11 @@ if [ -f "$DENYLIST_FILE" ]; then
   if [ -f "$DENYLIST_FILE.pushed" ]; then
     if [ "$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | cksum)" != "$(cat "$DENYLIST_FILE.pushed")" ]; then
       fail=1
-      echo "✗ the name list changed since the last make push-denylist: CI still checks the old one; run make push-denylist"
+      if [ -n "$NAMES" ]; then
+        echo "✗ the name list changed since the last make push-denylist: CI still checks the old one; run make push-denylist"
+      else   # push-denylist refuses an empty list, and CI fails on a secret with no names
+        echo "✗ the name list has no names left, but CI still checks the ones last pushed; an empty list cannot be pushed: add a name back, then run make push-denylist"
+      fi
     fi
   elif [ -z "${CI:-}" ] && [ -z "${CLEAN_INNER:-}" ]; then
     echo "· the name list has not been pushed from this checkout (no .pushed file beside it): if CI checks names, it may hold an older list; maintainers: make push-denylist"

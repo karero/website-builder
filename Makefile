@@ -40,13 +40,15 @@ test:      ## run the search-console-insights tests (tracker + AI check; needs `
 	@$(PYTHON) -m unittest discover -s skills/search-console-insights/scripts/tests
 
 # A linked worktree has no copy of the gitignored list; use the main checkout's, as check_clean.sh does.
-# It refuses a list with no names, or with an entry holding ^ other than right after [ (the
+# It runs in the C locale, as check_clean.sh does, so both read "the names" byte for byte alike
+# (a no-break space is no space to either). It refuses a list with no names, or with an entry
+# holding ^ other than right after [ (the
 # check refuses those, a literal \^ included). It reads the names once, so what it sends and
 # what it records are the same: the names base64-encoded on one line, after a marker line the
 # CI step requires (.github/workflows/clean.yml says why), and their checksum in <list>.pushed,
 # so `make check` fails once the names change after that.
 push-denylist:   ## maintainer only: copy the private-name list (scripts/.clean-denylist, gitignored) into the repo's CLEAN_DENYLIST Actions secret, so CI checks names too. Run it after every change to the list; needs gh
-	@f=scripts/.clean-denylist; [ -f "$$f" ] || f="$$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')/scripts/.clean-denylist"; \
+	@export LC_ALL=C; f=scripts/.clean-denylist; [ -f "$$f" ] || f="$$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')/scripts/.clean-denylist"; \
 	[ -f "$$f" ] || { echo "no scripts/.clean-denylist here or in the main checkout"; exit 1; }; \
 	names="$$(tr -d '\r' <"$$f" | grep -vE '^[[:space:]]*(#|$$)')"; \
 	[ -n "$$names" ] || { echo "$$f lists no names: nothing to send"; exit 1; }; \
