@@ -113,8 +113,8 @@ if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "holding ^"; then
   printf 'FAIL a negated class was refused as an anchor\n'; fails=$((fails+1))
 fi
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
-# In the C locale, \b never matched beside a non-ASCII letter (GNU grep and this Mac's grep
-# alike), so a name that starts or ends with one was never found.
+# In the C locale, \b missed a name that starts or ends with a non-ASCII letter wherever
+# another character touched that letter (GNU grep and this Mac's grep alike).
 printf 'zorbleqé\nÖzorbleq\n' >"$R/scripts/.clean-denylist"
 printf 'met Zorbleqé.\n' >"$R/docs/notes.md"
 expect "a name ending in a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
@@ -231,6 +231,15 @@ awk 'BEGIN { for (i = 0; i < 3000; i++) printf "mail bob%d@realmail.de about the
 masked "masked: a list that does not compile, long output: says why" 1 "does not compile"
 rm "$R/docs/many.md"
 cp "$T/list.pre2" "$R/scripts/.clean-denylist"
+# The masked check's \b alternative: an entry ending in punctuation, in a report header right
+# before a letter ("✗ personal/site identifier:"), where only \b sees it. (The entry also hits
+# the scanned script, so the inner run fails either way; what this pins is the header.)
+printf 'personal/\n' >>"$R/scripts/.clean-denylist"
+masked "masked: a punctuation-edged name in a report header: withheld" 1 "output is withheld"
+if (cd "$R" && CLEAN_MASK_NAMES=1 bash scripts/check_clean.sh 2>&1) | grep -qF "personal/site"; then
+  printf 'FAIL masked mode printed a report header holding a listed name\n'; fails=$((fails+1))
+fi
+cp "$T/list.bak" "$R/scripts/.clean-denylist"
 # They never hold a whole listed name; if one ever does, nothing is printed.
 printf 'skills\n' >>"$R/scripts/.clean-denylist"
 masked "masked: a whole name in a line that is not scan output: withheld" 1 "output is withheld"
@@ -298,13 +307,18 @@ FAKE
   expect "the list emptied after the push: fails, and says to add a name back" 1 "add a name back" "$R"
   { cat "$T/list.bak"; printf '# a comment added later\n\n'; } >"$R/scripts/.clean-denylist"
   expect "a comment added after the push: passes" 0 "OK — no private names in:" "$R"
-  # push-denylist and the check must read "the names" alike: a comment indented with a
-  # no-break space is a name to both in the C locale, but not to a UTF-8 grep, and the
-  # checksum then never matched, however often the list was pushed.
-  { cat "$T/list.bak"; printf '\302\240# a pasted note\n'; } >"$R/scripts/.clean-denylist"
-  LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 push "push-denylist in a UTF-8 locale: sends" "$R" 0 "args: secret set"
-  expect "a list with a no-break space, as pushed: passes" 0 "OK — no private names in:" "$R"
-  cp "$T/list.bak" "$R/scripts/.clean-denylist"
+  # push-denylist and the check must read "the names" alike. In a UTF-8 locale an em space is
+  # [[:space:]] to grep (BSD and GNU), so a comment indented with one was a comment to a push
+  # run there and a name to the check (which runs in C): the checksum never matched. Without
+  # a locale where grep shows that difference, the case would prove nothing: skip, and say so.
+  if printf '\342\200\203# x\n' | LC_ALL=C.UTF-8 grep -qE '^[[:space:]]*#' 2>/dev/null; then
+    { cat "$T/list.bak"; printf '\342\200\203# a pasted note\n'; } >"$R/scripts/.clean-denylist"
+    LC_ALL=C.UTF-8 push "push-denylist in a UTF-8 locale: sends" "$R" 0 "args: secret set"
+    expect "a list with an em-space-indented comment, as pushed: passes" 0 "OK — no private names in:" "$R"
+    cp "$T/list.bak" "$R/scripts/.clean-denylist"
+  else
+    echo "SKIP: no C.UTF-8 locale where grep counts an em space as space; the UTF-8 push case would prove nothing"
+  fi
   push "push-denylist: in a worktree, sends the main checkout's list" "$W" 0 "/repo/scripts/.clean-denylist"
   printf '# none yet\n' >"$R/scripts/.clean-denylist"
   push "push-denylist: refuses a list with no names" "$R" 2 "lists no names"
