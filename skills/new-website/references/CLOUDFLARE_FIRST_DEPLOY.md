@@ -90,8 +90,9 @@ npx wrangler pages project create <project> --production-branch <main|production
 #    PROD_BRANCH in src/config.ts. Cloudflare sets it only when IT builds; this build runs
 #    here, so without it the live site ships with no analytics script (no error, no data).
 #    The kit ships PROD_BRANCH = 'production': if step 1 chose main, first set PROD_BRANCH
-#    in src/config.ts to 'main'. For a preview deploy, build with plain `npm run build`
-#    (no variable), then deploy with any other --branch.
+#    in src/config.ts to 'main'. For a preview deploy, build with `CF_PAGES_BRANCH= npm run build`
+#    (set to empty, so an exported value can't switch analytics on), then deploy with any
+#    other --branch.
 #    --branch: without it wrangler uses the local git branch and may make a preview deployment.
 CF_PAGES_BRANCH=<main|production> npm run build
 npx wrangler pages deploy dist --project-name <project> --branch <main|production>
