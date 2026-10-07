@@ -31,15 +31,15 @@ if [ ! -f "$DENYLIST_FILE" ]; then
   main="$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
   [ -n "$main" ] && [ -f "$main/$DENYLIST_FILE" ] && DENYLIST_FILE="$main/$DENYLIST_FILE"
 fi
-# A name's edges. In the C locale, \b misses a name that starts or ends with a non-ASCII letter
-# (an é, an Ö) wherever another character touches that letter, a space included (GNU grep,
-# CI's, and this Mac's grep alike). So each name pattern below tries both: edges of anything
-# but an ASCII letter, digit
-# or _ (a byte of a non-ASCII letter counts, so a listed "Caf" also matches inside "Café"),
-# OR the old \b match, which alone finds an entry that starts or ends with punctuation next
-# to a letter (a trailing hyphen, say). Two separate alternatives: on BSD grep, (^|\b)-name and
-# name-($|\b) miss an entry whose punctuation edge touches a letter. More reports than either alone,
-# never fewer: a name with a non-ASCII letter at an edge is also found inside a longer word.
+# A name's edges. In the C locale, \b can miss a name that starts or ends with a non-ASCII
+# letter (an é, an Ö), with a space beside it for one (GNU grep, CI's, and this Mac's grep
+# alike). So each name pattern below tries both: edges of anything but an ASCII letter, digit
+# or _ (a byte of a non-ASCII letter counts, so a listed "Caf" also matches inside "Café"), OR
+# the old \b match, which alone finds an entry that starts or ends with punctuation next to a
+# letter (a trailing hyphen, say). Two separate alternatives: on BSD grep, (^|\b)-name and
+# name-($|\b) miss an entry whose punctuation edge touches a letter. More reports than either
+# alone, never fewer: a name with a non-ASCII letter at an edge is also found inside a longer
+# word.
 E='[^A-Za-z0-9_]'
 NAMES=""
 [ -f "$DENYLIST_FILE" ] && NAMES="$(tr -d '\r' <"$DENYLIST_FILE" | grep -vE '^[[:space:]]*(#|$)' | paste -sd'|' -)"

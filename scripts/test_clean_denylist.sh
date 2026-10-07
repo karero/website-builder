@@ -113,8 +113,8 @@ if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q "holding ^"; then
   printf 'FAIL a negated class was refused as an anchor\n'; fails=$((fails+1))
 fi
 cp "$T/list.pre" "$R/scripts/.clean-denylist"; printf 'plain notes\n' >"$R/docs/notes.md"
-# In the C locale, \b missed a name that starts or ends with a non-ASCII letter wherever
-# another character touched that letter (GNU grep and this Mac's grep alike).
+# In the C locale, \b can miss a name that starts or ends with a non-ASCII letter, with a
+# space beside it for one (GNU grep and this Mac's grep alike).
 printf 'zorbleqé\nÖzorbleq\n' >"$R/scripts/.clean-denylist"
 printf 'met Zorbleqé.\n' >"$R/docs/notes.md"
 expect "a name ending in a non-ASCII letter: fails" 1 "personal/site identifier" "$R"
