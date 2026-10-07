@@ -100,8 +100,8 @@ npx wrangler pages project create <project> --production-branch <production-bran
 #    (set to empty, so an exported value can't switch analytics on), then deploy with any
 #    other --branch.
 #    --branch: without it wrangler uses the local git branch and may make a preview deployment.
-#    POSIX shell (macOS, Linux, WSL2): `VAR=value command` fails in PowerShell, so on
-#    Windows run these in WSL2.
+#    `VAR=value command` needs a POSIX shell (macOS, Linux, WSL2); PowerShell rejects it.
+#    On Windows, use WSL2 (see templates/SETUP.md).
 CF_PAGES_BRANCH=<production-branch> npm run build
 npx wrangler pages deploy dist --project-name <project> --branch <production-branch>
 
@@ -199,7 +199,10 @@ Sources, read 2026-10-07: Cloudflare's
 [middleware](https://developers.cloudflare.com/pages/functions/middleware/),
 [daily request limit](https://developers.cloudflare.com/workers/platform/limits/#daily-requests),
 [preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/)
-and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/).
+and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/); for the
+setting's history, the cloudflare-docs pull requests that
+[removed](https://github.com/cloudflare/cloudflare-docs/pull/17200) (2024) and
+[restored](https://github.com/cloudflare/cloudflare-docs/pull/22331) (2025) its docs.
 
 ---
 
