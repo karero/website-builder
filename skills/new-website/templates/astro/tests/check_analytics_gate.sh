@@ -4,10 +4,10 @@
 #
 # Base.astro emits the Plausible <script> only when that is true, and the build decides it:
 # Cloudflare sets CF_PAGES_BRANCH when it builds, and a deploy-by-command owner sets it by
-# hand (PUBLISHING.md: `CF_PAGES_BRANCH=<production-branch> npm run build` for the live
-# site, `CF_PAGES_BRANCH= npm run build` for a preview). Both ways it fails silently: off on
-# the live site, it counts no visitors and nothing says so; on for a preview, every look at
-# the preview is counted as a real visitor. The Playwright suite cannot see either, since it
+# hand (`CF_PAGES_BRANCH=<production-branch> npm run build` for the live site, PUBLISHING.md;
+# `CF_PAGES_BRANCH= npm run build` for a preview, new-website's CLOUDFLARE_FIRST_DEPLOY.md).
+# Both ways it fails silently: off on the live site, it counts no visitors and nothing says
+# so; on for a preview, every look at the preview is counted as a real visitor. The Playwright suite cannot see either, since it
 # builds once with whatever the shell had. So this builds the site four ways, the way the
 # docs tell the owner to, and reads the built HTML.
 #
@@ -21,7 +21,7 @@ CDPATH= cd -- "$(dirname -- "$0")/.."
 
 # The production branch as this site names it ('production', or 'main' on a single-stage
 # site), read from the line the gate compares against.
-prod="$(sed -n "s/^export const PROD_BRANCH = '\([^']*\)';.*/\1/p" src/config.ts)"
+prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src/config.ts)"
 if [ -z "$prod" ]; then
   echo "✗ analytics gate: no \"export const PROD_BRANCH = '…';\" line in src/config.ts to test against."
   exit 1
@@ -54,10 +54,12 @@ build() {
 }
 
 # The tag Base.astro writes: <script defer data-domain="…" src="<scriptHost>/js/script.js">.
+# Counted as a real <script> tag with both attributes, in any order, outside HTML comments.
 expect_on() {
-  local name="$1" what="$2"
+  local name="$1" what="$2" tags
   checked=$((checked + 1))
-  if grep -q 'data-domain="[^"]*" src="[^"]*/js/script\.js"' "$work/$name/index.html"; then
+  tags="$(perl -0ne 's/<!--.*?-->//gs; my $n = 0; while (/<script\b([^>]*)>/g) { my $a = $1; $n++ if $a =~ /\bdata-domain="[^"]+"/ && $a =~ /\bsrc="[^"]*\/js\/script\.js"/ } print $n' "$work/$name/index.html")"
+  if [ "${tags:-0}" -ge 1 ]; then
     echo "✓ $what: analytics script in index.html"
   else
     echo "✗ $what: NO analytics script in index.html — the live site would count no visitors."
