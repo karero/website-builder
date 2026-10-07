@@ -351,14 +351,18 @@ unset PROMPT 2>/dev/null || true
 # UNVERIFIABLE entry, not a finding, so the tool-less tier carries no RISK floor for claims it
 # could never check. The clean verdict is dictated word for word because looks_like_review()
 # matches phrases, not meaning: "Nothing rises to a finding" is discarded where "No BUG/RISK/NIT
-# findings" is kept (round 2, Codex). That is the validator's shape, not a good contract -- the
+# findings" is kept (round 2, Codex). The finding line's start is dictated for the same reason: a
+# melious kimi-k3 review (2026-10-06) wrote "RISK 1 — ..." with no list marker, counted no findings,
+# and was discarded over a quoted "can't open" in its UNVERIFIABLE list. Teaching the validator that
+# shape was tried and dropped in review: any version that accepted that reply also accepted a
+# refusal with the same structure. That is the validator's shape, not a good contract -- the
 # contract is B-REFUSAL-TEXT's business, and a refusal could copy this phrase exactly as it can
 # copy the phrases main already accepts. Whether the paragraph surfaces claims reviewers would otherwise miss, and
 # what it costs in findings per round, is being piloted, not measured.
 PROMPT_CORE="Adversarial independent reviewer of the ${TYPE} below. Return RANKED findings:
 BUG (wrong now) / RISK (breaks on normal change, a guard that cannot fire, or an unsupported
-load-bearing claim whose consequence is named) / NIT — each with file:line or anchor, one-line
-why, concrete fix. Then list what you checked that was CLEAN (silence is not coverage). Do NOT
+load-bearing claim whose consequence is named) / NIT — each on its own line starting '- BUG',
+'- RISK' or '- NIT', with file:line or anchor, one-line why, concrete fix. Then list what you checked that was CLEAN (silence is not coverage). Do NOT
 trust the ${TYPE}'s own claims or line numbers. Treat as unsupported any load-bearing claim (one
 where, if it were false, a finding would change) about what a library, engine, runtime, language
 feature or model DOES, unless this review checked its support: the component's own implementation
@@ -510,39 +514,19 @@ rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,secti
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
-# list/heading lines and severity-led lines: a refusal SENTENCE that merely mentions
-# "BUG, RISK, or NIT" ("I cannot return a ranked list of BUG...") must not match.
+# list/heading formatting: a refusal SENTENCE that merely mentions "BUG, RISK, or
+# NIT" ("I cannot return a ranked list of BUG...") must not match.
 looks_like_review() {
   # Count genuine structured findings ANYWHERE in the response first — this
-  # decides how much weight the refusal check below gets. A finding is a list or
-  # heading line naming a severity.
-  #
-  # A line that STARTS with the severity, an optional number and a separator ("RISK 1
-  # — a.rb:3 — ...") is counted apart, in led_count, and only lifts check 1's veto: a
-  # reply with two or more such lines is not vetoed by a refusal phrase elsewhere in
-  # it, but it still needs a list finding (check 2) or a clean verdict (check 3) to
-  # count. Added 2026-10-06: a genuine melious kimi-k3 review with 1 RISK and 2 NITs
-  # in this shape, and "No BUG findings.", was rejected over a quoted error message
-  # ("can't open perl script") in its UNVERIFIABLE list. Counting these lines as full
-  # findings was tried and dropped in review the same day, because it accepted lone
-  # refusals ("BUG: I couldn't access the repository."). Now a reply the veto would
-  # reject passes only with two such lines AND a list finding or a clean verdict.
-  # The separator must be followed by a space, so
-  # "Bug-free" does not count; other spellings ("RISK #1", "BUG 1.", "[BUG]") do not
-  # count either. A severity-led line that carries check 1's refusal phrase does not
-  # count, so two of them ("BUG: I cannot review the file." / "RISK: I cannot access
-  # the repository.") cannot lift the veto. The phrase is written out here and in
-  # check 1; keep the copies identical — the test checks.
-  local finding_count led_count
+  # decides how much weight the refusal check below gets.
+  local finding_count
   finding_count="$(printf '%s\n' "$1" | grep -ciE '^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b')"
-  led_count="$(printf '%s\n' "$1" | grep -iE '^[[:space:]]*(BUG|RISK|NIT)([[:space:]]+[0-9]+)?[[:space:]]*(—|–|-|:)[[:space:]]' \
-    | grep -viE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" | grep -c .)"
   # 1. refusals about the reviewing act — a refusal formatted like a finding
   #    ("- BUG: I cannot review this file...") must not slip past the positive
   #    match below. Verb-anchored so genuine text survives: "a guard that
   #    cannot fire" (no act verb) and "I cannot find any bugs" ("find"
   #    deliberately not in the verb list) both pass. Only decisive when
-  #    finding_count + led_count <= 1: the historical exploit is a refusal formatted AS
+  #    finding_count <= 1: the historical exploit is a refusal formatted AS
   #    A LONE fake finding with nothing else — genuinely ≥2 structured
   #    findings elsewhere means this is a real review that merely opens (or
   #    asides) with refusal-adjacent phrasing ("I could not see the full
@@ -566,10 +550,10 @@ looks_like_review() {
   #    Every match below reads the reply from a herestring, never `printf | grep -q`: under
   #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
-  if [ $((finding_count + led_count)) -le 1 ]; then
+  if [ "$finding_count" -le 1 ]; then
     grep -qiE "\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$1" && return 1
   fi
-  # 2. structured findings (list or heading lines; severity-led lines do not count here)
+  # 2. structured findings (list/heading-anchored severity)
   [ "$finding_count" -gt 0 ] && return 0
   # 3. genuine clean verdicts. Broadened past a strict "\bno findings\b" phrase match
   #    after 3 real Codex responses in one session all misreported as gate-FAIL despite

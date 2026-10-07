@@ -39,20 +39,16 @@ n="$(printf '%s' "$lists" | grep -c .)"; distinct="$(printf '%s' "$lists" | sort
 if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
   echo "ok   the two copies of the qualifier list are identical"
 else echo "FAIL expected two identical qualifier lists, found $n list(s), $distinct distinct"; fail=1; fi
-# The refusal phrase is written out twice (the severity-led count and check 1); the copies must not drift.
-refusals="$(printf '%s\n' "$fn" | grep -oE "\\\\b\(cannot[^)]*\) \([a-z|]+\)\\\\b")"
-n="$(printf '%s' "$refusals" | grep -c .)"; distinct="$(printf '%s' "$refusals" | sort -u | grep -c .)"
-if [ "$n" = 2 ] && [ "$distinct" = 1 ]; then
-  echo "ok   the two copies of the refusal phrase are identical"
-else echo "FAIL expected two identical refusal phrases, found $n, $distinct distinct"; fail=1; fi
 check accept "plain single finding" "1. RISK — c.rb:3 — z could break on normal change."
 check accept "real multi-finding review with a refusal-like aside" "I could not see the full context, but here are findings:
 1. BUG — a.rb:1 — x is wrong now.
 2. RISK — b.rb:2 — y breaks on normal change."
 # 2026-10-06: a genuine melious kimi-k3 review (website-builder PR #179, round 1), cut down. Its
-# findings start with the severity and carry no list marker, so they counted zero, and the quoted
-# error message "can't open perl script" in its UNVERIFIABLE list then read as a refusal.
-check accept "the 2026-10-06 kimi-k3 review: severity-led findings, a quoted error under UNVERIFIABLE" "
+# findings start "RISK 1 —" with no list marker, so they count as none, and the quoted error message
+# "can't open perl script" then reads as a refusal. PROMPT_CORE now asks for '- BUG'/'- RISK'/'- NIT'
+# lines; the validator was left alone, because every version tried that accepted this reply also
+# accepted a refusal of the same structure.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): the 2026-10-06 kimi-k3 review, findings without a list marker" "
 RANKED FINDINGS
 
 RISK 1 — .github/workflows/clean.yml, the Install Perl::MinimumVersion step: the new perl-minimum job depends on one apt package name existing on ubuntu-latest. Fix: add a CPAN fallback.
@@ -68,31 +64,22 @@ CHECKED — CLEAN
 
 UNVERIFIABLE (not findings)
 - Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
-# Severity-led lines only lift the refusal veto; they are not findings for check 2. Counted as full
-# findings (review of 2026-10-06, rounds 1-2), they accepted refusals main rejects — these four.
-check reject "a lone severity-led refusal" "BUG: I cannot review this file because it is too long."
-check reject "two severity-led refusals" "BUG: I cannot review the file.
-RISK: I cannot access the repository."
-check reject "two severity-led refusals with a clean verdict: the refusal lines do not lift the veto" "BUG: I cannot review the file.
-RISK: I cannot access the repository.
-No findings."
-check reject "a lone severity-led refusal outside the refusal phrase" "BUG: I couldn't access the repository."
-check reject "a lone severity-led refusal: 'will not review'" "BUG: I will not review this file."
-check accept "severity-led findings: only the one with the refusal phrase drops out, two still lift the veto" "RISK 1 — a.rb:3 — retries are unbounded.
-NIT 1 — b.rb:9 — the handler cannot return early here.
-NIT 2 — c.rb:4 — the name is misleading.
+check accept "the same review in the shape PROMPT_CORE asks for" "
+RANKED FINDINGS
 
-No BUG findings."
-# The price, pinned with B-REFUSAL-TEXT (owner's choice, 2026-10-06): severity-led findings with no
-# clean-verdict line still reject, as on main; so do two of them when one says "cannot return".
-check reject "KNOWN WRONG (B-REFUSAL-TEXT): severity-led findings with no clean-verdict line are discarded" "BUG 1 — a.rb:1 — x is wrong.
-RISK 1 — b.rb:2 — y breaks on normal change."
-check reject "KNOWN WRONG (B-REFUSAL-TEXT): two severity-led findings, one saying 'cannot return', are discarded" "BUG 1 — api.rb:12 — The handler cannot return JSON because serialization raises.
-RISK 1 — api.rb:24 — Retries are unbounded."
-check reject "a severity word leading a hyphenated word is not a finding" "Bug-free builds matter.
-Risk-averse teams agree. I cannot review this diff."
-check reject "thinking only: reasoning that names the severities, no findings" "Okay, let me look at the diff. The prompt wants BUG, RISK and NIT entries.
-First the workflow file, then the new check script. I should see whether the apt package exists."
+- RISK 1 — .github/workflows/clean.yml, the Install Perl::MinimumVersion step: the new perl-minimum job depends on one apt package name existing on ubuntu-latest. Fix: add a CPAN fallback.
+
+- NIT 1 — .github/workflows/clean.yml comment block: one line was left overflowed. Fix: re-wrap it.
+
+- NIT 2 — skills/independent-review/scripts/check_perl_minimum.sh, the overlap loop: a name in both lists fires fail twice. Fix: iterate one list.
+
+No BUG findings.
+
+CHECKED — CLEAN
+- Extraction fidelity, all seven files: exit codes 2/3/4/5 preserved.
+
+UNVERIFIABLE (not findings)
+- Install/bundle machinery (not in this diff): that the installer copies scripts/perl/. If false, installed copies fail every Perl-dependent tier with \"can't open perl script\". Settling observation: read the installer."
 check accept "clean verdict: no findings" "No findings."
 check accept "clean verdict: findings none" "Ranked findings: none."
 check accept "clean verdict: no BUG / RISK / NIT" "No BUG / RISK / NIT findings in this diff."
