@@ -48,24 +48,31 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
         run: |
+          # --no-renames: a moved file counts at both its old and its new path, so moving a
+          # tested file out of these folders still runs the tests. A diff that fails stops
+          # this step, and the last job then fails too.
+          all=false files=
           case "$EVENT" in
-            pull_request) files="$(git diff --name-only "$PR_BASE...$PR_HEAD")" ;;
+            pull_request) files="$(git diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" ;;
             push)
               # A push with no commit before it (a new branch) has nothing to compare with.
-              if [ -z "${PUSH_BEFORE//0/}" ]; then files=ALL; else files="$(git diff --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
-            *) files=ALL ;;
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true; else files="$(git diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
+            *) all=true ;;
           esac
-          run=false n=0
+          run=$all n=0
           while IFS= read -r f; do
-            [ -n "$f" ] && n=$((n + 1))
+            [ -n "$f" ] || continue
+            n=$((n + 1))
             case "$f" in
-              ALL|skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-forms/*|.github/workflows/template-tests.yml) run=true ;;
+              # whats-new.sh: verify-windows runs the recovery command it prints.
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-forms/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
             esac
           done <<EOF
           $files
           EOF
           echo "run=$run" >>"$GITHUB_OUTPUT"
-          echo "$EVENT: $n path(s) to compare; template tests run: $run"
+          if [ "$all" = true ]; then echo "$EVENT: nothing to compare with, so every test job runs"
+          else echo "$EVENT: $n changed path(s); template tests run: $run"; fi
 
   playwright:
     needs: changes
@@ -396,8 +403,8 @@ jobs:
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: A site from the starter, with the skill installed
@@ -469,7 +476,11 @@ jobs:
         run: |
           echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, forms-skill: $RESULTS"
           [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
-          if [ "$RUN" = true ]; then want=success; else want=skipped; fi
+          case "$RUN" in
+            true) want=success ;;
+            false) want=skipped ;;
+            *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
+          esac
           for r in $RESULTS; do
             [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
           done
