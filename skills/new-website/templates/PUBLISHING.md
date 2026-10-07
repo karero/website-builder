@@ -10,7 +10,7 @@ read the glossary once, then follow the steps for your site's model.
 | Word | What it actually means |
 |---|---|
 | **commit** | **Save a snapshot** of your changes on your own computer, with a short note describing them. Nothing is online yet — it's like saving a document. |
-| **push** | **Upload** your saved snapshots to GitHub (the cloud). This is what triggers a build. |
+| **push** | **Upload** your saved snapshots to GitHub (the cloud). On most sites this is what triggers a build (not on one that deploys by command, see "Deploy by command"). |
 | **branch** | A **named line of work**. Your site has up to two: `main` and (sometimes) `production`. Think of them as "the draft" and "the published version." |
 | **checkout** | **Switch** which branch you're looking at / working on. `git checkout main` = "show me the draft." |
 | **merge** | **Copy the changes** from one branch into another — e.g. take everything in `main` and bring it into `production` to publish. |
@@ -108,28 +108,35 @@ git push
 ## Deploy by command — if your site isn't connected to GitHub in Cloudflare
 
 Some sites are put online with a Cloudflare token instead of a GitHub connection (your
-README's "Deploy" section says if yours is one). On such a site, `git push` and
-`npm run ship` only update GitHub. **Nothing goes online until someone runs these
-commands.** They publish what's in your folder, so save and upload your changes first
-(commit and push, as above): anything not saved would go live without being on GitHub.
+README's "Deploy" section says if yours is one; if you're not sure, ask your assistant).
+Such a site has no preview, and `git push` only updates GitHub. **Nothing goes online until
+someone runs the commands below.** They publish what's in your folder, so first check your
+change locally (`npm run dev`), then save and upload it with `git add -A`, `git commit` and
+`git push` as above. Skip `npm run ship` here: it waits for Cloudflare to build, and on
+such a site Cloudflare never does.
 
 ```bash
-# 1. Get the newest published state from GitHub
-git switch <production-branch>
-git pull
+# 1. Get the newest state from GitHub
+git switch main && git pull
 
 # 2. Build the site, then upload it to Cloudflare — this goes LIVE
-CF_PAGES_BRANCH=<production-branch> npm run build
-npx wrangler pages deploy dist --project-name <your-project> --branch <production-branch>
+CF_PAGES_BRANCH=<production-branch> npm run build &&
+  npx wrangler pages deploy dist --project-name <your-project> --branch <production-branch>
 ```
 
 `<your-project>` is your site's project name in Cloudflare. `<production-branch>` is the
 branch the project was created with: `main` on a single-stage site, `production` on a
-two-stage one. Use the same name in all three places. Don't leave out the
-`CF_PAGES_BRANCH=` part: it switches on your visitor statistics, and without it the live
-site counts no visitors, with no error to tell you. Don't leave `--branch` out either:
-without it, the upload can land as a preview instead of on the live site. If the command
-says you aren't logged in, run
+two-stage one. You upload from `main` either way, because with no preview `main` is what you
+just checked. Put the same branch name in both places, and leave both in:
+
+- `CF_PAGES_BRANCH=` turns on your visitor statistics. Without it the live site counts no
+  visitors, with no error to tell you. (It only works when the name matches `PROD_BRANCH`
+  in `src/config.ts`. If you're not sure it does, ask your assistant to check.)
+- Without `--branch`, the upload can land as a preview instead of on the live site.
+
+The `&&` means each command runs only if the one before it worked. If anything stops with an
+error, nothing went live: ask for help rather than running the upload on its own. The first
+time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't logged in, run
 `npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
 run it again.
 

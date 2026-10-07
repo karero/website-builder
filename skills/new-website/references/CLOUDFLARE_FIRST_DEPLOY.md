@@ -109,9 +109,13 @@ Ongoing deploys under (A): re-run
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
-The site's own copy of this command, for after handoff, is in `templates/PUBLISHING.md`,
-"Deploy by command": change the two together. Then continue with `search-console-setup`
-for GSC/Bing + Crawler Hints.
+The owner's version, for after handoff, is `templates/PUBLISHING.md`, "Deploy by command":
+keep its build and deploy lines in step with step 2 above. Before handoff, add one sentence
+to the site README's "Deploy" paragraph: this site deploys by command, with no GitHub
+connection in Cloudflare (project `<project>`, production branch `<production-branch>`), and
+`PUBLISHING.md`, "Deploy by command", has the steps. That sentence is how the owner, and the
+next assistant, can tell. Then continue with `search-console-setup` for GSC/Bing + Crawler
+Hints.
 
 ---
 
