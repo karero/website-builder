@@ -137,6 +137,26 @@ gh repo edit --delete-branch-on-merge
 git config --global fetch.prune true   # once per machine; use --local to scope per repo
 ```
 
+Then let GitHub warn you about security holes in the site's building blocks (the npm
+packages it installs) and, where a fixed version exists, send the fix as a pull request.
+When none can be applied, the warning still shows under the repo's **Security** tab.
+Both are free on every plan, but a private repo starts with them off. A fix pull request
+is checked by CI like any other; merge it once it is green. Run this in the site's
+folder; it works the same for a site you already have.
+```bash
+gh repo view --json nameWithOwner --jq '"repo: \(.nameWithOwner)"'   # check: your site?
+gh api -X PUT "repos/{owner}/{repo}/vulnerability-alerts"        # Dependabot alerts
+gh api -X PUT "repos/{owner}/{repo}/automated-security-fixes"    # Dependabot security updates
+gh api --silent "repos/{owner}/{repo}/vulnerability-alerts" 2>/dev/null && echo "alerts: on" || echo "alerts: off"
+gh api "repos/{owner}/{repo}/automated-security-fixes" \
+  --jq 'if .paused then "security updates: paused" elif .enabled then "security updates: on" else "security updates: off" end'
+```
+The first line names the repo the commands change: if it names another repo, or none,
+stop and move to the site's folder. The last two lines check the result: they should
+print `alerts: on` and `security updates: on`. Anything else (`off`, `paused` or an
+error): open the repo's **Settings → Code security** and turn on Dependabot alerts, then
+Dependabot security updates.
+
 ### Pre-push quality gate (auto-wired by `npm install`)
 
 The `prepare` script in `package.json` (`node scripts/wire-hooks.mjs`) points
