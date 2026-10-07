@@ -469,8 +469,12 @@ PROMPT_PORTABLE="${PROMPT_CORE}
 
 Begin with one line: \"MODE: INSPECTED\" if you can genuinely open the files described, else
 \"MODE: TEXT-ONLY\". Under INSPECTED every VERIFIED/WRONG must quote the path and snippet you read;
-without it, prefer TEXT-ONLY. Under TEXT-ONLY list load-bearing claims you could not check. Never
-describe a check you did not perform.
+without it, prefer TEXT-ONLY. Under TEXT-ONLY list load-bearing claims you could not check, and
+list there too whatever depends on text you were not given — whether a name exists, what a caller
+passes, what the rest of a file holds — saying what to look at; these are not BUG or RISK findings.
+Under TEXT-ONLY a BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification
+round names the prior finding whose fix the ${TYPE} lacks. Never describe a check you did not
+perform.
 ${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
