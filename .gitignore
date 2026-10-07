@@ -3,5 +3,6 @@ dist/
 **/.DS_Store
 node_modules/
 scripts/.clean-denylist
+scripts/.clean-denylist.pushed
 /.claude/
 __pycache__/
