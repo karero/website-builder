@@ -110,6 +110,10 @@ jobs:
         run: |
           v="$(git config --local --get core.hooksPath || true)"
           [ -z "$v" ] || { echo "npm ci set core.hooksPath=$v in the enclosing repo"; exit 1; }
+      # Builds the site four ways and reads the HTML: analytics on only for the production
+      # branch. A wrong switch fails silently on a live site, and the suite below builds once.
+      - name: Analytics only on the production build (src/config.ts)
+        run: bash tests/check_analytics_gate.sh
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run template test suite
