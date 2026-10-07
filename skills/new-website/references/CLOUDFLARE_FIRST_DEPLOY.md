@@ -96,8 +96,9 @@ npx wrangler pages project create <project> --production-branch <main|production
 #    PROD_BRANCH in src/config.ts. Cloudflare sets it only when IT builds; this build runs
 #    here, so without it the live site ships with no analytics script (no error, no data).
 #    The kit ships PROD_BRANCH = 'production': if step 1 chose main, first set PROD_BRANCH
-#    in src/config.ts to 'main'. For a preview deploy, build with plain `npm run build`
-#    (no variable), then deploy with any other --branch.
+#    in src/config.ts to 'main'. For a preview deploy, build with `CF_PAGES_BRANCH= npm run build`
+#    (set to empty, so an exported value can't switch analytics on), then deploy with any
+#    other --branch.
 #    --branch: without it wrangler uses the local git branch and may make a preview deployment.
 CF_PAGES_BRANCH=<main|production> npm run build
 npx wrangler pages deploy dist --project-name <project> --branch <main|production>
@@ -122,7 +123,14 @@ Ongoing deploys under (A): re-run both lines of step 2, the variable included â€
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
 (wrap them in `npm run ship` if you want one command â€” note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
-Then continue with `search-console-setup` for GSC/Bing + Crawler Hints.
+The owner's version, for after handoff, is `templates/PUBLISHING.md`, "Deploy by command":
+keep the two in step: both build with `CF_PAGES_BRANCH=<production-branch>` and deploy
+with the same `--branch`. Before handoff, add one sentence
+to the site README's "Deploy" paragraph: this site deploys by command, with no GitHub
+connection in Cloudflare (project `<project>`, production branch `<production-branch>`), and
+`PUBLISHING.md`, "Deploy by command", has the steps. That sentence is how the owner, and the
+next assistant, can tell. Then continue with `search-console-setup` for GSC/Bing + Crawler
+Hints.
 
 ---
 
