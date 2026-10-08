@@ -223,8 +223,8 @@ if [ -f "$DENYLIST_FILE" ]; then
   # instructions, the security policy) and the short form in issue and PR references
   # (karero/croftweaver#131) are the point, not a leak. The old name stays allowed for good:
   # docs/reviews/ keeps its historical links, and docs/ is scanned. The allowance goes by
-  # name, not by what the link leads to; the repo belongs to a personal account, so only
-  # its owner could ever put a different repo under the old name. Blank out exactly that
+  # name, not by what the link leads to: a different repo later created under the old name
+  # would pass too. That is accepted, to keep the history readable. Blank out exactly that
   # reference, in lowercase, and not inside a longer name (one with an extra prefix like
   # `other-` or suffix like `-x`), then look again: dropping every line that held one also hid
   # any private name beside it. One reference at a time, until none is left: a global

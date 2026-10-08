@@ -6,7 +6,7 @@ set -euo pipefail
 REPO_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 OUT="$REPO_DIR/dist"
 mkdir -p "$OUT"
-rm -f "$OUT/croftweaver.zip" "$OUT/website-builder.zip"   # the second: built before the rename
+rm -f "$OUT/croftweaver.zip" "$OUT/website-builder.zip"   # also clears a zip built under the old name
 
 find "$REPO_DIR" -name .DS_Store -delete 2>/dev/null || true
 cd "$REPO_DIR"

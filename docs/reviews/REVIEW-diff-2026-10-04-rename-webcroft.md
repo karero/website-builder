@@ -2,7 +2,7 @@
 
 > **Superseded 2026-10-07:** the name changed again, to Croftweaver, before this merged. The
 > Croftweaver pull request carries these edits over; its own review is in
-> `REVIEW-diff-2026-10-07-rename-croftweaver.md`.
+> `REVIEW-diff-2026-10-07-chore-rename-croftweaver-514d292.md`.
 
 Branch `chore/rename-webcroft`, from `origin/main` (`4bddcad`) to the PR head. The change
 renames the product, its addresses and the handoff zip everywhere outside this folder, and
