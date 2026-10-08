@@ -92,6 +92,15 @@ Economic Area, Switzerland, or the United Kingdom." Whether an owner running thi
 for themselves counts is unclear. So tell owners there: **turn on billing for the Gemini
 key**. At this volume that should cost next to nothing, but check the pricing page.
 
+**When the Gemini credit runs out.** The run prints `gemini FAILED: HTTP 402: Your prepayment
+credits are depleted.` and every other assistant still runs normally. The owner tops up in
+Google AI Studio (https://ai.studio/projects): open the project **the key belongs to**, then its
+billing page; Google's explanation is at https://ai.google.dev/gemini-api/docs/billing#prepay
+(button names may differ from what is on screen). A top-up on another project does not help.
+Then rerun only Gemini: `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --engines gemini`.
+The failed attempt adds no answer rows to the history (the trend shows "latest attempt failed" until
+a good run follows) and the rerun adds only its good rows, so nothing needs cleaning up.
+
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
 A full weekly check for **one site** asks ChatGPT, Claude, Gemini and Perplexity 42 times in total.
@@ -201,7 +210,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
      `--confirm --expect <page code>`. It saves only if the page still matches that preview.
 5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
    (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
-   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
+   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit; "HTTP 402" means prepaid credit ran out (see "When the Gemini credit runs out" above).
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
 ## Every session: is the question still right?
@@ -273,6 +282,46 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 Every answer is saved verbatim with its sources under
 `~/.config/gsc-insights/geo/answers/<domain>/<run>/`. Quote from those files when explaining a
 result, and read the branded answers for accuracy.
+
+**Why "from memory" is usually 0 at first, and what to tell the owner.** A model only "remembers"
+a name that appeared in many independent places before it was trained. Wikipedia-level
+prominence is a strong signal, not the only way in; press, listings and other people's pages
+count too, and the owner's own site is one source among many. Three things make 0 normal:
+
+- **A young site.** If the website launched recently, most models were trained before it existed.
+  Ask the owner when it went live; a business can be years old and its site still new to the models.
+- **Small models.** The cheaper, faster model of an assistant knows fewer niche names. The report
+  shows which model answered.
+- **Retraining is slow.** The column only changes when a new model is released, so judge it over
+  months, not weeks. Never promise the owner a date for being "in the models".
+
+A sentence the owner can use as is: *"0 of 4 assistants named us from memory. That is normal for a
+community this size. An assistant only 'remembers' a name that appeared in many places before it
+was trained. When the same assistants can search the web, all four find us."* Only say the last
+sentence if it is true in the latest run (check "Finds you" for every assistant, and that Gemini,
+which is never asked with search, is covered another way or left out of "all four").
+
+**Look for stray copies of the owner's site.** The cited sources can reveal an address the owner
+forgot: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`, `*.netlify.app` or
+`*.github.io` that serves the same site. Two copies split what engines and Google think of the
+site. Cheap check over the saved answers:
+
+```
+rg -o -N --no-filename "https?://[A-Za-z0-9.-]*(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)" \
+  ~/.config/gsc-insights/geo/answers/<domain>/ | sort | uniq -c
+```
+
+It also lists other people's addresses (another community's site on `vercel.app`); look only at
+ones that carry the owner's name. Open the address: if it still serves the site, the owner should
+switch it off or redirect it to the real domain. Do not say it is a problem before you have
+opened it; an engine citing an address shows it exists, not that it still works.
+
+**Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
+`~/.config/gsc-insights/` folder, which the Claude desktop app cannot open, so a link to
+a path there does nothing for the owner. Copy the report page(s) and the answers of the run into
+the site's repo (for example `docs/geo/<date>/`), put the readable summary next to them, and send
+the files to the owner. Before moving or deleting a file another session or a note might point
+at, search for its path first.
 
 When the broad question has named nobody for about four weeks, suggest the owner focus on
 the narrow one. The owner decides.
