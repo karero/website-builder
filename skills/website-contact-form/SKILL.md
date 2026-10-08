@@ -64,7 +64,7 @@ setup, or a count of them), this is the wrong tool: see §0.
 | File | From this skill's `templates/` | What it is |
 |---|---|---|
 | `src/components/MailForm.astro` | `MailForm.astro` | the form, and the address line under it |
-| `src/components/mail-form-text.ts` | `mail-form-text.ts` | everything the form says, in English and German, and the longest name and message it takes |
+| `src/components/mail-form-text.ts` | `mail-form-text.ts` | everything the form says, in English and German, and the longest message it takes |
 | `public/js/mail-form.js` | `mail-form.js` | the script: shows the form, builds the `mailto:` link, opens it |
 | `tests/mail-form.spec.ts` | `mail-form.spec.ts` | the form as a visitor meets it: the link the button opens (address, subject, every field, encoding), an empty field, labels and keyboard order, the page without JavaScript, a strict Content-Security-Policy, and every text against the site's tone rules |
 
@@ -76,12 +76,12 @@ all four.
 way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The script, a
 file of the site's own under `public/js/` rather than an inline script, so a strict
 `script-src 'self'` policy lets it run, shows the form, and when the button is pressed
-decodes the address and opens `mailto:<address>?subject=…&body=…`. The body reads
-like a letter: a greeting, the message, every other field the visitor filled in as
-"Label: value", then a closing line ("Regards", "Freundliche Grüße") and the visitor's
-name. A field the owner adds later goes into the mail by its label with no
-change to the script. Without JavaScript the form stays hidden, since it could do
-nothing, and the address line under it is what the visitor sees.
+decodes the address and opens `mailto:<address>?subject=…&body=…`. The body is the
+visitor's message exactly as typed: they write their own greeting and sign-off, and
+their mail program says who they are. Every other field the visitor filled in follows
+under it as "Label: value", so a field the owner adds later goes into the mail by its
+label with no change to the script. Without JavaScript the form stays hidden, since it
+could do nothing, and the address line under it is what the visitor sees.
 
 **The spec needs `toneViolations`** from the site's `tests/_helpers.ts`, the tone rules
 its pages are held to. A site made from an older starter lacks it, and `npm run check`
@@ -120,9 +120,9 @@ loses it.
    Propose one or two and let the owner choose: these are their customers' first words
    to them. The plain address under the form carries the same subject.
 3. **Language.** The form speaks the language of the page it is on, by itself: a page
-   built with `<Base lang="de">` on an English site gets a German form, greeting and
-   closing line included. `Base.astro` hands the page's language down
-   (`Astro.locals.lang`); on a site with several languages it is the page's locale.
+   built with `<Base lang="de">` on an English site gets a German form. `Base.astro`
+   hands the page's language down (`Astro.locals.lang`); on a site with several
+   languages it is the page's locale.
    `lang="…"` overrides; then set `LANG` in the spec too (step 4). English and German
    are built in, with no form of address in German, so the form fits a "du" site and a
    "Sie" site. Any other language: "Add a language" below, first. A form in a language
@@ -141,12 +141,13 @@ loses it.
    `lang`. One copy guards one form:
    with the form on pages in two languages, copy it once per language
    (`tests/mail-form.de.spec.ts`), each with its own `PAGE` and `SUBJECT`.
-5. **Fields.** The form asks for a name and a message, nothing else: the visitor's
-   email address comes with their mail. A field the owner wants (a phone number, a
-   date) goes inside the form with a `<label for>` and a `name`, before the button; it
-   reaches the mail as "Label: value", and the spec's label and keyboard test then
-   needs that field in its `order` list. A field that asks for more personal data than
-   name and message also goes into the privacy page (§4).
+5. **Fields.** The form asks for the message, nothing else: the visitor's name and
+   email address come with their mail, and they greet and sign as they like. A field
+   the owner wants (a phone number, a date) goes inside the form with a `<label for>`
+   and a `name`, before the button. It reaches the mail under the message as "Label:
+   value", and the spec's label and keyboard test then needs that field in its `order`
+   list. A field that asks for more personal data than the message also goes into the
+   privacy page (§4).
 6. `npm run check && npm test`.
 
 ### Add a language
@@ -176,9 +177,8 @@ to wait for. After `npm run build && npm run preview`, or on the preview address
 pull request:
 
 1. The owner fills in the form and presses the button. Their mail program opens with a
-   new message: to the address from §2, the subject line, the greeting, the message,
-   and the closing line with their name under it. Umlauts and line breaks come through
-   as typed.
+   new message: to the address from §2, the subject line and the message exactly
+   as they typed it, umlauts and line breaks included.
 2. They send it to themselves and see it arrive.
 3. Nothing opened: their computer has no mail program set up for `mailto:` links. That
    is exactly what some visitors meet, and why the address shows under the form. On a
@@ -194,8 +194,8 @@ no processor paragraph, since no service handles the message on the way.
 
 Check two things only: the section is still there (a rewritten privacy page may have
 lost it; then write it, covering what is processed, why, the legal basis and how long
-it is kept), and any field added in §2 step 5 that asks for more than a name and a
-message is named in it. Like the kit's other legal drafts, a baseline, not legal advice.
+it is kept), and any field added in §2 step 5 that asks for more than the message is
+named in it. Like the kit's other legal drafts, a baseline, not legal advice.
 
 ## 5. What it does not do
 

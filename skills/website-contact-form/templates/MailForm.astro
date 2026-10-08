@@ -43,11 +43,7 @@ if (!hasText(language)) {
 }
 const t = TEXT[language];
 ---
-<form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} data-greeting={t.greeting} data-closing={t.closing} hidden>
-  <p>
-    <label for="mail-form-name">{t.name}</label>
-    <input id="mail-form-name" name="name" type="text" autocomplete="name" required maxlength={LIMITS.name} />
-  </p>
+<form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} hidden>
   <p>
     <label for="mail-form-message">{t.message}</label>
     <textarea id="mail-form-message" name="message" rows="6" required maxlength={LIMITS.message}></textarea>

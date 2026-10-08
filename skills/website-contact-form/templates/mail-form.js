@@ -41,14 +41,15 @@
         return;
       }
 
-      // The message is the letter itself, and the name signs it under the closing line.
-      // Every other field the visitor filled in goes between them as "Label: value", so a
-      // field the owner adds later is sent too: a list gives every chosen entry, a ticked
-      // checkbox or radio button its label alone.
+      // The message is the mail, exactly as typed: the visitor writes their own greeting
+      // and sign-off, and their mail program adds who they are. Every other field the
+      // visitor filled in follows under it as "Label: value", so a field the owner adds
+      // later is sent too: a list gives every chosen entry, a ticked checkbox or radio
+      // button its label alone.
       var details = [];
       Array.prototype.forEach.call(form.elements, function (field) {
         // A named <fieldset> or <output> has no value of its own to send.
-        if (!field.name || field.name === 'message' || field.name === 'name' || field.type === 'submit' || field.type === 'button' || typeof field.value !== 'string') return;
+        if (!field.name || field.name === 'message' || field.type === 'submit' || field.type === 'button' || typeof field.value !== 'string') return;
         var label = field.labels && field.labels[0] ? field.labels[0].textContent.trim() : field.name;
         if (field.type === 'checkbox' || field.type === 'radio') {
           if (field.checked) details.push(label);
@@ -60,10 +61,8 @@
         if (value) details.push(label + ': ' + value);
       });
       var message = form.elements.message ? form.elements.message.value.trim() : '';
-      var name = form.elements.name ? form.elements.name.value.trim() : '';
-      var lines = [form.dataset.greeting, '', message];
+      var lines = [message];
       if (details.length) lines.push('', details.join('\n'));
-      lines.push('', form.dataset.closing, name);
       var body = lines.join('\n');
 
       // RFC 6068: a line break in a mailto: body is %0D%0A. A broken character pasted
