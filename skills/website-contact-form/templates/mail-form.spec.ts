@@ -29,6 +29,7 @@ async function pressSend(page: Page): Promise<string> {
 
 // The link's parts, each decoded once. Not URLSearchParams: it reads "+" as a space.
 function parse(mailto: string) {
+  expect(mailto.startsWith('mailto:'), `a mailto: link, not "${mailto.slice(0, 40)}"`).toBe(true);
   const [encodedAddress, query = ''] = mailto.slice('mailto:'.length).split('?');
   const address = decodeURIComponent(encodedAddress);
   const params = Object.fromEntries(query.split('&').map((pair) => {
