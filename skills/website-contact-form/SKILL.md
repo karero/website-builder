@@ -77,7 +77,8 @@ way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The sc
 file of the site's own under `public/js/` rather than an inline script, so a strict
 `script-src 'self'` policy lets it run, shows the form, and when the button is pressed
 decodes the address and opens `mailto:<address>?subject=…&body=…`. The body is the
-visitor's message exactly as typed: they write their own greeting and sign-off, and
+visitor's message as typed (only spaces and blank lines at its very start and end are
+dropped): they write their own greeting and sign-off, and
 their mail program says who they are. Every other field the visitor filled in follows
 under it as "Label: value", so a field the owner adds later goes into the mail by its
 label with no change to the script. Without JavaScript the form stays hidden, since it
@@ -177,8 +178,8 @@ to wait for. After `npm run build && npm run preview`, or on the preview address
 pull request:
 
 1. The owner fills in the form and presses the button. Their mail program opens with a
-   new message: to the address from §2, the subject line and the message exactly
-   as they typed it, umlauts and line breaks included.
+   new message: to the address from §2, the subject line and the message as they
+   typed it, umlauts and line breaks included.
 2. They send it to themselves and see it arrive.
 3. Nothing opened: their computer has no mail program set up for `mailto:` links. That
    is exactly what some visitors meet, and why the address shows under the form. On a

@@ -67,8 +67,9 @@ test('mail form — the button opens a mail to the owner with everything the vis
   const lang = await formLanguage(page);
   // Characters that break a link unless each is encoded: & ? # % + = and a line break,
   // and letters outside ASCII.
-  const message = 'Is 100% possible? Price #1 + extras = fine.\nZweite Zeile: Grüße, ça va';
-  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill(message);
+  const message = 'Is 100% possible? Price #1 + extras = fine.\n\n  Zweite Zeile: Grüße, ça va';
+  // Typed with a blank line and spaces around it: those edges are dropped, the rest kept.
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill(`\n  ${message}  \n`);
   const mailto = await pressSend(page);
   const { address, query, params } = parse(mailto);
 
@@ -80,7 +81,8 @@ test('mail form — the button opens a mail to the owner with everything the vis
   // nothing the visitor typed can end the subject early or start a new part.
   expect(query, 'the subject and body are URL-encoded').toMatch(/^subject=[A-Za-z0-9\-_.!~*'()%]*&body=[A-Za-z0-9\-_.!~*'()%]*$/);
   expect(query, 'a line break is %0D%0A (RFC 6068), never a bare %0A').not.toMatch(/(?<!%0D)%0A/);
-  // The message exactly as typed: the visitor writes their own greeting and sign-off.
+  // The message as typed, less its outer blank lines and spaces: the visitor writes their
+  // own greeting and sign-off.
   expect(params.body).toBe(message.replace(/\n/g, '\r\n'));
 
   // The site cannot know whether the mail program opened, so it says what to do next.
