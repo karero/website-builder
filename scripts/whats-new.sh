@@ -370,7 +370,7 @@ CHANGED
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(head -n 1 <<<"$changed")"
   if grep -q '_helpers\.ts$' <<<"$changed"; then
     echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, i18n.spec.ts on"
-    echo "multilingual sites, forms.spec.ts with a contact form), so merge the helpers together"
+    echo "multilingual sites, mail-form.spec.ts with a contact form), so merge the helpers together"
     echo "with any spec that uses the new exports, or the import breaks loudly."
   fi
   echo "When the site's copies are current again, advance the baseline:"

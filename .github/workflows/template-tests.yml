@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/website-scorecard/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -398,11 +398,76 @@ jobs:
           refused "a failing test"
           [ -z "$(git status --porcelain)" ]
 
+  # The website-contact-form skill, like the scorecard, ships files that live in a SITE.
+  # This builds a site from the starter, installs the skill the way its SKILL.md §2 says
+  # (the component, its words, the script, the test, the form on a page), and runs the
+  # type check and the whole suite. A second form, in German, sits on the starter's
+  # German page with its own copy of the spec, so the German texts go through the tone
+  # rules and the page checks too. No mail program opens: the spec reads the mailto:
+  # link the button asks the browser to open.
+  contact-form-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: A site from the starter, with the skill installed
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          K="$GITHUB_WORKSPACE/skills/website-contact-form/templates"
+          mkdir -p public/js
+          cp "$K/mail-form.js" public/js/ && cp "$K/MailForm.astro" "$K/mail-form-text.ts" src/components/ && cp "$K/mail-form.spec.ts" tests/
+          sed -i "s|^const PAGE = '';|const PAGE = '/';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Project enquiry';|" tests/mail-form.spec.ts
+          # The German form: a German page on an English site, so it passes lang (§2 step 3).
+          cp "$K/mail-form.spec.ts" tests/mail-form.de.spec.ts
+          sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|" tests/mail-form.de.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport MailForm from '../components/MailForm.astro';|" src/pages/impressum.astro src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontakt</h2><MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" lang="de" /></section>\n</Base>|' src/pages/impressum.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><MailForm to="hello@example.com" subject="Project enquiry" /></section>\n</Base>|' src/pages/index.astro
+          # One check per line: in "a && b" a failing a does not stop the step.
+          grep -q "const PAGE = '/';" tests/mail-form.spec.ts
+          grep -q "const TO = 'hello@example.com';" tests/mail-form.spec.ts
+          grep -q "const SUBJECT = 'Project enquiry';" tests/mail-form.spec.ts
+          grep -q "const PAGE = '/impressum';" tests/mail-form.de.spec.ts
+          grep -q "const TO = 'hello@example.com';" tests/mail-form.de.spec.ts
+          grep -q "const SUBJECT = 'Anfrage Bauvorhaben';" tests/mail-form.de.spec.ts
+          grep -q '<MailForm to="hello@example.com" subject="Project enquiry" />' src/pages/index.astro
+          grep -q 'import MailForm' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" lang="de" />' src/pages/impressum.astro
+          grep -q 'import MailForm' src/pages/impressum.astro
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Type check and the whole suite, with the form in place
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          npm run check
+          npm test
+      # A form without its subject, or in a language it has no words for, must stop the
+      # build, not go out with a generic subject or in English. Last step: it leaves the
+      # site broken on purpose.
+      - name: A form without a subject, or in a language with no texts, stops the build
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          cp src/pages/index.astro index.astro.keep
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" />|' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" />' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form without a subject was built'; exit 1; fi
+          grep -qF 'MailForm: pass subject="…"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing subject'; exit 1; }
+          cp index.astro.keep src/pages/index.astro
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" subject="Project enquiry" lang="xx" />|' src/pages/index.astro
+          grep -q 'lang="xx"' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
+          grep -q 'MailForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
+
   # The one check main's ruleset requires from this workflow. It passes when every job
   # above passed (the change touched their paths) or every job was skipped (it did not),
   # and fails on anything else: a failure, a cancel, a skip where a run was due.
   template-tests-ok:
-    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill]
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -410,9 +475,9 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           RUN: ${{ needs.changes.outputs.run }}
-          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }}
         run: |
-          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill: $RESULTS"
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill: $RESULTS"
           [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
           case "$RUN" in
             true) want=success ;;

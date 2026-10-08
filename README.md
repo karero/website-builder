@@ -268,7 +268,7 @@ skills/            the suite skills (canonical)
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
                    consistency audit, trap-test → wedge → guard-tests method)
-  astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
+  astro-i18n-setup, keystatic-setup, website-contact-form   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -302,8 +302,8 @@ docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do n
 
 ### Opt-in and on-demand setup skills
 
-Three skills are **not run** by the default build — the orchestrator copies the first two
-into a site only when the decision interview calls for them; the third travels with every
+Four skills are **not run** by the default build — the orchestrator copies the first three
+into a site only when the decision interview calls for them; the fourth travels with every
 site (like `website-motion`) but runs only when a team forms:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
@@ -318,6 +318,14 @@ site (like `website-motion`) but runs only when a team forms:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
+- **`website-contact-form`** — our suggestion for a **contact form**: the visitor fills in a
+  name and a message, presses a button, and their own email program opens with the message
+  to the owner, ready to send. No server, no account, no setting and no company in between,
+  so it works on any host and the privacy page needs nothing new. Adds a form component
+  with its texts in English and German, one small script of the site's own (so a strict
+  Content-Security-Policy holds) and a test of the link the button opens. The owner's
+  address always shows under the form, for visitors without a mail program set up. Run
+  when interview Q2 = *a contact form*, or later when the owner asks for one.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
@@ -328,7 +336,8 @@ site (like `website-motion`) but runs only when a team forms:
   first, pull request instead of a push, never invent facts, the new-page checklist) — this
   skill adds only what a team needs. Run once, when the second person joins.
 
-A site with one language, a developer-edited repo and a single owner runs none of them.
+A site with one language, a developer-edited repo, no contact form and a single owner runs
+none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
