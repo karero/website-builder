@@ -185,7 +185,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site>/tests`.
+> `./scripts/whats-new.sh --stamp-tests <site>/tests`. A changed file the site has no copy
+> of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
