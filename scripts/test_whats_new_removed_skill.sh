@@ -127,6 +127,7 @@ check "uncommitted deletion: not called removed upstream"       lacks "$out" "re
 check "uncommitted deletion: still offered as an update"        has "$out" "Refresh them"
 err="$(bash "$WN" --refresh "$S4" 2>&1 >/dev/null)"; rc=$?
 check "uncommitted deletion: refresh refuses, as before"        test "$rc" -eq 1
+check "uncommitted deletion: refresh says why it refuses"       has "$err" "uncommitted changes"
 check "uncommitted deletion: refresh does not call it removed"  lacks "$err" "removed upstream"
 check "uncommitted deletion: refresh leaves the stamp"          test "$(stamp "$S4")" = "$OLD"
 $git -C "$SUITE" checkout -q -- skills/alpha
@@ -139,6 +140,7 @@ out="$(bash "$WN" "$S8" 2>&1)"
 check "leftover: the report calls it removed upstream"          has "$out" "beta   (removed upstream"
 err="$(bash "$WN" --refresh "$S8" 2>&1 >/dev/null)"; rc=$?
 check "leftover: refresh stops with exit status 1"              test "$rc" -eq 1
+check "leftover: refresh says it was removed upstream"          has "$err" "was removed upstream"
 check "leftover: refresh leaves the stamp"                      test "$(stamp "$S8")" = "$OLD"
 check "leftover: the site's copy is not overwritten"            test "$(cat "$S8/.claude/skills/beta/SKILL.md")" = "# beta"
 rm -rf "$SUITE/skills/beta"
