@@ -1,0 +1,54 @@
+// The mail-app contact form's words and limits (the website-contact-form skill),
+// installed as src/components/mail-form-text.ts. The form
+// (src/components/MailForm.astro) and its test (tests/mail-form.spec.ts) import it, so
+// a language is added, or a sentence changed, here and nowhere else.
+
+// The longest name and message the form takes. Every character the visitor types
+// travels inside one long mailto: link, and some mail programs cut a very long link
+// (where exactly was not measured). The visitor can write on in their mail program.
+export const LIMITS = { name: 100, message: 2000 };
+
+// Everything a visitor reads, by language, and the start of the mail their program
+// opens (`subject`, `greeting`). tests/mail-form.spec.ts holds every text here to the
+// site's tone rules (tests/_helpers.ts): no long dash in any language, and the rules
+// of the text's own language where there are some (English: no contraction, no
+// buzzword; German: no buzzword, no stock AI phrase). In German they address nobody,
+// so the form fits a "du" site and a "Sie" site alike. A language that leaves one of
+// these out fails `npm run check`.
+//
+//   name, message, send  the two labels and the button
+//   note                 the line above the button: what pressing it does
+//   opened               the line after pressing it
+//   direct               the words before the plain address under the form
+//   subject, greeting    the mail's subject line and its first line
+type Texts = {
+  name: string; message: string; send: string; note: string; opened: string;
+  direct: string; subject: string; greeting: string;
+};
+export const TEXT = {
+  en: {
+    name: 'Name',
+    message: 'Message',
+    send: 'Open in my email program',
+    note: 'The button opens your own email program with this message ready. It is sent only when you press Send there, and this website keeps nothing.',
+    opened: 'Your email program should now show the message. Press Send there to send it. If nothing opened, please write to the address below.',
+    direct: 'Prefer a blank email? Write to us directly:',
+    subject: 'Message from the website',
+    greeting: 'Hello,',
+  },
+  de: {
+    name: 'Name',
+    message: 'Nachricht',
+    send: 'Im E-Mail-Programm öffnen',
+    note: 'Der Knopf öffnet das eigene E-Mail-Programm mit dieser Nachricht. Gesendet wird sie erst mit Senden dort, und diese Website speichert nichts.',
+    opened: 'Das E-Mail-Programm sollte die Nachricht jetzt zeigen. Gesendet wird sie mit Senden dort. Hat sich nichts geöffnet, bitte an die Adresse unten schreiben.',
+    direct: 'Lieber eine leere E-Mail? Direkt schreiben an:',
+    subject: 'Nachricht über die Website',
+    greeting: 'Hallo,',
+  },
+} satisfies Record<string, Texts>;
+
+export type Language = keyof typeof TEXT;
+
+// Whether there are texts for a language. Own keys only: "constructor" is not one.
+export const hasText = (lang: string): lang is Language => Object.hasOwn(TEXT, lang);
