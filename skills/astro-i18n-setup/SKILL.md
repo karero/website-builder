@@ -183,6 +183,8 @@ The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `references/heavy-path-code.md` §3 replaces it) — the
 `alternates` prop and `altHref` helper then sit unused; remove them too or leave
 them, but never feed both emission paths on one page.
+The starter's `Astro.locals.lang = lang;` line becomes `Astro.locals.lang = currentLocale;`
+(in the §3 code), so a contact form on the page speaks the page's language.
 Keep the `ogLocale` line (config.ts's shared `ogLocaleFor` maps `lang → og:locale`);
 optionally add `og:locale:alternate` for the non-current locales. `inLanguage` in the
 WebPage/WebSite schema should use `currentLocale`.

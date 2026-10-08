@@ -12,8 +12,8 @@
 export const LIMITS = { name: 100, message: 2000 };
 
 // Everything a visitor reads, by language, and the words around the message in the mail
-// their program opens (`greeting`, `closing`). The subject line is not here: each site chooses its own
-// (the `subject` prop). tests/mail-form.spec.ts holds every text here to the
+// their program opens (`greeting`, `closing`). The subject line is not here: each site
+// chooses its own (the `subject` prop). tests/mail-form.spec.ts holds every text here to the
 // site's tone rules (tests/_helpers.ts): no long dash in any language, and the rules
 // of the text's own language where there are some (English: no contraction, no
 // buzzword; German: no buzzword, no stock AI phrase). In German they address nobody,

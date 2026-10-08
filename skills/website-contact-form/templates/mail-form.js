@@ -42,8 +42,9 @@
       }
 
       // The message is the letter itself, and the name signs it under the closing line.
-      // Every other field the visitor filled in goes between them as "Label: value", so a field the owner adds later is sent too: a list
-      // gives every chosen entry, a ticked checkbox or radio button its label alone.
+      // Every other field the visitor filled in goes between them as "Label: value", so a
+      // field the owner adds later is sent too: a list gives every chosen entry, a ticked
+      // checkbox or radio button its label alone.
       var details = [];
       Array.prototype.forEach.call(form.elements, function (field) {
         // A named <fieldset> or <output> has no value of its own to send.

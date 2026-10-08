@@ -17,6 +17,7 @@ import { toneViolations } from './_helpers';
 const PAGE = '';    // the page with the form, e.g. '/contact'
 const TO = '';      // the address given to <MailForm to="…">
 const SUBJECT = ''; // the subject given to <MailForm subject="…">
+const LANG = '';    // only if the page passes lang="…": that language; else the page's own
 
 // The mailto: link the button asks the browser to open. The browser hands it to the
 // mail program; Playwright sees it as a request.
@@ -46,9 +47,10 @@ const form = (page: Page) => page.locator('form[data-mail-form]');
 async function formLanguage(page: Page) {
   const lang = (await page.locator('form[data-mail-form]').getAttribute('lang')) ?? '';
   expect(hasText(lang), `the form speaks "${lang}", which has no texts in mail-form-text.ts`).toBe(true);
-  // By itself, in the language of the page it is on: <html lang>, as Base.astro sets it.
+  // By itself, in the language of the page it is on (<html lang>, as Base.astro sets it),
+  // unless the page passes another one: then LANG names it.
   const pageLang = ((await page.locator('html').getAttribute('lang')) ?? '').toLowerCase().split('-')[0];
-  expect(lang, `the form speaks "${lang}" on a page in "${pageLang}"`).toBe(pageLang);
+  expect(lang, `the form speaks "${lang}" on a page in "${pageLang}"`).toBe(LANG || pageLang);
   return lang as keyof typeof TEXT;
 }
 

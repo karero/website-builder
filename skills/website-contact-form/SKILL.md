@@ -123,15 +123,21 @@ loses it.
    built with `<Base lang="de">` on an English site gets a German form, greeting and
    closing line included. `Base.astro` hands the page's language down
    (`Astro.locals.lang`); on a site with several languages it is the page's locale.
-   `lang="…"` overrides. A site made from an older starter lacks that line: then
-   `npm run check` fails and the build stops with a message naming it. Add
-   `Astro.locals.lang = lang;` after the props in `Base.astro`, and copy the starter's
-   `src/env.d.ts`. English and German are built in, with no form of address in German,
-   so the form fits a "du" site and a "Sie" site. Any other language: "Add a language" below, first. A form in a language
+   `lang="…"` overrides; then set `LANG` in the spec too (step 4). English and German
+   are built in, with no form of address in German, so the form fits a "du" site and a
+   "Sie" site. Any other language: "Add a language" below, first. A form in a language
    with no texts stops the build.
+
+   **A site made from an older starter** lacks the line in `Base.astro`. On a site with
+   one language, a form without `lang` then stops the build with a message naming the
+   line. Add `Astro.locals.lang = lang;` after the props in `Base.astro`, and the
+   declaration `declare namespace App { interface Locals { lang?: string } }` to
+   `src/env.d.ts` (create it from the starter's if the site has none; keep what a
+   site's own file already declares), or `npm run check` fails on the new line.
 4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO` and
    `SUBJECT` (the address and the subject from step 2). The spec fails while one is
-   empty, and holds the subject to the site's tone rules. One copy guards one form:
+   empty, and holds the subject to the site's tone rules. `LANG` only if the page passes
+   `lang`. One copy guards one form:
    with the form on pages in two languages, copy it once per language
    (`tests/mail-form.de.spec.ts`), each with its own `PAGE` and `SUBJECT`.
 5. **Fields.** The form asks for a name and a message, nothing else: the visitor's
@@ -170,7 +176,8 @@ pull request:
 
 1. The owner fills in the form and presses the button. Their mail program opens with a
    new message: to the address from §2, the subject line, the greeting, the message,
-   and the closing line with their name under it. Umlauts and line breaks come through as typed.
+   and the closing line with their name under it. Umlauts and line breaks come through
+   as typed.
 2. They send it to themselves and see it arrive.
 3. Nothing opened: their computer has no mail program set up for `mailto:` links. That
    is exactly what some visitors meet, and why the address shows under the form. On a
