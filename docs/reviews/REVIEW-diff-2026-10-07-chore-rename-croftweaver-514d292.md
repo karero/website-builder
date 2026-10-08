@@ -16,6 +16,7 @@ whose private-name check had been rewritten since. That part was redone by hand.
 | 1 | `514d292` | full | fresh-eyes agent (sonnet, read-only, ran the leak-check tests) | 149 s, 108k | 0 / 2 / 4 |
 | 1 | `bf76317` | full, + F1's comment | Melious (glm-5.3, HTTP API, text only) | 128 s, 29k | 0 / 1 / 2 |
 | 2 | `608f85e` | delta since `514d292`, `--verify` | Codex (medium) · Melious (glm-5.3) | 90 s, 29k · 31 s, 7k | 0 / 1 / 1 (same RISK from both) |
+| prose re-gate | `9de3b79` | delta since `608f85e` (two comments) | Codex (medium) | — | 0 / 0 / 0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -27,8 +28,8 @@ whose private-name check had been rewritten since. That part was redone by hand.
 | F6 | NIT | fresh-eyes, Melious | 1 | the unzip line is a fix, not a rename | fixed in text: the commit and PR say so | `514d292` message |
 | F7 | NIT | fresh-eyes | 1 | old name in an eval fixture and a test label | refuted: generic noun / historical reference | — |
 | F8 | NIT | fresh-eyes | 1 | `..` right after a self-link fails closed | refuted: intended, the `..x` case must fail | test "joined by two dots" |
-| F9 | RISK | Codex, Melious | 2 | the comment's "only its owner could ever" lacked support | fixed: claim removed, the accepted trade-off stated (locally_verified) | closing commit |
-| F10 | NIT | Melious | 2 | `package.sh` comment outlives its subject | fixed (locally_verified) | closing commit |
+| F9 | RISK | Codex, Melious | 2 | the comment's "only its owner could ever" lacked support | fixed: claim removed, the accepted trade-off stated (externally_reverified, prose re-gate) | `9de3b79` |
+| F10 | NIT | Melious | 2 | `package.sh` comment outlives its subject | fixed (externally_reverified, prose re-gate) | `9de3b79` |
 
 Waivers and deferrals: none.
 Follow-ups: F4.
