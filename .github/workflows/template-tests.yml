@@ -422,11 +422,12 @@ jobs:
           mkdir -p public/js
           cp "$K/mail-form.js" public/js/ && cp "$K/MailForm.astro" "$K/mail-form-text.ts" src/components/ && cp "$K/mail-form.spec.ts" tests/
           sed -i "s|^const PAGE = '';|const PAGE = '/';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Project enquiry';|" tests/mail-form.spec.ts
-          # The German form: a German page on an English site, so it passes lang (§2 step 3).
+          # The German form: a German page on an English site, with no lang of its own: it
+          # takes the page's, which Base.astro hands down (§2 step 3).
           cp "$K/mail-form.spec.ts" tests/mail-form.de.spec.ts
           sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|" tests/mail-form.de.spec.ts
           sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport MailForm from '../components/MailForm.astro';|" src/pages/impressum.astro src/pages/index.astro
-          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontakt</h2><MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" lang="de" /></section>\n</Base>|' src/pages/impressum.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontakt</h2><MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" /></section>\n</Base>|' src/pages/impressum.astro
           sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><MailForm to="hello@example.com" subject="Project enquiry" /></section>\n</Base>|' src/pages/index.astro
           # One check per line: in "a && b" a failing a does not stop the step.
           grep -q "const PAGE = '/';" tests/mail-form.spec.ts
@@ -437,7 +438,7 @@ jobs:
           grep -q "const SUBJECT = 'Anfrage Bauvorhaben';" tests/mail-form.de.spec.ts
           grep -q '<MailForm to="hello@example.com" subject="Project enquiry" />' src/pages/index.astro
           grep -q 'import MailForm' src/pages/index.astro
-          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" lang="de" />' src/pages/impressum.astro
+          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" />' src/pages/impressum.astro
           grep -q 'import MailForm' src/pages/impressum.astro
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium

@@ -46,6 +46,9 @@ const form = (page: Page) => page.locator('form[data-mail-form]');
 async function formLanguage(page: Page) {
   const lang = (await page.locator('form[data-mail-form]').getAttribute('lang')) ?? '';
   expect(hasText(lang), `the form speaks "${lang}", which has no texts in mail-form-text.ts`).toBe(true);
+  // By itself, in the language of the page it is on: <html lang>, as Base.astro sets it.
+  const pageLang = ((await page.locator('html').getAttribute('lang')) ?? '').toLowerCase().split('-')[0];
+  expect(lang, `the form speaks "${lang}" on a page in "${pageLang}"`).toBe(pageLang);
   return lang as keyof typeof TEXT;
 }
 
@@ -75,7 +78,8 @@ test('mail form — the button opens a mail to the owner with everything the vis
   // nothing the visitor typed can end the subject early or start a new part.
   expect(query, 'the subject and body are URL-encoded').toMatch(/^subject=[A-Za-z0-9\-_.!~*'()%]*&body=[A-Za-z0-9\-_.!~*'()%]*$/);
   expect(query, 'a line break is %0D%0A (RFC 6068), never a bare %0A').not.toMatch(/(?<!%0D)%0A/);
-  expect(params.body).toBe(`${TEXT[lang].greeting}\r\n\r\n${message.replace(/\n/g, '\r\n')}\r\n\r\n${TEXT[lang].name}: ${name}`);
+  // A letter: greeting, message, then the closing line and the name as its signature.
+  expect(params.body).toBe(`${TEXT[lang].greeting}\r\n\r\n${message.replace(/\n/g, '\r\n')}\r\n\r\n${TEXT[lang].closing}\r\n${name}`);
 
   // The site cannot know whether the mail program opened, so it says what to do next.
   await expect(form(page).getByRole('status')).toHaveText(TEXT[lang].opened);
@@ -103,7 +107,7 @@ test('mail form — fields the owner adds go into the mail by their labels; one 
   await form(page).getByLabel('Phone', { exact: true }).fill('+49 30 1234');
   await form(page).getByLabel('Days', { exact: true }).selectOption(['Monday', 'Friday']);
   const { params } = parse(await pressSend(page));
-  expect(params.body).toContain(`${TEXT[lang].name}: Ada\r\nPhone: +49 30 1234\r\nDays: Monday, Friday`);
+  expect(params.body).toContain(`\r\n\r\nPhone: +49 30 1234\r\nDays: Monday, Friday\r\n\r\n${TEXT[lang].closing}\r\nAda`);
   expect(params.body).not.toContain('Company');
 });
 

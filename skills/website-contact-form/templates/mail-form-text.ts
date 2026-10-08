@@ -11,8 +11,8 @@
 // visitor can write on in their mail program.
 export const LIMITS = { name: 100, message: 2000 };
 
-// Everything a visitor reads, by language, and the first line of the mail their
-// program opens (`greeting`). The subject line is not here: each site chooses its own
+// Everything a visitor reads, by language, and the words around the message in the mail
+// their program opens (`greeting`, `closing`). The subject line is not here: each site chooses its own
 // (the `subject` prop). tests/mail-form.spec.ts holds every text here to the
 // site's tone rules (tests/_helpers.ts): no long dash in any language, and the rules
 // of the text's own language where there are some (English: no contraction, no
@@ -25,9 +25,10 @@ export const LIMITS = { name: 100, message: 2000 };
 //   opened               the line after pressing it
 //   direct               the words before the plain address under the form
 //   greeting             the mail's first line
+//   closing              the line above the visitor's name, at the end of the mail
 type Texts = {
   name: string; message: string; send: string; note: string; opened: string;
-  direct: string; greeting: string;
+  direct: string; greeting: string; closing: string;
 };
 export const TEXT = {
   en: {
@@ -38,6 +39,7 @@ export const TEXT = {
     opened: 'Your email program should now show the message. Press Send there to send it. If nothing opened, please write to the address below.',
     direct: 'Prefer a blank email? Write to us directly:',
     greeting: 'Hello,',
+    closing: 'Regards',
   },
   de: {
     name: 'Name',
@@ -47,6 +49,7 @@ export const TEXT = {
     opened: 'Das E-Mail-Programm sollte die Nachricht jetzt zeigen. Gesendet wird sie mit Senden dort. Hat sich nichts geöffnet, bitte an die Adresse unten schreiben.',
     direct: 'Lieber eine leere E-Mail? Direkt schreiben an:',
     greeting: 'Hallo,',
+    closing: 'Viele Grüße',
   },
 } satisfies Record<string, Texts>;
 

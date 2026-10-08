@@ -76,9 +76,10 @@ all four.
 way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The script, a
 file of the site's own under `public/js/` rather than an inline script, so a strict
 `script-src 'self'` policy lets it run, shows the form, and when the button is pressed
-decodes the address and opens `mailto:<address>?subject=…&body=…`. The body starts
-with a greeting, then the message, then every other field the visitor filled in as
-"Label: value". A field the owner adds later goes into the mail by its label with no
+decodes the address and opens `mailto:<address>?subject=…&body=…`. The body reads
+like a letter: a greeting, the message, every other field the visitor filled in as
+"Label: value", then a closing line ("Regards", "Viele Grüße") and the visitor's
+name. A field the owner adds later goes into the mail by its label with no
 change to the script. Without JavaScript the form stays hidden, since it could do
 nothing, and the address line under it is what the visitor sees.
 
@@ -118,11 +119,15 @@ loses it.
    so a mail program's list shows all of it. A page for one offer can pass its own.
    Propose one or two and let the owner choose: these are their customers' first words
    to them. The plain address under the form carries the same subject.
-3. **Language.** The form speaks the site's language (`SITE.locale`), or on a site with
-   several languages the page's (`Astro.currentLocale`); `lang="de"` overrides, and a
-   page built with `<Base lang="de">` on an English site needs it. English and German
-   are built in, with no form of address in German, so the form fits a "du" site and a
-   "Sie" site. Any other language: "Add a language" below, first. A form in a language
+3. **Language.** The form speaks the language of the page it is on, by itself: a page
+   built with `<Base lang="de">` on an English site gets a German form, greeting and
+   closing line included. `Base.astro` hands the page's language down
+   (`Astro.locals.lang`); on a site with several languages it is the page's locale.
+   `lang="…"` overrides. A site made from an older starter lacks that line: then
+   `npm run check` fails and the build stops with a message naming it. Add
+   `Astro.locals.lang = lang;` after the props in `Base.astro`, and copy the starter's
+   `src/env.d.ts`. English and German are built in, with no form of address in German,
+   so the form fits a "du" site and a "Sie" site. Any other language: "Add a language" below, first. A form in a language
    with no texts stops the build.
 4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO` and
    `SUBJECT` (the address and the subject from step 2). The spec fails while one is
@@ -165,7 +170,7 @@ pull request:
 
 1. The owner fills in the form and presses the button. Their mail program opens with a
    new message: to the address from §2, the subject line, the greeting, the message,
-   and their name below it. Umlauts and line breaks come through as typed.
+   and the closing line with their name under it. Umlauts and line breaks come through as typed.
 2. They send it to themselves and see it arrive.
 3. Nothing opened: their computer has no mail program set up for `mailto:` links. That
    is exactly what some visitors meet, and why the address shows under the form. On a
