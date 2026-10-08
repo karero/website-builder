@@ -96,11 +96,23 @@ test('mail form — fields the owner adds go into the mail by their labels; one 
   });
   await form(page).getByLabel(TEXT[lang].name, { exact: true }).fill('Ada');
   await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello there');
-  await form(page).getByLabel('Phone').fill('+49 30 1234');
-  await form(page).getByLabel('Days').selectOption(['Monday', 'Friday']);
+  await form(page).getByLabel('Phone', { exact: true }).fill('+49 30 1234');
+  await form(page).getByLabel('Days', { exact: true }).selectOption(['Monday', 'Friday']);
   const { params } = parse(await pressSend(page));
   expect(params.body).toContain(`${TEXT[lang].name}: Ada\r\nPhone: +49 30 1234\r\nDays: Monday, Friday`);
   expect(params.body).not.toContain('Company');
+});
+
+test('mail form — a % in the address, which the starter allows, is escaped in the link', async ({ page }) => {
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  // The address the page would carry for a%b@example.com, encoded as encodeEmail does.
+  await form(page).evaluate((f: HTMLFormElement) => { f.dataset.to = btoa('a%b@example.com'.split('').reverse().join('')); });
+  await form(page).getByLabel(TEXT[lang].name, { exact: true }).fill('Ada');
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello');
+  const { address, encodedAddress } = parse(await pressSend(page));
+  expect(encodedAddress).toBe('a%25b@example.com');
+  expect(address).toBe('a%b@example.com');
 });
 
 test('mail form — an empty field stops the browser, and no mail opens', async ({ page }) => {

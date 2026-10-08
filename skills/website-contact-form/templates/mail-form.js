@@ -63,10 +63,18 @@
       if (details.length) lines.push('', details.join('\n'));
       var body = lines.join('\n');
 
-      // RFC 6068: a line break in a mailto: body is %0D%0A.
-      var href = 'mailto:' + to
-        + '?subject=' + encodeURIComponent(form.dataset.subject)
-        + '&body=' + encodeURIComponent(body.replace(/\r?\n/g, '\r\n'));
+      // RFC 6068: a line break in a mailto: body is %0D%0A. A broken character pasted
+      // into a field (half of an emoji) makes encoding throw; the status line already
+      // points to the address below.
+      var href;
+      try {
+        href = 'mailto:' + to
+          + '?subject=' + encodeURIComponent(form.dataset.subject)
+          + '&body=' + encodeURIComponent(body.replace(/\r?\n/g, '\r\n'));
+      } catch (e) {
+        console.error('mail form: the message could not be put into a link', e);
+        return;
+      }
 
       window.location.href = href;
     });
