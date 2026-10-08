@@ -11,8 +11,7 @@ on:
 
 # One run per branch at a time: a newer push to the same branch cancels the run it
 # supersedes. Saves Actions minutes (a private repo has 2 000 free per month; the Actions
-# tab shows what a run here takes; past that, jobs stop with a message that reads like a
-# failed payment, and the fix is an Actions budget, website-team-setup §3b) and means the green tick always belongs to the latest
+# tab shows what a run here takes; past that see website-team-setup §3b) and means the green tick always belongs to the latest
 # commit.
 concurrency:
   group: ci-${{ github.ref }}
@@ -72,6 +71,7 @@ jobs:
           [ "$n" -gt 0 ] || run=true
           echo "run=$run" >>"$GITHUB_OUTPUT"
           echo "$EVENT: $n changed path(s); tests run: $run"
+          printf '%s\n' "$files"
 
   # The job id `test` is the check name a branch ruleset requires (website-team-setup
   # §5-A: required_status_checks context "test"). Renaming or splitting this job
@@ -79,7 +79,9 @@ jobs:
   # never passes.
   test:
     needs: changes
-    if: needs.changes.outputs.run == 'true'
+    # Skipped only when `changes` succeeded and said docs-only. If `changes` itself fails
+    # (a checkout error), `test` still runs: a skipped job counts as passed.
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
