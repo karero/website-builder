@@ -79,6 +79,7 @@ check "refresh: the error names REFRESH-KEEP as a way out"      has "$err" "REFR
 # --- 3. a removed skill and an updated one: both said, and a refresh for the rest
 S3="$(make_site mixed alpha beta)"
 out="$(bash "$WN" "$S3" 2>&1)"; rc=$?
+check "mixed: exit status 0"                                    test "$rc" -eq 0
 check "mixed: alpha is listed as an ordinary update"            has "$out" "  alpha"
 check "mixed: beta is marked removed upstream"                  has "$out" "beta   (removed upstream"
 check "mixed: refresh is offered for the rest"                  has "$out" "refresh the rest"
@@ -124,7 +125,23 @@ rm -rf "$SUITE/skills/alpha"
 out="$(bash "$WN" "$S4" 2>&1)"
 check "uncommitted deletion: not called removed upstream"       lacks "$out" "removed upstream"
 check "uncommitted deletion: still offered as an update"        has "$out" "Refresh them"
+err="$(bash "$WN" --refresh "$S4" 2>&1 >/dev/null)"; rc=$?
+check "uncommitted deletion: refresh refuses, as before"        test "$rc" -eq 1
+check "uncommitted deletion: refresh does not call it removed"  lacks "$err" "removed upstream"
+check "uncommitted deletion: refresh leaves the stamp"          test "$(stamp "$S4")" = "$OLD"
 $git -C "$SUITE" checkout -q -- skills/alpha
+
+# --- 8. an untracked leftover folder for a removed skill is not the suite's skill: the report
+# and --refresh agree it is removed, and --refresh does not copy it over the site's copy
+S8="$(make_site leftover beta)"
+mkdir -p "$SUITE/skills/beta" && printf '# a stray, never committed\n' > "$SUITE/skills/beta/SKILL.md"
+out="$(bash "$WN" "$S8" 2>&1)"
+check "leftover: the report calls it removed upstream"          has "$out" "beta   (removed upstream"
+err="$(bash "$WN" --refresh "$S8" 2>&1 >/dev/null)"; rc=$?
+check "leftover: refresh stops with exit status 1"              test "$rc" -eq 1
+check "leftover: refresh leaves the stamp"                      test "$(stamp "$S8")" = "$OLD"
+check "leftover: the site's copy is not overwritten"            test "$(cat "$S8/.claude/skills/beta/SKILL.md")" = "# beta"
+rm -rf "$SUITE/skills/beta"
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"

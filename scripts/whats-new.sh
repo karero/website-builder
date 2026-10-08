@@ -52,6 +52,13 @@ suite_dirty() {  # tracked, uncommitted changes under skills/
   [ -n "$(git -C "$REPO_DIR" status --porcelain -uno -- skills/)" ]
 }
 
+# Does the suite still have this skill? Read from the committed tree (HEAD), the tree the list
+# of changes comes from, not from the working tree: an untracked leftover folder is not the
+# suite's skill, and a refresh that copied it would stamp HEAD over content matching no commit.
+suite_has() {  # $1 = skill name
+  git -C "$REPO_DIR" cat-file -e "HEAD:skills/$1" 2>/dev/null
+}
+
 write_stamp() {  # $1 = skills dir
   printf 'suite_commit: %s\ncopied: %s\n' \
     "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/SUITE-VERSION"
@@ -225,8 +232,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   # A skill the suite no longer has cannot be refreshed: --refresh stops on it and keeps the
   # stamp, so the report would repeat. Say so here, where a reader looks, not only after a
   # failed --refresh. A pinned one is left alone by --refresh, so it is not "gone". "Removed"
-  # is read from the committed tree (HEAD), the one $changed comes from, so an uncommitted
-  # deletion in the suite clone does not read as a removal.
+  # is suite_has: the committed tree, so the report and --refresh always agree.
   gone=""; n_stale=0; n_gone=0
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
@@ -234,7 +240,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     n_stale=$((n_stale + 1))
     if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
-    elif ! git -C "$REPO_DIR" cat-file -e "HEAD:skills/$s" 2>/dev/null; then
+    elif ! suite_has "$s"; then
       echo "  $s   (removed upstream — delete its copy, or list it in REFRESH-KEEP to keep it)"
       gone="$gone $s"; n_gone=$((n_gone + 1))
     else
@@ -255,8 +261,8 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       echo "Once those are dealt with, refresh the rest (re-stamps, and re-copies the skills"
       echo "above that are not pinned; OVERWRITES any local edits to those copies) with:"
     else
-      echo "Refresh them (re-copies the skills above and re-stamps; OVERWRITES any local"
-      echo "edits to those copies) with:"
+      echo "Refresh them (re-copies the skills above, except any pinned, and re-stamps; OVERWRITES"
+      echo "any local edits to those copies) with:"
     fi
     echo "  scripts/whats-new.sh --refresh $PROJECT"
     return 0
@@ -288,7 +294,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
-    if [ -d "$REPO_DIR/skills/$s" ]; then
+    if suite_has "$s"; then
       rm -rf "${skills_dir:?}/$s"
       cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
