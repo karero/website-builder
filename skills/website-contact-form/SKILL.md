@@ -24,8 +24,11 @@ no account and no setting behind it.
 
 - **Nothing to set up.** No account, no password or token, no change to the domain's
   mail settings. It works on any host, today, and on a preview address too.
-- **Almost no spam.** Every message needs a real mail account and a person pressing
-  Send. A bot that fills in forms gets nowhere, because the form sends nothing.
+- **No spam through the form.** It sends nothing, so there is nothing for a bot to
+  fill in and fire off: every message needs a real mail account and a person pressing
+  Send. Spam sent straight to the address is another matter, the same as for any
+  address on any site; the form keeps it out of the page as plain text, as the
+  starter's email link does, which stops the simple address collectors.
 - **No company in between.** The message goes from the visitor's mailbox to the
   owner's, like any email. So the privacy page needs no paragraph about a service
   that handles messages: its section on contact by email already covers it (§4).

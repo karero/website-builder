@@ -72,7 +72,7 @@ test('mail form — the button opens a mail to the owner with everything the vis
   await expect(page.getByRole('status')).toHaveText(TEXT[lang].opened);
 });
 
-test('mail form — a field the owner adds goes into the mail by its label; one left empty does not', async ({ page }) => {
+test('mail form — fields the owner adds go into the mail by their labels; one left empty does not', async ({ page }) => {
   await page.goto(PAGE);
   const lang = await formLanguage(page);
   await page.locator('form[data-mail-form] button[type="submit"]').evaluate((button) => {
@@ -81,12 +81,16 @@ test('mail form — a field the owner adds goes into the mail by its label; one 
       p.innerHTML = `<label for="${id}">${label}</label><input id="${id}" name="${id}" type="text">`;
       button.closest('p')!.before(p);
     }
+    const p = document.createElement('p');
+    p.innerHTML = '<label for="added-days">Days</label><select id="added-days" name="days" multiple><option>Monday</option><option>Tuesday</option><option>Friday</option></select>';
+    button.closest('p')!.before(p);
   });
   await page.getByLabel(TEXT[lang].name).fill('Ada');
   await page.getByLabel(TEXT[lang].message).fill('Hello there');
   await page.getByLabel('Phone').fill('+49 30 1234');
+  await page.getByLabel('Days').selectOption(['Monday', 'Friday']);
   const { params } = parse(await pressSend(page));
-  expect(params.body).toContain(`${TEXT[lang].name}: Ada\r\nPhone: +49 30 1234`);
+  expect(params.body).toContain(`${TEXT[lang].name}: Ada\r\nPhone: +49 30 1234\r\nDays: Monday, Friday`);
   expect(params.body).not.toContain('Company');
 });
 

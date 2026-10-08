@@ -18,17 +18,23 @@
       // before this runs.
       event.preventDefault();
 
+      // Said before anything else: whether the mail program opened, and whether the
+      // visitor pressed Send there, the site never learns. The line also points to the
+      // address under the form, for when nothing opens.
+      if (status) status.textContent = status.dataset.opened;
+
       // The address, decoded as EmailLink decodes it (src/lib/obfuscate.ts).
       var to;
       try {
         to = atob(form.dataset.to).split('').reverse().join('');
       } catch (e) {
+        console.error('mail form: the address could not be decoded', e);
         return;
       }
 
       // The message is the letter itself. Every other field the visitor filled in
-      // follows as "Label: value", so a field the owner adds later is sent too. A
-      // ticked checkbox or radio button follows as its label alone.
+      // follows as "Label: value", so a field the owner adds later is sent too: a list
+      // gives every chosen entry, a ticked checkbox or radio button its label alone.
       var details = [];
       Array.prototype.forEach.call(form.elements, function (field) {
         if (!field.name || field.name === 'message' || field.type === 'submit' || field.type === 'button') return;
@@ -38,9 +44,8 @@
           return;
         }
         var value = field.tagName === 'SELECT'
-          ? (field.selectedOptions[0] ? field.selectedOptions[0].text : '')
-          : field.value;
-        value = value.trim();
+          ? Array.prototype.map.call(field.selectedOptions, function (option) { return option.text.trim(); }).join(', ')
+          : field.value.trim();
         if (value) details.push(label + ': ' + value);
       });
       var message = form.elements.message ? form.elements.message.value.trim() : '';
@@ -53,9 +58,6 @@
         + '?subject=' + encodeURIComponent(form.dataset.subject)
         + '&body=' + encodeURIComponent(body.replace(/\r?\n/g, '\r\n'));
 
-      // Said before the mail program opens: whether it did, and whether the visitor
-      // pressed Send there, the site never learns.
-      if (status) status.textContent = status.dataset.opened;
       window.location.href = href;
     });
   });
