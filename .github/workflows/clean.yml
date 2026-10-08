@@ -19,7 +19,9 @@ name: clean
 # (check_prompt_sync.sh), whether its Perl programs need no newer Perl than they declare
 # (check_perl_minimum.sh, with Perl::MinimumVersion from apt), and whether the claims sweep
 # sees the sentences a per-line grep misses (test_sweep_claims.sh). It also runs the check that neither installer clobbers a skill
-# someone pinned to another worktree of this repo (scripts/test_install_pin.sh), and the check
+# someone pinned to another worktree of this repo (scripts/test_install_pin.sh), that whats-new.sh
+# marks a bundled skill the suite has removed and names the two ways out
+# (scripts/test_whats_new_removed_skill.sh), and the check
 # that the handoff zip's leak guard still fires on a leak too big for a pipe buffer
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
 # and blocks the right pushes and is wired only where the site is the root of its repo,

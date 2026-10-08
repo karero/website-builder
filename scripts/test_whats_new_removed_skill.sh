@@ -70,10 +70,11 @@ check "report: does not tell the reader to refresh"             lacks "$out" "Re
 check "report: prints no --refresh command to run"              lacks "$out" "scripts/whats-new.sh --refresh"
 
 # --- 2. --refresh on that site still stops, keeps the stamp, and names the way out
-out="$(bash "$WN" --refresh "$S1" 2>&1)"; rc=$?
+# stderr alone: the report above prints "list it in REFRESH-KEEP" too, which would pass for the error.
+err="$(bash "$WN" --refresh "$S1" 2>&1 >/dev/null)"; rc=$?
 check "refresh: stops with exit status 1"                       test "$rc" -eq 1
 check "refresh: leaves the stamp where it was"                  test "$(stamp "$S1")" = "$OLD"
-check "refresh: the error names REFRESH-KEEP"                   has "$out" "list it in"
+check "refresh: the error names REFRESH-KEEP as a way out"      has "$err" "REFRESH-KEEP, then re-run"
 
 # --- 3. a removed skill and an updated one: both said, and a refresh for the rest
 S3="$(make_site mixed alpha beta)"
@@ -86,8 +87,18 @@ check "mixed: the --refresh command is printed"                 has "$out" "scri
 # --- 4. only an updated skill: the report reads as it always did
 S4="$(make_site updated alpha)"
 out="$(bash "$WN" "$S4" 2>&1)"; rc=$?
+check "updated: exit status 0"                                  test "$rc" -eq 0
 check "updated: tells the reader to refresh"                    has "$out" "Refresh them"
+check "updated: prints the --refresh command to run"            has "$out" "scripts/whats-new.sh --refresh"
 check "updated: nothing is called removed"                      lacks "$out" "removed upstream"
+
+# --- 4b. a removed skill beside an updated one the site pinned: each gets its own label
+S4B="$(make_site both alpha beta)"
+printf 'alpha\n' > "$S4B/.claude/skills/REFRESH-KEEP"
+$git -C "$S4B" add -A && $git -C "$S4B" commit -q -m pin
+out="$(bash "$WN" "$S4B" 2>&1)"
+check "pinned + removed: alpha is marked pinned"                has "$out" "alpha   (pinned in REFRESH-KEEP"
+check "pinned + removed: beta is marked removed upstream"       has "$out" "beta   (removed upstream"
 
 # --- 5. a removed skill the site pinned: reported as pinned, and a refresh ends the repeat
 S5="$(make_site pinned beta)"
@@ -107,6 +118,13 @@ S6="$(make_site deleted beta gamma)"
 rm -rf "$S6/.claude/skills/beta" && $git -C "$S6" add -A && $git -C "$S6" commit -q -m "delete the removed skill"
 out="$(bash "$WN" "$S6" 2>&1)"
 check "deleted: the next report says up to date"                has "$out" "Up to date"
+
+# --- 7. an uncommitted deletion in the suite clone is not a removal: alpha is still in HEAD
+rm -rf "$SUITE/skills/alpha"
+out="$(bash "$WN" "$S4" 2>&1)"
+check "uncommitted deletion: not called removed upstream"       lacks "$out" "removed upstream"
+check "uncommitted deletion: still offered as an update"        has "$out" "Refresh them"
+$git -C "$SUITE" checkout -q -- skills/alpha
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"

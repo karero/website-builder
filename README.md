@@ -284,6 +284,7 @@ scripts/
   list_shell_scripts.sh     every shell script in the suite, found by shebang (the two guards above use it)
   test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list, and CI's masked mode prints no scanned text (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+  test_whats_new_removed_skill.sh  whats-new marks a bundled skill the suite removed, names the two ways out, and reads as before otherwise (make check)
   test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)

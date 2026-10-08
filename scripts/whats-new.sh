@@ -224,7 +224,9 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   # A skill the suite no longer has cannot be refreshed: --refresh stops on it and keeps the
   # stamp, so the report would repeat. Say so here, where a reader looks, not only after a
-  # failed --refresh. A pinned one is left alone by --refresh, so it is not "gone".
+  # failed --refresh. A pinned one is left alone by --refresh, so it is not "gone". "Removed"
+  # is read from the committed tree (HEAD), the one $changed comes from, so an uncommitted
+  # deletion in the suite clone does not read as a removal.
   gone=""; n_stale=0; n_gone=0
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
@@ -232,7 +234,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     n_stale=$((n_stale + 1))
     if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
-    elif [ ! -d "$REPO_DIR/skills/$s" ]; then
+    elif ! git -C "$REPO_DIR" cat-file -e "HEAD:skills/$s" 2>/dev/null; then
       echo "  $s   (removed upstream — delete its copy, or list it in REFRESH-KEEP to keep it)"
       gone="$gone $s"; n_gone=$((n_gone + 1))
     else
@@ -246,12 +248,12 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     if [ "$n_gone" -gt 0 ]; then
       echo "Removed upstream:$gone. --refresh stops on a removed skill and keeps the stamp"
       echo "where it is, so this list comes back until its copy is deleted from $skills_dir,"
-      echo "or its name is added to $skills_dir/REFRESH-KEEP. Files the site took from it"
-      echo "stay in the site, unmaintained."
+      echo "or its name is added to $skills_dir/REFRESH-KEEP and --refresh is run. Files the"
+      echo "site took from it stay in the site, unmaintained."
       [ "$n_stale" -gt "$n_gone" ] || return 0
       echo
-      echo "Once those are dealt with, refresh the rest (re-copies the other skills above and"
-      echo "re-stamps; OVERWRITES any local edits to those copies) with:"
+      echo "Once those are dealt with, refresh the rest (re-stamps, and re-copies the skills"
+      echo "above that are not pinned; OVERWRITES any local edits to those copies) with:"
     else
       echo "Refresh them (re-copies the skills above and re-stamps; OVERWRITES any local"
       echo "edits to those copies) with:"
