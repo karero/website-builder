@@ -318,8 +318,8 @@ site (like `website-motion`) but runs only when a team forms:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
-- **`website-contact-form`** — our suggestion for a **contact form**: the visitor fills in a
-  name and a message, presses a button, and their own email program opens with the message
+- **`website-contact-form`** — our suggestion for a **contact form**: the visitor writes a
+  message, presses a button, and their own email program opens with the message
   to the owner, ready to send. No server, no account, no setting and no company in between,
   so it works on any host and the privacy page needs nothing new. Adds a form component
   with its texts in English and German, one small script of the site's own (so a strict
