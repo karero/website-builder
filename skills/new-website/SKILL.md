@@ -67,6 +67,10 @@ Lighthouse scores); it runs only when the owner asks for it.
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
 in `AGENTS.md`); a single owner never needs it.
+A private repo gets 2 000 free CI minutes a month on GitHub Free (about 400 runs of the kit's
+`ci.yml`); past that, jobs stop with a message that reads like a failed payment. Tell the
+owner to check **Budgets and alerts** for an Actions budget (`website-team-setup` §3b has
+the steps).
 
 ## 1. Decision interview (answer before any code)
 
