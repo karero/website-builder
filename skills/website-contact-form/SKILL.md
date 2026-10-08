@@ -77,12 +77,12 @@ way `EmailLink` encodes it (`src/lib/obfuscate.ts`), never as plain text. The sc
 file of the site's own under `public/js/` rather than an inline script, so a strict
 `script-src 'self'` policy lets it run, shows the form, and when the button is pressed
 decodes the address and opens `mailto:<address>?subject=…&body=…`. The body is the
-visitor's message as typed (only spaces and blank lines at its very start and end are
-dropped): they write their own greeting and sign-off, and
-their mail program says who they are. Every other field the visitor filled in follows
-under it as "Label: value", so a field the owner adds later goes into the mail by its
-label with no change to the script. Without JavaScript the form stays hidden, since it
-could do nothing, and the address line under it is what the visitor sees.
+visitor's message as typed, less any empty space (spaces, tabs, blank lines) at its very
+start and end: they write their own greeting and sign-off, and their mail program says
+who they are. Every other field the visitor filled in follows under it as "Label:
+value", so a field the owner adds later goes into the mail by its label with no change
+to the script. Without JavaScript the form stays hidden, since it could do nothing, and
+the address line under it is what the visitor sees.
 
 **The spec needs `toneViolations`** from the site's `tests/_helpers.ts`, the tone rules
 its pages are held to. A site made from an older starter lacks it, and `npm run check`
