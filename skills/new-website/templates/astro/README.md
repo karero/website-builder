@@ -32,6 +32,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
+tests/check_analytics_gate.sh # four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -136,8 +137,11 @@ wins over the auto-slug and never drifts.
 
 Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
 project settings set the **production branch to `production`** (must equal
-`PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every preview
-`*.pages.dev` host is noindexed by the function). Once the live domain serves the
+`PROD_BRANCH` in `src/config.ts`). On a site connected to GitHub in Cloudflare, `main`
+stays the preview. A site deployed by command has no automatic preview: a deploy to any
+branch other than the production branch is a preview, and `PUBLISHING.md`, "Deploy by
+command", has the steps for the live site. Every preview `*.pages.dev` host is noindexed
+by the function. Once the live domain serves the
 site, set the Production variable `CANONICAL_URL` (e.g. `https://example.com`) and
 redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so
 people following an AI answer that cites the alias land on the real domain. Until then the alias is noindexed

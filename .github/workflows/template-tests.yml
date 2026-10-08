@@ -5,25 +5,20 @@ name: template-tests
 # indexability guard (open robots.txt + llms.txt present), which the repo's only other
 # workflow (`clean`, a PII/secrets scan) never touches. CI is set by Actions, so the
 # Playwright config starts its own preview server (no reuseExistingServer).
+#
+# It starts on every pull request and every push to main, but its test jobs run only when
+# a change touches the paths in the `changes` job below; otherwise they are skipped. The
+# last job, `template-tests-ok`, is the one check main's ruleset requires: a workflow left
+# out by a `paths:` filter never reports, and a required check that never reports blocks
+# every merge, while a job skipped by its `if:` counts as passed.
 on:
   push:
     branches: [main]
-    paths:
-      - 'skills/new-website/templates/astro/**'
-      - 'skills/website-scorecard/**'
-      - 'skills/website-forms/**'
-      - '.github/workflows/template-tests.yml'
   pull_request:
-    paths:
-      - 'skills/new-website/templates/astro/**'
-      - 'skills/website-scorecard/**'
-      - 'skills/website-forms/**'
-      - '.github/workflows/template-tests.yml'
   workflow_dispatch:
 
-# Same events and concurrency group expression as clean.yml, plus this file's path
-# filters; the reasons are written there. The workflow name in the group keeps the two
-# workflows' runs apart.
+# Same events and concurrency group expression as clean.yml; the reasons are written
+# there. The workflow name in the group keeps the two workflows' runs apart.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
@@ -33,7 +28,58 @@ defaults:
     working-directory: skills/new-website/templates/astro
 
 jobs:
+  # Whether this change touches what the jobs below test. A run started by hand tests
+  # everything. On a pull request the change is the branch since it left main, as a
+  # `paths:` filter reads it; on main it is the push.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.paths.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: paths
+        working-directory: .
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          # --no-renames: a moved file counts at both its old and its new path, so moving a
+          # tested file out of these folders still runs the tests. core.quotePath=false: git
+          # lists an accented name as written, not quoted and escaped; a name it still quotes
+          # (one with a quote mark or a control character) runs the tests. A diff that fails
+          # stops this step, and the last job then fails too.
+          all=false files=
+          case "$EVENT" in
+            pull_request) files="$(git -c core.quotePath=false diff --no-renames --name-only "$PR_BASE...$PR_HEAD")" ;;
+            push)
+              # A push with no commit before it (a new branch) has nothing to compare with.
+              if [ -z "${PUSH_BEFORE//0/}" ]; then all=true; else files="$(git -c core.quotePath=false diff --no-renames --name-only "$PUSH_BEFORE" "$PUSH_AFTER")"; fi ;;
+            *) all=true ;;
+          esac
+          run=$all n=0
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            n=$((n + 1))
+            case "$f" in
+              # whats-new.sh: verify-windows runs the recovery command it prints.
+              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|scripts/whats-new.sh|.github/workflows/template-tests.yml) run=true ;;
+              \"*) run=true ;;
+            esac
+          done <<EOF
+          $files
+          EOF
+          echo "run=$run" >>"$GITHUB_OUTPUT"
+          if [ "$all" = true ]; then echo "$EVENT: nothing to compare with, so every test job runs"
+          else echo "$EVENT: $n changed path(s); template tests run: $run"; fi
+
   playwright:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -64,6 +110,10 @@ jobs:
         run: |
           v="$(git config --local --get core.hooksPath || true)"
           [ -z "$v" ] || { echo "npm ci set core.hooksPath=$v in the enclosing repo"; exit 1; }
+      # Builds the site four ways and reads the HTML: analytics on only for the production
+      # branch. A wrong switch fails silently on a live site, and the suite below builds once.
+      - name: Analytics only on the production build (src/config.ts)
+        run: bash tests/check_analytics_gate.sh
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       - name: Run template test suite
@@ -77,6 +127,8 @@ jobs:
   # package.json without its packages: "prepare" needs none of them, and the install then
   # takes a second.
   prepare-any-shell:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -142,6 +194,8 @@ jobs:
   # of its own repo, so the install wires the hook, and runs verify both ways, then pushes
   # through the hook: a green change goes through, a tone violation is refused.
   verify-windows:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -264,6 +318,8 @@ jobs:
   # with it. A starter change that breaks those files (they lean on src/config.ts, the
   # Base layout, the Playwright config and its JSON report) turns red here.
   scorecard-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -342,46 +398,48 @@ jobs:
           refused "a failing test"
           [ -z "$(git status --porcelain)" ]
 
-  # The website-forms skill, like the scorecard, ships files that live in a SITE. This
-  # builds a site from the starter, installs the skill the way its SKILL.md §3 says
-  # (the function, the component, its words, the test, the form on a page, the privacy
-  # paragraph), and runs the type check and the whole suite. A second form, in German,
-  # sits on the starter's German page with its own copy of the spec, so the German
-  # texts go through the tone rules and the page checks too. No email is sent: the
-  # tests stand in for Cloudflare's mail call.
-  forms-skill:
+  # The website-contact-form skill, like the scorecard, ships files that live in a SITE.
+  # This builds a site from the starter, installs the skill the way its SKILL.md §2 says
+  # (the component, its words, the script, the test, the form on a page), and runs the
+  # type check and the whole suite. A second form, in German, sits on the starter's
+  # German page with its own copy of the spec, so the German texts go through the tone
+  # rules and the page checks too. No mail program opens: the spec reads the mailto:
+  # link the button asks the browser to open.
+  contact-form-skill:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: A site from the starter, with the skill installed
         working-directory: ${{ runner.temp }}
         run: |
           cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
-          K="$GITHUB_WORKSPACE/skills/website-forms/templates"
-          mkdir -p functions/api
-          cp "$K/contact.ts" functions/api/ && cp "$K/ContactForm.astro" "$K/contact-form.ts" src/components/ && cp "$K/forms.spec.ts" tests/
-          sed -i "s|const PAGE = '';|const PAGE = '/';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.spec.ts
-          # The German form: a German page on an English site, so it passes lang and
-          # privacy (§3 step 3), and the site's one privacy page is the English one.
-          cp "$K/forms.spec.ts" tests/forms.de.spec.ts
-          sed -i "s|const PAGE = '';|const PAGE = '/impressum';|; s|const PRIVACY = '';|const PRIVACY = '/privacy';|" tests/forms.de.spec.ts
-          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/impressum.astro
-          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontaktformular</h2><ContactForm fallback="hello@example.com" lang="de" privacy="/privacy" /></section>\n</Base>|' src/pages/impressum.astro
-          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport ContactForm from '../components/ContactForm.astro';|" src/pages/index.astro
-          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><ContactForm fallback="hello@example.com" /></section>\n</Base>|' src/pages/index.astro
-          sed -i 's|^</Base>|  <section class="wrap"><p data-privacy-contact-form>Messages sent through the contact form on this website are delivered to our mailbox by Cloudflare, Inc., which acts as our processor. The website itself does not store them.</p></section>\n</Base>|' src/pages/privacy.astro
+          K="$GITHUB_WORKSPACE/skills/website-contact-form/templates"
+          mkdir -p public/js
+          cp "$K/mail-form.js" public/js/ && cp "$K/MailForm.astro" "$K/mail-form-text.ts" src/components/ && cp "$K/mail-form.spec.ts" tests/
+          sed -i "s|^const PAGE = '';|const PAGE = '/';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Project enquiry';|" tests/mail-form.spec.ts
+          # The German form: a German page on an English site, with no lang of its own: it
+          # takes the page's, which Base.astro hands down (§2 step 3).
+          cp "$K/mail-form.spec.ts" tests/mail-form.de.spec.ts
+          sed -i "s|^const PAGE = '';|const PAGE = '/impressum';|; s|^const TO = '';|const TO = 'hello@example.com';|; s|^const SUBJECT = '';|const SUBJECT = 'Anfrage Bauvorhaben';|" tests/mail-form.de.spec.ts
+          sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport MailForm from '../components/MailForm.astro';|" src/pages/impressum.astro src/pages/index.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Kontakt</h2><MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" /></section>\n</Base>|' src/pages/impressum.astro
+          sed -i 's|^</Base>|  <section class="wrap"><h2>Contact</h2><MailForm to="hello@example.com" subject="Project enquiry" /></section>\n</Base>|' src/pages/index.astro
           # One check per line: in "a && b" a failing a does not stop the step.
-          grep -q "const PAGE = '/';" tests/forms.spec.ts
-          grep -q "const PRIVACY = '/privacy';" tests/forms.spec.ts
-          grep -q '<ContactForm fallback' src/pages/index.astro
-          grep -q 'import ContactForm' src/pages/index.astro
-          grep -q 'data-privacy-contact-form' src/pages/privacy.astro
-          grep -q "const PAGE = '/impressum';" tests/forms.de.spec.ts
-          grep -q '<ContactForm fallback="hello@example.com" lang="de"' src/pages/impressum.astro
-          grep -q 'import ContactForm' src/pages/impressum.astro
+          grep -q "const PAGE = '/';" tests/mail-form.spec.ts
+          grep -q "const TO = 'hello@example.com';" tests/mail-form.spec.ts
+          grep -q "const SUBJECT = 'Project enquiry';" tests/mail-form.spec.ts
+          grep -q "const PAGE = '/impressum';" tests/mail-form.de.spec.ts
+          grep -q "const TO = 'hello@example.com';" tests/mail-form.de.spec.ts
+          grep -q "const SUBJECT = 'Anfrage Bauvorhaben';" tests/mail-form.de.spec.ts
+          grep -q '<MailForm to="hello@example.com" subject="Project enquiry" />' src/pages/index.astro
+          grep -q 'import MailForm' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" subject="Anfrage Bauvorhaben" />' src/pages/impressum.astro
+          grep -q 'import MailForm' src/pages/impressum.astro
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: Type check and the whole suite, with the form in place
@@ -389,22 +447,52 @@ jobs:
         run: |
           npm run check
           npm test
-      # The function imports src/components/contact-form.ts from outside functions/.
-      # `wrangler pages deploy` bundles ./functions through the same buildFunctions as
-      # the command below (traced in wrangler 4.147.0); Cloudflare's own build from Git
-      # was not traced. The bundle names each file it took in, in a comment: the shared
-      # one must be there. The version is whatever npx fetches, as on a site's own deploy.
-      - name: The function's bundle takes in the shared file
-        working-directory: ${{ runner.temp }}/site
-        run: |
-          npx --yes wrangler pages functions build --outdir=functions-bundle
-          grep -qF '// ../src/components/contact-form.ts' functions-bundle/index.js || { echo '::error::the bundle does not contain src/components/contact-form.ts'; exit 1; }
-      # A form in a language it has no words for must stop the build, not go out in
+      # A form without its subject, without a language, or in a language it has no
+      # words for, must stop the build, not go out with a generic subject or in
       # English. Last step: it leaves the site broken on purpose.
-      - name: A form in a language with no texts stops the build
+      - name: A form without a subject, without a language, or in a language with no texts, stops the build
         working-directory: ${{ runner.temp }}/site
         run: |
-          sed -i 's|<ContactForm fallback="hello@example.com" />|<ContactForm fallback="hello@example.com" lang="xx" />|' src/pages/index.astro
+          cp src/pages/index.astro index.astro.keep
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" />|' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" />' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form without a subject was built'; exit 1; fi
+          grep -qF 'MailForm: pass subject="…"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing subject'; exit 1; }
+          cp index.astro.keep src/pages/index.astro
+          # A page whose language never reaches the form (a Base.astro from an older starter).
+          cp src/layouts/Base.astro Base.astro.keep
+          sed -i 's|^Astro.locals.lang = lang;$||' src/layouts/Base.astro
+          if grep -q '^Astro.locals.lang = lang;$' src/layouts/Base.astro; then echo '::error::the Base.astro line was not removed'; exit 1; fi
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form with no language was built'; exit 1; fi
+          grep -qF 'MailForm: no language for this page' build.log || { cat build.log; echo '::error::the build failed, but not on the missing language'; exit 1; }
+          cp Base.astro.keep src/layouts/Base.astro
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" subject="Project enquiry" lang="xx" />|' src/pages/index.astro
           grep -q 'lang="xx"' src/pages/index.astro
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi
-          grep -q 'ContactForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
+          grep -q 'MailForm: no texts for the language "xx"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing texts'; exit 1; }
+
+  # The one check main's ruleset requires from this workflow. It passes when every job
+  # above passed (the change touched their paths) or every job was skipped (it did not),
+  # and fails on anything else: a failure, a cancel, a skip where a run was due.
+  template-tests-ok:
+    needs: [changes, playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - working-directory: .
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RUN: ${{ needs.changes.outputs.run }}
+          RESULTS: ${{ needs.playwright.result }} ${{ needs.prepare-any-shell.result }} ${{ needs.verify-windows.result }} ${{ needs.scorecard-skill.result }} ${{ needs.contact-form-skill.result }}
+        run: |
+          echo "changes: $CHANGES, run: $RUN; playwright, prepare-any-shell, verify-windows, scorecard-skill, contact-form-skill: $RESULTS"
+          [ "$CHANGES" = success ] || { echo "::error::the changes job did not succeed"; exit 1; }
+          case "$RUN" in
+            true) want=success ;;
+            false) want=skipped ;;
+            *) echo "::error::the changes job gave run='$RUN', neither true nor false"; exit 1 ;;
+          esac
+          for r in $RESULTS; do
+            [ "$r" = "$want" ] || { echo "::error::a job ended '$r' where '$want' was due"; exit 1; }
+          done
+          echo "template tests: every job $want"

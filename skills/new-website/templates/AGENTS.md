@@ -123,11 +123,12 @@ applies there; instead of steps 2 to 4, only this:
   integration (`website-team-setup` §6 does that), every pull request gets its own
   preview address from Cloudflare, listed under the pull request's checks. Look at the
   change there before merging. Until then (a site deployed by token and `wrangler
-  pages deploy`, see `PUBLISHING.md`) there is no pull-request preview: check locally
-  with `npm run dev`.
+  pages deploy`, see `PUBLISHING.md`, "Deploy by command") there is no pull-request
+  preview: check locally with `npm run dev`.
 - **What a merge means** depends on the publish model of this site. Both blocks
   assume the git integration above; on a token-deployed site a merge publishes
-  nothing until someone runs the deploy command from `PUBLISHING.md`.
+  nothing until someone runs the deploy command in `PUBLISHING.md`, "Deploy by
+  command".
 
   <!-- PUBLISH MODEL: keep ONE of the two blocks below, delete the other. -->
 

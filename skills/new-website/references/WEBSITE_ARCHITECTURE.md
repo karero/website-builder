@@ -40,7 +40,7 @@ The flow already in use is the modern best practice:
 
 | Capability | Cloudflare Pages/Workers | Netlify | Vercel |
 |---|---|---|---|
-| Static + global CDN | ✅ free, **unmetered bandwidth** | ✅ (metered) | ✅ (metered) |
+| Static + global CDN | ✅ free, **unlimited static requests** | ✅ (metered) | ✅ (metered) |
 | Edge functions | ✅ Workers/Pages Functions | ✅ | ✅ |
 | Free-tier generosity | ★ best | good | good |
 | Next.js SSR ergonomics | ⚠️ needs OpenNext adapter | ✅ | ★ native |
@@ -51,6 +51,17 @@ The flow already in use is the modern best practice:
 case for switching is heavy Next.js SSR → Vercel (no OpenNext friction). The over-built SSR site is the
 living proof of that tax (`@opennextjs/cloudflare`, `.open-next/worker.js`, dual output modes).
 Astro avoids the tax entirely (first-class CF adapter). **Stay on Cloudflare for content sites.**
+
+**Pages or Workers?** Cloudflare's Pages docs now open with "Start new projects with Workers";
+[Pages](https://developers.cloudflare.com/pages/) is still listed as available on all plans,
+and the docs name no end date (read 2026-10-07). The kit stays on Pages for now. It is written
+for Pages: the middleware's `*.pages.dev` host rules, the `CF_PAGES_*` build variables that
+gate analytics and stamp `build.txt`, and the deploy and preview steps in these docs. And when
+the free plan's daily Functions requests run out, a Pages project can still serve the static
+site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a Worker set to run before its static
+files answers 429 instead ([Workers static
+assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)).
+Moving the kit to Workers is one decision for the whole kit, not one to make per site.
 
 ---
 
@@ -90,15 +101,21 @@ need is the actual mistake.**
 ### Tier 1 — Static Astro on Cloudflare Pages  ← default, ~90% of sites
 **Use for:** marketing, info, blog/news, events, docs, portfolio. Content that changes when
 *you* change it, not per-request.
-**Dynamic via:** mailto / form service (Formspree/Web3Forms) / client-side `fetch()` for the odd live number.
+**Dynamic via:** an email link / a contact form that opens the visitor's own mail program (the
+`website-contact-form` skill, our suggestion: no server, no account, no third party) / a form
+service (Formspree/Web3Forms; a third party then handles the messages and is named on the
+privacy page) / client-side `fetch()` for the odd live number.
 **This is the static-Astro tier.** 50 pages is trivial — Astro builds ~23 pages in ~0.5s; static scales to thousands.
 
 **Cloudflare Pages limits (where it breaks):** 20,000 files/deploy, 25 MiB/file, 500 builds/mo
-(free), **unmetered bandwidth**. → You will *never* hit these at 50 pages. Effectively unlimited.
+(free). → You will *never* hit these at 50 pages. Requests for static files are free and
+unlimited, but only while no Function runs: the kit's `functions/_middleware.ts` runs on
+every request, so a kit site's requests count against Tier 2's Functions limit below (100K a
+day on the free plan; `CLOUDFLARE_FIRST_DEPLOY.md` says what to set for when it runs out).
 
 ### Tier 2 — Static Astro + Cloudflare Pages Functions / Server Islands  ← light dynamic
-**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails
-(the `website-forms` skill builds exactly this),
+**Use for:** a few server endpoints or per-request fragments — a form that must send through a
+server (no skill builds one; a contact form is Tier 1 above),
 site search, live-stats widget, gated content, webhook receiver, proxy to hide an API key, light A/B.
 **How:** keep the site static; add `functions/*.ts` (Pages Functions) or Astro **server islands**
 for just the dynamic fragment. Add **Workers KV** for tiny state (flags, counters, cached responses).
@@ -202,9 +219,10 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 
 1. **How many pages, and what content types?** (flat pages vs. repeated collections → Content Collections.)
 2. **Any dynamic/backend features?** → pick the tier:
-   - None → **Tier 1** static.
-   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands;
-     a contact form that emails the owner: the **`website-forms`** skill).
+   - None, or a contact form that opens the visitor's mail program (`website-contact-form`) →
+     **Tier 1** static.
+   - A form that must send through a server / search / hide-an-API-key / one live widget →
+     **Tier 2** (Functions / server islands).
    - Accounts / DB / checkout / per-request SSR → **Tier 3** (Workers + D1) — or off-platform if it
      trips a Part-3 escape hatch.
 3. **Who edits content after launch?** You/Claude Code (default, no CMS) vs. non-technical client
