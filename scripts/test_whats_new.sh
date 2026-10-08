@@ -92,6 +92,9 @@ hasnt "a site with every file shows no MISSING summary"       "MISSING from the 
 # Every TEMPLATE_TRACKED file, added upstream to a site that has none of them. Each drift
 # line's "(site copy: X" must be followed by "MISSING: the site has no X". The tests entry
 # is a directory; its file sits in a subfolder, which must keep its path on the site.
+# NO_FIXED_PATH names the site copies that may live under another name (an owner may save a
+# translated PUBLISHING.md as PUBLISHING.de.md): their drift line must have no MISSING line.
+NO_FIXED_PATH=" PUBLISHING.md "
 TRACKED="$(sed -n "s/^TEMPLATE_TRACKED='\(.*\)'\$/\1/p" "$HERE/whats-new.sh")"
 S2="$T/suite2" P2="$T/site2" n=0
 mkdir -p "$S2/scripts" "$P2/.claude/skills" "$P2/tests"
@@ -110,13 +113,19 @@ report "$S2" "$P2" "a site with no tracked file"
 # MISSING line right after it ("-" when there is none).
 awk '
   pending != "" { m = "-"; if (index($0, "    MISSING: the site has no ") == 1) m = substr($0, 30); print pending "|" m; pending = "" }
-  /^  [^ ].*\(site copy: / { x = $0; sub(/.*\(site copy: /, "", x); match(x, /^[^ )]+/); pending = substr(x, RSTART, RLENGTH) }
+  /^  [^ ].*\(site copy: / { x = $0; sub(/.*\(site copy: /, "", x); match(x, /^[^ ),]+/); pending = substr(x, RSTART, RLENGTH) }
 ' "$T/out" > "$T/pairs"
 rows="$(wc -l < "$T/pairs" | tr -d ' ')"
 if [ "$rows" = "$n" ]; then printf 'ok   every tracked file has a drift line (%s)\n' "$n"; else printf 'FAIL drift lines: expected %s, got %s\n' "$n" "$rows"; fails=$((fails+1)); fi
 while IFS='|' read -r shown checked; do
-  if [ "$shown" = "$checked" ]; then printf 'ok   %s: shown and checked alike\n' "$shown"
-  else printf 'FAIL drift line names %s, MISSING check looked for %s\n' "$shown" "$checked"; fails=$((fails+1)); fi
+  case "$NO_FIXED_PATH" in
+    *" $shown "*)
+      if [ "$checked" = "-" ]; then printf 'ok   %s: no fixed site path, never MISSING\n' "$shown"
+      else printf 'FAIL %s has no fixed site path, but was checked as %s\n' "$shown" "$checked"; fails=$((fails+1)); fi ;;
+    *)
+      if [ "$shown" = "$checked" ]; then printf 'ok   %s: shown and checked alike\n' "$shown"
+      else printf 'FAIL drift line names %s, MISSING check looked for %s\n' "$shown" "$checked"; fails=$((fails+1)); fi ;;
+  esac
 done < "$T/pairs"
 has   "a template test in a subfolder keeps its path"        "    MISSING: the site has no tests/sub/x.spec.ts"
 

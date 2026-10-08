@@ -287,11 +287,13 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 }
 
 # Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
-# every TEMPLATE_TRACKED file against both.
+# every TEMPLATE_TRACKED file against both. PUBLISHING.md has no fixed site path (an owner's
+# translation may be saved as PUBLISHING.de.md), so it is never marked MISSING.
 site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, or nothing if unknown
   case "$1" in
     skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
     skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
+    skills/new-website/templates/SETUP.md) echo "SETUP.md" ;;
     skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
     skills/new-website/templates/claude/*) echo ".claude/${1#skills/new-website/templates/claude/}" ;;
   esac
