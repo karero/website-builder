@@ -106,11 +106,12 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
   balance is empty and it stops **all** assistants on that route for the run. Top up at openrouter.ai
   (Credits), then rerun without `--engines`, or with `--engines` naming the assistants that failed.
 
-What the history keeps: a failed engine still writes its rows, marked failed ("N of M failed"), and
-the trend shows "latest attempt failed" next to the last good numbers. A rerun **on the same day**
-replaces those rows (a rerun with fewer good answers never replaces a better row); a rerun on a
-later day leaves the failed row of the earlier day in the history. Either way nothing needs editing
-by hand.
+What the history keeps: a failed engine writes its rows, marked failed ("N of M failed"), and the
+trend shows "latest attempt failed" next to the last good numbers. History keeps one row per
+engine, question and day, and never swaps a better row for a worse one. So a rerun **on the same
+day** replaces the failed rows, and a failure that comes **after a good run on the same day** is
+not recorded at all (the run's own "FAILED" line is then the only trace). A rerun on a later day
+leaves the earlier day's failed row in place. None of this needs editing by hand.
 
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
@@ -294,10 +295,12 @@ Every answer is saved verbatim with its sources under
 `~/.config/gsc-insights/geo/answers/<domain>/<run>/`. Quote from those files when explaining a
 result, and read the branded answers for accuracy.
 
-**Why "from memory" is usually 0 at first, and what to tell the owner.** A model only "remembers"
-a name it saw in many independent places before it was trained: press, listings, other people's
-pages. Wikipedia is one such source, not the only one, and the owner's own site is one among many.
-Two things make 0 normal, and a third says how long to wait:
+**Why "from memory" is usually 0 at first, and what to tell the owner.** A model is
+much more likely to "remember" a name it saw in many independent places before it was trained:
+press, listings, other people's pages. Wikipedia is one such source, not the only one, and the
+owner's own site is one among many. These are general explanations, not something this check
+measures, so offer them as the usual reasons, not as proof. Two usual reasons for 0, and a third
+that says how long to wait:
 
 - **A young site.** If the website launched recently, most models were trained before it existed.
   Ask the owner when it went live; a business can be years old and its site still new to the models.
@@ -306,33 +309,39 @@ Two things make 0 normal, and a third says how long to wait:
 - **Retraining is slow.** This column mostly moves when a new model is released, so judge it over
   months, not weeks. Never promise the owner a date for being "in the models".
 
-A sentence the owner can use as is: *"0 of 4 assistants named us from memory. That is normal for a
-business this size. An assistant only 'remembers' a name that appeared in many places before it
-was trained. When the same assistants can search the web, all four find us."* Only say the last
-sentence if it is true in the latest run (check "Finds you" for every assistant, and that Gemini,
-which is never asked with search, is covered another way or left out of "all four").
+A sentence the owner can use as is, with the numbers from the latest report: *"0 of 4 assistants
+named us from memory. That is normal for a business this size. An assistant only 'remembers' a
+name that appeared in many places before it was trained. When the same assistants can search the
+web, all four find us."* Take every number from the report, not from this text: not every assistant
+is asked both ways. Gemini is never asked with search. Perplexity through OpenRouter is only ever
+asked with search (no "from memory" answer exists on that route). So say "N of M" with the
+assistants actually asked each way, and leave out "all four find us" unless all four were asked with
+search and found the business. A hand-asked Gemini answer can back the claim for Gemini; say that
+it was asked once by hand.
 
 **Look for stray copies of the owner's site.** The cited sources can reveal an address the owner
 forgot: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`, `*.netlify.app` or
-`*.github.io` that serves the same site. Two copies split what engines and Google think of the
-site. Cheap check over the saved answers:
+`*.github.io` that serves the same site. Two copies can compete with each other in search. Cheap check over the saved answers:
 
 ```
-rg -o -N --no-filename -i "[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)" \
+rg -o -N --no-filename -i "[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(/[^ )\"'<>]*)?" \
   ~/.config/gsc-insights/geo/answers/<domain>/ | sort | uniq -c
 ```
 
 The counts only show how often an address was cited (the same answers repeat it), not how many
 copies exist. It also lists other people's addresses (another business's site on `vercel.app`);
-look only at ones that carry the owner's name. Open the address: if it still serves the site, the owner should
-switch it off or redirect it to the real domain. Do not say it is a problem before you have
+look only at ones that carry the owner's name. Open the address (the full URL, with its path, from the saved
+answer): if it still serves the site, check its redirect, canonical and `noindex` settings, and
+only then suggest the owner switch it off or redirect it to the real domain. Do not say it is a problem before you have
 opened it; an engine citing an address shows it exists, not that it still works.
 
 **Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
 `~/.config/gsc-insights/` folder, which the Claude desktop app may not open (links into it did not
 open when tried once), so a link to a path there may do nothing for the owner. Copy the report page(s) and the answers of the run into
 the site's repo (for example `docs/geo/<date>/`), put the readable summary next to them, and send
-the files to the owner. The answers hold the questions and every cited source, so commit them only
+the files to the owner. The report page may carry an "Also see" link to the Google page that uses a
+relative path (`../../../reports/<domain>/google.html`); it breaks in the copy, so copy that page
+too or tell the owner the link will not work. The answers hold the questions and every cited source, so commit them only
 to a **private** repo; in a public repo commit just the report page and the summary. Before moving or deleting a file another session or a note might point
 at, search for its path first.
 
