@@ -23,5 +23,6 @@ Consent to send this repo to Codex and to Melious, this session: "Yes, both (Rec
 | N3 | NIT | fresh-eyes | 1 | The summary prints site paths, not template paths | refuted | each MISSING line sits under the drift line that names the template file |
 
 Waivers and deferrals: none.
-Follow-ups: F1 (codex r2, OUTSIDE SCOPE, re-raises R7 without new evidence) — whether `actions/checkout@v7` resolves; this PR's own Actions run settles it.
+Merge link: `origin/main` (`6f4a7e1`) merged in to bring the branch up to date; `merge_link.sh afa7704 d4515cc 6f4a7e1` is empty (the change's files are untouched by the merge; its one callee suggestion, `index.astro`, is not referenced by the change), and `6f4a7e1...HEAD` equals the reviewed `afa7704...d4515cc` byte for byte.
+Follow-ups: F1 (codex r2, OUTSIDE SCOPE, re-raises R7 without new evidence) — whether `actions/checkout@v7` resolves; settled: all 30 checks passed on `f8f3f59`.
 Notes: before the first push, both commits were rebuilt to drop a private name from a commit message: `32487dd` → `bcb4bf6`, `17f7ac4` → `d4515cc`, same trees (`98442c7`), so the reviewed diff is byte-identical. ollama seat absent by design (Melious is the second seat; ollama CLI hidden from `PATH`). Fresh-eyes ran round 1 only, as Normal depth sets. No round had a BUG, so no wording pass was owed.
