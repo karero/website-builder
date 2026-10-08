@@ -9,7 +9,8 @@ drives assembly; this README is the manual reference.
 
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
-.nvmrc                        # Node 22 — Astro needs >=22.12 (Cloudflare Pages reads it)
+.nvmrc                        # Node 24 — Astro needs >=22.12 (Cloudflare Pages reads it)
+.gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
 src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
@@ -23,9 +24,15 @@ scripts/check_internal_links.sh  # warn-only internal-link audit: orphan / thin 
 scripts/generate_og_cards.py     # branded 1200×630 OG share cards, one per page (npm run og)
 scripts/run_og.mjs               # cross-platform launcher for the generator (forwards --check)
 scripts/anchor-ids.mjs           # post-build: stable slug id on every h2/h3 (runs in `npm run build`)
+scripts/build-marker.mjs         # post-build: the commit SHA into dist/build.txt, so `npm run ship` can check the live site has it
+scripts/set_pdf_title.py         # sets a hosted PDF's title (Info dict and XMP), the fix when the SEO test flags one (needs pypdf)
+scripts/ship.sh                  # `npm run ship`: two-stage sites only, promotes `main` (preview) to `production` (live)
+scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
+scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,email,links,llms-coverage,middleware}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis (pre-push hook + CI)
+tests/check_analytics_gate.sh # four builds: analytics on only when CF_PAGES_BRANCH is PROD_BRANCH (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
@@ -35,7 +42,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 1. **Git first** (see SETUP.md): `mkdir <site> && cd <site> && git init`, copy the
    `templates/.gitignore`, commit.
 2. `npm create astro@latest .` → Empty, TypeScript **Strict**. Requires **Node ≥22.12**
-   (Astro's own floor); the committed `.nvmrc` pins 22 for local + Cloudflare Pages builds.
+   (Astro's own floor); the committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above) + `tests/`, then:
    ```bash
    npm i -D @playwright/test @axe-core/playwright @astrojs/check typescript @types/node
@@ -60,7 +67,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    (controller, date, analytics wording — see the comment block in that file).
    Each target you fill here (privacy page, manifest) then comes out of
    `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts`; the test is red until it does.
-5. `npm run check && npm run build && npm test` — the overlay passes strict TS +
+5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
    a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
@@ -130,8 +137,11 @@ wins over the auto-slug and never drifts.
 
 Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
 project settings set the **production branch to `production`** (must equal
-`PROD_BRANCH` in `src/config.ts`); `main` stays the preview (every preview
-`*.pages.dev` host is noindexed by the function). Once the live domain serves the
+`PROD_BRANCH` in `src/config.ts`). On a site connected to GitHub in Cloudflare, `main`
+stays the preview. A site deployed by command has no automatic preview: a deploy to any
+branch other than the production branch is a preview, and `PUBLISHING.md`, "Deploy by
+command", has the steps for the live site. Every preview `*.pages.dev` host is noindexed
+by the function. Once the live domain serves the
 site, set the Production variable `CANONICAL_URL` (e.g. `https://example.com`) and
 redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so
 people following an AI answer that cites the alias land on the real domain. Until then the alias is noindexed

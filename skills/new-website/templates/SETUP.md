@@ -16,8 +16,14 @@ file into a handed-off repo so the receiving party can get running too.
    both steps at once). Optional unless GitHub asks for it: GitHub requires two-factor only
    for some accounts, and tells those by email and on the site.
 2. **Cloudflare account.** https://dash.cloudflare.com/sign-up. Hosts the site
-   (Pages) and, if you move the domain's DNS there, the DNS. Free tier (unmetered bandwidth)
-   covers a small static site; upgrade to Workers Paid ($5/mo) only when a feature needs it.
+   (Pages) and, if you move the domain's DNS there, the DNS. The free plan covers a small
+   site. Cloudflare serves plain files free and without limit only while no Function runs,
+   and this site's `functions/_middleware.ts` runs on every request: each page view, image
+   and crawler visit counts against the free plan's 100,000 Functions requests a day, shared
+   by every Pages Function and Worker in the account and reset at midnight UTC. After the
+   first deploy, set the project's **Settings → Runtime → Fail open / closed** to **Fail
+   open** (a free-plan setting), so the site stays online if that runs out. Upgrade to
+   Workers Paid ($5/mo) when a feature needs it or a site gets near the limit.
    **Recommended: protect this account too.** It decides whether your website is online and,
    with the DNS here, where your domain points. In the dashboard, **My Profile →
    Authentication**, turn on **two-factor authentication**; a security key is the strongest
@@ -76,7 +82,7 @@ npx playwright install chromium        # per machine, once
 > WSL2 shell, not the PowerShell ones.
 
 > **Node ≥22.12 required** (Astro's own floor) — the LTS installs above satisfy it; the repo's
-> `.nvmrc` pins 22 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
+> `.nvmrc` pins 24 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
 > "packages have install scripts not yet covered" for scripts it hasn't been told to trust
 > — per npm's own docs this is currently advisory only (the scripts still run; a future
 > npm release will start blocking them), but approve the one Astro needs now to silence the
@@ -137,11 +143,32 @@ gh repo edit --delete-branch-on-merge
 git config --global fetch.prune true   # once per machine; use --local to scope per repo
 ```
 
+Then let GitHub warn you about security holes in the site's building blocks (the npm
+packages it installs) and, where a fixed version exists, send the fix as a pull request.
+When none can be applied, the warning still shows under the repo's **Security** tab.
+Both are free on every plan, but a private repo starts with them off. A fix pull request
+is checked by CI like any other; merge it once it is green. Run this in the site's
+folder; it works the same for a site you already have.
+```bash
+gh repo view --json nameWithOwner --jq '"repo: \(.nameWithOwner)"'   # check: your site?
+gh api -X PUT "repos/{owner}/{repo}/vulnerability-alerts"        # Dependabot alerts
+gh api -X PUT "repos/{owner}/{repo}/automated-security-fixes"    # Dependabot security updates
+gh api --silent "repos/{owner}/{repo}/vulnerability-alerts" 2>/dev/null && echo "alerts: on" || echo "alerts: off"
+gh api "repos/{owner}/{repo}/automated-security-fixes" \
+  --jq 'if .paused then "security updates: paused" elif .enabled then "security updates: on" else "security updates: off" end'
+```
+The first line names the repo the commands change: if it names another repo, or none,
+stop and move to the site's folder. The last two lines check the result: they should
+print `alerts: on` and `security updates: on`. Anything else (`off`, `paused` or an
+error): open the repo's **Settings → Code security** and turn on Dependabot alerts, then
+Dependabot security updates.
+
 ### Pre-push quality gate (auto-wired by `npm install`)
 
 The `prepare` script in `package.json` (`node scripts/wire-hooks.mjs`) points
-`core.hooksPath` at `scripts/hooks`, so the shipped **`pre-push` hook** runs the build + tests
-and **blocks a push that's red** — the local enforcement of "fails → does not ship" (Cloudflare
+`core.hooksPath` at `scripts/hooks`, so the shipped **`pre-push` hook** runs `scripts/verify.mjs`
+(the same as `npm run verify`: type check, then the tests, which build the site) and
+**blocks a push that's red** — the local enforcement of "fails → does not ship" (Cloudflare
 deploys independently of CI, so this is what makes that true on a direct-push workflow). It
 needs `npx playwright install chromium` (above). Relax for one push with
 `git push --no-verify`; disable with `git config --unset core.hooksPath`. See `website-qa`
@@ -171,8 +198,12 @@ pushing `main:production` and GitHub PR merges are unaffected either way.
 **Claude Code only.** Copy the permission allowlist into the project so routine build
 commands (npm/astro/playwright/git read+commit, image tools) run without a prompt:
 ```bash
-mkdir -p .claude && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
+mkdir -p .claude/hooks && cp "$SKILLS_ROOT/new-website/templates/claude/settings.json" .claude/settings.json
+cp "$SKILLS_ROOT/new-website/templates/claude/hooks/git-stand.mjs" .claude/hooks/
 ```
+The settings also register `.claude/hooks/git-stand.mjs`: at every session start (and
+again once the last sync is 2 hours old) it runs `git fetch` and tells you and Claude what
+changed on GitHub. It never pulls, merges or changes files.
 > **Codex / Antigravity:** skip this — `.claude/settings.json` is Claude Code-specific. On
 > Codex, durable project instructions live in `AGENTS.md` (the scaffold ships one; `CLAUDE.md`
 > imports it) and command approval in Codex's own rules/config. Antigravity uses its own

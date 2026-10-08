@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # The Astro starter every new site is scaffolded from.
+  - package-ecosystem: npm
+    directory: /skills/new-website/templates/astro
+    schedule:
+      interval: weekly
+    groups:
+      astro-template-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Tracks the Node major in .nvmrc and ci.yml (engines stays at Astro's floor, >=22.12.0); bump them together by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # @astrojs/check 0.9.x peers typescript ^5 || ^6; lift this once it accepts 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: pip
+    directory: /skills/search-console-insights
+    # The file holds >= floors, which already admit every new release. Without this,
+    # Dependabot raises each floor to the latest version, and those can drop Python 3.9
+    # (macOS's stock python3) without the marker requirements.txt uses for requests.
+    versioning-strategy: increase-if-necessary
+    schedule:
+      interval: weekly
+
+  # This repo's workflows, plus the CI workflow the starter ships to every site.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /skills/new-website/templates/astro
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

@@ -24,8 +24,8 @@ type Rule = { label: string; re: RegExp; exceptLang?: string[]; onlyLang?: strin
 // "todo" means "all" in these languages, and headings are often set in capitals.
 const TODO_IS_A_WORD = ['es', 'pt', 'gl'];
 const RULES: Rule[] = [
-  // The content token "[MISSING: year built]" (AGENTS.md §4), a translated one
-  // ("[FEHLT: …]") and every slot: an opening bracket, a capital letter, and at least
+  // The content token "[MISSING: year built]" (AGENTS.md §4), a site's own
+  // non-English one ("[FEHLT: …]") and every slot: an opening bracket, a capital letter, and at least
   // one more character. That is the shape of all the kit's own slots ("[DATE]",
   // "[W-IdNr., …]", "[Handelsregister / Vereinsregister]") and of the ones AI
   // assistants leave behind ("[Your Name]"). "[1]", "[A]", "[sic]" and EmailLink's
@@ -55,7 +55,7 @@ const RULES: Rule[] = [
     re: /\b(?:your\s+(?:headline|tagline|copy)\s+(?:goes\s+)?here|(?:text|copy|content|headline)\s+goes\s+here|placeholder\s+(?:text|copy|content|image)|dummy\s+(?:text|copy|content)|(?:john|jane)\s+doe)\b/gi,
   },
   // German. \p{L} lookarounds instead of \b, which does not see ä/ö/ü/ß as letters
-  // (same reasoning as GERMAN_RULES in tone.spec.ts). "Mustertext" is not here: a
+  // (same reasoning as GERMAN_RULES in _helpers.ts). "Mustertext" is not here: a
   // site offering template letters uses it genuinely.
   {
     label: 'placeholder wording',

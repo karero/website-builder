@@ -10,13 +10,14 @@ read the glossary once, then follow the steps for your site's model.
 | Word | What it actually means |
 |---|---|
 | **commit** | **Save a snapshot** of your changes on your own computer, with a short note describing them. Nothing is online yet — it's like saving a document. |
-| **push** | **Upload** your saved snapshots to GitHub (the cloud). This is what triggers a build. |
+| **push** | **Upload** your saved snapshots to GitHub (the cloud). On most sites this is what triggers a build (not on one that deploys by command, see "Deploy by command"). |
 | **branch** | A **named line of work**. Your site has up to two: `main` and (sometimes) `production`. Think of them as "the draft" and "the published version." |
 | **checkout** | **Switch** which branch you're looking at / working on. `git checkout main` = "show me the draft." |
 | **merge** | **Copy the changes** from one branch into another — e.g. take everything in `main` and bring it into `production` to publish. |
 
 A normal edit is always the same three moves: **commit** (save) → **push** (upload) →
-the site rebuilds automatically. The only question is *which branch* you push to, and that's
+the site rebuilds automatically (except on a site that deploys by command, see "Deploy by
+command"). The only question is *which branch* you push to, and that's
 what your model below decides.
 
 ---
@@ -25,7 +26,8 @@ what your model below decides.
 
 Your site uses **one** of these. If you're not sure, your README's "Deploy" section says
 which, or just look at your branches: only `main` = single-stage; `main` **and**
-`production` = two-stage.
+`production` = two-stage. One more case: if your site isn't connected to GitHub in
+Cloudflare, a push publishes nothing. See "Deploy by command" below.
 
 ---
 
@@ -104,6 +106,46 @@ git push
 
 ---
 
+## Deploy by command — if your site isn't connected to GitHub in Cloudflare
+
+Some sites are put online with a Cloudflare token instead of a GitHub connection (your
+README's "Deploy" section says if yours is one; if you're not sure, ask your assistant).
+Such a site has no preview step, and `git push` only updates GitHub. **Nothing goes online
+until someone runs the commands below.** They publish `main`, so first check your change
+locally (`npm run dev`), then save and upload it on `main` with `git add -A`, `git commit`
+and `git push` as above. Skip `npm run ship` here: it waits for Cloudflare to build, and on
+such a site Cloudflare never does.
+
+```bash
+# Get the newest main from GitHub, build the site, then upload it to Cloudflare.
+# One command over four lines: copy all of it. The last line puts the site LIVE.
+git switch main &&
+  git pull &&
+  CF_PAGES_BRANCH=<production-branch> npm run build &&
+  npx wrangler pages deploy dist --project-name <your-project> --branch <production-branch>
+```
+
+`<your-project>` is your site's project name in Cloudflare. `<production-branch>` is the
+branch the project was created with: `main` on a single-stage site, `production` on a
+two-stage one. You upload from `main` either way: with no preview step, `main` holds the
+change you just checked and saved. Put the same branch name in both places, and leave both in:
+
+- `CF_PAGES_BRANCH=` turns on your visitor statistics. Without it the live site counts no
+  visitors, with no error to tell you. (It only works when the name matches `PROD_BRANCH`
+  in `src/config.ts`. If you're not sure it does, ask your assistant to check.)
+- Without `--branch`, the upload can land as a preview instead of on the live site.
+
+The `&&` means each line runs only if the one before it worked. If `git` or the build stops
+with an error, nothing was uploaded: ask for help rather than running the upload on its own.
+If the upload itself shows an error, part of it may have gone live anyway: ask for help
+before running it again. The first
+time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't logged in, run
+`npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
+run it again.
+On Windows, run it in Git Bash or WSL.
+
+---
+
 ## If something goes wrong
 
 - **Mistake already live?** Don't panic — in the **Cloudflare dashboard → your Pages
@@ -143,8 +185,8 @@ ones you're most likely to meet:
 - **"This branch isn't connected to GitHub yet"?** A brand-new site that has never been
   uploaded. Run `git push -u origin main` once, then ship.
 
-When in doubt, ask before you `npm run ship` / `git push` — those are the only two commands
-that change what the public sees.
+When in doubt, ask before you `npm run ship`, `git push` or the deploy command above — those
+are the only commands that change what the public sees.
 
 ---
 
@@ -172,8 +214,10 @@ build finishes is it actually live at `<live-domain>`. After `npm run ship` prin
 it live on that result — no manual re-check needed. For a plain merge into `production` — or
 when ship reports it could not verify — confirm manually before announcing ("✅ now live
 at …"). On a **single-stage** site there is no preview: say plainly that the push **is
-going live now**. Deliver these announcements in the owner's language, like everything else
-you say to them.
+going live now**. On a site **not connected to GitHub** ("Deploy by command" above), this
+rule wins over both models: a push builds nothing, not even a preview. Say the change is
+saved on GitHub only, and goes live when the deploy command runs. Deliver these
+announcements in the owner's language, like everything else you say to them.
 
 **Which URL to quote.** Prefer the **memorable `pages.dev` alias** — the branch alias
 `main.<project>.pages.dev` (or, before go-live, the project alias `<project>.pages.dev` —

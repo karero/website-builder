@@ -23,7 +23,8 @@ docs/reviews/SKILL-PLAN-geo-check.md in the website-builder repo.
   geo_check.py --keys | --prepare-env            which keys are set (never shown) / add the empty lines
 
 Keys: GEO_OPENROUTER_API_KEY (the default route: one prepaid key for all four chat assistants),
-or direct GEO_GEMINI_API_KEY, GEO_OPENAI_API_KEY, GEO_ANTHROPIC_API_KEY, GEO_PERPLEXITY_API_KEY; and
+or direct GEO_GEMINI_API_KEY, GEO_OPENAI_API_KEY, GEO_ANTHROPIC_API_KEY, GEO_PERPLEXITY_API_KEY
+(GEO_DIRECT_ENGINES=gemini,perplexity sends just those through their direct keys); and
 the skill's SERPAPI_KEY (used only for sites with --google on); plus optional GEO_<ENGINE>_MODEL /
 GEO_<ENGINE>_OPENROUTER_MODEL overrides — from the environment or ~/.config/gsc-insights/.env. The generic OPENAI_API_KEY etc.
 are never read, so a key exported in a developer shell is never billed by accident.
@@ -73,7 +74,8 @@ KEY_VARS = {e: ("SERPAPI_KEY" if e in SERP_ENGINES else f"GEO_{e.upper()}_API_KE
 CHAT_ENGINES = [e for e in ENGINES if e not in SERP_ENGINES]
 # The default route: one OpenRouter key and one prepaid balance for all four chat assistants.
 # OpenRouter uses each provider's OWN web search for these models ("native"), so "ChatGPT with
-# web search on" is still ChatGPT's search. A direct provider key is used only without it.
+# web search on" is still ChatGPT's search. A direct provider key is used without it, or for the
+# assistants GEO_DIRECT_ENGINES names (below).
 ROUTER_VAR = "GEO_OPENROUTER_API_KEY"
 SAMPLES = {"broad": 3, "narrow": 3, "branded": 1}
 SLOTS = list(SAMPLES)
@@ -142,9 +144,21 @@ def load_keys() -> dict:
     return {e: setting(v) for e, v in KEY_VARS.items()}
 
 
+# Chat assistants the owner sends through their own key even with OpenRouter set, e.g.
+# GEO_DIRECT_ENGINES=gemini,perplexity: Gemini on a free direct key instead of paid credit, and
+# Perplexity with a "from memory" column and the site's country sent with its search, neither of
+# which this tool can get through OpenRouter.
+DIRECT_VAR = "GEO_DIRECT_ENGINES"
+
+
+def direct_engines() -> set:
+    return {e.strip().lower() for e in setting(DIRECT_VAR).split(",") if e.strip()}
+
+
 def route_for(engine: str, keys: dict, router_key: str):
-    """("openrouter" | "direct" | None, key): OpenRouter first for the chat assistants."""
-    if engine in CHAT_ENGINES and router_key:
+    """("openrouter" | "direct" | None, key): OpenRouter first for the chat assistants, except
+    the ones GEO_DIRECT_ENGINES names that have their own key."""
+    if engine in CHAT_ENGINES and router_key and not (engine in direct_engines() and keys.get(engine)):
         return "openrouter", router_key
     if keys.get(engine):
         return "direct", keys[engine]
@@ -1375,9 +1389,19 @@ def show_keys() -> int:
     print(f"Key file: {base_dir() / '.env'}")
     print(f"  {ROUTER_VAR:<24} {'set ✓' if router else 'empty — ' + ROUTER_HINT}  "
           f"(the default route for {', '.join(CHAT_ENGINES)})")
+    direct = direct_engines()
+    if direct:
+        unknown = sorted(direct - set(CHAT_ENGINES))
+        named = [e for e in CHAT_ENGINES if e in direct]
+        own = [e for e in named if route_for(e, keys, router)[0] == "direct"]
+        print(f"  {DIRECT_VAR:<24} {', '.join(named) or '—'} named; using their own key: {', '.join(own) or 'none'}"
+              + (f"  ⚠ not a chat assistant: {', '.join(unknown)}" if unknown else ""))
     for var in dict.fromkeys(KEY_VARS.values()):          # SERPAPI_KEY serves two engines
         engines = [e for e in ENGINES if KEY_VARS[e] == var]
-        if router and engines[0] in CHAT_ENGINES:
+        if router and engines[0] in direct and engines[0] in CHAT_ENGINES:
+            state = ("set ✓, used instead of OpenRouter" if keys[engines[0]]
+                     else f"empty — named in {DIRECT_VAR}, so OpenRouter is used until a key is added")
+        elif router and engines[0] in CHAT_ENGINES:
             state = ("set, not used: OpenRouter is set" if keys[engines[0]] else "not needed: OpenRouter is set")
         else:
             state = "set ✓" if keys[engines[0]] else f"empty — {ENV_HINTS[engines[0]]}"
