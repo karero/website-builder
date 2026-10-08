@@ -96,7 +96,7 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
 credits are depleted.` and every other assistant still runs normally. The owner tops up in
 Google AI Studio (https://ai.studio/projects): open the project **the key belongs to**, then its
 billing page; Google's explanation is at https://ai.google.dev/gemini-api/docs/billing#prepay
-(button names may differ from what is on screen). A top-up on another project does not help.
+(button names may differ from what is on screen).
 Then rerun only Gemini: `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --engines gemini`.
 The failed attempt adds no answer rows to the history (the trend shows "latest attempt failed" until
 a good run follows) and the rerun adds only its good rows, so nothing needs cleaning up.
@@ -290,9 +290,9 @@ count too, and the owner's own site is one source among many. Three things make 
 
 - **A young site.** If the website launched recently, most models were trained before it existed.
   Ask the owner when it went live; a business can be years old and its site still new to the models.
-- **Small models.** The cheaper, faster model of an assistant knows fewer niche names. The report
-  shows which model answered.
-- **Retraining is slow.** The column only changes when a new model is released, so judge it over
+- **Small models.** The cheaper, faster model of an assistant tends to know fewer niche names. The
+  first line of each saved answer file names the model that answered.
+- **Retraining is slow.** This column mostly moves when a new model is released, so judge it over
   months, not weeks. Never promise the owner a date for being "in the models".
 
 A sentence the owner can use as is: *"0 of 4 assistants named us from memory. That is normal for a
@@ -317,8 +317,8 @@ switch it off or redirect it to the real domain. Do not say it is a problem befo
 opened it; an engine citing an address shows it exists, not that it still works.
 
 **Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
-`~/.config/gsc-insights/` folder, which the Claude desktop app cannot open, so a link to
-a path there does nothing for the owner. Copy the report page(s) and the answers of the run into
+`~/.config/gsc-insights/` folder, which is outside the folders the Claude desktop app opens
+(links to it did not open when tried), so a link to a path there does nothing for the owner. Copy the report page(s) and the answers of the run into
 the site's repo (for example `docs/geo/<date>/`), put the readable summary next to them, and send
 the files to the owner. Before moving or deleting a file another session or a note might point
 at, search for its path first.
