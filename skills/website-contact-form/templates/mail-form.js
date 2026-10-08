@@ -41,11 +41,12 @@
         return;
       }
 
-      // The message is the mail, as typed, less any empty space (spaces, tabs, blank lines)
-      // at its very start and end: the visitor writes their own greeting and sign-off, and their mail
-      // program adds who they are. Every other field the visitor filled in follows under
-      // it as "Label: value", so a field the owner adds later is sent too: a list gives
-      // every chosen entry, a ticked checkbox or radio button its label alone.
+      // The message is the mail, as typed, less any empty space (spaces, tabs, blank
+      // lines) at its very start and end: the visitor writes their own greeting and
+      // sign-off, and their mail program adds who they are. Every other field the visitor
+      // filled in follows under it as "Label: value", so a field the owner adds later is
+      // sent too: a list gives every chosen entry, a ticked checkbox or radio button its
+      // label alone.
       var details = [];
       Array.prototype.forEach.call(form.elements, function (field) {
         // A named <fieldset> or <output> has no value of its own to send.
