@@ -49,7 +49,7 @@ export const TEXT = {
     opened: 'Das E-Mail-Programm sollte die Nachricht jetzt zeigen. Gesendet wird sie mit Senden dort. Hat sich nichts geöffnet, bitte an die Adresse unten schreiben.',
     direct: 'Lieber eine leere E-Mail? Direkt schreiben an:',
     greeting: 'Hallo,',
-    closing: 'Viele Grüße',
+    closing: 'Freundliche Grüße',
   },
 } satisfies Record<string, Texts>;
 

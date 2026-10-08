@@ -50,7 +50,9 @@ async function formLanguage(page: Page) {
   // By itself, in the language of the page it is on (<html lang>, as Base.astro sets it),
   // unless the page passes another one: then LANG names it.
   const pageLang = ((await page.locator('html').getAttribute('lang')) ?? '').toLowerCase().split('-')[0];
-  expect(lang, `the form speaks "${lang}" on a page in "${pageLang}"`).toBe(LANG || pageLang);
+  // The form keeps the first part of a language code (de-DE → de), and so does LANG here.
+  const want = (LANG || pageLang).toLowerCase().split('-')[0];
+  expect(lang, `the form speaks "${lang}" on a page in "${pageLang}"; a page that passes lang="…" sets LANG in this spec`).toBe(want);
   return lang as keyof typeof TEXT;
 }
 

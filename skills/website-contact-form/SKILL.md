@@ -78,7 +78,7 @@ file of the site's own under `public/js/` rather than an inline script, so a str
 `script-src 'self'` policy lets it run, shows the form, and when the button is pressed
 decodes the address and opens `mailto:<address>?subject=…&body=…`. The body reads
 like a letter: a greeting, the message, every other field the visitor filled in as
-"Label: value", then a closing line ("Regards", "Viele Grüße") and the visitor's
+"Label: value", then a closing line ("Regards", "Freundliche Grüße") and the visitor's
 name. A field the owner adds later goes into the mail by its label with no
 change to the script. Without JavaScript the form stays hidden, since it could do
 nothing, and the address line under it is what the visitor sees.
@@ -128,12 +128,13 @@ loses it.
    "Sie" site. Any other language: "Add a language" below, first. A form in a language
    with no texts stops the build.
 
-   **A site made from an older starter** lacks the line in `Base.astro`. On a site with
-   one language, a form without `lang` then stops the build with a message naming the
-   line. Add `Astro.locals.lang = lang;` after the props in `Base.astro`, and the
-   declaration `declare namespace App { interface Locals { lang?: string } }` to
-   `src/env.d.ts` (create it from the starter's if the site has none; keep what a
-   site's own file already declares), or `npm run check` fails on the new line.
+   **A site made from an older starter** lacks the line in `Base.astro`. On a site
+   without Astro's language routing, a form without `lang` then stops the build with a
+   message naming the line (with routing, the page's locale stands in). Add
+   `Astro.locals.lang = lang;` after the props in `Base.astro`, and the declaration
+   `declare namespace App { interface Locals { lang?: string } }` to `src/env.d.ts`:
+   create the file from the starter's if the site has none, and keep what a site's own
+   file already declares. Without the declaration, `npm run check` fails on the line.
 4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO` and
    `SUBJECT` (the address and the subject from step 2). The spec fails while one is
    empty, and holds the subject to the site's tone rules. `LANG` only if the page passes

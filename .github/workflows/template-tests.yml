@@ -447,9 +447,9 @@ jobs:
         run: |
           npm run check
           npm test
-      # A form without its subject, without a language, or in a language it has no words
-      # for, must stop the build, not go out with a generic subject or in English. Last step: it leaves the
-      # site broken on purpose.
+      # A form without its subject, without a language, or in a language it has no
+      # words for, must stop the build, not go out with a generic subject or in
+      # English. Last step: it leaves the site broken on purpose.
       - name: A form without a subject, without a language, or in a language with no texts, stops the build
         working-directory: ${{ runner.temp }}/site
         run: |
