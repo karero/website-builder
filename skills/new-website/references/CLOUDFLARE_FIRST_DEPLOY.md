@@ -10,6 +10,12 @@ them** rather than handing over a dashboard tour.
 > Cloudflare.** (B) and (C) are perfectly fine and stay on offer — they just cost the owner
 > more time and patience. State the deploy-model tradeoff in (A) before they mint anything.
 
+> **Cloudflare now suggests Workers for new projects.** Its Pages docs open with "Start new
+> projects with Workers" (read 2026-10-07). Create a **Pages** project anyway: the kit's
+> `functions/_middleware.ts`, its build variables and the steps below are written for Pages,
+> which Cloudflare still lists as available on all plans. `WEBSITE_ARCHITECTURE.md` Part 1
+> has the reasons.
+
 ---
 
 ## A. Token-assisted bootstrap — RECOMMENDED for Cloudflare newcomers
@@ -82,13 +88,21 @@ live fast with zero dashboard time.
 ### Commands you run (token in env)
 
 ```bash
-# 1. Create the Pages project (direct-upload).
-npx wrangler pages project create <project> --production-branch <main|production>
+# 1. Create the Pages project (direct-upload). <production-branch> is main or production.
+npx wrangler pages project create <project> --production-branch <production-branch>
 
-# 2. Build, then deploy the static output. --branch = the production branch from step 1;
-#    without it wrangler uses the local git branch and may make a preview deployment.
-npm run build
-npx wrangler pages deploy dist --project-name <project> --branch <main|production>
+# 2. Build, then deploy the static output. Both lines take the production branch from step 1.
+#    CF_PAGES_BRANCH: analytics is switched on at build time, only when this equals
+#    PROD_BRANCH in src/config.ts. Cloudflare sets it only when IT builds; this build runs
+#    here, so without it the live site ships with no analytics script (no error, no data).
+#    The kit ships PROD_BRANCH = 'production': if step 1 chose main, first set PROD_BRANCH
+#    in src/config.ts to 'main'. For a preview deploy, build with `CF_PAGES_BRANCH= npm run build`
+#    (set to empty, so an exported value can't switch analytics on), then deploy with any
+#    other --branch.
+#    --branch: without it wrangler uses the local git branch and may make a preview deployment.
+#    On Windows, run these in Git Bash or WSL.
+CF_PAGES_BRANCH=<production-branch> npm run build
+npx wrangler pages deploy dist --project-name <project> --branch <production-branch>
 
 # 3. Custom domain: NO Wrangler command exists for Pages custom domains.
 #    Attach it in the dashboard (Workers & Pages -> your project -> Custom domains ->
@@ -105,11 +119,19 @@ npx wrangler pages deploy dist --project-name <project> --branch <main|productio
 > the accidental Worker (not a pre-existing one with a similar name), then delete it and
 > re-run `wrangler pages deploy`.
 
-Ongoing deploys under (A): re-run
+Ongoing deploys under (A): re-run both lines of step 2, the variable included —
+`CF_PAGES_BRANCH=<production-branch> npm run build`, then
 `wrangler pages deploy dist --project-name <project> --branch <production-branch>`
-(wrap it in `npm run ship` if you want one command — note the stock `ship.sh` targets the
+(wrap them in `npm run ship` if you want one command — note the stock `ship.sh` targets the
 git-push model of (B), so adapting it for direct-upload is a follow-up, not assumed here).
-Then continue with `search-console-setup` for GSC/Bing + Crawler Hints.
+The owner's version, for after handoff, is `templates/PUBLISHING.md`, "Deploy by command":
+keep the two in step: both build with `CF_PAGES_BRANCH=<production-branch>` and deploy
+with the same `--branch`. Before handoff, add one sentence
+to the site README's "Deploy" paragraph: this site deploys by command, with no GitHub
+connection in Cloudflare (project `<project>`, production branch `<production-branch>`), and
+`PUBLISHING.md`, "Deploy by command", has the steps. That sentence is how the owner, and the
+next assistant, can tell. Then continue with `search-console-setup` for GSC/Bing + Crawler
+Hints.
 
 ---
 
@@ -130,6 +152,57 @@ If the owner won't mint a token and won't do the dashboard alone: drive the dash
 your runtime's browser automation (**Claude in Chrome** under Claude Code; the agent's own
 browser tool otherwise — see `search-console-setup`), or read them the clicks one by one.
 Both work; both eat time and patience — which is why **(A) is recommended for true newcomers**.
+
+---
+
+## After the first deploy, whichever option: set "Fail open"
+
+Cloudflare serves static files free and without limit only while no Function runs. The
+kit's `functions/_middleware.ts` sits at the root of `functions/`, and Pages then runs it in
+front of every request, files included. So every page view, image, font and crawler hit,
+on the live domain too, counts as a Functions request. On the free plan those come out of
+**100,000 requests a day**, shared by every Pages Function and Worker in the account, reset
+at midnight UTC.
+
+Don't add a `_routes.json` to exclude the files from the middleware. Cloudflare suggests it
+to keep static requests free, but it matches paths only, never the host: on the
+`<project>.pages.dev` alias the excluded files would then skip the middleware, so they would
+neither redirect nor carry noindex.
+
+One small site rarely gets near that; several sites in one account, or a busy crawler, can.
+What happens then is up to the project's **Fail open / closed** setting, which the free
+plan offers:
+
+- **Fail open** (recommended): the static site is served without the middleware until
+  midnight UTC. Nothing changes on the live domain, which the middleware passes through
+  untouched. Previews still carry the `X-Robots-Tag: noindex` that Cloudflare adds to every
+  preview deployment itself. `<project>.pages.dev` is the one address that changes: for the
+  rest of that day it loses what the middleware gives it, the redirect (once
+  `CANONICAL_URL` is set, below) and the noindex.
+- **Fail closed**: every request, on the live domain too, gets an error page until midnight
+  UTC. That suits a Function that guards something; the kit's does not. If a site later
+  gets one that does, choose again.
+
+Either way, any other Function the site has stops until midnight UTC too.
+
+Set it once, right after the first deploy: dashboard → **Workers & Pages** → the project →
+**Settings → Runtime → Fail open / closed** (path checked in the dashboard 2026-10-07). A
+project created with `wrangler pages project create` started on Fail open that day. One
+made in the dashboard or connected to GitHub was not checked, Cloudflare's docs no longer
+name a default (they once said Fail open), and the setting was missing from the dashboard
+for a while in 2024–25: look rather than assume. Workers Paid ($5/month) removes the daily
+limit (10 million requests a month included, then billed per million).
+
+Sources, read 2026-10-07: Cloudflare's
+[Functions pricing](https://developers.cloudflare.com/pages/functions/pricing/),
+[routing and Fail open / closed](https://developers.cloudflare.com/pages/functions/routing/),
+[middleware](https://developers.cloudflare.com/pages/functions/middleware/),
+[daily request limit](https://developers.cloudflare.com/workers/platform/limits/#daily-requests),
+[preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/)
+and [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/); for the
+setting's history, the cloudflare-docs pull requests that
+[removed](https://github.com/cloudflare/cloudflare-docs/pull/17200) (2024) and
+[restored](https://github.com/cloudflare/cloudflare-docs/pull/22331) (2025) its docs.
 
 ---
 

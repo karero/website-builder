@@ -63,7 +63,7 @@ write_stamp() {  # $1 = skills dir
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/.nvmrc'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs'
 
 # Upstream template files that scaffolded sites are EXPECTED to hand-edit — deliberately NOT
 # drift-tracked, for two different reasons:
@@ -348,8 +348,16 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/astro/scripts/hooks/pre-push (site copy: scripts/hooks/pre-push)" ;;
       skills/new-website/templates/astro/scripts/wire-hooks.mjs)
         echo "  templates/astro/scripts/wire-hooks.mjs (site copy: scripts/wire-hooks.mjs — it does nothing until the site's package.json has \"prepare\": \"node scripts/wire-hooks.mjs\"; the hook's header says more)" ;;
+      skills/new-website/templates/astro/scripts/verify.mjs)
+        echo "  templates/astro/scripts/verify.mjs (site copy: scripts/verify.mjs — the pre-push hook runs it once it is there; \`npm run verify\` also needs \"verify\": \"node scripts/verify.mjs\" in the site's package.json)" ;;
       skills/new-website/templates/astro/.nvmrc)
         echo "  templates/astro/.nvmrc (site copy: .nvmrc)" ;;
+      skills/new-website/templates/astro/.gitattributes)
+        echo "  templates/astro/.gitattributes (site copy: .gitattributes — keeps the hook and shell scripts LF; a Windows working copy made before it still holds CRLF copies, which Git for Windows runs but WSL or a container does not: there, after committing the file and with no unsaved changes in them, run from the site root in Git Bash: \`git ls-files -z -- scripts/hooks/pre-push \"*.sh\" | xargs -0 rm -f && git checkout -- scripts/hooks/pre-push \"*.sh\"\` (deleting first is needed: git does not rewrite an unchanged file))" ;;
+      skills/new-website/templates/claude/settings.json)
+        echo "  templates/claude/settings.json (site copy: .claude/settings.json — merge by hand, the site's copy may carry its own permissions; every hook it registers needs its script in .claude/hooks/)" ;;
+      skills/new-website/templates/claude/hooks/git-stand.mjs)
+        echo "  templates/claude/hooks/git-stand.mjs (site copy: .claude/hooks/git-stand.mjs — copy as is; a site without it gets it with website-team-setup, which also registers it in .claude/settings.json)" ;;
       *)
         echo "  $f" ;;
     esac
@@ -361,9 +369,9 @@ CHANGED
   echo "Review + merge each by hand, e.g.:"
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(head -n 1 <<<"$changed")"
   if grep -q '_helpers\.ts$' <<<"$changed"; then
-    echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, and i18n.spec.ts"
-    echo "on multilingual sites), so merge the helpers together with any spec that uses the"
-    echo "new exports, or the import breaks loudly."
+    echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, i18n.spec.ts on"
+    echo "multilingual sites, mail-form.spec.ts with a contact form), so merge the helpers together"
+    echo "with any spec that uses the new exports, or the import breaks loudly."
   fi
   echo "When the site's copies are current again, advance the baseline:"
   echo "  scripts/whats-new.sh --stamp-tests $tests_dir"

@@ -28,14 +28,19 @@ in the order we had to do it on a real site, with the traps we hit written in.
 > every value and run every command that `gh` can run; you never handle the owner's
 > credentials or 2FA, and never drive a dashboard through blind screen control.
 
-> **Language.** Talk to the owner in their language. The files stay English unless the
-> owner's language is another one; then translate `AGENTS.md` and `TEAM-GUIDE.md`
-> in-session (rules and commands intact), as `new-website` does for `PUBLISHING.md`.
+> **Language.** Talk to the owner in their language. `AGENTS.md` stays English on every
+> site, like the skills: agents read it, and its Language rule has them reply in the
+> person's language. `TEAM-GUIDE.md` is for people: translate it in-session when the
+> team's language is not English (rules and commands intact), as `new-website` does
+> for `PUBLISHING.md`.
 
 Prerequisites: the site is on GitHub with `.github/workflows/ci.yml` from the kit, and
 `AGENTS.md` exists. If it does not (a site scaffolded before the template existed),
 copy `new-website/templates/AGENTS.md` + `templates/CLAUDE.md` in first and fill the
-`[BRACKET]` slots per the note at its top, then continue here.
+`[BRACKET]` slots per the note at its top, then continue here. Claude Code sites also
+need the sync hook that `AGENTS.md` §1 relies on: if `.claude/hooks/git-stand.mjs` is
+missing, copy it from `new-website/templates/claude/hooks/` and merge the `hooks` block of
+`new-website/templates/claude/settings.json` into the site's `.claude/settings.json`.
 
 Work on a branch and finish with a pull request — the rule the setup installs applies
 to the setup itself. Say in the pull request that it touches `scripts/` (the hook) and
@@ -117,7 +122,7 @@ the current value first, change only what differs, and say what you changed.
 | **Collaborator permission** | **write**, never maintain or admin | Write can push branches, open and merge pull requests; admin could change the settings this skill sets, or delete the repo. | §2 |
 | **Visibility** | **private** (client work) | A public repo exposes drafts, `"[MISSING: …]"` placeholders and client photos before they are meant to be seen. Note: this is also what decides whether §5-A's ruleset is available for free. | `gh repo view --json visibility` |
 | **Actions permissions** | **Allow all**, or narrow to **GitHub-owned and verified** | The kit's `ci.yml` uses only `actions/checkout` and `actions/setup-node`, so the narrow setting costs nothing and stops a collaborator's future workflow pulling an unvetted action. | Settings → Actions → General |
-| **Actions minutes** (private repos) | keep the **spending limit at 0** (default) and know the budget: 2 000 free minutes/month, each kit run ~5 min | A team pushing many small commits burns minutes fast; at the limit CI silently stops and "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, which is the single biggest saver. | Settings → Billing → Spending limits; usage under Billing → Usage |
+| **Actions minutes** (private repos) | know the budget: 2 000 free minutes/month on GitHub Free; the repo's **Actions** tab shows what each run takes. With **no payment method** on the account, GitHub blocks Actions once they are used up and charges nothing. **A $0 Actions budget with Stop usage already on the account blocks private-repo jobs the same way, payment method or not**, with a message that reads like a failed payment ("recent account payments have failed or your spending limit needs to be increased") and jobs that start zero steps. Check **Budgets and alerts** for an existing **Actions** budget. If the owner wants CI to keep running past the free minutes, edit it to a small cap they choose (say $10) with **Stop usage when budget limit is reached** kept on; create one only if none is there. Do not pick the "Copilot AI Credits" budget, a different product that the list may show first. Whether CI starts again after the change is confirmed only by the next push ([GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [budgets](https://docs.github.com/en/billing/how-tos/set-up-budgets)) | Every push to a pull request or to `main` starts a run, and the minutes add up; at the limit CI either starts costing money or silently stops, and then "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, so a quick second push stops the first run instead of letting it finish. | https://github.com/settings/billing → **Budgets and alerts**; usage on the same billing pages |
 | **Fork workflows** | leave the default (require approval for first-time contributors) | Collaborators push branches, not forks, so this never triggers for them; it only guards against a stranger's fork running CI on your minutes. | Settings → Actions → General |
 | **Workflow token** | leave **read-only** (default) | The kit's CI writes nothing to the repo. | Settings → Actions → General |
 | **Dependabot** | **security updates on**; version updates off unless the owner wants weekly dependency pull requests | Security updates arrive as ordinary pull requests that CI checks; version updates are noise for a non-technical team. | Settings → Code security |
@@ -377,7 +382,7 @@ pull request). Walk the owner through it with these warnings ahead of each click
    scaffolded after that step existed carry it: `whats-new.sh` reports drift in
    `ci.yml`, it never rewrites it. So `AGENTS.md`'s merge rule ("no placeholder is
    left") is enforced only if the step is there. First find out which **token** this
-   site uses: `AGENTS.md` §4 names it, and a translated site may well use its own word
+   site uses: `AGENTS.md` §4 names it, and a site with non-English content may use its own word
    (a German site might write `"[FEHLT: …]"`); the kit's step greps for `[MISSING:`
    and matches nothing else. Then check for the step itself — its `grep -rnI` line,
    not any mention of the word in a comment — add it if missing with the site's

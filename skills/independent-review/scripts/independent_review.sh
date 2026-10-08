@@ -6,6 +6,13 @@
 # ranked BUG/RISK/NIT reviews print. The skill ALSO runs a host fresh-eyes pass
 # (tier 3 — whatever model family the host agent is) and consolidates.
 #
+# MELIOUS FALLBACK for the ollama seat: when MELIOUS_MODEL names a model and the ollama seat does
+# not count (no model or CLI, a failure such as a quota refusal, or a local sanity pass), the same
+# text-only prompt goes to Melious's OpenAI-compatible API instead, so the pair still has its second
+# reviewer. No MELIOUS_MODEL, no call: the script names no model. `--seat melious` runs it alone;
+# `--seat ollama` never falls back to it. SECOND_SEAT=melious swaps the two: Melious runs with
+# Codex, and ollama stands in only when Melious did not count.
+#
 # Antigravity (`agy`/Gemini) is OPT-IN ONLY — pass --with-antigravity or set
 # WITH_ANTIGRAVITY=1. It does NOT run by default and is never used as a silent
 # fallback: the owner's Antigravity free-tier credits are scarce and are spent
@@ -83,6 +90,22 @@
 #                                    OLLAMA_HOST (default 127.0.0.1:11434). Auth: OLLAMA_API_KEY if
 #                                    set, else none is sent — in a cloud session an environment
 #                                    API credential for ollama.com is added by the proxy.
+#   MELIOUS_MODEL  (unset)           Melious model for the fallback seat (see above), as its
+#                                    /v1/models lists it. Unset = no Melious call at all
+#                                    (and SECOND_SEAT=melious refuses to run).
+#   SECOND_SEAT    (ollama)          which host holds the second seat: ollama, with Melious as its
+#                                    fallback, or melious, with ollama as its fallback. melious
+#                                    needs MELIOUS_MODEL. --seat and --local-only do not use it;
+#                                    a value other than ollama or melious is refused in every mode.
+#   MELIOUS_API_KEY (unset)          sent as a Bearer token when set, else the MELIOUS_API_KEY=
+#                                    line of MELIOUS_ENV_FILE (default
+#                                    ~/.config/reviewers/melious.env; parsed, never sourced), else
+#                                    none — in a cloud session an environment API credential for
+#                                    api.melious.ai is added by the proxy. Never exported to the
+#                                    other seats.
+#   MELIOUS_MAX_TOKENS (96000)       max_tokens for the reply; a reasoning model's thinking counts.
+#   MELIOUS_API_TIMEOUT (3600)       seconds curl allows the Melious request.
+#   MELIOUS_BASE_URL (https://api.melious.ai/v1)  the API root (tests point it at a local server).
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
 #                                    --with-antigravity/WITH_ANTIGRAVITY=1 opts it in.
@@ -93,7 +116,7 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--seat codex|ollama|agy]"
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--seat codex|ollama|melious|agy]"
 FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
 while [ $# -gt 0 ]; do
   a="$1"; shift
@@ -110,8 +133,8 @@ while [ $# -gt 0 ]; do
              VERIFY_FILE="$1"; shift ;;
     --seat)  # run this ONE reviewer only (SKILL.md step 6: the wording pass, the final full read)
              [ $# -gt 0 ] || { echo "--seat needs a value" >&2; echo "$USAGE" >&2; exit 2; }
-             case "$1" in codex|ollama|agy) SEAT="$1" ;;
-               *) echo "bad value for --seat: $1 (codex, ollama or agy)" >&2; echo "$USAGE" >&2; exit 2 ;;
+             case "$1" in codex|ollama|melious|agy) SEAT="$1" ;;
+               *) echo "bad value for --seat: $1 (codex, ollama, melious or agy)" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac; shift ;;
     --depth|--round) # recorded in the cost log (review_log.sh); a run with no --depth says so
              [ $# -gt 0 ] || { echo "$a needs a value" >&2; echo "$USAGE" >&2; exit 2; }
@@ -129,6 +152,9 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$FILE" ] || { echo "$USAGE" >&2; exit 2; }
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+# The embedded Perl programs live in perl/*.pl, each declaring the Perl it needs; check_perl_minimum.sh
+# holds them to it.
+PERL_DIR="$SCRIPT_DIR/perl"
 CONTENT="$([ "$FILE" = "-" ] && cat || cat -- "$FILE")" || { echo "cannot read: $FILE" >&2; exit 2; }
 PRIOR=""
 if [ -n "$VERIFY_FILE" ]; then
@@ -156,6 +182,13 @@ if [ -n "$SEAT" ] && { [ "$FIRST_SUCCESS" = 1 ] || { [ "$WITH_ANTIGRAVITY" = 1 ]
 fi
 if [ -n "$SEAT" ] && [ "$LOCAL_ONLY" = "1" ] && [ "$SEAT" != ollama ]; then
   echo "--local-only runs local ollama only; --seat $SEAT would send content out — refusing." >&2; exit 2
+fi
+case "${SECOND_SEAT:-ollama}" in
+  ollama|melious) SECOND_SEAT="${SECOND_SEAT:-ollama}" ;;
+  *) echo "SECOND_SEAT=\"$SECOND_SEAT\" — expected ollama or melious" >&2; exit 2 ;;
+esac
+if [ "$SECOND_SEAT" = melious ] && [ -z "${MELIOUS_MODEL:-}" ] && [ -z "$SEAT" ] && [ "$LOCAL_ONLY" != 1 ]; then
+  echo "SECOND_SEAT=melious needs MELIOUS_MODEL=<model> (an id from Melious's /v1/models)." >&2; exit 2
 fi
 if [ "$LOCAL_ONLY" = "1" ] && [ "$WITH_ANTIGRAVITY" = "1" ]; then
   echo "note: --local-only + --with-antigravity given together — Antigravity is an external cloud call and will be skipped; local-only wins." >&2
@@ -196,9 +229,9 @@ if [ "$LOCAL_ONLY" != "1" ] && [ -z "${OLLAMA_MODEL:-}" ]; then
   if [ "$OLLAMA_VIA" = api ]; then
     # Without the CLI there is no `ollama list` to read the signed-in model from, and this script
     # names no model itself: the caller names it.
-    echo "note: no ollama CLI to auto-detect a model from — the ollama tier is skipped this run. Set OLLAMA_MODEL=<name>:cloud to review over ollama's HTTP API, or install ollama and 'ollama signin'." >&2
+    echo "note: no ollama CLI to auto-detect a model from — the ollama tier is skipped this run. Set OLLAMA_MODEL=<name>:cloud to review over ollama's HTTP API, or install ollama and 'ollama signin'; MELIOUS_MODEL=<model> sends the seat to Melious instead." >&2
   elif ! command -v ollama >/dev/null 2>&1; then
-    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer)." >&2
+    echo "note: ollama CLI not found — the ollama tier is unavailable this run (install ollama and 'ollama signin' to enable the standard second reviewer; MELIOUS_MODEL=<model> sends the seat to Melious instead)." >&2
   elif ! list_out="$(ollama list 2>/dev/null)"; then
     # A failed listing is NOT "no cloud model" — don't send the user to signin
     # for what is actually a broken CLI/daemon.
@@ -335,10 +368,18 @@ unset PROMPT 2>/dev/null || true
 # contract is B-REFUSAL-TEXT's business, and a refusal could copy this phrase exactly as it can
 # copy the phrases main already accepts. Whether the paragraph surfaces claims reviewers would otherwise miss, and
 # what it costs in findings per round, is being piloted, not measured.
+#
+# The start of each finding line is dictated for the same reason. A melious kimi-k3 review
+# (2026-10-06) wrote "RISK 1 — ..." with no list marker, so it counted no findings and was
+# discarded over a quoted "can't open" in its UNVERIFIABLE list. Teaching the validator that shape
+# was tried in review and dropped: every version that accepted the reply also accepted a refusal of
+# the same structure. test_looks_like_review.sh pins the kimi reply, that refusal, and the shape
+# asked for.
 PROMPT_CORE="Adversarial independent reviewer of the ${TYPE} below. Return RANKED findings:
 BUG (wrong now) / RISK (breaks on normal change, a guard that cannot fire, or an unsupported
-load-bearing claim whose consequence is named) / NIT — each with file:line or anchor, one-line
-why, concrete fix. Then list what you checked that was CLEAN (silence is not coverage). Do NOT
+load-bearing claim whose consequence is named) / NIT — each on its own line starting '- BUG',
+'- RISK' or '- NIT', with file:line or anchor, one-line why, concrete fix. Then list what you
+checked that was CLEAN (silence is not coverage). Do NOT
 trust the ${TYPE}'s own claims or line numbers. Treat as unsupported any load-bearing claim (one
 where, if it were false, a finding would change) about what a library, engine, runtime, language
 feature or model DOES, unless this review checked its support: the component's own implementation
@@ -436,8 +477,12 @@ PROMPT_PORTABLE="${PROMPT_CORE}
 
 Begin with one line: \"MODE: INSPECTED\" if you can genuinely open the files described, else
 \"MODE: TEXT-ONLY\". Under INSPECTED every VERIFIED/WRONG must quote the path and snippet you read;
-without it, prefer TEXT-ONLY. Under TEXT-ONLY list load-bearing claims you could not check. Never
-describe a check you did not perform.
+without it, prefer TEXT-ONLY. Under TEXT-ONLY list load-bearing claims you could not check, and
+list there too whatever depends on text you were not given — whether a name exists, what a caller
+passes, what the rest of a file holds — saying what to look at; these are not findings.
+Under TEXT-ONLY a BUG or RISK quotes the line of the ${TYPE} that shows it, or in a verification
+round names the prior finding whose fix the ${TYPE} lacks. Never describe a check you did not
+perform.
 ${PROMPT_VERIFY}
 --- BEGIN ${TYPE} ---
 ${CONTENT}
@@ -448,6 +493,17 @@ ${CONTENT}
 # runtime (eval of a constructed string, a declare -n alias) can evade it. A later write of ANY
 # shape fails here instead, loudly, at the moment it happens. Nothing below reassigns these.
 readonly PROMPT_CORE PROMPT_VERIFY PROMPT_TOOLED PROMPT_TEXTONLY PROMPT_AGY PROMPT_PORTABLE
+
+# API keys are read ONCE into shell variables that are not exported, and the exported names are
+# unset: codex, agy and ollama are tool-using agents reading untrusted text, and none of them needs
+# another seat's key (#165, fresh-eyes). The melious key reaches run_melious alone; the ollama key
+# reaches ollama_via_api on curl's stdin and the ollama CLI through ollama_cli below.
+MELIOUS_KEY_VALUE="${MELIOUS_API_KEY:-}"
+export -n MELIOUS_KEY_VALUE   # an assignment keeps a name exported that came in exported
+unset MELIOUS_API_KEY
+OLLAMA_KEY_VALUE="${OLLAMA_API_KEY:-}"
+export -n OLLAMA_KEY_VALUE
+unset OLLAMA_API_KEY
 
 # Raw reviewer outputs STREAM to files (never shell-variable-only: a teardown
 # mid-review must leave partials on disk — the clerk procedure depends on them).
@@ -471,7 +527,11 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
+# ollama.hdr and melious.hdr are cleared with the stale files above: earlier versions wrote the API
+# key to them for the request, and a run stopped mid-request could leave one behind. Neither API
+# transport writes a key file any more: both pipe it to curl's stdin.
 
 # A reviewer only counts if its output LOOKS like a review — any non-empty stdout
 # (auth error, rate-limit notice, refusal) must not satisfy the gate. Anchored to
@@ -543,7 +603,8 @@ looks_like_review() {
 # --- reviewer tiers: each returns 0 (printed real findings) / 1 (ran, failed/empty/
 #     non-review output) / 3 (unavailable). Callers fall through on non-zero. A
 #     tier returning 1 sets WHY to a short reason for its FAILED section (see
-#     attempt() below). ------
+#     attempt() below); one returning 3 may set it to name the missing tool, shown
+#     in the summary as "SKIPPED (<WHY>)". ------
 # PREFERRED: OpenAI Codex CLI. Uses ~/.codex/config.toml (model + reasoning effort as
 # the daily-driver default) and ~/.codex/auth.json; `exec -s read-only` requests a read-only
 # sandbox — enforcement is the CLI's, and untested here (R-SANDBOX). The binary may not be
@@ -705,13 +766,29 @@ run_ollama() {
   fi
 }
 
+# What the HTTP API transports (ollama_via_api, run_melious) need before sending anything: curl,
+# and Perl 5.10 for `//` with JSON::PP (core only from 5.14, but a CPAN copy on an older Perl
+# works). When one is missing, WHY names it, and the summary reads "SKIPPED (<what>)" rather than
+# a bare "not available" that sends the owner looking for a missing model or CLI.
+api_tools_ok() {
+  command -v curl >/dev/null 2>&1 || { WHY="curl not found"; return 1; }
+  command -v perl >/dev/null 2>&1 || { WHY="perl not found"; return 1; }
+  perl -e 'require 5.010' 2>/dev/null || { WHY="Perl 5.10 or newer not found"; return 1; }
+  perl -MJSON::PP -e 1 2>/dev/null || { WHY="Perl module JSON::PP not found"; return 1; }
+}
+# The ollama CLI, with OLLAMA_API_KEY (unset for every other seat at startup) handed back to it alone.
+ollama_cli() {
+  # Unquoted on purpose: an assignment value is never word-split, and check_clean.sh reads a
+  # quoted value after a key-like name as a secret written into the file.
+  if [ -n "$OLLAMA_KEY_VALUE" ]; then OLLAMA_API_KEY=$OLLAMA_KEY_VALUE ollama "$@"; else ollama "$@"; fi
+}
 # The CLI transport: `ollama run`, whose stdout carries terminal redraw codes that must be undone.
 # Leaves the clean review in ollama.filtered. Returns 3 (unavailable) or 1 (failed, WHY set).
 ollama_via_cli() {
   command -v ollama >/dev/null 2>&1 || return 3
   # A model is named and the CLI is present, so a failing listing is an attempted tier
   # that failed (daemon down, broken install) — keep its error for the FAILED section.
-  ollama list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
+  ollama_cli list >/dev/null 2>"$RAW_DIR/ollama.err" || { WHY="'ollama list' failed (is the ollama daemon running?)"; return 1; }
   local tmp="$RAW_DIR/ollama.out" rc
   # --hidethinking keeps a reasoning model's trace ("Thinking..." ... "...done thinking.") out
   # of stdout. The trace is not the answer, yet it was judged as one: a real review was
@@ -720,10 +797,10 @@ ollama_via_cli() {
   # quote the closing line. A CLI too old to list the flag runs without it, as before; so does
   # one whose `run --help` fails, or mentions the flag only inside a longer word.
   local help
-  if help="$(ollama run --help 2>&1)" && grep -qE -- '(^|[[:space:]])--hidethinking([[:space:]]|$)' <<<"$help"; then
-    ollama run --hidethinking "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+  if help="$(ollama_cli run --help 2>&1)" && grep -qE -- '(^|[[:space:]])--hidethinking([[:space:]]|$)' <<<"$help"; then
+    ollama_cli run --hidethinking "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   else
-    ollama run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
+    ollama_cli run "$OLLAMA_MODEL" "$PROMPT_TEXTONLY" >"$tmp" </dev/null 2>"$RAW_DIR/ollama.err"; rc=$?
   fi
   { [ $rc -eq 0 ] && [ -s "$tmp" ]; } || { why_cli $rc; return 1; }
   looks_like_review "$(cat "$tmp")" || { WHY="$NOT_A_REVIEW"; return 1; }
@@ -750,25 +827,7 @@ ollama_via_cli() {
   # that matters downstream. A complete fix needs wcwidth/grapheme widths; the HTTP API transport
   # (ollama_via_api, OLLAMA_TRANSPORT=api) has no redraw stream at all.
   local filtered="$RAW_DIR/ollama.filtered" prc
-  perl -0777 -ne '
-    use Encode qw(decode encode FB_CROAK);
-    my $s = eval { decode("UTF-8", $_, FB_CROAK) };
-    if (!defined $s) { print STDERR "ollama output is not valid UTF-8 — refusing to filter it\n"; exit 3; }
-    my $out = "";
-    # Every escape shape is consumed, and anything the loop cannot parse fails the tier:
-    # an unrecognised escape (e.g. ESC[0~) used to end the loop, silently dropping the
-    # rest of the review while the tier still counted (round 2, Codex; pre-existing).
-    while ($s =~ /\G(?:([^\e]+)|\e\[(\d+)D\e\[K|\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]|\e\][^\a\e]*(?:\a|\e\\)|\e[\x20-\x2f]*[\x30-\x7e])/gc) {
-      if (defined $1) { $out .= $1; next; }
-      next unless defined $2;
-      my $n = $2;
-      my $line_len = length($out) - rindex($out, "\n") - 1;
-      $n = $line_len if $n > $line_len;
-      substr($out, length($out) - $n, $n, "") if $n > 0;
-    }
-    if ((pos($s) // 0) < length($s)) { print STDERR "ollama output filter could not parse an escape sequence — refusing a truncated review\n"; exit 4; }
-    print encode("UTF-8", $out);
-  ' "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
+  perl "$PERL_DIR/ollama_filter.pl" "$tmp" >"$filtered" 2>>"$RAW_DIR/ollama.err"; prc=$?
   # The filter's exit status was previously discarded, and the section header was printed BEFORE
   # it ran — so a filter failure produced a header with broken or empty output that still counted
   # as a successful tier. Stage first, check, and only then emit anything.
@@ -782,13 +841,18 @@ ollama_via_cli() {
 # to ollama.tokens for the cost log. STREAMED, one JSON object per line: a non-streamed request for
 # a real review came back "HTTP 502 upstream request failed" after 31s from a cloud session, while
 # the same request streamed returned in 45s — a silent connection gets cut somewhere on the way. A
-# stream that ends without its "done" line is a truncated review and fails the tier. The key, when OLLAMA_API_KEY is set, goes in a header FILE in the
-# owner-only RAW_DIR, never on curl's command line where `ps` would show it; the file is removed
-# right after the call. Errors are written as "Error: HTTP <code>: <message>" so attempt()'s quota
-# classification reads a 429 the same way as the CLI's. Leaves the review in ollama.out.
+# stream that ends without its "done" line is a truncated review and fails the tier. The key, when
+# OLLAMA_API_KEY is set, reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it,
+# and never a file, so a run stopped mid-request leaves no key behind on any shell (it used to be a
+# header file removed after the call, or by an EXIT trap untested on bash 3.2). The key was read
+# into OLLAMA_KEY_VALUE and unset at startup, so no other seat sees it. Errors are written
+# as "Error: HTTP <code>: <message>" so attempt()'s quota classification reads a 429 the same way
+# as the CLI's. On a 200 reply, which may carry review text, no server text goes on an "Error:"
+# line except an error message the server sent: a quote goes on an indented line below, with
+# control bytes collapsed, as in run_melious. Leaves the review in ollama.out.
 ollama_via_api() {
-  command -v curl >/dev/null 2>&1 && perl -MJSON::PP -e 1 2>/dev/null || return 3
-  local url model="$OLLAMA_MODEL" hdr="$RAW_DIR/ollama.hdr" body="$RAW_DIR/ollama.req"
+  api_tools_ok || return 3
+  local url model="$OLLAMA_MODEL" body="$RAW_DIR/ollama.req"
   local resp="$RAW_DIR/ollama.resp" code rc prc
   if is_cloud_ollama_tag "$model"; then
     url="https://ollama.com"; model="${model%:cloud}"
@@ -797,49 +861,137 @@ ollama_via_api() {
     case "$url" in http://*|https://*) ;; *) url="http://$url" ;; esac
     url="${url%/}"
   fi
-  ( umask 077; : >"$hdr"
-    if [ -n "${OLLAMA_API_KEY:-}" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_API_KEY" >"$hdr"; fi )
-  printf '%s' "$PROMPT_TEXTONLY" | perl -MJSON::PP -MEncode=decode -e '
-    local $/; my $p = decode("UTF-8", scalar <STDIN>);
-    print JSON::PP->new->utf8->canonical->encode(
-      { model => $ARGV[0], stream => JSON::PP::true, messages => [ { role => "user", content => $p } ] });
-  ' "$model" >"$body" || { rm -f "$hdr"; WHY="could not build the API request"; return 1; }
-  code="$(curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
-    -H @"$hdr" -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
-    2>"$RAW_DIR/ollama.err")"; rc=$?
-  rm -f "$hdr"
+  printf '%s' "$PROMPT_TEXTONLY" | perl "$PERL_DIR/ollama_request.pl" "$model" >"$body" || { WHY="could not build the API request"; return 1; }
+  # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
+  code="$(if [ -n "$OLLAMA_KEY_VALUE" ]; then printf 'Authorization: Bearer %s\n' "$OLLAMA_KEY_VALUE"; fi \
+    | curl -sS --max-time "${OLLAMA_API_TIMEOUT:-1800}" -o "$resp" -w '%{http_code}' \
+      -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url/api/chat" \
+      2>"$RAW_DIR/ollama.err")"; rc=$?
   if [ $rc -ne 0 ]; then
     printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/ollama.err"
     WHY="curl exit $rc"; return 1
   fi
-  perl -MJSON::PP -e '
-    my ($file, $code, $tok) = @ARGV;
-    open my $f, "<", $file or do { print STDERR "Error: HTTP $code: no response body\n"; exit 3 };
-    my $json = JSON::PP->new->utf8;
-    my ($c, $done, $n) = ("", undef, 0);
-    while (my $line = <$f>) {
-      next unless $line =~ /\S/;
-      my $j = eval { $json->decode($line) };
-      if (ref $j ne "HASH") { chomp $line; print STDERR "Error: HTTP $code: response is not JSON: ", substr($line, 0, 300), "\n"; exit 3 }
-      if (defined $j->{error}) {
-        my $e = $j->{error}; $e = JSON::PP->new->encode($e) if ref $e;
-        print STDERR "Error: HTTP $code: $e\n"; exit 2;
-      }
-      $n++;
-      $c .= $j->{message}{content} // "" if ref $j->{message} eq "HASH";
-      $done = $j if $j->{done};
-    }
-    if ($code ne "200") { print STDERR "Error: HTTP $code: request failed\n"; exit 2 }
-    if (!$done) { print STDERR "Error: HTTP $code: the stream ended without its final line after $n chunks — a truncated review\n"; exit 4 }
-    binmode STDOUT, ":encoding(UTF-8)";
-    print $c; print "\n" if length $c && $c !~ /\n\z/;
-    if (defined $done->{eval_count} && open my $t, ">", $tok) {
-      print $t (($done->{prompt_eval_count} // 0) + $done->{eval_count}), "\n";
-    }
-  ' "$resp" "$code" "$RAW_DIR/ollama.tokens" >"$RAW_DIR/ollama.out" 2>>"$RAW_DIR/ollama.err"; prc=$?
-  [ $prc -eq 0 ] || { WHY="HTTP $code"; return 1; }
-  [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP 200 but no review text"; return 1; }
+  perl "$PERL_DIR/ollama_stream.pl" "$resp" "$code" "$RAW_DIR/ollama.tokens" >"$RAW_DIR/ollama.out" 2>>"$RAW_DIR/ollama.err"; prc=$?
+  # As in run_melious: the summary line names the failure, not just the status.
+  case $prc in
+    0) ;;
+    1) WHY="reply reader failed (HTTP $code)"; return 1 ;;
+    3) WHY="a stream line that is not JSON (HTTP $code)"; return 1 ;;
+    4) WHY="truncated review (HTTP $code)"; return 1 ;;
+    6) WHY="error mid-stream (HTTP $code)"; return 1 ;;
+    7) WHY="not a stream (HTTP $code)"; return 1 ;;
+    8) WHY="empty reply (HTTP $code)"; return 1 ;;
+    *) WHY="HTTP $code"; return 1 ;;
+  esac
+  [ -s "$RAW_DIR/ollama.out" ] || { WHY="HTTP $code but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/ollama.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
+}
+# FALLBACK for the ollama seat (2026-10-05): Melious, an OpenAI-compatible hosted API serving
+# open-weight models. It runs only when MELIOUS_MODEL names a model, and then only when the ollama
+# seat did not count, or as --seat melious (dispatch below). Text only, sent PROMPT_TEXTONLY like
+# ollama. POST /v1/chat/completions, STREAMED for the same reason as ollama_via_api: each line is
+# "data: <JSON chunk>", ending "data: [DONE]". A stream with neither a finish_reason nor [DONE] is a
+# truncated review; only finish_reason "stop" is a finished one (length, a filter, an error or a
+# tool call left it incomplete). A 200 reply that is one JSON object and no stream (the server
+# ignored stream:true) is reported as that. max_tokens is MELIOUS_MAX_TOKENS (96000: 48000 ran out
+# on a 27 KB diff, #165), and the request may take MELIOUS_API_TIMEOUT (3600 s: one review took
+# 1624 s). A reasoning model's trace is not the answer (see ollama_via_cli's --hidethinking):
+# Melious sends it as reasoning_content, apart from content, and that field is left out. Think
+# blocks inlined in content are cut too.
+# The key comes from MELIOUS_API_KEY (read once at startup, never exported to the other seats), else
+# from the one MELIOUS_API_KEY= line of MELIOUS_ENV_FILE, which is parsed and never sourced. It
+# reaches curl on its stdin (`-H @-`): never argv, where `ps` would show it, and never a file, so a
+# run stopped mid-request leaves no key behind (final full read). With neither, no Authorization
+# header is sent: in a cloud session the proxy adds the environment's credential. The
+# usage-to-tokens line and the "Error: HTTP <code>:" shape follow ollama_via_api, so attempt()'s
+# quota classification reads a 429 the same way. On a 200 reply, which may carry review text, no
+# server text goes on an "Error:" line except an error message the server sent: the classifier
+# reads those lines, so a quote goes on an indented line below. A non-200 body is the server's
+# own error reply and is quoted on the line itself.
+melious_key() {   # prints the key, or nothing
+  if [ -n "$MELIOUS_KEY_VALUE" ]; then printf '%s' "$MELIOUS_KEY_VALUE"; return; fi
+  local f="${MELIOUS_ENV_FILE:-$HOME/.config/reviewers/melious.env}"
+  [ -r "$f" ] || return 0
+  # First matching line only, `export ` prefix allowed; trailing whitespace (a CRLF ending
+  # included) and one pair of surrounding quotes are dropped. Perl, not sed: BSD sed reads
+  # `\r` in a pattern as the letter r.
+  perl "$PERL_DIR/melious_key.pl" "$f"
+}
+# Reasoning that leaks into the reply (#165, 2026-10-05): the provider can end a reasoning model's
+# thinking at a closing think tag the model writes or quotes, and send the rest of the trace as
+# reply text, 100-290 KB ahead of the review, with no tags at all. Nothing in the reply marks where
+# the trace ends, so the seat asks for a marker line before the final answer and keeps what follows
+# the LAST marker line with findings after it (the model may mention the marker while reasoning,
+# or repeat it after the review; a marker that looks quoted is skipped). Without a usable marker
+# the whole reply is kept, with a warning.
+# The untrimmed reply stays in melious.full either way. Seen live: a 79 KB leaky reply trimmed to
+# its 1.2 KB review.
+# The marker is new on every run (=== FINAL REVIEW <random hex> ===) and never one the artifact
+# holds: a diff about this seat is full of marker text, and twice (#165, rounds 16 and 16a) the
+# model echoed the fixed marker inline while reasoning and never set one on a line of its own.
+melious_marker() {   # prints a marker line the reviewed text does not contain
+  local n="" r m
+  while :; do   # each pass makes the marker longer, so it ends once it outgrows the text
+    r="$(od -An -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"
+    [ -n "$r" ] || r="$$$RANDOM"
+    n="$n$r"
+    m="=== FINAL REVIEW $n ==="
+    case "$PROMPT_TEXTONLY" in *"$m"*) ;; *) break ;; esac
+  done
+  printf '%s' "$m"
+}
+run_melious() {
+  [ -n "${MELIOUS_MODEL:-}" ] || return 3          # must be named explicitly
+  api_tools_ok || return 3
+  local key url="${MELIOUS_BASE_URL:-https://api.melious.ai/v1}" max="${MELIOUS_MAX_TOKENS:-96000}"
+  local body="$RAW_DIR/melious.req" resp="$RAW_DIR/melious.resp" code rc prc
+  case "$max" in
+    ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
+  esac
+  [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
+  url="${url%/}/chat/completions"
+  local mark; mark="$(melious_marker)"
+  printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
+    "$PROMPT_TEXTONLY" "$mark" | perl "$PERL_DIR/melious_request.pl" "$MELIOUS_MODEL" "$max" >"$body" || { WHY="could not build the API request"; return 1; }
+  key="$(melious_key)"
+  # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
+  code="$(if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key"; fi \
+    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-3600}" -o "$resp" -w '%{http_code}' \
+      -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url" \
+      2>"$RAW_DIR/melious.err")"; rc=$?
+  key=""
+  if [ $rc -ne 0 ]; then
+    if [ -s "$resp" ]; then
+      # Part of a reply came in, then the connection broke (a reset after 38 minutes of a runaway
+      # reply, #165): the host was reachable, so the network policy is not the cause.
+      printf 'Error: the reply from %s broke off (curl exit %s); the part that came is in melious.resp\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
+      WHY="curl exit $rc, reply cut off"
+    else
+      printf 'Error: could not reach %s (curl exit %s) — is the host allowed by the network policy?\n' "$url" "$rc" >>"$RAW_DIR/melious.err"
+      WHY="curl exit $rc"
+    fi
+    return 1
+  fi
+  perl "$PERL_DIR/melious_stream.pl" "$resp" "$code" "$RAW_DIR/melious.tokens" "$mark" "$RAW_DIR/melious.full" >"$RAW_DIR/melious.out" 2>>"$RAW_DIR/melious.err"; prc=$?
+  # The summary line names the failure, not just the status: a mid-stream error or a non-stream
+  # reply comes with HTTP 200, and "FAILED (HTTP 200)" sent the reader to the quoted stderr. Exit 2
+  # (an error status) and anything unexpected keep the bare "HTTP <code>".
+  case $prc in
+    0) ;;
+    1) WHY="reply reader failed (HTTP $code)"; return 1 ;;
+    3) WHY="a stream chunk that is not JSON (HTTP $code)"; return 1 ;;
+    4) WHY="truncated review (HTTP $code)"; return 1 ;;
+    5) WHY="HTTP $code but no review text"; return 1 ;;
+    6) WHY="error mid-stream (HTTP $code)"; return 1 ;;
+    7) WHY="not a stream (HTTP $code)"; return 1 ;;
+    8) WHY="empty reply (HTTP $code)"; return 1 ;;
+    9) WHY="error reply, not a stream (HTTP $code)"; return 1 ;;
+    *) WHY="HTTP $code"; return 1 ;;
+  esac
+  [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP $code but no review text"; return 1; }
+  looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
+  printf '## Independent review — melious (%s, HTTP API)\n\n' "$MELIOUS_MODEL"
+  cat "$RAW_DIR/melious.out"
 }
 
 # --- dispatch. DEFAULT STANDARD PAIR = Codex + ollama-cloud, both run AT ONCE,
@@ -861,7 +1013,7 @@ NOT_A_REVIEW="output is not a review"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
-# (round 2, kimi).
+# (round 2, ollama).
 QUOTA_RE='(^|[^0-9])429([^0-9]|$)|too many requests|usage limit|rate[ -]?limit|insufficient[ _](quota|credits)|exceeded your( current)? quota'
 why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
   if [ "$1" -ne 0 ]; then WHY="exit $1"; else WHY="exit 0 but no output"; fi
@@ -874,26 +1026,10 @@ why_cli() {   # WHY for a CLI that exited $1 with no usable stdout
 # NOT emulated (run_ollama's filter does that for the review body), so a quoted
 # redrawn line may keep fragments. Decoding substitutes U+FFFD for bad bytes rather
 # than failing: `tail -c` cuts on a byte, often inside a 3-byte spinner glyph, and a
-# strict or -C decode then kills perl and loses the quote (round 2, Fable).
+# strict or -C decode then kills perl and loses the quote (round 2, fresh-eyes).
 readable_tail() {
   [ -s "$1" ] || return 0
-  tail -c 65536 "$1" | perl -0777 -MEncode=decode,encode -ne '
-    $_ = decode("UTF-8", $_);                       # bad bytes become U+FFFD
-    s/\e\[[0-9;?]*G|\r/\n/g;                        # cursor-to-column / CR: a redraw
-    s/\e\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]//g;   # any other CSI (ECMA-48 grammar)
-    s/\e\][^\a\e]*(?:\a|\e\\)?//g;                  # OSC
-    s/\e[\x20-\x2f]*[\x30-\x7e]?//g;                # any other ESC sequence
-    s/[\x00-\x08\x0b-\x1f\x7f]//g;                  # remaining control characters
-    s/[\x{2800}-\x{28FF}]//g;                       # braille spinner frames
-    my (@l, $prev);
-    for (split /\n/) {
-      s/\s+$//;
-      next if $_ eq "" or (defined $prev and $_ eq $prev);
-      push @l, $_; $prev = $_;
-    }
-    splice(@l, 0, @l - 8) if @l > 8;
-    print encode("UTF-8", "$_\n") for @l;
-  ' 2>/dev/null
+  tail -c 65536 "$1" | perl "$PERL_DIR/readable_tail.pl" 2>/dev/null
 }
 # A tier runs in two steps so the default pair can run at once: run_tier (in the background, or
 # not) stages the tier's stdout section and its outcome in RAW_DIR, then report_tier (always in
@@ -921,11 +1057,12 @@ report_tier() {
   local tokens=""
   [ "$stem" = codex ] && tokens="$(codex_tokens)"
   [ "$stem" = ollama ] && [ -s "$RAW_DIR/ollama.tokens" ] && tokens="$(tr -dc '0-9' <"$RAW_DIR/ollama.tokens")"
+  [ "$stem" = melious ] && [ -s "$RAW_DIR/melious.tokens" ] && tokens="$(tr -dc '0-9' <"$RAW_DIR/melious.tokens")"
   [ $rc -ne 3 ] && [ -n "$secs" ] && TIMINGS="${TIMINGS:+$TIMINGS, }$label ${secs}s${tokens:+ ($tokens tokens)}"
   if [ $rc -eq 0 ]; then
     OK=1; SUCCESS_COUNT=$((SUCCESS_COUNT+1)); outcome="OK"
   elif [ $rc -eq 3 ]; then
-    outcome="SKIPPED (not available)"
+    outcome="SKIPPED (${WHY:-not available})"   # WHY: a missing tool, when the tier named one
   elif [ $TIER_PRINTED -eq 1 ]; then
     outcome="NOT COUNTED ($WHY)"          # its review is above; policy keeps it off the gate
   else
@@ -960,6 +1097,7 @@ report_tier() {
     case "$stem" in
       codex)  model="${CODEX_MODEL:-}" ;;
       ollama) model="${OLLAMA_MODEL:-}" ;;
+      melious) model="${MELIOUS_MODEL:-}" ;;
       agy)    model="${AGY_MODEL:-}" ;;
     esac
     printf '## Independent review — %s — FAILED\n\n' "$label"
@@ -1001,6 +1139,7 @@ log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
     codex)  model="${CODEX_MODEL:-$(grep -E '^model[[:space:]]*=' "$HOME/.codex/config.toml" 2>/dev/null | tr -d ' "' | sed 's/model=//')}"
             effort="${CODEX_EFFORT_EFFECTIVE:-config}" ;;
     ollama) model="${OLLAMA_MODEL:-}" ;;
+    melious) model="${MELIOUS_MODEL:-}" ;;
     agy)    model="${AGY_MODEL:-default}" ;;
   esac
   "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
@@ -1056,6 +1195,10 @@ if [ "$ROUND" = 1 ] && [ "${REVIEW_LOG:-}" != off ] && [ -x "$SCRIPT_DIR/review_
   "$SCRIPT_DIR/review_log.sh" new-gate >/dev/null 2>&1 || true
 fi
 OK=0 ; SUCCESS_COUNT=0
+# The Melious fallback stands in for the ollama seat whenever that seat did not count: its staged
+# status (run_tier) reads anything but 0 — skipped, failed, or a local sanity pass.
+ollama_counted() { [ "$(head -n 1 "$RAW_DIR/ollama.status" 2>/dev/null)" = 0 ]; }
+melious_counted() { [ "$(head -n 1 "$RAW_DIR/melious.status" 2>/dev/null)" = 0 ]; }   # SECOND_SEAT=melious
 if [ "$LOCAL_ONLY" = "1" ]; then
   # nothing leaves the machine: codex/agy/paste are all external. Local ollama only,
   # and the result is an explicitly DEGRADED gate (owner's privacy trade).
@@ -1065,11 +1208,18 @@ elif [ -n "$SEAT" ]; then
   case "$SEAT" in
     codex)  attempt codex codex run_codex ;;
     ollama) attempt "$OLLAMA_LABEL" ollama run_ollama ;;
+    melious) attempt melious melious run_melious ;;
     agy)    attempt antigravity agy run_agy ;;
   esac
 elif [ "$FIRST_SUCCESS" = "1" ]; then
   attempt codex codex run_codex                                                  # 1. OpenAI Codex CLI
-  [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                     # 2. ollama-cloud
+  if [ "$SECOND_SEAT" = melious ]; then
+    [ $OK -eq 1 ] || attempt melious melious run_melious                         # 2. Melious, by choice
+    [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                   # 2b. its fallback
+  else
+    [ $OK -eq 1 ] || attempt "$OLLAMA_LABEL" ollama run_ollama                   # 2. ollama-cloud
+    [ $OK -eq 1 ] || { [ -n "${MELIOUS_MODEL:-}" ] && attempt melious melious run_melious; }  # 2b. its fallback
+  fi
   [ $OK -eq 1 ] || { [ "$WITH_ANTIGRAVITY" = "1" ] && attempt antigravity agy run_agy; }   # 3. agy, opt-in only
 else
   # All attempted tiers at once: they share nothing but RAW_DIR, where each writes its own files.
@@ -1096,15 +1246,44 @@ else
     return 0
   }
   trap 'stop_tiers; exit 130' INT TERM
+  MELIOUS_RAN=0 ; OLLAMA_RAN=0
   run_tier codex run_codex &                                                     # 1. OpenAI Codex CLI
-  run_tier ollama run_ollama &                                                   # 2. ollama cloud/local
+  if [ "$SECOND_SEAT" = melious ]; then
+    run_tier melious run_melious &                                               # 2. Melious, by choice
+    melious_pid=$!
+  else
+    run_tier ollama run_ollama &                                                 # 2. ollama cloud/local
+    ollama_pid=$! ; OLLAMA_RAN=1
+  fi
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then
     run_tier agy run_agy &                                                       # 3. agy, opt-in only
+  fi
+  # 2b. Melious, for the ollama seat. With no ollama model at all the seat is known to be out from
+  # the start, so the fallback runs with the pair; otherwise it waits for ollama ALONE (not codex
+  # or agy) and starts the moment ollama did not count. Always a job, so stop_tiers reaches it.
+  # With SECOND_SEAT=melious the roles swap: ollama waits for Melious alone, and runs only when
+  # Melious did not count.
+  if [ "$SECOND_SEAT" = melious ]; then
+    wait "$melious_pid"
+    if ! melious_counted; then run_tier ollama run_ollama & OLLAMA_RAN=1; fi
+  elif [ -n "${MELIOUS_MODEL:-}" ]; then
+    if [ -z "${OLLAMA_MODEL:-}" ]; then
+      run_tier melious run_melious & MELIOUS_RAN=1
+    else
+      wait "$ollama_pid"
+      if ! ollama_counted; then run_tier melious run_melious & MELIOUS_RAN=1; fi
+    fi
   fi
   wait
   trap - INT TERM
   report_tier codex codex
-  report_tier "$OLLAMA_LABEL" ollama
+  if [ "$SECOND_SEAT" = melious ]; then
+    report_tier melious melious
+    if [ $OLLAMA_RAN -eq 1 ]; then report_tier "$OLLAMA_LABEL" ollama; fi
+  else
+    report_tier "$OLLAMA_LABEL" ollama
+    if [ $MELIOUS_RAN -eq 1 ]; then report_tier melious melious; fi
+  fi
   if [ "$WITH_ANTIGRAVITY" = "1" ]; then report_tier antigravity agy; fi
 fi
 report_round
@@ -1122,6 +1301,8 @@ cat >&2 <<'EOF'
 #   codex           # OpenAI Codex CLI (bundled in the ChatGPT VS Code extension) — preferred;
 #                   # already reads ~/.codex config (model + reasoning effort) + auth.json
 #   ollama          # local daemon + `ollama signin` — your first ':cloud' tag auto-serves as the default
+#   MELIOUS_MODEL=  # fallback for the ollama seat: Melious's OpenAI-compatible API (api.melious.ai)
+#   SECOND_SEAT=melious  # with MELIOUS_MODEL: Melious holds the seat, ollama is its fallback
 # Antigravity is opt-in only (owner's credits are scarce) — add --with-antigravity
 # (or WITH_ANTIGRAVITY=1) to spend one this run:
 #   brew install antigravity-cli    # `agy` — Gemini-family models, free Antigravity login

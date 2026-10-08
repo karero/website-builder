@@ -16,95 +16,175 @@ name: clean
 # independent-review's own checks, in skills/independent-review/scripts/: whether a reviewer that
 # fails is reported rather than hidden (test_failed_tier_report.sh), which reviewer output counts
 # as a review (test_looks_like_review.sh), whether SKILL.md's prompt matches the script's
-# (check_prompt_sync.sh), and whether the claims sweep sees the sentences a per-line grep
-# misses (test_sweep_claims.sh). It also runs the check that neither installer clobbers a skill
+# (check_prompt_sync.sh), whether its Perl programs need no newer Perl than they declare
+# (check_perl_minimum.sh, with Perl::MinimumVersion from apt), and whether the claims sweep
+# sees the sentences a per-line grep misses (test_sweep_claims.sh). It also runs the check that neither installer clobbers a skill
 # someone pinned to another worktree of this repo (scripts/test_install_pin.sh), and the check
 # that the handoff zip's leak guard still fires on a leak too big for a pipe buffer
 # (scripts/test_package_leak.sh), and that the site template's pre-push hook gates, skips
 # and blocks the right pushes and is wired only where the site is the root of its repo,
-# by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), and that the private-name check
-# runs in a linked worktree too (scripts/test_clean_denylist.sh). And it runs the
+# by a line that holds no shell syntax (scripts/test_pre_push_hook.sh), that the site's verify
+# script reinstalls only on a changed package.json or lockfile and stops at the first red step
+# (scripts/test_verify.sh), and that the private-name check
+# runs in a linked worktree too and that CI's masked mode prints no scanned text
+# (scripts/test_clean_denylist.sh), and that the site's Claude Code
+# sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), and
+# that every text file checks out LF even where Git converts to CRLF
+# (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
+# for the shell scripts, the site hook and the Makefile. And it runs the
 # search-console-insights unit and end-to-end tests (`make test`), which need `requests`.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Why these triggers. Every push to a pull request branch used to start this workflow
+# twice, once for `push` and once for `pull_request`, and runs on old heads queued behind
+# new ones (on #165 they sat queued over an hour, then were cancelled before any step ran).
+# - `push` covers only main. A pull request branch runs through `pull_request` alone, which
+#   tests the branch merged into main. The two events carry different refs, so the
+#   concurrency group below could never have merged their runs into one.
+# - A pull request with merge conflicts gets no `pull_request` run until they are resolved,
+#   and a branch with no pull request gets none at all: run either by hand
+#   (workflow_dispatch).
+# - On a pull request or branch, a newer run cancels the one it supersedes. A re-run of an
+#   old run joins that same group, so it can cancel a newer run still going there.
+# - On main every commit gets its own group, so each merge keeps a result of its own.
+# - Groups are shared by every workflow in the repo; the workflow name in the group keeps
+#   clean and template-tests from cancelling each other.
+# template-tests.yml uses the same events and group expression, and points here. It runs
+# on every change too, and skips its test jobs when no tested path changed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   no-pii-secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      # The private-name list is gitignored, so CI has none of its own: it comes from the
+      # CLEAN_DENYLIST repo secret (`make push-denylist` sets it from the local list). GitHub
+      # gives no secrets to a pull request from a fork or from Dependabot, and a fork of this
+      # repo has a secret of its own or none; those skip the name check with a warning.
+      # Anywhere else a missing secret, or one that lists no names, fails the job: deleting
+      # it must not bring back the silent skip. Only this step sees the secret; the file it
+      # writes is gitignored and read by the next step. The secret holds the list
+      # base64-encoded on one line, after a marker line: the runner blanks every line of a
+      # secret wherever it occurs in the log, so a plain list would turn an entry inside an
+      # ordinary word into "cre***ials" and give it away; one base64 line never occurs in
+      # the log. The marker tells our list from text that merely decodes as base64.
+      - name: Write the private-name list from the CLEAN_DENYLIST secret
+        env:
+          CLEAN_DENYLIST: ${{ secrets.CLEAN_DENYLIST }}
+          NO_SECRETS: ${{ github.event.repository.fork || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]')) }}
+        run: |
+          set -o pipefail
+          if [ -n "$CLEAN_DENYLIST" ]; then
+            bad=""; list=""
+            list="$(printf '%s' "$CLEAN_DENYLIST" | base64 --decode 2>/dev/null)" || bad=1
+            case "$list" in "# CLEAN_DENYLIST v1" | "# CLEAN_DENYLIST v1"$'\n'*) ;; *) bad=1 ;; esac
+            if [ -n "$bad" ]; then
+              echo "::error::The CLEAN_DENYLIST secret was not set by 'make push-denylist' (one base64 line, with its marker): run it again"
+              exit 1
+            fi
+            printf '%s\n' "$list" | tr -d '\r' > scripts/.clean-denylist
+            if ! grep -qvE '^[[:space:]]*(#|$)' scripts/.clean-denylist; then
+              echo "::error::The CLEAN_DENYLIST secret lists no names: run 'make push-denylist' in a checkout whose scripts/.clean-denylist does"
+              exit 1
+            fi
+          elif [ "$NO_SECRETS" = true ]; then
+            echo "::warning::No CLEAN_DENYLIST secret in a fork, or on a pull request from a fork or Dependabot: private names were not checked"
+          else
+            echo "::error::The CLEAN_DENYLIST secret is missing or empty: run 'make push-denylist' in a checkout that has scripts/.clean-denylist"
+            exit 1
+          fi
+      # This repo's CI logs are public, so no scanned text is printed, only counts.
       - name: Scan skills for names / contact info / credentials
+        env:
+          CLEAN_MASK_NAMES: "1"
         run: bash scripts/check_clean.sh
   cdpath-safe:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check every script locates itself CDPATH-safely
         run: bash scripts/check_cdpath_safe.sh
   pipefail-pipes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check no pipefail script pipes into an early-exit consumer
         run: bash scripts/check_pipefail_pipes.sh
   model-defaults:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check independent-review stays model-agnostic
         run: bash scripts/check_model_agnostic.sh
   template-coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check every astro template file is accounted for (TEMPLATE_TRACKED/SITE_OWNED/SITE_SOURCE)
         run: bash scripts/check_template_coverage.sh
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check per-skill size budgets (description limit + line budget)
         run: bash scripts/check_skill_budgets.sh
   review-reporting:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check a failed reviewer is reported, not hidden behind exit 0
         run: bash skills/independent-review/scripts/test_failed_tier_report.sh
   review-validator:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check which reviewer output independent-review counts as a review
         run: bash skills/independent-review/scripts/test_looks_like_review.sh
       - name: Check SKILL.md's reviewer prompt matches the script's
         run: bash skills/independent-review/scripts/check_prompt_sync.sh
+  perl-minimum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Perl::MinimumVersion
+        run: sudo apt-get update -q && sudo apt-get install -y -q libperl-minimumversion-perl
+      - name: Check independent-review's Perl programs need no newer Perl than they declare
+        env:
+          REQUIRE_PERL_MINIMUM: "1"
+        run: bash skills/independent-review/scripts/check_perl_minimum.sh
   claims-sweep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the claims sweep sees the sentences a per-line grep misses
         run: bash skills/independent-review/scripts/test_sweep_claims.sh
   install-pin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the installers keep a skill pinned to another worktree
         run: bash scripts/test_install_pin.sh
   package-leak:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the handoff zip's leak guard catches a large leak
         run: bash scripts/test_package_leak.sh
   pre-push-hook:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # The test's "prepare" cases need node and npm, and without them it skips those cases
       # and still exits 0. A zip recipient gets that skip; this job must not, or it would stay
       # green and test less. So it brings node, and stops if either is missing.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
       - name: Check the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax
@@ -115,18 +195,95 @@ jobs:
   clean-denylist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Check the private-name check also runs in a linked worktree
+      - uses: actions/checkout@v7
+      - name: Check the private-name check runs in a linked worktree, CI's masked mode prints no scanned text, and the secret step and push-denylist refuse an empty list
         run: bash scripts/test_clean_denylist.sh
-  search-console-insights-tests:
+  git-stand-hook:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      # Without node the test skips and exits 0; this job must not stay green untested.
+      - uses: actions/setup-node@v7
         with:
-          python-version: "3.12"
-      - name: Install the one runtime dependency the tests import
-        run: python -m pip install requests
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: Check the site's Claude Code sync hook reports news, failures and retries correctly
+        run: |
+          command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
+          bash scripts/test_git_stand_hook.sh
+  lf-checkout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check every text file checks out LF, even where Git converts to CRLF
+        run: bash scripts/check_lf_checkout.sh
+  # lf-checkout simulates a Windows checkout on Ubuntu; this is the real one. Git for Windows
+  # converts to CRLF by default, and the root .gitattributes must keep this repo's scripts, the
+  # site hook and the Makefile LF anyway. Node reads the bytes: a CR handed to grep through Git
+  # Bash flagged LF files as CRLF (template-tests.yml's verify-windows). A canary checked out by
+  # the same action must come out CRLF first, or the action never converted here and the job
+  # would pass whatever the rule says.
+  lf-checkout-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Convert to CRLF on checkout, as Git for Windows does by default
+        run: git config --global core.autocrlf true
+      - uses: actions/checkout@v7
+      # a7de280 is main just before #168: no .gitattributes anywhere, so nothing keeps it LF.
+      - name: Canary — the last commit without the rule, checked out by the same action
+        uses: actions/checkout@v7
+        with:
+          ref: a7de28013ced0df26a57614600ad4d4d9d288da4
+          path: canary
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: skills/new-website/templates/astro/.nvmrc
+      - name: The canary's script came out CRLF, so this checkout converts
+        shell: bash
+        run: |
+          node -e '
+            if (!require("fs").readFileSync(process.argv[1]).includes(13)) {
+              console.log("::error::the canary came out LF: actions/checkout did not convert here, so the check below would prove nothing");
+              process.exit(1);
+            }
+            console.log("canary: a script with no .gitattributes rule came out CRLF");
+          ' canary/scripts/check_clean.sh
+      - name: This repo's shell scripts, the site hook and the Makefile checked out LF
+        shell: bash
+        run: |
+          git ls-files -z -- '*.sh' 'skills/new-website/templates/astro/scripts/hooks/*' Makefile \
+            >"$RUNNER_TEMP/lf-files"
+          node -e '
+            const fs = require("fs");
+            const files = fs.readFileSync(process.argv[1], "utf8").split("\0").filter(Boolean);
+            const sh = files.filter((f) => f.endsWith(".sh"));
+            const hook = files.some((f) => f.endsWith("/hooks/pre-push"));
+            const make = files.includes("Makefile");
+            // An empty or partial list would pass with nothing checked.
+            if (!sh.length || !hook || !make) {
+              console.log(`::error::too little to check: ${sh.length} .sh file(s), hook ${hook ? "found" : "missing"}, Makefile ${make ? "found" : "missing"}`);
+              process.exit(1);
+            }
+            const bad = files.filter((f) => fs.readFileSync(f).includes(13));
+            if (bad.length) { console.log("::error::checked out with CRLF line endings: " + bad.join(" ")); process.exit(1); }
+            console.log("line endings: LF in all " + sh.length + " .sh files, the site hook and the Makefile");
+          ' "$RUNNER_TEMP/lf-files"
+  search-console-insights-tests:
+    # 3.9 is macOS's stock python3, which SKILL.md's venv setup uses; 3.12-only syntax
+    # (e.g. reusing a quote inside an f-string) once broke the report there.
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      # The full requirements, not only what the tests import: the 3.9 leg then fails
+      # when a floor in requirements.txt stops installing on macOS's stock python3.
+      - name: Install the skill's requirements (what SKILL.md's venv setup installs)
+        run: python -m pip install -r skills/search-console-insights/requirements.txt
       - name: Run the tracker + AI-check tests (stub servers, no real API calls)
         run: make test PYTHON=python
   macos-stock-tools:
@@ -141,7 +298,7 @@ jobs:
       LC_ALL: en_US.UTF-8
       LANG: en_US.UTF-8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Put macOS's own bash, awk, sed, tr and grep first on PATH
         run: |
           stock="$RUNNER_TEMP/stock-tools"; mkdir -p "$stock"

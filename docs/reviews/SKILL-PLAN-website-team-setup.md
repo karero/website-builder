@@ -96,6 +96,9 @@ Claude Code following `AGENTS.md`.
 - **A16 — Owner writes in another language.** The owner's language is not English. →
   The assistant translates `AGENTS.md` in-session, like `PUBLISHING.md`, keeping every
   rule (the checklist commands stay verbatim). `CLAUDE.md` is one line and stays.
+  *Superseded by #166 (2026-10-06): `AGENTS.md` stays English for every owner, and its
+  Language rule makes the assistant reply in the owner's language; only `PUBLISHING.md`
+  and `TEAM-GUIDE.md` are translated.*
 - **A17 — Single owner, no team yet, pushes directly.** The owner follows
   `PUBLISHING.md` and pushes to `main` themselves. → Allowed: the pull-request rule in
   `AGENTS.md` §2 binds the assistant from day one and everyone once

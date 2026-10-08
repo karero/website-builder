@@ -179,8 +179,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
-> `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`, and
-> `.nvmrc`) are **frozen one-time copies**, not vendored skills —
+> `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
+> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `.claude/settings.json`, and
+> `.claude/hooks/git-stand.mjs`) are **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
@@ -267,7 +268,7 @@ skills/            the suite skills (canonical)
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
                    consistency audit, trap-test → wedge → guard-tests method)
-  astro-i18n-setup, keystatic-setup   (opt-in setup skills — see below)
+  astro-i18n-setup, keystatic-setup, website-contact-form   (opt-in setup skills — see below)
 scripts/
   install.sh       symlink skills/* into ~/.claude/skills/ (Claude Code)
   install-codex.sh symlink skills/* into ~/.agents/skills/ (OpenAI Codex)
@@ -279,9 +280,14 @@ scripts/
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
+  list_shell_scripts.sh     every shell script in the suite, found by shebang (the two guards above use it)
+  test_clean_denylist.sh    the private-name check also runs in a linked worktree, which has no copy of the name list, and CI's masked mode prints no scanned text (make check)
   test_install_pin.sh       installers keep a pinned skill instead of clobbering it (make check)
+  test_git_stand_hook.sh    the site template's Claude Code sync hook reports news, failures and retries correctly (make check)
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
+  test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
+  check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)
 docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
@@ -296,8 +302,8 @@ docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do n
 
 ### Opt-in and on-demand setup skills
 
-Three skills are **not run** by the default build — the orchestrator copies the first two
-into a site only when the decision interview calls for them; the third travels with every
+Four skills are **not run** by the default build — the orchestrator copies the first three
+into a site only when the decision interview calls for them; the fourth travels with every
 site (like `website-motion`) but runs only when a team forms:
 
 - **`astro-i18n-setup`** — turnkey multi-language: Astro i18n routing (clean default locale
@@ -312,6 +318,14 @@ site (like `website-motion`) but runs only when a team forms:
   documents the optional upgrade to **GitHub mode** for in-browser editing (commits straight
   to the repo, no dev server). Run at scaffold time when interview Q3 = *a non-technical
   person edits content*; don't install speculatively.
+- **`website-contact-form`** — our suggestion for a **contact form**: the visitor writes a
+  message, presses a button, and their own email program opens with the message
+  to the owner, ready to send. No server, no account, no setting and no company in between,
+  so it works on any host and the privacy page needs nothing new. Adds a form component
+  with its texts in English and German, one small script of the site's own (so a strict
+  Content-Security-Policy holds) and a test of the link the button opens. The owner's
+  address always shows under the form, for visitors without a mail program set up. Run
+  when interview Q2 = *a contact form*, or later when the owner asks for one.
 - **`website-team-setup`** — turns a one-person repo into one several people and several
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
@@ -322,7 +336,8 @@ site (like `website-motion`) but runs only when a team forms:
   first, pull request instead of a push, never invent facts, the new-page checklist) — this
   skill adds only what a team needs. Run once, when the second person joins.
 
-A site with one language, a developer-edited repo and a single owner runs none of them.
+A site with one language, a developer-edited repo, no contact form and a single owner runs
+none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
@@ -362,11 +377,24 @@ make check       # PII/secrets + model-agnostic + template coverage + per-skill 
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
-catches (any real email, credential/token formats, secret-looking assignments). It runs in
-CI on every push/PR (`.github/workflows/clean.yml`) and is a prerequisite of `make package`,
-so a personalized build cannot ship. A genuine false positive is fixed by tightening a
-pattern in the script — never by loosening it. The same `make check` (and the same CI
-workflow) also keeps `independent-review` free of concrete model names
+catches (any real email, credential/token formats, secret-looking assignments). The
+denylist is a gitignored local file. CI gets it from the `CLEAN_DENYLIST` repository
+secret, which `make push-denylist` sets from the local list, base64-encoded. Run it after
+every change to the list: once you have pushed from a checkout, `make check` there fails
+until the names are pushed again (it cannot see a push of another copy of the list from
+elsewhere). The logs are public, so CI prints no scanned text, only which checks failed
+and how many lines they found; run the check locally to see them. A pull request from a fork or from Dependabot gets no
+secrets, so it skips the name check with a warning, as does a fork of the repo;
+anywhere else a missing secret, or one with no names, fails the job.
+The script runs in CI on every pull request and every push to `main`
+(`.github/workflows/clean.yml`) and is a prerequisite of `make package`: in a checkout
+that has the list, a listed name in a file the script scans stops the build, unless the
+file is gitignored or the match is this repo's own `karero/website-builder` reference. The name check also covers `scripts/`,
+since those files ship in the zip; the generic catches leave `scripts/` out, because its
+files define their patterns. The name check skips only `LICENSE`, which carries the
+owner's name. A genuine false positive is fixed by tightening a pattern in the script —
+never by loosening it. The same `make check` (and the same CI workflow) also keeps
+`independent-review` free of concrete model names outside its setup guide
 (`scripts/check_model_agnostic.sh`) and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
 

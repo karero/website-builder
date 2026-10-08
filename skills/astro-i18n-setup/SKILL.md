@@ -183,6 +183,8 @@ The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `references/heavy-path-code.md` §3 replaces it) — the
 `alternates` prop and `altHref` helper then sit unused; remove them too or leave
 them, but never feed both emission paths on one page.
+The starter's `Astro.locals.lang = lang;` line becomes `Astro.locals.lang = currentLocale;`
+(in the §3 code), so a contact form on the page speaks the page's language.
 Keep the `ogLocale` line (config.ts's shared `ogLocaleFor` maps `lang → og:locale`);
 optionally add `og:locale:alternate` for the non-current locales. `inLanguage` in the
 WebPage/WebSite schema should use `currentLocale`.
@@ -222,10 +224,11 @@ export const PAGES = ROUTES.flatMap((r) =>
   ),
 ) as readonly string[];
 ```
-Only the PAGES export changes — KEEP the file's other exports (`THEMES`,
-`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`): the tone and i18n specs
-import them, and replacing the whole file with just this snippet breaks the
-suite at compile time.
+Only the PAGES export changes — KEEP the rest of the file (`THEMES`,
+`germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`, and `toneViolations` with the
+tone rules it reads): the tone and i18n specs import
+them, and replacing the whole file with just this snippet breaks the suite at compile
+time.
 With no `locales` overrides this yields the identical set as before — `/`,
 `/privacy`, `/de`, `/de/privacy` (route-major order instead of locale-major; every
 consumer sorts or iterates, so nothing observes the order). A sparse route appears
@@ -290,7 +293,8 @@ manual dist/sitemap-0.xml grep needed).
 Add a `POSITIONING` row per locale path (`'/de/about': { term: '…DE term…' }`); the
 positioning term is translated, so each locale owns its own phrase.
 
-`tests/tone.spec.ts` already branches on `<html lang>`: universal rules (the em-dash ban)
+`tests/tone.spec.ts` already branches on `<html lang>` (through `toneViolations` in
+`tests/_helpers.ts`): universal rules (the em-dash ban)
 always apply, and English-specific rules layer on top for `lang` starting `en`, German-
 specific rules layer on top for `lang` starting `de` — other languages get only the
 universal rules. No change needed.

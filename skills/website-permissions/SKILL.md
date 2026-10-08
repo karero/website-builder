@@ -27,9 +27,15 @@ The `new-website` kit ships a curated `.claude/settings.json`. Copy it into the 
 (this is also scaffold step 3.2 — do it here if it was skipped):
 
 ```bash
-mkdir -p .claude
+mkdir -p .claude/hooks
 cp ~/.claude/skills/new-website/templates/claude/settings.json .claude/settings.json
+cp ~/.claude/skills/new-website/templates/claude/hooks/git-stand.mjs .claude/hooks/
 ```
+
+The settings also register a sync hook (`.claude/hooks/git-stand.mjs`, `AGENTS.md` §1):
+copy the script with them, or every session start reports a missing file. A repo whose
+`.claude/settings.json` already has its own rules: merge the template's `hooks` block in
+instead of overwriting the file.
 
 `.claude/settings.json` is **per-project** and committed, so it travels with the repo
 — the handoff party inherits the same quiet loop. Restart Claude Code (or reload the

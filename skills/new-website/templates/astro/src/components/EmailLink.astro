@@ -2,9 +2,12 @@
 // Crawler-resistant email link. The plaintext address NEVER appears in the HTML
 // source: it is reversed + base64-encoded at build time and reassembled in the
 // browser. No-JS visitors see a "name [at] domain [dot] com" hint that still reads.
+// The hint speaks the site's language (SITE.locale); a page in another language
+// passes its own, e.g. lang="de" on the German Impressum ("[punkt]").
 //
 //   <EmailLink address="hello@example.com" />
 //   <EmailLink address="hello@example.com" subject="Project enquiry" text="Email us" />
+//   <EmailLink address="hello@example.com" subject="Anfrage" lang="de" />
 import { encodeEmail, emailHint } from '../lib/obfuscate';
 import { SITE } from '../config';
 
@@ -12,12 +15,13 @@ interface Props {
   address: string;
   subject?: string;
   text?: string;
+  lang?: string;
   class?: string;
 }
-const { address, subject, text, class: className } = Astro.props;
+const { address, subject, text, lang = SITE.locale, class: className } = Astro.props;
 const data = encodeEmail(address);
 const subj = subject ? encodeURIComponent(subject) : '';
-const label = text ?? emailHint(address, SITE.locale);
+const label = text ?? emailHint(address, lang);
 ---
 <a class:list={['email-link', className]} href="#" data-email={data} data-subject={subj}>{label}</a>
 
@@ -27,7 +31,8 @@ const label = text ?? emailHint(address, SITE.locale);
     try {
       const addr = atob(a.dataset.email!).split('').reverse().join('');
       const q = a.dataset.subject ? `?subject=${a.dataset.subject}` : '';
-      a.href = `mailto:${addr}${q}`;
+      // encodeEmail allows a % in the address, which a mailto: link must escape.
+      a.href = `mailto:${addr.replace(/%/g, '%25')}${q}`;
       if (a.textContent && a.textContent.includes('[at]')) a.textContent = addr;
       a.removeAttribute('data-email');
       a.removeAttribute('data-subject');

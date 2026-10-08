@@ -16,6 +16,7 @@
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "check": "astro check",
+    "verify": "node scripts/verify.mjs",
     "astro": "astro",
     "prepare": "node scripts/wire-hooks.mjs"
   },
@@ -28,7 +29,7 @@
     "@astrojs/check": "^0.9.10",
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.19.1",
     "typescript": "^6.0.3"
   },
   "allowScripts": {
