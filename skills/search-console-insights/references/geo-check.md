@@ -109,8 +109,8 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
 What the history keeps: a failed engine writes its rows, marked failed ("N of M failed"), and the
 trend shows "latest attempt failed" next to the last good numbers. History keeps one row per
 engine, mode, question and settings per day, and never swaps a better row for a worse one. So a
-rerun **on the same day** replaces the failed rows, and a failure that comes **after a good run
-on the same day** is not recorded at all (the run's own "FAILED" line is then the only trace). A
+rerun **on the same day with the same settings** replaces the failed rows, and a failure that
+comes **after a good run on the same day** (same settings) is not recorded at all (the run's own "FAILED" line is then the only trace). A
 rerun on a later day leaves the earlier day's failed row in place. None of this needs editing by hand.
 
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
@@ -324,9 +324,12 @@ may have forgotten: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*
 `*.netlify.app` or `*.github.io` that serves the same site. Cheap check over the saved answers:
 
 ```
-rg -o -N --no-filename -i -P "[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(?![a-z0-9-]|\.[a-z])(/[^ )\"'<>,;]*)?" \
+rg -o -N --no-filename -i -P '[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(?![a-z0-9-]|\.[a-z0-9-])(/[^ )"<>,;]*)?' \
   ~/.config/gsc-insights/geo/answers/<domain>/ | sort | uniq -c
 ```
+
+`-P` needs a ripgrep built with PCRE2; if it says so, drop `-P` and the `(?!…)` part (you then get a
+few false matches such as `foo.github.io.example.com`).
 
 The counts only show how often an address was cited (the same answers repeat it), not how many
 copies exist. It also lists other people's addresses (another business's site on `vercel.app`);
@@ -346,7 +349,7 @@ readable summary next to them, and send the files to the owner.
   send the files to the owner and commit nothing, or commit only a summary you wrote.
 - **The "Also see" link breaks in a copy.** A report page may link to the Google page by a relative
   path (`../../../reports/<domain>/google.html`). In the copy that link does not work; tell the
-  owner, or leave that page out.
+  owner so, rather than letting them find a dead link.
 - **Before moving or deleting a file** another session or a note might point at, search for its
   path first.
 
