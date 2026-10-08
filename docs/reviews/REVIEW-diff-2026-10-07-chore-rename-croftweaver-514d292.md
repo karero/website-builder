@@ -17,6 +17,7 @@ whose private-name check had been rewritten since. That part was redone by hand.
 | 1 | `bf76317` | full, + F1's comment | Melious (glm-5.3, HTTP API, text only) | 128 s, 29k | 0 / 1 / 2 |
 | 2 | `608f85e` | delta since `514d292`, `--verify` | Codex (medium) · Melious (glm-5.3) | 90 s, 29k · 31 s, 7k | 0 / 1 / 1 (same RISK from both) |
 | prose re-gate | `9de3b79` | delta since `608f85e` (two comments) | Codex (medium) | — | 0 / 0 / 0 |
+| extra, owner-requested | `d067172` | full, 34 KB | Antigravity (`agy`, CLI default model unconfirmed, plan mode, no tools) | 399 s | 0 / 0 / 0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -39,3 +40,7 @@ account and the check reported it: caught by `make smoke`, not by a reviewer, fi
 `608f85e`. Checks at the closing head: `make check` (names read), `make test` 191,
 `make smoke` 320 files, `scripts/test_clean_denylist.sh` all pass; four mutations of the
 self-link rule each fail at least one case.
+Antigravity (2026-10-08, the owner asked for it): no findings. Its open questions were settled
+here: the exact two-rule `sed` chain on macOS `/usr/bin/sed` blanks both self-links and keeps
+`..x`; CI's `clean` job ran `scripts/test_clean_denylist.sh` on ubuntu (GNU sed) for this
+branch and passed; `unzip croftweaver.zip -d croftweaver` creates the folder (exit 0).
