@@ -171,8 +171,11 @@ test('mail form — the plain address shows under the form, ready to copy and to
   await expect(direct).toContainText(TEXT[lang].direct);
   const link = direct.getByRole('link');
   await expect(link).toHaveText(TO);
-  // The same subject as the form's, so a blank email starts as the same request.
-  await expect(link).toHaveAttribute('href', `mailto:${TO}?subject=${encodeURIComponent(SUBJECT)}`);
+  // The same address and subject as the form's, so a blank email starts as the same
+  // request. Read as a mail program reads the link, whatever the encoding.
+  const linked = parse((await link.getAttribute('href')) ?? '');
+  expect(linked.address).toBe(TO);
+  expect(linked.params).toEqual({ subject: SUBJECT });
 });
 
 test('mail form — without JavaScript the form stays hidden and the address is shown', async ({ browser, baseURL }) => {

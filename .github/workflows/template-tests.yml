@@ -446,11 +446,18 @@ jobs:
         run: |
           npm run check
           npm test
-      # A form in a language it has no words for must stop the build, not go out in
-      # English. Last step: it leaves the site broken on purpose.
-      - name: A form in a language with no texts stops the build
+      # A form without its subject, or in a language it has no words for, must stop the
+      # build, not go out with a generic subject or in English. Last step: it leaves the
+      # site broken on purpose.
+      - name: A form without a subject, or in a language with no texts, stops the build
         working-directory: ${{ runner.temp }}/site
         run: |
+          cp src/pages/index.astro index.astro.keep
+          sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" />|' src/pages/index.astro
+          grep -q '<MailForm to="hello@example.com" />' src/pages/index.astro
+          if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form without a subject was built'; exit 1; fi
+          grep -qF 'MailForm: pass subject="…"' build.log || { cat build.log; echo '::error::the build failed, but not on the missing subject'; exit 1; }
+          cp index.astro.keep src/pages/index.astro
           sed -i 's|<MailForm to="hello@example.com" subject="Project enquiry" />|<MailForm to="hello@example.com" subject="Project enquiry" lang="xx" />|' src/pages/index.astro
           grep -q 'lang="xx"' src/pages/index.astro
           if npm run build > build.log 2>&1; then cat build.log; echo '::error::a form in a language with no texts was built'; exit 1; fi

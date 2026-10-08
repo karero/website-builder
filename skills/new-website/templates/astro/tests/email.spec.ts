@@ -41,3 +41,22 @@ test.describe('without JavaScript', () => {
     });
   }
 });
+
+// encodeEmail lets a % through (an old but valid address character), and a mailto: link
+// must carry it as %25, or "a%41@…" opens a mail to "aA@…". The page is served with one
+// such link added, and EmailLink's own script turns it into the link.
+test('email — a % in an address reaches the mail program unchanged', async ({ page }) => {
+  const address = 'a%41@example.com';
+  const data = Buffer.from(address.split('').reverse().join(''), 'utf-8').toString('base64');
+  await page.route('**/', async (route) => {
+    const response = await route.fetch();
+    const html = (await response.text()).replace(/<body([^>]*)>/, `<body$1><a class="email-link" href="#" data-email="${data}" data-test-percent>a [at] example [dot] com</a>`);
+    await route.fulfill({ response, body: html });
+  });
+  await page.goto('/');
+  const link = page.locator('[data-test-percent]');
+  await expect(link).toHaveText(address);
+  const href = (await link.getAttribute('href')) ?? '';
+  expect(href).toBe('mailto:a%2541@example.com');
+  expect(decodeURIComponent(href.slice('mailto:'.length))).toBe(address);
+});

@@ -126,9 +126,9 @@ loses it.
    with no texts stops the build.
 4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO` and
    `SUBJECT` (the address and the subject from step 2). The spec fails while one is
-   empty, and holds the subject to the site's tone rules. One copy guards one form: with the form on pages in
-   two languages, copy it once per language (`tests/mail-form.de.spec.ts`), each with
-   its own `PAGE`.
+   empty, and holds the subject to the site's tone rules. One copy guards one form:
+   with the form on pages in two languages, copy it once per language
+   (`tests/mail-form.de.spec.ts`), each with its own `PAGE` and `SUBJECT`.
 5. **Fields.** The form asks for a name and a message, nothing else: the visitor's
    email address comes with their mail. A field the owner wants (a phone number, a
    date) goes inside the form with a `<label for>` and a `name`, before the button; it
