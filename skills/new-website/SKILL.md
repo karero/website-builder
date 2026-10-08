@@ -93,12 +93,14 @@ non-expert can answer, and record the answers in the project `README.md`.
 2. **Any dynamic/backend behaviour — what must a server actually do?**
    *Decides: the Cloudflare tier. Pick the LOWEST tier that fits — going higher
    is the classic mistake. Tier tree + limits: `references/WEBSITE_ARCHITECTURE.md`.*
-   - Visitors only read; contact is `mailto:` or a form service → **Tier 1
-     static** (~90% of sites).
-   - Exactly one small server task — a form that emails you, site search,
-     hiding a third-party API key, one live widget (e.g. a next-event box fed
-     by an API) → **Tier 2** (one Pages Function or server island). No skill
-     builds a contact form right now: until one does, contact is `mailto:`.
+   - Visitors only read; contact is an email link, or a contact form that
+     opens the visitor's own mail program → **Tier 1 static** (~90% of sites).
+     A contact form: run **`website-contact-form`**, our suggestion (no server,
+     no account, no setting).
+   - Exactly one small server task — site search, hiding a third-party API
+     key, one live widget (e.g. a next-event box fed by an API), a form that
+     must send through a server → **Tier 2** (one Pages Function or server
+     island). No skill builds such a form.
    - State per user — accounts/login, a database, checkout, user-generated
      content → **Tier 3** (SSR + D1). Rare; challenge the requirement first.
 
@@ -375,7 +377,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    the frozen handoff set.
 
    **Conditional setup skills** — run the matching line ONLY when the interview
-   selected it (they don't ship with a declared one-language, CMS-free site;
+   selected it (they don't ship with a declared one-language, CMS-free site without a
+   contact form;
    a multilingual-PHASED site is single-locale at scaffold time and still
    gets astro-i18n-setup):
    ```bash
@@ -386,6 +389,8 @@ Assemble the project at `<site>/` so it travels without any global setup:
    # its Phase 2 instruction is "run astro-i18n-setup when translations are
    # ready", which can't resolve if the skill was never copied.
    cp -RL "$SKILLS_ROOT"/astro-i18n-setup "$PROJECT_SKILLS_DIR"/
+   # If Q2 = a contact form:
+   cp -RL "$SKILLS_ROOT"/website-contact-form "$PROJECT_SKILLS_DIR"/
    ```
 
    **Sanity check** (always, once all copying above — the primary batch AND
