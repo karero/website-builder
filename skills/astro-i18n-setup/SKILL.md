@@ -224,7 +224,7 @@ export const PAGES = ROUTES.flatMap((r) =>
 ```
 Only the PAGES export changes — KEEP the rest of the file (`THEMES`,
 `germanFunctionWordDensity`, `GERMAN_FUNCTION_WORDS`, and `toneViolations` with the
-tone rules it reads): the tone and i18n specs, and a contact form's spec, import
+tone rules it reads): the tone and i18n specs import
 them, and replacing the whole file with just this snippet breaks the suite at compile
 time.
 With no `locales` overrides this yields the identical set as before — `/`,

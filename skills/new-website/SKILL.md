@@ -97,7 +97,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      static** (~90% of sites).
    - Exactly one small server task — a form that emails you, site search,
      hiding a third-party API key, one live widget (e.g. a next-event box fed
-     by an API) → **Tier 2** (one Pages Function or server island).
+     by an API) → **Tier 2** (one Pages Function or server island). No skill
+     builds a contact form right now: until one does, contact is `mailto:`.
    - State per user — accounts/login, a database, checkout, user-generated
      content → **Tier 3** (SSR + D1). Rare; challenge the requirement first.
 
