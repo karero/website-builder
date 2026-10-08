@@ -1,5 +1,6 @@
 // The mail-app contact form (the website-contact-form skill), installed as
-// tests/mail-form.spec.ts. Set PAGE and TO below; the spec fails while either is empty.
+// tests/mail-form.spec.ts. Set PAGE, TO and SUBJECT below; the spec fails while one is
+// empty.
 // One copy guards one form: a site with the form on pages in two languages gets two
 // copies (tests/mail-form.de.spec.ts), each with its own PAGE.
 //
@@ -15,7 +16,7 @@ import { toneViolations } from './_helpers';
 
 const PAGE = '';    // the page with the form, e.g. '/contact'
 const TO = '';      // the address given to <MailForm to="…">
-const SUBJECT = ''; // only if the page passes subject="…": that subject
+const SUBJECT = ''; // the subject given to <MailForm subject="…">
 
 // The mailto: link the button asks the browser to open. The browser hands it to the
 // mail program; Playwright sees it as a request.
@@ -47,9 +48,10 @@ async function formLanguage(page: Page) {
   return lang as keyof typeof TEXT;
 }
 
-test('mail form — the install is complete: the form\'s page and its address are named', () => {
+test('mail form — the install is complete: the form\'s page, its address and its subject are named', () => {
   expect(PAGE, 'set PAGE in tests/mail-form.spec.ts to the page with the form').not.toBe('');
   expect(TO, 'set TO in tests/mail-form.spec.ts to the address given to <MailForm to="…">').not.toBe('');
+  expect(SUBJECT, 'set SUBJECT in tests/mail-form.spec.ts to the subject given to <MailForm subject="…">').not.toBe('');
 });
 
 test('mail form — the button opens a mail to the owner with everything the visitor wrote', async ({ page }) => {
@@ -66,7 +68,8 @@ test('mail form — the button opens a mail to the owner with everything the vis
 
   expect(address, 'the mail goes to TO: the address was decoded right').toBe(TO);
   expect(Object.keys(params).sort(), 'a subject and a body, nothing else').toEqual(['body', 'subject']);
-  expect(params.subject).toBe(SUBJECT || TEXT[lang].subject);
+  expect(params.subject, 'the subject the site chose').toBe(SUBJECT);
+  expect(toneViolations(SUBJECT, lang), 'the subject keeps to the site\'s tone rules').toEqual([]);
   // Every character outside the few a link may carry as they are arrives encoded, so
   // nothing the visitor typed can end the subject early or start a new part.
   expect(query, 'the subject and body are URL-encoded').toMatch(/^subject=[A-Za-z0-9\-_.!~*'()%]*&body=[A-Za-z0-9\-_.!~*'()%]*$/);
@@ -168,7 +171,8 @@ test('mail form — the plain address shows under the form, ready to copy and to
   await expect(direct).toContainText(TEXT[lang].direct);
   const link = direct.getByRole('link');
   await expect(link).toHaveText(TO);
-  await expect(link).toHaveAttribute('href', new RegExp(`^mailto:${TO.replace(/[.+]/g, '\\$&')}\\?subject=`));
+  // The same subject as the form's, so a blank email starts as the same request.
+  await expect(link).toHaveAttribute('href', `mailto:${TO}?subject=${encodeURIComponent(SUBJECT)}`);
 });
 
 test('mail form — without JavaScript the form stays hidden and the address is shown', async ({ browser, baseURL }) => {

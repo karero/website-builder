@@ -11,8 +11,9 @@
 // visitor can write on in their mail program.
 export const LIMITS = { name: 100, message: 2000 };
 
-// Everything a visitor reads, by language, and the start of the mail their program
-// opens (`subject`, `greeting`). tests/mail-form.spec.ts holds every text here to the
+// Everything a visitor reads, by language, and the first line of the mail their
+// program opens (`greeting`). The subject line is not here: each site chooses its own
+// (the `subject` prop). tests/mail-form.spec.ts holds every text here to the
 // site's tone rules (tests/_helpers.ts): no long dash in any language, and the rules
 // of the text's own language where there are some (English: no contraction, no
 // buzzword; German: no buzzword, no stock AI phrase). In German they address nobody,
@@ -23,10 +24,10 @@ export const LIMITS = { name: 100, message: 2000 };
 //   note                 the line above the button: what pressing it does
 //   opened               the line after pressing it
 //   direct               the words before the plain address under the form
-//   subject, greeting    the mail's subject line and its first line
+//   greeting             the mail's first line
 type Texts = {
   name: string; message: string; send: string; note: string; opened: string;
-  direct: string; subject: string; greeting: string;
+  direct: string; greeting: string;
 };
 export const TEXT = {
   en: {
@@ -36,7 +37,6 @@ export const TEXT = {
     note: 'The button opens your own email program with this message ready. It is sent only when you press Send there, and this website keeps nothing.',
     opened: 'Your email program should now show the message. Press Send there to send it. If nothing opened, please write to the address below.',
     direct: 'Prefer a blank email? Write to us directly:',
-    subject: 'Message from the website',
     greeting: 'Hello,',
   },
   de: {
@@ -46,7 +46,6 @@ export const TEXT = {
     note: 'Der Knopf öffnet das eigene E-Mail-Programm mit dieser Nachricht. Gesendet wird sie erst mit Senden dort, und diese Website speichert nichts.',
     opened: 'Das E-Mail-Programm sollte die Nachricht jetzt zeigen. Gesendet wird sie mit Senden dort. Hat sich nichts geöffnet, bitte an die Adresse unten schreiben.',
     direct: 'Lieber eine leere E-Mail? Direkt schreiben an:',
-    subject: 'Nachricht über die Website',
     greeting: 'Hallo,',
   },
 } satisfies Record<string, Texts>;

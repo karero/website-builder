@@ -5,12 +5,14 @@
 // public/js/mail-form.js, a file of the site's own rather than an inline script, so a
 // strict Content-Security-Policy (script-src 'self') lets it run.
 //
-//   <MailForm to="hello@your-domain.example" />
+//   <MailForm to="hello@your-domain.example" subject="Project enquiry" />
 //
 // `to`:      the address the messages go to. Never in the HTML as plain text: it is
 //            encoded as EmailLink encodes it and decoded in the visitor's browser.
 //            Also shown under the form, through EmailLink. Required.
-// `subject`: the mail's subject line. Default: `subject` in mail-form-text.ts.
+// `subject`: the mail's subject line, chosen for this site: what the visitor comes for,
+//            in their words ("Project enquiry", "Anfrage Bauvorhaben"). Also the
+//            subject of the plain address under the form. Required.
 // `lang`:    overrides the language (default: the page's locale on a site with several
 //            languages, else the site's one language). Pass it on a page whose language
 //            differs from the site's, e.g. a German page built with <Base lang="de">.
@@ -22,10 +24,13 @@ import EmailLink from './EmailLink.astro';
 import { encodeEmail } from '../lib/obfuscate';
 import { LIMITS, TEXT, hasText } from './mail-form-text';
 
-interface Props { to: string; subject?: string; lang?: string }
-const { to } = Astro.props;
+interface Props { to: string; subject: string; lang?: string }
+const { to, subject } = Astro.props;
 if (!to) {
   throw new Error('MailForm: pass to="…", the address the messages go to (the website-contact-form skill, §2).');
+}
+if (!subject) {
+  throw new Error('MailForm: pass subject="…", the subject line of the visitor\'s mail: what they come for, in their words, e.g. "Project enquiry" (the website-contact-form skill, §2 step 2).');
 }
 const language = (Astro.props.lang ?? Astro.currentLocale ?? SITE.locale ?? 'en').toLowerCase().split('-')[0];
 // A language with no texts stops the build: an English form on a page in another
@@ -34,7 +39,6 @@ if (!hasText(language)) {
   throw new Error(`MailForm: no texts for the language "${language}". Add it to src/components/mail-form-text.ts (the website-contact-form skill, "Add a language").`);
 }
 const t = TEXT[language];
-const subject = Astro.props.subject ?? t.subject;
 ---
 <form id="mail-form" class="mail-form" lang={language} data-mail-form data-to={encodeEmail(to)} data-subject={subject} data-greeting={t.greeting} hidden>
   <p>

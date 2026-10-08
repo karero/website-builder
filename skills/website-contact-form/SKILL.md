@@ -100,23 +100,33 @@ loses it.
    ---
    import MailForm from '../components/MailForm.astro';
    ---
-   <MailForm to="<the address messages go to>" />
+   <MailForm to="<the address messages go to>" subject="<what the visitor comes for>" />
    ```
    Ask the owner for the address. The starter's encoding takes only plain addresses:
    letters, digits and `. _ % + -` before the `@`, and the build stops with a clear
-   message on anything else. `subject="…"` sets the mail's subject line (default:
-   "Message from the website", or the German one). A **new** `/contact` page is a new
-   page: work through `AGENTS.md` §6 (`PAGES`, `llms.txt`, share card, a link to it).
-   One form per page: its ids are fixed.
+   message on anything else. A **new** `/contact` page is a new page: work through
+   `AGENTS.md` §6 (`PAGES`, `llms.txt`, share card, a link to it). One form per page:
+   its ids are fixed.
+
+   **The subject line** (`subject`, required: the build stops without it). It is the
+   first thing the visitor reads in their mail program, and what stays in their Sent
+   folder. So let it name what they came for, in their words, rather than the website:
+   an architects' office "Anfrage Bauvorhaben", a holiday flat "Booking request", a
+   consultant "Project enquiry". The mail then starts as their own request, not as a
+   message to a website. Take it from the site's offer and the primary action in
+   `CONTENT_GUIDE.md`, in the page's language, and keep it short, about 40 characters,
+   so a mail program's list shows all of it. A page for one offer can pass its own.
+   Propose one or two and let the owner choose: these are their customers' first words
+   to them. The plain address under the form carries the same subject.
 3. **Language.** The form speaks the site's language (`SITE.locale`), or on a site with
    several languages the page's (`Astro.currentLocale`); `lang="de"` overrides, and a
    page built with `<Base lang="de">` on an English site needs it. English and German
    are built in, with no form of address in German, so the form fits a "du" site and a
    "Sie" site. Any other language: "Add a language" below, first. A form in a language
    with no texts stops the build.
-4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form) and `TO` (the
-   address from step 2), and `SUBJECT` if the page passes `subject`. The spec fails
-   while `PAGE` or `TO` is empty. One copy guards one form: with the form on pages in
+4. In `tests/mail-form.spec.ts` set `PAGE` (the page with the form), `TO` and
+   `SUBJECT` (the address and the subject from step 2). The spec fails while one is
+   empty, and holds the subject to the site's tone rules. One copy guards one form: with the form on pages in
    two languages, copy it once per language (`tests/mail-form.de.spec.ts`), each with
    its own `PAGE`.
 5. **Fields.** The form asks for a name and a message, nothing else: the visitor's
