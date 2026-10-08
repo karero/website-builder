@@ -111,8 +111,7 @@ every request, so a kit site's requests count against Tier 2's Functions limit b
 day on the free plan; `CLOUDFLARE_FIRST_DEPLOY.md` says what to set for when it runs out).
 
 ### Tier 2 — Static Astro + Cloudflare Pages Functions / Server Islands  ← light dynamic
-**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails
-(the `website-forms` skill builds exactly this),
+**Use for:** a few server endpoints or per-request fragments — contact form that posts+emails,
 site search, live-stats widget, gated content, webhook receiver, proxy to hide an API key, light A/B.
 **How:** keep the site static; add `functions/*.ts` (Pages Functions) or Astro **server islands**
 for just the dynamic fragment. Add **Workers KV** for tiny state (flags, counters, cached responses).
@@ -217,8 +216,7 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 1. **How many pages, and what content types?** (flat pages vs. repeated collections → Content Collections.)
 2. **Any dynamic/backend features?** → pick the tier:
    - None → **Tier 1** static.
-   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands;
-     a contact form that emails the owner: the **`website-forms`** skill).
+   - Forms / search / hide-an-API-key / one live widget → **Tier 2** (Functions / server islands).
    - Accounts / DB / checkout / per-request SSR → **Tier 3** (Workers + D1) — or off-platform if it
      trips a Part-3 escape hatch.
 3. **Who edits content after launch?** You/Claude Code (default, no CMS) vs. non-technical client

@@ -183,8 +183,7 @@ plan offers:
   UTC. That suits a Function that guards something; the kit's does not. If a site later
   gets one that does, choose again.
 
-Either way, any other Function stops until midnight UTC too: on a site with the
-`website-forms` contact form, the form cannot send.
+Either way, any other Function the site has stops until midnight UTC too.
 
 Set it once, right after the first deploy: dashboard → **Workers & Pages** → the project →
 **Settings → Runtime → Fail open / closed**. Cloudflare's docs once called Fail open the
