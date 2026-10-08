@@ -281,9 +281,10 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "stamp updated → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 }
 
+# Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
+# every TEMPLATE_TRACKED file against both.
 site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, or nothing if unknown
   case "$1" in
-    skills/new-website/templates/astro/tests/*) echo "tests/$(basename "$1")" ;;
     skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
     skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
     skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
@@ -325,7 +326,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
     [ -n "$f" ] || continue
     case "$f" in
       skills/new-website/templates/astro/tests/*)
-        echo "  ${f#skills/new-website/templates/astro/} (site copy: tests/$(basename "$f"))" ;;
+        echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/})" ;;
       skills/new-website/templates/content-guide.md)
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
       skills/new-website/templates/AGENTS.md)
@@ -378,7 +379,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
     if [ -n "$site_rel" ] && [ ! -e "$(dirname "$tests_dir")/$site_rel" ] &&
        git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null; then
       echo "    MISSING: the site has no $site_rel"
-      missing="$missing $site_rel"
+      missing="$missing  $site_rel
+"
     fi
     git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "$f" | sed 's/^/    /'
   done <<CHANGED
@@ -389,7 +391,7 @@ CHANGED
     echo "MISSING from the site — not drift, there is no copy to merge into. Copy each one in"
     echo "from the template (the notes above say what else it needs), or note why the site"
     echo "does without it:"
-    for f in $missing; do echo "  $f"; done
+    printf '%s' "$missing"
   fi
   echo
   echo "Review + merge each by hand, e.g.:"
