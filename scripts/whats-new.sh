@@ -52,6 +52,13 @@ suite_dirty() {  # tracked, uncommitted changes under skills/
   [ -n "$(git -C "$REPO_DIR" status --porcelain -uno -- skills/)" ]
 }
 
+# Does the suite still have this skill? Read from the committed tree (HEAD), the tree the list
+# of changes comes from, not from the working tree: an untracked leftover folder is not the
+# suite's skill, and a refresh that copied it would stamp HEAD over content matching no commit.
+suite_has() {  # $1 = skill name
+  git -C "$REPO_DIR" cat-file -e "HEAD:skills/$1" 2>/dev/null
+}
+
 write_stamp() {  # $1 = skills dir
   printf 'suite_commit: %s\ncopied: %s\n' \
     "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/SUITE-VERSION"
@@ -222,11 +229,20 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     return 0
   fi
 
+  # A skill the suite no longer has cannot be refreshed: --refresh stops on it and keeps the
+  # stamp, so the report would repeat. Say so here, where a reader looks, not only after a
+  # failed --refresh. A pinned one is left alone by --refresh, so it is not "gone". "Removed"
+  # is suite_has: the committed tree, so the report and --refresh always agree.
+  gone=""; n_stale=0; n_gone=0
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
+    n_stale=$((n_stale + 1))
     if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
+    elif ! suite_has "$s"; then
+      echo "  $s   (removed upstream — delete its copy, or list it in REFRESH-KEEP to keep it)"
+      gone="$gone $s"; n_gone=$((n_gone + 1))
     else
       echo "  $s"
     fi
@@ -235,8 +251,19 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo
 
   if [ "$MODE" != refresh ]; then
-    echo "Refresh them (re-copies the skills above and re-stamps; OVERWRITES any local"
-    echo "edits to those copies) with:"
+    if [ "$n_gone" -gt 0 ]; then
+      echo "Removed upstream:$gone. --refresh stops on a removed skill and keeps the stamp"
+      echo "where it is, so this list comes back until its copy is deleted from $skills_dir,"
+      echo "or its name is added to $skills_dir/REFRESH-KEEP and --refresh is run. Files the"
+      echo "site took from it stay in the site, unmaintained."
+      [ "$n_stale" -gt "$n_gone" ] || return 0
+      echo
+      echo "Once those are dealt with, refresh the rest (re-stamps, and re-copies the skills"
+      echo "above that are not pinned; OVERWRITES any local edits to those copies) with:"
+    else
+      echo "Refresh them (re-copies the skills above, except any pinned, and re-stamps; OVERWRITES"
+      echo "any local edits to those copies) with:"
+    fi
     echo "  scripts/whats-new.sh --refresh $PROJECT"
     return 0
   fi
@@ -267,14 +294,14 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
       continue
     fi
-    if [ -d "$REPO_DIR/skills/$s" ]; then
+    if suite_has "$s"; then
       rm -rf "${skills_dir:?}/$s"
       cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"
     else
       echo "✗ $s was removed upstream — its copy in $skills_dir is now unmaintained;" >&2
-      echo "  delete it (or keep it knowingly), then re-run --refresh to advance the stamp." >&2
+      echo "  delete it, or list it in $skills_dir/REFRESH-KEEP, then re-run --refresh to advance the stamp." >&2
       missing=1
     fi
   done

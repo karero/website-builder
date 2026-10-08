@@ -28,6 +28,7 @@ check:     ## run every suite guard: no personal data or credentials, every scri
 	@bash skills/independent-review/scripts/check_perl_minimum.sh
 	@bash skills/independent-review/scripts/test_sweep_claims.sh
 	@bash scripts/test_install_pin.sh
+	@bash scripts/test_whats_new_removed_skill.sh
 	@bash scripts/test_package_leak.sh
 	@bash scripts/test_pre_push_hook.sh
 	@bash scripts/test_verify.sh
