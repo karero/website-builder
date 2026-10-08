@@ -108,10 +108,10 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
 
 What the history keeps: a failed engine writes its rows, marked failed ("N of M failed"), and the
 trend shows "latest attempt failed" next to the last good numbers. History keeps one row per
-engine, question and day, and never swaps a better row for a worse one. So a rerun **on the same
-day** replaces the failed rows, and a failure that comes **after a good run on the same day** is
-not recorded at all (the run's own "FAILED" line is then the only trace). A rerun on a later day
-leaves the earlier day's failed row in place. None of this needs editing by hand.
+engine, mode, question and settings per day, and never swaps a better row for a worse one. So a
+rerun **on the same day** replaces the failed rows, and a failure that comes **after a good run
+on the same day** is not recorded at all (the run's own "FAILED" line is then the only trace). A
+rerun on a later day leaves the earlier day's failed row in place. None of this needs editing by hand.
 
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
@@ -222,7 +222,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
      `--confirm --expect <page code>`. It saves only if the page still matches that preview.
 5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
    (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
-   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit; "HTTP 402" means prepaid credit ran out (see "When prepaid credit runs out" above; on OpenRouter it stops every assistant).
+   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit; "HTTP 402" means prepaid credit ran out (see "When prepaid credit runs out" above; on OpenRouter it stops every assistant that goes through it).
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
 ## Every session: is the question still right?
@@ -309,41 +309,46 @@ that says how long to wait:
 - **Retraining is slow.** This column mostly moves when a new model is released, so judge it over
   months, not weeks. Never promise the owner a date for being "in the models".
 
-A sentence the owner can use as is, with the numbers from the latest report: *"0 of 4 assistants
+A sentence the owner can use as is, with the numbers from the latest report: *"[N] of [M] assistants
 named us from memory. That is normal for a business this size. An assistant only 'remembers' a
-name that appeared in many places before it was trained. When the same assistants can search the
-web, all four find us."* Take every number from the report, not from this text: not every assistant
-is asked both ways. Gemini is never asked with search. Perplexity through OpenRouter is only ever
-asked with search (no "from memory" answer exists on that route). So say "N of M" with the
-assistants actually asked each way, and leave out "all four find us" unless all four were asked with
-search and found the business. A hand-asked Gemini answer can back the claim for Gemini; say that
-it was asked once by hand.
+name that appeared in many places before it was trained. [Only if true in the latest run: When the
+same assistants can search the web, all of them find us.]"* Take every number from the report, not
+from this text: not every assistant is asked both ways. Gemini is never asked with search.
+Perplexity through OpenRouter is only ever asked with search (no "from memory" answer exists on
+that route). So count the assistants actually asked each way, and keep the last sentence only if
+every one of them was asked with search and found the business. A hand-asked Gemini answer can
+back the claim for Gemini; say that it was asked once by hand.
 
 **Look for stray copies of the owner's site.** The cited sources can reveal an address the owner
-forgot: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`, `*.netlify.app` or
-`*.github.io` that serves the same site. Two copies can compete with each other in search. Cheap check over the saved answers:
+may have forgotten: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`,
+`*.netlify.app` or `*.github.io` that serves the same site. Cheap check over the saved answers:
 
 ```
-rg -o -N --no-filename -i "[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(/[^ )\"'<>]*)?" \
+rg -o -N --no-filename -i -P "[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(?![a-z0-9-]|\.[a-z])(/[^ )\"'<>,;]*)?" \
   ~/.config/gsc-insights/geo/answers/<domain>/ | sort | uniq -c
 ```
 
 The counts only show how often an address was cited (the same answers repeat it), not how many
 copies exist. It also lists other people's addresses (another business's site on `vercel.app`);
-look only at ones that carry the owner's name. Open the address (the full URL, with its path, from the saved
-answer): if it still serves the site, check its redirect, canonical and `noindex` settings, and
-only then suggest the owner switch it off or redirect it to the real domain. Do not say it is a problem before you have
-opened it; an engine citing an address shows it exists, not that it still works.
+look only at ones that carry the owner's name, and strip a trailing `.` before opening one. Open the
+full URL from the saved answer. An engine citing an address shows that it exists, not that it
+still works, so say nothing until you have opened it. If it serves the site, **ask the owner**
+whether that copy is meant to exist before suggesting any change; it may be intentional.
 
 **Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
 `~/.config/gsc-insights/` folder, which the Claude desktop app may not open (links into it did not
-open when tried once), so a link to a path there may do nothing for the owner. Copy the report page(s) and the answers of the run into
-the site's repo (for example `docs/geo/<date>/`), put the readable summary next to them, and send
-the files to the owner. The report page may carry an "Also see" link to the Google page that uses a
-relative path (`../../../reports/<domain>/google.html`); it breaks in the copy, so copy that page
-too or tell the owner the link will not work. The answers hold the questions and every cited source, so commit them only
-to a **private** repo; in a public repo commit just the report page and the summary. Before moving or deleting a file another session or a note might point
-at, search for its path first.
+open when tried once), so a link to a path there may do nothing for the owner. Copy the report
+page(s) and the answers of the run into the site's repo (for example `docs/geo/<date>/`), put the
+readable summary next to them, and send the files to the owner.
+
+- **Keep them out of a public repo.** The reports and answers hold the questions, the answers
+  word for word, and every cited source. Commit them only to a **private** repo; for a public one,
+  send the files to the owner and commit nothing, or commit only a summary you wrote.
+- **The "Also see" link breaks in a copy.** A report page may link to the Google page by a relative
+  path (`../../../reports/<domain>/google.html`). In the copy that link does not work; tell the
+  owner, or leave that page out.
+- **Before moving or deleting a file** another session or a note might point at, search for its
+  path first.
 
 When the broad question has named nobody for about four weeks, suggest the owner focus on
 the narrow one. The owner decides.
