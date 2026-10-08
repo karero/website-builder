@@ -10,8 +10,9 @@ on:
   workflow_dispatch:
 
 # One run per branch at a time: a newer push to the same branch cancels the run it
-# supersedes. Saves Actions minutes (a private repo has 2 000 free per month; each run
-# here is ~5 min) and means the green tick always belongs to the latest commit.
+# supersedes. Saves Actions minutes (a private repo has 2 000 free per month; the Actions
+# tab shows what a run here takes) and means the green tick always belongs to the latest
+# commit.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
