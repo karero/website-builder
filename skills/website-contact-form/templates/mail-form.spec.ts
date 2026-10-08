@@ -22,19 +22,24 @@ const SUBJECT = ''; // only if the page passes subject="…": that subject
 async function pressSend(page: Page): Promise<string> {
   const lang = await formLanguage(page);
   const asked = page.waitForRequest((r) => r.url().startsWith('mailto:'), { timeout: 5000 });
-  await page.getByRole('button', { name: TEXT[lang].send }).click();
+  await form(page).getByRole('button', { name: TEXT[lang].send, exact: true }).click();
   return (await asked).url();
 }
 
 // The link's parts, each decoded once. Not URLSearchParams: it reads "+" as a space.
 function parse(mailto: string) {
-  const [address, query = ''] = mailto.slice('mailto:'.length).split('?');
+  const [encodedAddress, query = ''] = mailto.slice('mailto:'.length).split('?');
+  const address = decodeURIComponent(encodedAddress);
   const params = Object.fromEntries(query.split('&').map((pair) => {
     const [key, value = ''] = pair.split('=');
     return [key, decodeURIComponent(value)];
   }));
-  return { address, query, params };
+  return { address, encodedAddress, query, params };
 }
+
+// Every lookup stays inside the form, so a second status line or a "Company name"
+// field elsewhere on the page cannot be taken for one of the form's.
+const form = (page: Page) => page.locator('form[data-mail-form]');
 
 async function formLanguage(page: Page) {
   const lang = (await page.locator('form[data-mail-form]').getAttribute('lang')) ?? '';
@@ -54,8 +59,8 @@ test('mail form — the button opens a mail to the owner with everything the vis
   // and letters outside ASCII.
   const name = 'Ada Lovelace & Co';
   const message = 'Is 100% possible? Price #1 + extras = fine.\nZweite Zeile: Grüße, ça va';
-  await page.getByLabel(TEXT[lang].name).fill(name);
-  await page.getByLabel(TEXT[lang].message).fill(message);
+  await form(page).getByLabel(TEXT[lang].name, { exact: true }).fill(name);
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill(message);
   const mailto = await pressSend(page);
   const { address, query, params } = parse(mailto);
 
@@ -69,7 +74,7 @@ test('mail form — the button opens a mail to the owner with everything the vis
   expect(params.body).toBe(`${TEXT[lang].greeting}\r\n\r\n${message.replace(/\n/g, '\r\n')}\r\n\r\n${TEXT[lang].name}: ${name}`);
 
   // The site cannot know whether the mail program opened, so it says what to do next.
-  await expect(page.getByRole('status')).toHaveText(TEXT[lang].opened);
+  await expect(form(page).getByRole('status')).toHaveText(TEXT[lang].opened);
 });
 
 test('mail form — fields the owner adds go into the mail by their labels; one left empty does not', async ({ page }) => {
@@ -81,14 +86,18 @@ test('mail form — fields the owner adds go into the mail by their labels; one 
       p.innerHTML = `<label for="${id}">${label}</label><input id="${id}" name="${id}" type="text">`;
       button.closest('p')!.before(p);
     }
+    // A named group has no value of its own, and must not stop the mail.
+    const group = document.createElement('fieldset');
+    group.name = 'added-group';
+    button.closest('p')!.before(group);
     const p = document.createElement('p');
     p.innerHTML = '<label for="added-days">Days</label><select id="added-days" name="days" multiple><option>Monday</option><option>Tuesday</option><option>Friday</option></select>';
     button.closest('p')!.before(p);
   });
-  await page.getByLabel(TEXT[lang].name).fill('Ada');
-  await page.getByLabel(TEXT[lang].message).fill('Hello there');
-  await page.getByLabel('Phone').fill('+49 30 1234');
-  await page.getByLabel('Days').selectOption(['Monday', 'Friday']);
+  await form(page).getByLabel(TEXT[lang].name, { exact: true }).fill('Ada');
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello there');
+  await form(page).getByLabel('Phone').fill('+49 30 1234');
+  await form(page).getByLabel('Days').selectOption(['Monday', 'Friday']);
   const { params } = parse(await pressSend(page));
   expect(params.body).toContain(`${TEXT[lang].name}: Ada\r\nPhone: +49 30 1234\r\nDays: Monday, Friday`);
   expect(params.body).not.toContain('Company');
@@ -99,25 +108,38 @@ test('mail form — an empty field stops the browser, and no mail opens', async 
   const lang = await formLanguage(page);
   let opened = false;
   page.on('request', (r) => { if (r.url().startsWith('mailto:')) opened = true; });
-  await page.getByLabel(TEXT[lang].message).fill('A message without a name');
-  await page.getByRole('button', { name: TEXT[lang].send }).click();
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('A message without a name');
+  await form(page).getByRole('button', { name: TEXT[lang].send, exact: true }).click();
   await page.waitForTimeout(500);
   expect(opened, 'no mail opened without a name').toBe(false);
-  await expect(page.getByLabel(TEXT[lang].name)).toBeFocused();
-  await expect(page.getByRole('status')).toHaveText('');
+  await expect(form(page).getByLabel(TEXT[lang].name, { exact: true })).toBeFocused();
+  await expect(form(page).getByRole('status')).toHaveText('');
+});
+
+test('mail form — a field of spaces counts as empty, and no mail opens', async ({ page }) => {
+  await page.goto(PAGE);
+  const lang = await formLanguage(page);
+  let opened = false;
+  page.on('request', (r) => { if (r.url().startsWith('mailto:')) opened = true; });
+  await form(page).getByLabel(TEXT[lang].name, { exact: true }).fill('Ada');
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('   \n  ');
+  await form(page).getByRole('button', { name: TEXT[lang].send, exact: true }).click();
+  await page.waitForTimeout(500);
+  expect(opened, 'no mail opened with a message of spaces').toBe(false);
+  await expect(form(page).getByLabel(TEXT[lang].message, { exact: true })).toBeFocused();
 });
 
 test('mail form — the fields take no more than the limits', async ({ page }) => {
   await page.goto(PAGE);
   const lang = await formLanguage(page);
-  await expect(page.getByLabel(TEXT[lang].name)).toHaveAttribute('maxlength', String(LIMITS.name));
-  await expect(page.getByLabel(TEXT[lang].message)).toHaveAttribute('maxlength', String(LIMITS.message));
+  await expect(form(page).getByLabel(TEXT[lang].name, { exact: true })).toHaveAttribute('maxlength', String(LIMITS.name));
+  await expect(form(page).getByLabel(TEXT[lang].message, { exact: true })).toHaveAttribute('maxlength', String(LIMITS.message));
 });
 
 test('mail form — every field has a label, and Tab goes from field to field to the button', async ({ page }) => {
   await page.goto(PAGE);
   const lang = await formLanguage(page);
-  const order = [page.getByLabel(TEXT[lang].name), page.getByLabel(TEXT[lang].message), page.getByRole('button', { name: TEXT[lang].send })];
+  const order = [form(page).getByLabel(TEXT[lang].name, { exact: true }), form(page).getByLabel(TEXT[lang].message, { exact: true }), form(page).getByRole('button', { name: TEXT[lang].send, exact: true })];
   // Every control in the form is one of these: none without a label slipped in.
   await expect(page.locator('form[data-mail-form] :is(input, textarea, select, button)')).toHaveCount(order.length);
   await order[0].focus();
@@ -159,8 +181,8 @@ test('mail form — it works under a strict Content-Security-Policy that allows 
   await page.goto(PAGE);
   const lang = await formLanguage(page);
   await expect(page.locator('form[data-mail-form]')).toBeVisible();
-  await page.getByLabel(TEXT[lang].name).fill('Ada');
-  await page.getByLabel(TEXT[lang].message).fill('Hello');
+  await form(page).getByLabel(TEXT[lang].name, { exact: true }).fill('Ada');
+  await form(page).getByLabel(TEXT[lang].message, { exact: true }).fill('Hello');
   expect(parse(await pressSend(page)).address).toBe(TO);
 });
 

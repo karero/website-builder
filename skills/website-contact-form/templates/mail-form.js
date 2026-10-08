@@ -18,6 +18,13 @@
       // before this runs.
       event.preventDefault();
 
+      // `required` lets a field of spaces through; the mail would arrive without it.
+      // Emptied, the browser stops it the way it stops an empty one.
+      Array.prototype.forEach.call(form.elements, function (field) {
+        if (field.required && typeof field.value === 'string' && !field.value.trim()) field.value = '';
+      });
+      if (!form.reportValidity()) return;
+
       // Said before anything else: whether the mail program opened, and whether the
       // visitor pressed Send there, the site never learns. The line also points to the
       // address under the form, for when nothing opens.
@@ -26,7 +33,9 @@
       // The address, decoded as EmailLink decodes it (src/lib/obfuscate.ts).
       var to;
       try {
-        to = atob(form.dataset.to).split('').reverse().join('');
+        // A % in the address is the one character the starter's encoding allows that a
+        // mailto: link must escape.
+        to = atob(form.dataset.to).split('').reverse().join('').replace(/%/g, '%25');
       } catch (e) {
         console.error('mail form: the address could not be decoded', e);
         return;
@@ -37,7 +46,8 @@
       // gives every chosen entry, a ticked checkbox or radio button its label alone.
       var details = [];
       Array.prototype.forEach.call(form.elements, function (field) {
-        if (!field.name || field.name === 'message' || field.type === 'submit' || field.type === 'button') return;
+        // A named <fieldset> or <output> has no value of its own to send.
+        if (!field.name || field.name === 'message' || field.type === 'submit' || field.type === 'button' || typeof field.value !== 'string') return;
         var label = field.labels && field.labels[0] ? field.labels[0].textContent.trim() : field.name;
         if (field.type === 'checkbox' || field.type === 'radio') {
           if (field.checked) details.push(label);

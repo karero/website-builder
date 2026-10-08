@@ -180,9 +180,11 @@ message is named in it. Like the kit's other legal drafts, a baseline, not legal
   sent. The owner's mailbox is the record.
 - **No help for a visitor without a mail program**, beyond the address under the form
   and the sentence that points to it.
-- **Very long messages.** The form stops at 2,000 characters (`LIMITS` in
-  `mail-form-text.ts`), because some mail programs cut a very long link. Where exactly
-  was not measured. The visitor can write on in their mail program.
+- **Very long messages.** The form stops at 2,000 typed characters (`LIMITS` in
+  `mail-form-text.ts`). In the link they become more: about 2,800 for English prose,
+  more with umlauts and line breaks. Some mail programs cut a very long link, and at
+  what length was not measured, so a long message may arrive cut in some of them. The
+  visitor sees it before pressing Send, and can write on in their mail program.
 - **The address line under a strict Content-Security-Policy.** The form works under
   `script-src 'self'` (the spec proves it). The address under it, the starter's
   `EmailLink`, decodes through an inline script, so under such a policy it stays as the

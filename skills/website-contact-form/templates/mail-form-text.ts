@@ -3,9 +3,12 @@
 // (src/components/MailForm.astro) and its test (tests/mail-form.spec.ts) import it, so
 // a language is added, or a sentence changed, here and nowhere else.
 
-// The longest name and message the form takes. Every character the visitor types
-// travels inside one long mailto: link, and some mail programs cut a very long link
-// (where exactly was not measured). The visitor can write on in their mail program.
+// The longest name and message the form takes, in typed characters. Every one travels
+// inside one mailto: link, encoded: a space takes 3 characters there, an umlaut 6, a
+// line break 6, so 2,000 typed characters make a link of roughly 2,800 (English prose)
+// to 12,000 (umlauts only). Some mail programs cut a very long link; at what length was
+// not measured (docs/BUGLOG.md), so this cap is not tied to any program's limit. The
+// visitor can write on in their mail program.
 export const LIMITS = { name: 100, message: 2000 };
 
 // Everything a visitor reads, by language, and the start of the mail their program
