@@ -22,7 +22,8 @@ T="$(mktemp -d "${TMPDIR:-/tmp}/verify-test.XXXXXX")" \
 trap 'rm -rf "$T"' EXIT
 # The physical path: the stub npm logs `pwd` as the shell finds it, and where the temp folder
 # sits behind a symlink (macOS: /var -> /private/var) the two spellings would never match.
-T="$(CDPATH= cd -- "$T" && pwd -P)" || exit 1
+phys="$(CDPATH= cd -- "$T" && pwd -P)" || exit 1
+T="$phys"
 # Run through `npm run`, npm would hand verify.mjs its own entry point in npm_execpath; this
 # test starts it with node directly, as the hook does, so the stub below is what runs.
 unset npm_execpath

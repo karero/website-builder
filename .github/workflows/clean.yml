@@ -32,8 +32,9 @@ name: clean
 # (scripts/test_clean_denylist.sh), and that the site's Claude Code
 # sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), that
 # whats-new marks a frozen template file the site lacks as MISSING (scripts/test_whats_new.sh), that
-# every script that builds a throwaway folder stops with an error when mktemp fails, and leaves the
-# folder it ran from alone (scripts/test_mktemp_guard.sh), and
+# each script listed in scripts/test_mktemp_guard.sh stops with an error when mktemp fails and leaves
+# the folder it ran from alone, with a new script that calls mktemp forced onto its list or its
+# exemptions, and
 # that every text file checks out LF even where Git converts to CRLF
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
@@ -231,14 +232,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # A script whose tool is missing skips and exits 0; this job must not stay green having
-      # tried fewer scripts, so it stops if one of those tools is missing.
-      - name: Check each script that builds a throwaway folder stops with an error, and leaves its folder alone, when mktemp fails
-        run: |
-          for t in git node python3; do
-            command -v "$t" >/dev/null || { echo "::error::no $t here: a script that needs it would skip"; exit 1; }
-          done
-          bash scripts/test_mktemp_guard.sh
+      # A listed script that skips (no git, node or python3 on the machine) is not tested; this job
+      # must not stay green having tried fewer scripts, so REQUIRE_EVERY_SCRIPT=1 makes a skip a
+      # failure, as REQUIRE_PERL_MINIMUM does for the Perl check above.
+      - name: Check the scripts listed in test_mktemp_guard.sh stop with an error, and leave the folder they ran from alone, when mktemp fails
+        env:
+          REQUIRE_EVERY_SCRIPT: "1"
+        run: bash scripts/test_mktemp_guard.sh
   lf-checkout:
     runs-on: ubuntu-latest
     steps:
