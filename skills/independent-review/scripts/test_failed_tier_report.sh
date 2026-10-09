@@ -1354,5 +1354,25 @@ run noperl PATH="$T/bin3:$T/noperl" OLLAMA_TRANSPORT=api OLLAMA_MODEL="$STUB_TAG
 check "noperl: no perl at all: named as missing, not as too old" \
   has noperl.out "ollama-cloud SKIPPED (perl not found), melious SKIPPED (perl not found)"
 
+# 37. (2026-10-09) Past round 8 the script prints a notice and nothing else changes (SKILL.md step 6):
+#     the exit code, the reviewers line and the cost log's outcome column are as at round 8. A
+#     13-round gate had no owner decision recorded past round 8; a refusal would stop the process,
+#     so this is a line the caller reads in the round's own output.
+run round8 REVIEW_LOG="$T/round8.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 8
+run round9 REVIEW_LOG="$T/round9.tsv" bash "$SCRIPT" "$T/change.diff" --depth normal --round 9
+run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12
+run noround bash "$SCRIPT" "$T/change.diff"
+check "round 8: no past-round-8 notice" lacks round8.out "is past round 8"
+check "round 9: the notice names the round, the step and the owner" \
+  has round9.out "⚠ Round 9 is past round 8 (SKILL.md step 6): further rounds are the owner's decision, one at a time."
+check "round 9: the notice also reaches stderr" has round9.err "Round 9 is past round 8"
+check "round 9: exit code as at round 8" [ "$(cat "$T/round9.rc")" = "$(cat "$T/round8.rc")" ]
+check "round 9: the reviewers line is the one round 8 prints" \
+  sh -c 'a="$(grep "^reviewers:" "$1/round9.out")"; [ -n "$a" ] && [ "$a" = "$(grep "^reviewers:" "$1/round8.out")" ]' _ "$T"
+check "round 9: the cost log's outcome column is as at round 8, and says OK" \
+  sh -c 'a="$(awk -F"\t" "NR>1{print \$13}" "$1/round9.tsv")"; [ -n "$a" ] && [ "$a" = "$(awk -F"\t" "NR>1{print \$13}" "$1/round8.tsv")" ] && ! printf "%s" "$a" | grep -qv OK' _ "$T"
+check "round 12: a two-digit round gets the notice" has round12.out "⚠ Round 12 is past round 8"
+check "no --round: no notice (a limit; SKILL.md step 6 still applies)" lacks noround.out "is past round 8"
+
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

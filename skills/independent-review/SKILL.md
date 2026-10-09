@@ -184,6 +184,12 @@ Codex's effort for any run.
      access path (auth, routing, permissions), not the type's shape. A claim that can't be checked
      now (missing environment, credentials) stays OPEN with the missing prerequisite named — a
      RISK/NIT there may still be waived.
+     For a fix to a parser, validator or normaliser, name the invariant the BUG broke ("a split
+     number reads like the unsplit one") and test variants of that kind of input (two of the
+     thing, three pieces, padded, empty), or compare with the real component or a spec table; the
+     row's Evidence says which. A note on the row, not a finding: a missing one is no NIT, no
+     prerequisite and earns no round. Advice only: fix the BUGs that share an invariant together,
+     before the next round.
    - **The one exception — a BUG the change did not introduce** (DIFF gate only). The owner may
      defer it when all three hold: (1) every wrong input the row quotes goes wrong at the
      merge-base, through an entry point the target branch already used; (2) a row in the repo's
@@ -223,7 +229,10 @@ Codex's effort for any run.
      suggestions to check, never added. PLAN: the whole plan, with the changed sections named in the
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
-     BUG's tracker row, merge-base reproduction and KNOWN WRONG test names. Pass it with
+     BUG's tracker row, merge-base reproduction and KNOWN WRONG test names, plus every row refuted
+     in an earlier round with its one-line evidence, so the same claim is not raised again (step 4's
+     coverage rule still decides: a carried row closes a re-raise only where its evidence covers
+     the reasoning raised). Pass it with
      `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
      depth the fresh-eyes pass gets the same text, file and artifact) — confirm each fix landed in full and each
      deferral meets step 5's conditions, check what changed for new problems, list the rest under
@@ -296,6 +305,11 @@ Codex's effort for any run.
    owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
+   *Fix chains (optional).* A trail row may carry `caused-by: F<id>` — introduced, partial or
+   regression — when a fix of that earlier finding caused it or left it half done. When three
+   rows chain, the owner update (step 8) says so once and names the option: replace the code by
+   the real component or a spec-first rewrite. Rounds go on unless the owner says otherwise. No
+   rule depends on the note: it changes neither when a round is owed nor the stop above.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,
    fixed and pending, the BUG/RISK trend, each refuted BUG with its evidence, what the round cost
    (the `timings:` line; the host seats' duration and tokens) and any follow-ups.

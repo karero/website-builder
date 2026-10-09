@@ -63,7 +63,7 @@ narrative — raw reviewer text lives in the PR comment:
 # <GATE> review — <PR/MR or branch> — <the change, one line>
 Base `<sha>` · depth: Light | Normal | High (why) · verdict: CLEAN | FAIL | OPEN · authority used: <property — atom>
 | Round | Head | Artifact (full / delta since <sha>) | Reviewers: CLI version, model, effort, sandbox | seconds, tokens per seat | BUG/RISK/NIT |
-| id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote |
+| id | Sev | Source | Round | Finding — one line | Status (+ locally_verified / externally_reverified) | Evidence: commit, command, or quote (a parser or validator fix: the invariant and the variants or comparison, step 5; optionally `caused-by: F<id>`, step 7) |
 Waivers and deferrals: the owner's sign-off quoted, dated; each deferral's merge-base reproduction.
 Follow-ups: one line each. Notes: at most five lines (degraded seats, rounds past 3 and the BUG
 that earned each, final full read, wording pass, stops).
@@ -74,6 +74,13 @@ AUTHORITY). The trail is the permanent record for someone who knows to look; the
 the owner and teammates actually see. Post it even when the repo's convention is "no human
 reviewers" — that governs who approves, not whether the review is visible. Check it off like "did
 the tests pass"; a gate that exists only in a file is not satisfied.
+
+**A round claim (advisory).** Before starting a round, read the comment's current status; two
+sessions once ran the same round at once. With POST AUTHORITY, add one line to it: session, head,
+scope, seats. It names no exclusive owner. The line is a PR/MR comment, so it needs the same
+authority; the table's hand-over fallback is for the findings at the end of a gate and does not
+apply to a status line: without the authority, or without a PR/MR, name the claim in this
+session's report and go on.
 
 ## The clerk procedure — who posts what (explain this to the user)
 
