@@ -73,7 +73,7 @@ references/schema-examples.md shows the full shape (incl. `vatID`,
 | Article | Blog posts, news | headline, image, datePublished, author |
 | Product | Product pages | name, image, offers |
 | SoftwareApplication | SaaS/app pages | name, offers |
-| FAQPage | FAQ content | mainEntity (Q&A array) |
+| FAQPage | FAQ content (no Google rich result for most sites, see below) | mainEntity (Q&A array) |
 | HowTo | Tutorials | name, step |
 | BreadcrumbList | Any page with breadcrumbs | itemListElement |
 | LocalBusiness | Local business pages | name, address |
@@ -99,6 +99,7 @@ Recommended: sku, brand, aggregateRating, review
 
 ### FAQPage
 Required: mainEntity (array of Question/Answer pairs)
+Note: since 8 August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes), [FAQPage docs](https://developers.google.com/search/docs/appearance/structured-data/faqpage)). The markup still describes the Q&A to machines and does no harm, but for most sites it gives no rich result in Google. Don't promise one.
 
 ### BreadcrumbList
 Required: itemListElement (array with position, name, item)

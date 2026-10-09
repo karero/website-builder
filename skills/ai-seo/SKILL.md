@@ -299,7 +299,9 @@ Structured data helps AI systems understand your content. Key schemas:
 | Reviews | `Review`, `AggregateRating` | Trust signals |
 | Organization | `Organization` | Entity recognition |
 
-Content with proper schema shows 30-40% higher AI visibility. For implementation, use the **schema-markup** skill.
+`FAQPage` describes your Q&A to machines, but since 8 August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). For most sites the markup is valid and harmless and gives no rich result in Google.
+
+For implementation, use the **schema-markup** skill.
 
 ---
 

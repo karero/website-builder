@@ -2,7 +2,7 @@
 
 Each AI search platform has its own search index, ranking logic, and content preferences. This guide covers what matters for getting cited on each one.
 
-Sources cited throughout: Princeton GEO study (KDD 2024), SE Ranking domain authority study, ZipTie content-answer fit analysis.
+Sources cited throughout: [Princeton GEO study](https://arxiv.org/abs/2311.09735) (KDD 2024), [SE Ranking study of 129,000 domains](https://seranking.com/blog/chatgpt-citation-factors/) (2025), [Sellm analysis of 400,000 pages](https://sellm.io/post/chatgpt-ranking-factors) (2025), [BrightEdge AI Overviews tracking](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing) (2026), [Profound citation study](https://www.tryprofound.com/blog/ai-platform-citation-patterns) (2025).
 
 ---
 
@@ -20,14 +20,14 @@ Beyond these basics, each platform weights different signals. Here's what matter
 
 ## Google AI Overviews
 
-Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T signals (Experience, Expertise, Authoritativeness, Trustworthiness). They appear in roughly 45% of Google searches.
+Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T signals (Experience, Expertise, Authoritativeness, Trustworthiness). BrightEdge found them on about 45% of the queries it tracks by late 2025.
 
-**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The additional AI layer adds a preference for content with cited sources and structured data. Research shows that including authoritative citations in your content correlates with a 132% visibility boost, and writing with an authoritative (not salesy) tone adds another 89%.
+**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The additional AI layer adds a preference for content with cited sources and structured data. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on a simulated AI engine, not on Google itself).
 
-**Importantly, AI Overviews don't just recycle the traditional Top 10.** Only about 15% of AI Overview sources overlap with conventional organic results. Pages that wouldn't crack page 1 in traditional search can still get cited if they have strong structured data and clear, extractable answers.
+**Importantly, AI Overviews don't just recycle the traditional Top 10.** Studies disagree on how far AI Overview sources overlap with the organic top 10, but many cited pages don't rank on page 1. Pages that wouldn't crack page 1 in traditional search can still get cited if they have strong structured data and clear, extractable answers.
 
 **What to focus on:**
-- Schema markup is the single biggest lever — Article, FAQPage, HowTo, and Product schemas give AI Overviews structured context to work with (30-40% visibility boost)
+- Schema markup — Article, FAQPage, HowTo, and Product schemas give AI Overviews structured context to work with. We found no study that measures how much it lifts AI visibility, so treat it as good hygiene, not a guaranteed boost
 - Build topical authority through content clusters with strong internal linking
 - Include named, sourced citations in your content (not just claims)
 - Author bios with real credentials matter — E-E-A-T is weighted heavily
@@ -40,13 +40,13 @@ Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T sig
 
 ChatGPT's web search draws from a Bing-based index. It combines this with its training knowledge to generate answers, then cites the web sources it relied on.
 
-**What makes ChatGPT different:** Domain authority matters more here than on other AI platforms. An SE Ranking analysis of 129,000 domains found that authority and credibility signals account for roughly 40% of what determines citation, with content quality at about 35% and platform trust at 25%. Sites with very high referring domain counts (350K+) average 8.4 citations per response, while sites with slightly lower trust scores (91-96 vs 97-100) drop from 8.4 to 6 citations.
+**What makes ChatGPT different:** Domain authority matters more here than on other AI platforms. An SE Ranking analysis of 129,000 domains found backlinks were the strongest signal: domains with over 350,000 referring domains averaged 8.4 citations, against 1.6-1.8 for those with up to 2,500.
 
-**Freshness is a major differentiator.** Content updated within the last 30 days gets cited about 3.2x more often than older content. ChatGPT clearly favors recent information.
+**Freshness is a major differentiator.** In the same SE Ranking study, pages updated within the past three months averaged 6.0 citations, against 3.6 for older ones. ChatGPT clearly favors recent information.
 
-**The most important signal is content-answer fit** — a ZipTie analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format accounts for about 55% of citation likelihood. This is far more important than domain authority (12%) or on-page structure (14%) alone. Write the way ChatGPT would answer the question, and you're more likely to be the source it cites.
+**The most important signal is content-answer fit** — a Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format accounts for about 55% of citation likelihood. This is far more important than domain authority (12%) or on-page structure (14%) alone. Write the way ChatGPT would answer the question, and you're more likely to be the source it cites.
 
-**Where ChatGPT looks beyond your site:** Wikipedia accounts for 7.8% of all ChatGPT citations, Reddit for 1.8%, and Forbes for 1.1%. Brand official sites are cited frequently but third-party mentions carry significant weight.
+**Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations (August 2024 to June 2025), Wikipedia accounted for 7.8% of all ChatGPT citations, Reddit for 1.8%, and Forbes for 1.1%. Brand official sites are cited frequently but third-party mentions carry significant weight.
 
 **What to focus on:**
 - Invest in backlinks and domain authority — it's the strongest baseline signal
@@ -64,14 +64,14 @@ Perplexity always cites its sources with clickable links, making it the most tra
 **What makes Perplexity different:** It's the most "research-oriented" AI search engine, and its citation behavior reflects that. Perplexity maintains curated lists of authoritative domains (Amazon, GitHub, major academic sites) that get inherent ranking boosts. It uses a time-decay algorithm that evaluates new content quickly, giving fresh publishers a real shot at citation.
 
 **Perplexity has unique content preferences:**
-- **FAQ Schema (JSON-LD)** — Pages with FAQ structured data get cited noticeably more often
+- **FAQ Schema (JSON-LD)** — Often recommended for Perplexity, though we found no study showing it raises citations (SE Ranking found ChatGPT cited pages with FAQ schema slightly less often). It still describes your Q&A to machines
 - **PDF documents** — Publicly accessible PDFs (whitepapers, research reports) are prioritized. If you have authoritative PDF content gated behind a form, consider making a version public.
 - **Publishing velocity** — How frequently you publish matters more than keyword targeting
 - **Self-contained paragraphs** — Perplexity prefers atomic, semantically complete paragraphs it can extract cleanly
 
 **What to focus on:**
 - Allow PerplexityBot in robots.txt
-- Implement FAQPage schema on any page with Q&A content
+- Implement FAQPage schema on any page with Q&A content (since August 2023 Google shows FAQ rich results only for well-known government and health sites — [Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes))
 - Host PDF resources publicly (whitepapers, guides, reports)
 - Add Article schema with publication and modification timestamps
 - Write in clear, self-contained paragraphs that work as standalone answers
@@ -134,7 +134,7 @@ Allow: /
 
 If you're optimizing for AI search for the first time, focus your effort where your audience actually is:
 
-**Start with Google AI Overviews** — They reach the most users (45%+ of Google searches) and you likely already have Google SEO foundations in place. Add schema markup, include cited sources in your content, and strengthen E-E-A-T signals.
+**Start with Google AI Overviews** — They reach the most users (about 45% of the queries BrightEdge tracks) and you likely already have Google SEO foundations in place. Add schema markup, include cited sources in your content, and strengthen E-E-A-T signals.
 
 **Then address ChatGPT** — It's the most-used standalone AI search tool for tech and business audiences. Focus on freshness (update content monthly), domain authority, and matching your content structure to how ChatGPT formats its responses.
 
