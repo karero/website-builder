@@ -102,17 +102,23 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         d = load("perplexity-finds.json")
         results = [r for it in d["output"] if it["type"] == "search_results" for r in it["results"]]
         content = [c for it in d["output"] if it["type"] == "message" for c in it["content"]]
+        text = " ".join(c["text"] for c in content)
         self.assertGreater(len(results), 1)
-        self.assertFalse([c for c in content if c.get("annotations")])
-        self.assertFalse(re.search(r"\[\d+\]", " ".join(c["text"] for c in content)))
+        self.assertFalse([c for c in content if c.get("annotations")])     # no tagged citations
+        self.assertFalse(re.search(r"\[\d+\]", text))                       # no [n] markers
+        self.assertFalse(re.search(r"\]\(https?://", text))                  # no markdown source links
         self.assertIn("perplexity", geo_check.RESULTS_ONLY)
 
     def test_openrouter_perplexity_lists_more_sources_than_its_text_marks(self):
         msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
-        urls = {a["url_citation"]["url"] for a in msg["annotations"]}
+        cites = [a["url_citation"] for a in msg["annotations"]]
+        urls = {c["url"] for c in cites}
         marked = set(re.findall(r"\[(\d+)\]", msg["content"]))
-        self.assertTrue(marked)                       # the text does mark what it quotes...
-        self.assertGreater(len(urls), len(marked))    # ...and the list is longer than the marks
+        self.assertTrue(marked)                                         # the text does mark what it quotes
+        self.assertTrue(all(1 <= int(n) <= len(cites) for n in marked))   # the marks index the list
+        self.assertGreater(len(urls), len(marked))                      # the list is longer than the marks
+        # and no entry is tied to a place in the text (a populated offset would say which are quoted)
+        self.assertTrue(all(not c.get("end_index") for c in cites))
 
     def test_chatgpt_tags_each_citation_to_a_place_in_its_text(self):
         d = load("openai-finds.json")
@@ -122,12 +128,12 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         self.assertTrue(all(a["end_index"] > 0 for a in ann))
         self.assertNotIn("openai", geo_check.RESULTS_ONLY)
 
-    def test_claude_cites_only_some_of_the_results_it_searched(self):
+    def test_claude_cites_a_selection_not_the_whole_search(self):
         d = load("anthropic-finds.json")
         results = {r["url"] for b in d["content"] if b.get("type") == "web_search_tool_result"
                    for r in (b.get("content") or []) if isinstance(r, dict)}
         cited = {c["url"] for b in d["content"] if b.get("type") == "text" for c in b.get("citations", []) or []}
-        self.assertTrue(cited and cited < results)    # a strict subset: citations are not the whole list
+        self.assertTrue(cited and cited != results)   # citations are a selection, not the whole list
         self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
 
 

@@ -292,13 +292,14 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 
 - **named 2/3**: the business was named in 2 of the 3 answers.
 - **cited 2/3**: the owner's own site was among the cited sources in 2 of 3.
-- **in its results 2/3**: what the trend says for Perplexity instead of "cited". On its own key,
-  Perplexity returns the search results it retrieved with no sign of which of them the answer
-  quotes. Through OpenRouter the text marks the quoted ones with [1], [2]…, but the list of
-  sources it comes with is longer than the marks (18 sources, 10 marked, in the captured answer),
-  and this check does not read the marks. Either way the number is how often the owner's site
-  was among the results (once per answer, however often it appears), so it can be higher than
-  a citation count would be. The report words it the same way ("your website was among its
+- **in its results 2/3**: what the trend says for Perplexity instead of "cited". In the captured
+  answer from its own key, Perplexity returned the search results it retrieved with no sign of
+  which of them the answer quotes, and this check reads none. Through OpenRouter the captured
+  text marks the quoted ones with [1], [2]…, but the list of sources it came with is longer than
+  the marks (18 pages, 10 marked), none of the 18 is tied to a place in the text, and this check
+  does not read the marks. Either way the number is how often the owner's site was among the
+  results (once per answer, however often it appears). Because the results include more than the
+  quoted ones, it can be higher than a citation count would be. The report words it the same way ("your website was among its
   search results") and captions the list "Search results returned".
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
 - **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).

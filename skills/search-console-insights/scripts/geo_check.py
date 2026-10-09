@@ -71,11 +71,12 @@ ENGINES = ["gemini", "openai", "anthropic", "perplexity", "google-ai-mode", "goo
 # (serp_check.py) already uses; the chat engines get GEO_* names of their own.
 SERP_ENGINES = {"google-ai-mode", "google-overview"}
 # Engines that return the search results they retrieved, but not which of them the answer quotes.
-# In the captured answers (tests/fixtures/perplexity-finds.json, openrouter-perplexity-finds.json;
-# test_real_responses.py pins this), Perplexity's own API sends no annotations and no [n] markers,
-# and through OpenRouter the annotations list every source (18) where the text marks 10. "Cited"
-# would overstate for it: its count is how often the owner's site was among the results, and is
-# worded that way. If a fresh capture shows quoted sources marked, those tests fail: revisit this.
+# In the captured answers (tests/fixtures/perplexity-finds.json, openrouter-perplexity-finds.json),
+# Perplexity's own API carries no annotations, no [n] markers and no source links in the text, and
+# through OpenRouter the annotation list holds 18 different pages, none tied to a place in the text,
+# where the text marks 10. "Cited" would overstate for it: its count is how often the owner's site
+# was among the results, and is worded that way. test_real_responses.py pins exactly those signals;
+# if a fresh capture shows any of them changed, a test fails: revisit this set.
 RESULTS_ONLY = {"perplexity"}
 
 
