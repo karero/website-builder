@@ -72,6 +72,7 @@ from typing import Dict, List, Optional, Tuple
 
 USER_AGENT = "facts-check/1.0 (read-only site consistency check)"
 MAX_BYTES = 5 * 1024 * 1024
+MAX_ADDRESS = 8000  # characters: RFC 9110 (4.1) asks recipients for 8000 octets at least, and many servers refuse more
 SITEMAP_MAX_BYTES = 52 * 1024 * 1024  # the protocol allows 50 MB, uncompressed
 MAX_SITEMAP_FILES = 200  # sitemap files read in one run: a guard against loops and endless indexes
 REDIRECT_BLOCKED = -1  # Fetcher.get status: a redirect led to an address robots.txt does not allow
@@ -715,6 +716,8 @@ def clean_address(url: str) -> str:
 def bad_address(url: str) -> str:
     """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
     url = clean_address(url)
+    if len(url) > MAX_ADDRESS:  # matching robots.txt rules takes time in proportion to the address
+        return "not a valid address (longer than %s characters)" % format(MAX_ADDRESS, ",")
     if re.search(r"[\x00-\x20\x7f]", url):  # http.client refuses a space or a control character in what it sends
         return "not a valid address (it contains a space or a control character)"
     try:
@@ -809,9 +812,10 @@ class RobotsRules:
     pages out on another machine. A line is "name: value" with a "#" comment cut off; groups are runs of User-agent lines
     followed by Allow and Disallow rules (other lines, such as Sitemap, belong to no group and end none); the group that
     names this tool counts, else the group of "*", else nothing does; the groups of one name are combined. The longest
-    rule that matches wins, measured by the rule as written, "*" and "$" counted, as Google's parser does and its
-    documentation shows; an Allow wins a tie. The newer standard parser measures what a rule matched instead, which
-    differs for rules with a "*"."""
+    rule that matches wins, measured by the rule after its percent-escapes are normalised, "*" and "$" counted: Google's
+    parser counts the rule as written, which differs only for a rule that holds an escape of an unreserved character, a
+    space or another character that is no URI character; an Allow wins a tie. The newer standard parser measures what a
+    rule matched instead, which differs for rules with a "*"."""
 
     def __init__(self):
         self.allow_all = False  # set by the caller for a robots.txt that is not there
@@ -849,13 +853,18 @@ class RobotsRules:
         self.rules = sorted(named if any_named else everyone, key=lambda r: (-r[0], not r[1]))
 
     def allowed(self, url: str) -> bool:
+        """May this address be read? It is judged as the request names it, and the time it takes grows with the rules in
+        the file and the length of the address, which the callers have held to bad_address()'s limit."""
         if self.disallow_all:
             return False
         if self.allow_all:
             return True
-        p = urllib.parse.urlsplit(url)  # "http://x.test?private" is requested as "/?private"
-        path = robots_form(urllib.parse.urlunsplit(("", "", p.path or "/", p.query, "")))
-        if path == "/robots.txt":  # RFC 9309 (2.2.2): the file itself is always allowed
+        p = urllib.parse.urlsplit(url)  # "http://x.test?private" is requested as "/?private", "http://x.test/a?" as "/a?"
+        path = urllib.parse.urlunsplit(("", "", p.path or "/", p.query, ""))
+        if not p.query and url.split("#", 1)[0].endswith("?"):
+            path += "?"
+        path = robots_form(path)
+        if path == "/robots.txt":  # RFC 9309 (2.2.2): the file itself is always allowed, in any spelling that reads as it
             return True
         for _, allow, parts, anchored in self.rules:
             if _matches(parts, anchored, path):

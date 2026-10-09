@@ -99,7 +99,7 @@ python3 skills/facts-check/scripts/facts_check.py facts.json \
   version to the next: the longest rule that matches wins and an `Allow` wins a tie, `*` and
   `$` work, `%2F` is not a `/`, and a group that names `facts-check` shuts out the group of `*`.
   Sitemaps and robots.txt themselves are read wherever they redirect. Only http and https addresses are read: a sitemap entry or a redirect
-  to file: or ftp: is never followed. A sitemap entry that is not a web address is left out and
+  to file: or ftp: is never followed. A sitemap entry that is not a web address (or is longer than 8,000 characters) is left out and
   the report says how many; an entry in your own page list that is not one is listed as not read.
 - The site's `/llms.txt`, written for AI assistants, is read too when it exists (not with
   `--only` or a fixed `pages` list). Pages over 5 MB are read up to 5 MB, and the report

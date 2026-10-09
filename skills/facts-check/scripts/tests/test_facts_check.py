@@ -521,6 +521,26 @@ class RobotsMatcher(unittest.TestCase):
         self.assertTrue(rules.allowed("http://x.test?public"))
         self.assertTrue(rules.allowed("http://x.test/"))
 
+    def test_an_empty_query_is_part_of_the_path_that_is_requested(self):
+        # round 14 (Codex, older code): urllib sends "GET /a?" for "http://x.test/a?" and "GET /?" for "http://x.test?"
+        rules = fc.RobotsRules()
+        rules.parse("User-agent: *\nDisallow: /a?\nDisallow: /?\n")
+        for url, want in (("http://x.test/a?", False), ("http://x.test/a?x=1", False), ("http://x.test/a", True), ("http://x.test/a?#frag", False),
+                          ("http://x.test?", False), ("http://x.test/", True), ("http://x.test/b", True)):
+            with self.subTest(url=url):
+                self.assertEqual(rules.allowed(url), want)
+
+    def test_a_rule_is_measured_after_its_escapes_are_normalised(self):
+        # round 14 (Codex, GLM): "/p%61th" is the rule "/path", five characters and not seven; with the "$" the other rule has six
+        self.assertFalse(self.allowed("User-agent: *\nAllow: /p%61th\nDisallow: /path$\n", "/path"))
+        self.assertTrue(self.allowed("User-agent: *\nAllow: /path\nDisallow: /p%61th\n", "/path"))
+
+    def test_every_spelling_of_the_robots_txt_address_is_allowed(self):
+        # round 14 (GLM): "/robots%2Etxt" is the same address once an escape of an unreserved character is read as the character
+        for path in ("/robots.txt", "/robots%2Etxt", "/robots.tx%74"):
+            with self.subTest(path=path):
+                self.assertTrue(self.allowed("User-agent: *\nDisallow: /\n", path))
+
     def test_a_hostile_pattern_costs_little_time(self):
         # a robots.txt is written by the site we read: twelve * against a long path must not take exponential time
         import time
@@ -529,7 +549,13 @@ class RobotsMatcher(unittest.TestCase):
         self.assertTrue(self.allowed(robots, "/" + "a" * 5000))
         self.assertLess(time.monotonic() - started, 3.0)
         started = time.monotonic()
-        self.assertTrue(self.allowed("\n" * 500000 + "User-agent: *\nDisallow: /x\n", "/y"))
+        blanks = "\n" * 500000 + "User-agent: *\nDisallow: /x\n"
+        self.assertTrue(self.allowed(blanks, "/y"))
+        self.assertFalse(self.allowed(blanks, "/x"))   # round 14 (Codex): a parse() that did nothing would pass the line above
+        self.assertLess(time.monotonic() - started, 3.0)
+        # round 14 (Codex): 40,000 rules against the longest address that is read take tenths of a second, not seconds
+        started = time.monotonic()
+        self.assertTrue(self.allowed("User-agent: *\n" + "Disallow: /*b\n" * 40000, "/" + "a" * 7990))
         self.assertLess(time.monotonic() - started, 3.0)
 
     def test_the_flags_of_a_robots_txt_that_cannot_be_read(self):
@@ -1163,6 +1189,23 @@ class FullRun(unittest.TestCase):
         # ... because http.client would refuse it, which is the claim the check rests on
         with self.assertRaises(http.client.InvalidURL):
             urllib.request.urlopen(base + "/about b", timeout=2)
+
+    def test_an_address_longer_than_8000_characters_is_not_requested(self):
+        # round 14 (Codex): matching a robots.txt takes time in proportion to the address (6.7 s for one of ten million
+        # characters), and servers refuse such requests anyway; RFC 9110 (4.1) asks recipients for 8000 octets at least
+        base = self.server.base
+        longest = base + "/" + "a" * (8000 - len(base) - 1)
+        self.assertEqual((len(longest), fc.bad_address(longest)), (8000, ""))
+        too_long = longest + "a"
+        f = fc.Fetcher(timeout=2, delay=0, respect_robots=False)
+        self.server.requestlines.clear()
+        status, why, _, _ = f.get(too_long)
+        self.assertEqual((status, self.server.requestlines), (0, []))
+        self.assertTrue(why.startswith("not a valid address") and "8,000" in why, why)
+        # in a run, the listed page is reported as not read and the others are read
+        code, md, result, _ = self.run_check(self.facts(pages=[too_long, base + "/"], retired_phrases=[]))
+        self.assertEqual([(f["url"], "8,000" in f["why"]) for f in result["failed"]], [(too_long, True)])
+        self.assertEqual([p["url"] for p in result["read"]], [base + "/"])
 
     def test_a_padded_site_address_is_cleaned_once_for_every_address_built_from_it(self):
         # round 8 (Codex): "http://x.test:80 \n" passed the check, then run() built "http://x.test:80 \n/sitemap.xml"
