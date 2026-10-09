@@ -530,6 +530,15 @@ class RobotsMatcher(unittest.TestCase):
             with self.subTest(url=url):
                 self.assertEqual(rules.allowed(url), want)
 
+    def test_a_path_with_leading_slashes_is_judged_as_it_is_requested(self):
+        # round 15 (Codex, GLM-checked by hand): urlunsplit() wrote "http://x.test//a?" as "////a?", urllib sends "GET //a?"
+        rules = fc.RobotsRules()
+        rules.parse("User-agent: *\nDisallow: //a\n")
+        for url, want in (("http://x.test//a?", False), ("http://x.test//a", False), ("http://x.test//a/b", False),
+                          ("http://x.test/a", True), ("http://x.test///a", True), ("http://x.test/", True)):
+            with self.subTest(url=url):
+                self.assertEqual(rules.allowed(url), want)
+
     def test_a_rule_is_measured_after_its_escapes_are_normalised(self):
         # round 14 (Codex, GLM): "/p%61th" is the rule "/path", five characters and not seven; with the "$" the other rule has six
         self.assertFalse(self.allowed("User-agent: *\nAllow: /p%61th\nDisallow: /path$\n", "/path"))
@@ -557,6 +566,10 @@ class RobotsMatcher(unittest.TestCase):
         started = time.monotonic()
         self.assertTrue(self.allowed("User-agent: *\n" + "Disallow: /*b\n" * 40000, "/" + "a" * 7990))
         self.assertLess(time.monotonic() - started, 3.0)
+        # ... and the longest address of the worst kind that is accepted: 665 emoji, 7,980 characters once escaped
+        started = time.monotonic()
+        self.assertTrue(self.allowed("User-agent: *\n" + "Disallow: /*b\n" * 40000, "/" + "\U0001F600" * 665))
+        self.assertLess(time.monotonic() - started, 3.0)
 
     def test_the_flags_of_a_robots_txt_that_cannot_be_read(self):
         rules = fc.RobotsRules()
@@ -582,6 +595,14 @@ class FetcherRules(unittest.TestCase):
         f = self.Fake({"https://x.com/robots.txt": (503, "", b"")})
         self.assertIn("could not be read (503)", f.blocked("https://x.com/a"))
         self.assertEqual(self.Fake({}).blocked("https://x.com/a"), "")  # a 404 allows all
+
+    def test_an_address_that_cannot_be_read_is_not_matched_against_robots_txt(self):
+        # round 15 (Codex, GLM): site + "/llms.txt" reached blocked() without the check, nine characters over the limit, and an
+        # address of emoji is three times longer once escaped. blocked() leaves such an address to get(), which refuses it
+        f = self.Fake({"https://x.com/robots.txt": (200, "text/plain", b"User-agent: *\nDisallow: /\n")})
+        self.assertEqual(f.blocked("https://x.com/a"), "robots.txt")
+        self.assertEqual(f.blocked("https://x.com/" + "a" * 8000), "")
+        self.assertEqual(f.blocked("https://x.com/" + "\U0001F600" * 2000), "")
 
     def test_the_fetcher_reads_only_web_addresses(self):
         # round 3: a sitemap lists whatever it likes; file: and ftp: are not pages
@@ -1190,9 +1211,10 @@ class FullRun(unittest.TestCase):
         with self.assertRaises(http.client.InvalidURL):
             urllib.request.urlopen(base + "/about b", timeout=2)
 
-    def test_an_address_longer_than_8000_characters_is_not_requested(self):
+    def test_an_address_longer_than_8000_bytes_is_not_requested(self):
         # round 14 (Codex): matching a robots.txt takes time in proportion to the address (6.7 s for one of ten million
-        # characters), and servers refuse such requests anyway; RFC 9110 (4.1) asks recipients for 8000 octets at least
+        # characters), and servers refuse such requests anyway; RFC 9110 (4.1) asks recipients for 8000 octets at least.
+        # Round 15 (Codex, GLM): bytes, not characters: one emoji is 4 bytes and 12 characters once escaped
         base = self.server.base
         longest = base + "/" + "a" * (8000 - len(base) - 1)
         self.assertEqual((len(longest), fc.bad_address(longest)), (8000, ""))
@@ -1201,11 +1223,29 @@ class FullRun(unittest.TestCase):
         self.server.requestlines.clear()
         status, why, _, _ = f.get(too_long)
         self.assertEqual((status, self.server.requestlines), (0, []))
-        self.assertTrue(why.startswith("not a valid address") and "8,000" in why, why)
+        self.assertTrue(why.startswith("not a valid address") and "8,000 bytes" in why, why)
+        # the limit is the address as it travels, every byte beyond ASCII sent as %XX: 14 for "http://x.test/", 12 per emoji
+        emoji = "http://x.test/" + "\U0001F600" * 665
+        self.assertEqual((len(fc.robots_form(emoji)), fc.bad_address(emoji)), (14 + 12 * 665, ""))
+        self.assertIn("8,000 bytes", fc.bad_address(emoji + "\U0001F600"))
+        # a raw address of 8,001 characters is refused without being counted further
+        self.assertIn("8,000 bytes", fc.bad_address("http://x.test/" + "%41" * 2663))
         # in a run, the listed page is reported as not read and the others are read
         code, md, result, _ = self.run_check(self.facts(pages=[too_long, base + "/"], retired_phrases=[]))
-        self.assertEqual([(f["url"], "8,000" in f["why"]) for f in result["failed"]], [(too_long, True)])
+        self.assertEqual([(f["url"], "8,000 bytes" in f["why"]) for f in result["failed"]], [(too_long, True)])
         self.assertEqual([p["url"] for p in result["read"]], [base + "/"])
+
+    def test_the_path_robots_txt_is_judged_on_is_the_path_the_request_sends(self):
+        # round 15 (Codex): "Disallow: //a" did not hold for "http://x.test//a?" because the path was rebuilt from its parts.
+        # The judged path is urllib's own selector now, so it cannot differ from what the server receives
+        base = self.server.base
+        f = fc.Fetcher(timeout=2, delay=0, respect_robots=False)
+        for tail in ("", "/", "/about", "/about?", "?", "?x=1", "//about", "//about?", "///about", "/about;p=1?q", "/about?#frag",
+                     "/about%20b", "/%7Eabout", "/about#?"):
+            with self.subTest(tail=tail):
+                self.server.requestlines.clear()
+                f.get(base + tail)
+                self.assertEqual(fc.request_target(base + tail), self.server.requestlines[0].split(" ")[1])
 
     def test_a_padded_site_address_is_cleaned_once_for_every_address_built_from_it(self):
         # round 8 (Codex): "http://x.test:80 \n" passed the check, then run() built "http://x.test:80 \n/sitemap.xml"

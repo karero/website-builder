@@ -72,7 +72,7 @@ from typing import Dict, List, Optional, Tuple
 
 USER_AGENT = "facts-check/1.0 (read-only site consistency check)"
 MAX_BYTES = 5 * 1024 * 1024
-MAX_ADDRESS = 8000  # characters: RFC 9110 (4.1) asks recipients for 8000 octets at least, and many servers refuse more
+MAX_ADDRESS = 8000  # bytes as the address travels: RFC 9110 (4.1) asks recipients for 8000 octets at least, and many servers refuse more
 SITEMAP_MAX_BYTES = 52 * 1024 * 1024  # the protocol allows 50 MB, uncompressed
 MAX_SITEMAP_FILES = 200  # sitemap files read in one run: a guard against loops and endless indexes
 REDIRECT_BLOCKED = -1  # Fetcher.get status: a redirect led to an address robots.txt does not allow
@@ -716,8 +716,10 @@ def clean_address(url: str) -> str:
 def bad_address(url: str) -> str:
     """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
     url = clean_address(url)
-    if len(url) > MAX_ADDRESS:  # matching robots.txt rules takes time in proportion to the address
-        return "not a valid address (longer than %s characters)" % format(MAX_ADDRESS, ",")
+    # As it travels: every byte beyond ASCII is sent as %XX, so one emoji takes 12. Matching robots.txt rules takes time in
+    # proportion to this; the cut keeps a gigantic address from being counted.
+    if len(urllib.parse.quote(url[:MAX_ADDRESS + 1], safe="%:/?#[]@!$&'()*+,;=", errors="replace")) > MAX_ADDRESS:
+        return "not a valid address (longer than %s bytes)" % format(MAX_ADDRESS, ",")
     if re.search(r"[\x00-\x20\x7f]", url):  # http.client refuses a space or a control character in what it sends
         return "not a valid address (it contains a space or a control character)"
     try:
@@ -762,6 +764,12 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         if new is not None:
             new.guard_robots = guard  # the next hop is checked too
         return new
+
+
+def request_target(url: str) -> str:
+    """The path and query a request for this address sends ("GET //a?" for "http://x.test//a?"): urllib's own selector, so
+    that robots.txt is judged on what the server receives, whatever the address looks like."""
+    return urllib.request.Request(url).selector or "/"
 
 
 ROBOTS_TOKEN = USER_AGENT.split("/")[0].lower()  # the name a robots.txt group calls this tool by
@@ -853,17 +861,14 @@ class RobotsRules:
         self.rules = sorted(named if any_named else everyone, key=lambda r: (-r[0], not r[1]))
 
     def allowed(self, url: str) -> bool:
-        """May this address be read? It is judged as the request names it, and the time it takes grows with the rules in
-        the file and the length of the address, which the callers have held to bad_address()'s limit."""
+        """May this address be read? It is judged on the path the request sends ("http://x.test?private" is requested as
+        "/?private"). The time grows with the rules in the file and the length of that path; Fetcher.blocked() hands over
+        only addresses that bad_address() accepts, which are 8,000 characters at most once escaped."""
         if self.disallow_all:
             return False
         if self.allow_all:
             return True
-        p = urllib.parse.urlsplit(url)  # "http://x.test?private" is requested as "/?private", "http://x.test/a?" as "/a?"
-        path = urllib.parse.urlunsplit(("", "", p.path or "/", p.query, ""))
-        if not p.query and url.split("#", 1)[0].endswith("?"):
-            path += "?"
-        path = robots_form(path)
+        path = robots_form(request_target(url))
         if path == "/robots.txt":  # RFC 9309 (2.2.2): the file itself is always allowed, in any spelling that reads as it
             return True
         for _, allow, parts, anchored in self.rules:
@@ -922,7 +927,7 @@ class Fetcher:
 
     def blocked(self, url: str) -> str:
         """Why robots.txt keeps this address from being read, or "" when it may be."""
-        if not self.respect_robots:
+        if not self.respect_robots or bad_address(url):  # get() refuses an address that cannot be read; it is not matched here
             return ""
         p = urllib.parse.urlsplit(url)
         root = "%s://%s" % (p.scheme, p.netloc)
