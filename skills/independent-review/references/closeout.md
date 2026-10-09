@@ -26,7 +26,7 @@ append rows rather than renumbering.
 | Create or edit the trail file in a worktree — 9(a) | **WORKTREE-WRITE AUTHORITY** | Write the same content where THIS session's own work durably lives — **not** a temp dir that gets cleaned, since the trail is the permanent record. If nowhere durable exists, hand it to the owner inline and say plainly that no durable trail was written. |
 | Commit or push the trail onto a branch — clerk item 3 | **BRANCH-COMMIT AUTHORITY** | Leave it uncommitted in your own durable location and record in the trail that no in-repo copy was committed. **Never in their worktree.** |
 | Stamp the consolidated marker — clerk item 2 | **GATED-THIS-DIFF** | Do not stamp. Re-gate per clerk item 2 (which bounds the retries), or block. |
-| Add or replace the round-claim line in the gate's PR/MR comment — 9(b) | **POST AUTHORITY** | Skip the line, without asking the owner for atom B: it is advisory (a gate with no PR/MR has no comment for it either). Name the claim in this session's report and go on. |
+| Add, replace or delete the round-claim line in the gate's PR/MR comment — 9(b) | **POST AUTHORITY** | Skip the line, without asking the owner for atom B: it is advisory (a gate with no PR/MR has no comment for it either). Name the claim in this session's report and go on. |
 
 **Evidence — exactly two kinds.**
 - **Atom A — a record of the creating action itself:** this session created that exact PR/MR (POST

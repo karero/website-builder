@@ -750,6 +750,12 @@ inrepo gate2a bash "$SCRIPT" "$T/change.diff" --depth normal --round 1
 inrepo gate2b bash "$SCRIPT" "$T/change.diff" --depth normal --round 2
 inrepo gate2c bash "$SCRIPT" "$T/change.diff" --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
+# A wording pass, a final full read or a re-gate is not a round and leaves --round off (SKILL.md step 2):
+# the open gate's id is what it must carry, and it must not start a gate of its own.
+gate_before="$(cat "$G/.git/independent-review-gate")"
+inrepo gatenr bash "$SCRIPT" "$T/change.diff" --depth normal
+check "gates: a run with no --round joins the open gate and starts none" \
+  sh -c '[ -n "$2" ] && [ "$(awk -F"\t" "END{print \$14}" "$1")" = "$2" ] && [ "$(cat "$3")" = "$2" ]' _ "$GL" "$gate_before" "$G/.git/independent-review-gate"
 check "gates: --round 1 leaves an id in the repo's git dir" [ -s "$G/.git/independent-review-gate" ]
 check "gates: every line carries a gate id" awk -F'\t' 'NR > 1 && ($14 == "" || $14 == "-") {bad=1} END {exit bad}' "$GL"
 check "gates: two ids, the late host seat in the second" \
