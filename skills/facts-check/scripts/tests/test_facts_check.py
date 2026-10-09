@@ -198,6 +198,30 @@ class CheckPage(unittest.TestCase):
                 self.assertNotIn("structured data", self.locations("<%s>%s</%s><p>ok</p>" % (wrap, ld, wrap)))
         self.assertIn("structured data", self.locations(ld + "<p>ok</p>"))   # outside, it still counts
 
+    def test_a_charset_that_cannot_decode_text_falls_back_to_utf8(self):
+        # round 3 (Codex): charset="idna" raised UnicodeError out of decode(), which also reads /llms.txt outside any try
+        for ctype in ('text/plain; charset="idna"', "text/plain; charset=idna", "text/plain; charset=base64",
+                      "text/plain; charset=no-such-charset"):
+            with self.subTest(ctype=ctype):
+                self.assertEqual(fc.decode(b"abc \xc3\xa9", ctype), "abc \u00e9")
+
+    def test_a_separator_or_a_sign_in_a_span_of_its_own_still_belongs_to_the_number(self):
+        # round 3 (Codex): "<span>27</span>,<span>000</span>" and "NPS of <span>-</span><span>5</span>"
+        cases = {
+            "<p><span>27</span>,<span>000</span> clients</p>": "27,000 clients",
+            "<p><span>27</span><span>,</span><span>000</span> clients</p>": "27,000 clients",
+            "<p>NPS of <span>-</span><span>5</span></p>": "NPS of -5",
+            "<p>NPS of <span>\u2212</span><span>5</span></p>": "NPS of \u22125",
+            "<p>5<span>-</span><span>10</span> clients</p>": "5 - 10 clients",          # a dash between things, no sign
+            "<p>Total<span>-</span><span>5</span></p>": "Total - 5",
+        }
+        for html, want in cases.items():
+            with self.subTest(html=html):
+                self.assertEqual(self.locations(html)["page text"], want)
+        loc = self.locations("<p>NPS of <span>-</span><span>5</span></p>")
+        rows = fc.check_page("u", loc, [fact(value=5, terms=[], before=["NPS of"])], [])
+        self.assertEqual([(r["status"], r["found_value"]) for r in rows], [("MISMATCH", -5)])
+
     def test_numbers_in_structured_data_carry_their_property_name(self):
         # review finding: numeric JSON-LD values were dropped
         loc = self.locations('<script type="application/ld+json">{"@type": "Organization", '
@@ -343,6 +367,34 @@ class FetcherRules(unittest.TestCase):
         self.assertIn("could not be read (503)", f.blocked("https://x.com/a"))
         self.assertEqual(self.Fake({}).blocked("https://x.com/a"), "")  # a 404 allows all
 
+    def test_the_fetcher_reads_only_web_addresses(self):
+        # round 3: a sitemap lists whatever it likes; file: and ftp: are not pages
+        f = fc.Fetcher(timeout=1, delay=0, respect_robots=True)
+        for url in ("file:///etc/hostname", "ftp://127.0.0.1:9/x", "gopher://example.com/"):
+            with self.subTest(url=url):
+                status, why, body, _ = f.get(url)
+                self.assertEqual((status, body), (0, b""))
+                self.assertIn("only web addresses", why)
+
+    def test_a_robots_txt_that_redirects_without_end_keeps_the_site_out(self):
+        # round 3 (Codex, found in the old code): a redirect loop surfaced as status 302, which meant "allow all"
+        f = self.Fake({"https://x.com/robots.txt": (302, "", b"")})
+        self.assertIn("could not be read (302)", f.blocked("https://x.com/a"))
+
+    def test_a_llms_txt_that_redirects_into_a_disallowed_path_is_noted(self):
+        # round 3 (GLM): it was skipped without a word
+        f = self.Fake({"https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>"),
+                       "https://x.com/llms.txt": (fc.REDIRECT_BLOCKED, "redirects to https://x.com/private/llms.txt, "
+                                                  "which robots.txt does not allow", b"")})
+        # a fixed page list reads no llms.txt, so go through the sitemap
+        sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+              "<url><loc>https://x.com/p</loc></url></urlset>").encode()
+        f.answers["https://x.com/sm.xml"] = (200, "application/xml", sm)
+        result = fc.run({"site": "https://x.com", "sitemap": "https://x.com/sm.xml", "facts": [
+            {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+        self.assertIn("/llms.txt: redirects to https://x.com/private/llms.txt, which robots.txt does not allow",
+                      result["notes"])
+
     def test_a_page_over_5_mb_is_reported_as_cut(self):
         # outside review finding: the cut was silent
         big = b"<html><body><p>" + b"x " * (3 * 1024 * 1024) + b"</p></body></html>"
@@ -424,6 +476,17 @@ class LoadFacts(unittest.TestCase):
         for part in ('starting with "/"', "not both", 'needs a "term"', '"h1" must be', '"exempt"'):
             self.assertIn(part, msg)
 
+    def test_wrong_types_in_the_positioning_block_are_messages_too(self):
+        # round 3 (GLM asked): a rule's "pages" and "exempt" of the wrong type, and a rule that is no object
+        for bad in ({"rules": [{"pages": 3, "term": "x"}]}, {"rules": [3]},
+                    {"rules": [{"pages": "/", "term": "x"}], "exempt": 3}):
+            with self.subTest(bad=bad):
+                path = self.write({"site": "https://x.com", "positioning": bad})
+                with self.assertRaises(fc.FactsError):
+                    fc.load_facts(path)
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(fc.main([path]), 2)
+
     def test_a_wrong_type_is_a_message_not_a_crash(self):
         # round 2 (Codex): "retired": 3 and "retired_phrases": 3 raised TypeError (a traceback, exit 1)
         cases = {
@@ -497,14 +560,15 @@ PAGES = {
     # robots.txt keeps /private/ out; /via-redirect leads there (round 2: a redirect must not get around robots.txt)
     "/private/secret": ("text/html", "<html><head><title>Secret</title></head><body><p>We have 9,999 agents.</p></body></html>"),
 }
-REDIRECTS = {"/old-offer": "/", "/via-redirect": "/private/secret"}
+REDIRECTS = {"/old-offer": "/", "/via-redirect": "/private/secret", "/to-ftp": "ftp://127.0.0.1:9/page.html"}
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path in REDIRECTS:
             self.send_response(301)
-            self.send_header("Location", self.server.base + REDIRECTS[self.path])
+            target = REDIRECTS[self.path]
+            self.send_header("Location", target if "://" in target else self.server.base + target)
             self.end_headers()
             return
         if self.path == "/cut-off":
@@ -515,6 +579,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Transfer-Encoding", "chunked")
             self.end_headers()
             self.wfile.write(b"100\r\n<html><body><p>We have 1,234 agents")
+            self.close_connection = True
+            return
+        if self.path == "/short":
+            # round 3 (Codex): the header promises 500 bytes, 40 come, and http.client reads a short body without complaint
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", "500")
+            self.end_headers()
+            self.wfile.write(b"<html><body><p>We have 27,000 agents")
             self.close_connection = True
             return
         if self.path == "/latin1":
@@ -753,6 +826,25 @@ class FullRun(unittest.TestCase):
         got = sorted((r["fact"], r["status"], r["found_value"], r["where"]) for r in result["rows"])
         self.assertEqual(got, [("agents", "OK", 27000, "page text"), ("nps", "MISMATCH", -5, "page text")])
         self.assertEqual(code, 1)
+
+    def test_a_redirect_to_a_non_web_address_is_not_followed(self):
+        # round 3 (Codex): with a readable ftp robots.txt, the robots check raised TypeError (an ftp response has no status)
+        base = self.server.base
+        facts = self.facts(pages=[base + "/to-ftp", base + "/"], retired_phrases=[])
+        code, md, result, _ = self.run_check(facts)
+        bad = [f for f in result["failed"] if f["url"].endswith("/to-ftp")]
+        self.assertEqual(len(bad), 1)
+        self.assertIn("only web addresses (http, https) are read", bad[0]["why"])
+        self.assertIn(base + "/", [p["url"] for p in result["read"]])
+
+    def test_a_body_shorter_than_its_content_length_is_not_a_page(self):
+        # round 3 (Codex, found in the old code): a cut-off body was read as the whole page and could exit clean
+        base = self.server.base
+        facts = self.facts(pages=[base + "/short"], retired_phrases=[])
+        code, md, result, _ = self.run_check(facts)
+        self.assertEqual(code, 2)   # nothing could be read, and that is never clean
+        self.assertEqual(result["rows"], [])
+        self.assertIn("ended before it was complete", result["failed"][0]["why"])
 
     def test_a_response_that_ends_in_the_middle_does_not_stop_the_run(self):
         # round 2 (Codex): http.client.IncompleteRead escaped get() and ended the whole run

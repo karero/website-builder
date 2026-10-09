@@ -475,8 +475,17 @@ SOFT = "\u2063"
 
 
 def resolve_soft(text: str) -> str:
-    text = re.sub(r"(?<=\d)%s+(?=[.,]\d)" % SOFT, "", text)   # 27</span>,000 and 29</span>.99
-    text = re.sub(r"(?<=\d[.,])%s+(?=\d)" % SOFT, "", text)   # 27,</span><span>000
+    # A soft space is a space, except where a tag cuts a number: "27</span>,000", "27,</span><span>000",
+    # "27</span>,<span>000" and "29</span>.99" are 27,000 and 29.99. A minus sign in an element of its
+    # own belongs to the digits after it, unless it sits between two things ("5</span>-</span>10").
+    # (Two list numbers in adjacent spans, "1." and "2", would join; lists use <li>, a hard space.)
+    text = re.sub(r"(?<=\d)%s*([.,])%s*(?=\d)" % (SOFT, SOFT), r"\1", text)
+
+    def sign(m):
+        before = text[:m.start()].rstrip(SOFT)
+        return m.group(0) if before and re.match(r"[\w.,/+\u00b1]", before[-1]) else m.group(1)
+
+    text = re.sub(r"([-\u2212])%s+(?=\d)" % SOFT, sign, text)
     return text.replace(SOFT, " ")
 
 
@@ -687,25 +696,33 @@ class PageText(HTMLParser):
         return out
 
 
+WEB_ONLY = "only web addresses (http, https) are read"
+
+
 class _RedirectBlocked(Exception):
-    def __init__(self, url: str, why: str):
+    def __init__(self, url: str, why: str, robots: bool):
         super().__init__(url)
-        self.url, self.why = url, why
+        self.url, self.why, self.robots = url, why, robots
 
 
 class _RedirectGuard(urllib.request.HTTPRedirectHandler):
-    """Follow a redirect only where robots.txt allows the address it leads to. Only requests
-    marked `guard_robots` (page fetches) are checked, not robots.txt or the sitemaps."""
+    """Never follow a redirect to anything but a web address. For page fetches (requests marked
+    `guard_robots`), follow one only where robots.txt allows the address it leads to; robots.txt
+    and the sitemaps are read wherever they redirect."""
 
     def __init__(self, fetcher: "Fetcher"):
         self.fetcher = fetcher
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlsplit(newurl).scheme.lower() not in ("http", "https"):
+            fp.close()
+            raise _RedirectBlocked(newurl, WEB_ONLY, False)
         guard = getattr(req, "guard_robots", False)
         if guard:
             why = self.fetcher.blocked(newurl)
             if why:
-                raise _RedirectBlocked(newurl, why)
+                fp.close()
+                raise _RedirectBlocked(newurl, why, True)
         new = super().redirect_request(req, fp, code, msg, headers, newurl)
         if new is not None:
             new.guard_robots = guard  # the next hop is checked too
@@ -732,6 +749,8 @@ class Fetcher:
         """(status, content type, body, final url). Status 0 = no answer. The body is
         cut at `limit` bytes. With `guard_redirects`, a redirect to an address robots.txt does
         not allow is not followed: the status is REDIRECT_BLOCKED and the content type says why."""
+        if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
+            return 0, WEB_ONLY, b"", url  # a sitemap may list anything: file: and ftp: are not pages
         self._wait()
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
@@ -739,11 +758,16 @@ class Fetcher:
         try:
             with self._opener.open(req, timeout=self.timeout) as r:
                 body = r.read(limit)
-                return r.status, r.headers.get("Content-Type", ""), body, r.geturl()
+                if getattr(r, "length", None) and len(body) < limit:
+                    # http.client hands back a short body without complaint when the server
+                    # promised more than it sent
+                    raise http.client.IncompleteRead(body, r.length)
+                status = r.status if isinstance(r.status, int) else 0
+                return status, r.headers.get("Content-Type", ""), body, r.geturl()
         except _RedirectBlocked as e:
             said = ("redirects to %s, which robots.txt does not allow" % e.url if e.why == "robots.txt"
                     else "redirects to %s; %s" % (e.url, e.why))
-            return REDIRECT_BLOCKED, said, b"", url
+            return (REDIRECT_BLOCKED if e.robots else 0), said, b"", url
         except urllib.error.HTTPError as e:
             return e.code, "", b"", url
         except http.client.IncompleteRead:
@@ -765,9 +789,10 @@ class Fetcher:
                 rp.parse(body.decode("utf-8", "replace").splitlines())
             elif status in (401, 403):
                 rp.disallow_all = True
-            elif status == 0 or status >= 500:
-                # A robots.txt that cannot be read means "keep out" by the robots
-                # convention (RFC 9309), not "everything allowed".
+            elif status == 0 or status >= 500 or 300 <= status < 400:
+                # A robots.txt that cannot be read (no answer, a server error, a redirect that
+                # never resolves) means "keep out" by the robots convention (RFC 9309), not
+                # "everything allowed".
                 rp.disallow_all = True
                 why = ("robots.txt could not be read (%s); --ignore-robots reads the pages "
                        "anyway, on a site you own" % (status or "no answer"))
@@ -790,7 +815,7 @@ def decode(body: bytes, ctype: str) -> str:
         enc = m.group(1).decode("ascii") if m else "utf-8"
     try:
         return body.decode(enc, "replace")
-    except LookupError:
+    except (LookupError, UnicodeError):  # an unknown name, or a codec such as idna that is no page encoding
         return body.decode("utf-8", "replace")
 
 
@@ -1022,7 +1047,9 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
     llms = site + "/llms.txt"
     if not only and not data.get("pages") and read and not fetcher.blocked(llms):
         status, ctype, body, _ = fetcher.get(llms, guard_redirects=True)
-        if status == 200 and body and "html" not in ctype.lower():
+        if status == REDIRECT_BLOCKED:
+            notes.append("/llms.txt: %s" % ctype)
+        elif status == 200 and body and "html" not in ctype.lower():
             for row in check_page(llms, {"llms.txt": decode(body, ctype)}, facts, retired_phrases):
                 row["origin"] = "own"
                 rows.append(row)
