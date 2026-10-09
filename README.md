@@ -186,7 +186,10 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site>/tests`.
+> `./scripts/whats-new.sh --stamp-tests <site>/tests`. A changed file the site has no copy
+> of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
+> `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
+> never marked MISSING.
 >
 > **Windows:** run `./scripts/install.sh` from **Git Bash** or **WSL**, or copy
 > `skills\*` into `%USERPROFILE%\.claude\skills\` with PowerShell
@@ -289,6 +292,7 @@ scripts/
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
+  test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
   check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)
 docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you

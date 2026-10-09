@@ -313,8 +313,21 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   echo "stamp updated → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 }
 
+# Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
+# every TEMPLATE_TRACKED file against both. PUBLISHING.md has no fixed site path (an owner's
+# translation may be saved as PUBLISHING.de.md), so it is never marked MISSING.
+site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, or nothing if unknown
+  case "$1" in
+    skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
+    skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
+    skills/new-website/templates/SETUP.md) echo "SETUP.md" ;;
+    skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
+    skills/new-website/templates/claude/*) echo ".claude/${1#skills/new-website/templates/claude/}" ;;
+  esac
+}
+
 process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline source label
-  local tests_dir="$1" base="$2" src="$3" short_base changed f
+  local tests_dir="$1" base="$2" src="$3" short_base changed f site_rel missing=""
   if [ -z "$base" ] || [ "$base" = "unknown" ]; then
     echo "error: the tests baseline ($src) has no usable commit (zip install?). Compare by" >&2
     echo "hand, then set a fresh baseline with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
@@ -347,7 +360,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
     [ -n "$f" ] || continue
     case "$f" in
       skills/new-website/templates/astro/tests/*)
-        echo "  ${f#skills/new-website/templates/astro/} (site copy: tests/$(basename "$f"))" ;;
+        echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/})" ;;
       skills/new-website/templates/content-guide.md)
         echo "  templates/content-guide.md (site copy: CONTENT_GUIDE.md)" ;;
       skills/new-website/templates/AGENTS.md)
@@ -397,10 +410,27 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
       *)
         echo "  $f" ;;
     esac
+    # A file the site never had (or deleted) is not drift: merging "changes" into nothing
+    # reads as optional, and for verify.mjs or the pre-push hook it means no local gate.
+    # A file deleted upstream is left alone; so is one with no known site path.
+    site_rel="$(site_copy_of "$f")"
+    if [ -n "$site_rel" ] && [ ! -e "$(dirname "$tests_dir")/$site_rel" ] &&
+       git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null; then
+      echo "    MISSING: the site has no $site_rel"
+      missing="$missing  $site_rel
+"
+    fi
     git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "$f" | sed 's/^/    /'
   done <<CHANGED
 $changed
 CHANGED
+  if [ -n "$missing" ]; then
+    echo
+    echo "MISSING from the site — not drift, there is no copy to merge into. Copy each one in"
+    echo "from the template (the notes above say what else it needs), or note why the site"
+    echo "does without it:"
+    printf '%s' "$missing"
+  fi
   echo
   echo "Review + merge each by hand, e.g.:"
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(head -n 1 <<<"$changed")"

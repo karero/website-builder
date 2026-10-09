@@ -53,6 +53,7 @@ NOT_RUN=(
   scripts/test_verify.sh                                        # builds a throwaway site with a stub npm; needs node
   scripts/test_clean_denylist.sh                                # builds a throwaway repo and worktree; needs git
   scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node
+  scripts/test_whats_new.sh                                     # builds a throwaway suite repo and site; needs git
   scripts/check_cdpath_safe.sh                                  # this file
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
   skills/independent-review/scripts/review_log.sh               # appends to the owner's cost log; never locates itself

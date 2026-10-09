@@ -32,7 +32,7 @@ zip -r -X "$OUT/website-builder.zip" \
   scripts/whats-new.sh scripts/check_model_agnostic.sh scripts/check_skill_budgets.sh \
   scripts/test_install_pin.sh scripts/test_whats_new_removed_skill.sh scripts/check_template_coverage.sh scripts/check_cdpath_safe.sh \
   scripts/test_package_leak.sh scripts/check_pipefail_pipes.sh \
-  scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh \
+  scripts/test_pre_push_hook.sh scripts/test_verify.sh scripts/test_clean_denylist.sh scripts/test_git_stand_hook.sh scripts/test_whats_new.sh \
   scripts/check_lf_checkout.sh scripts/list_shell_scripts.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
@@ -68,6 +68,7 @@ REQUIRED=(
   scripts/test_verify.sh
   scripts/test_clean_denylist.sh
   scripts/test_git_stand_hook.sh
+  scripts/test_whats_new.sh
   scripts/check_lf_checkout.sh
   scripts/list_shell_scripts.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
