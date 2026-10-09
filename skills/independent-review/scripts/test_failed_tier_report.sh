@@ -18,7 +18,8 @@
 set -u
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT="$HERE/independent_review.sh"
-T="$(mktemp -d "${TMPDIR:-/tmp}/ir-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/ir-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin" "$T/u/.codex"
 : >"$T/u/.codex/auth.json"

@@ -14,7 +14,8 @@
 # Usage: bash scripts/test_package_leak.sh
 set -u
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-T="$(mktemp -d "${TMPDIR:-/tmp}/package-leak-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/package-leak-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/repo/scripts" "$T/bin"
 cp "$HERE/package.sh" "$T/repo/scripts/package.sh"

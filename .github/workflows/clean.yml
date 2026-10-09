@@ -31,7 +31,10 @@ name: clean
 # runs in a linked worktree too and that CI's masked mode prints no scanned text
 # (scripts/test_clean_denylist.sh), and that the site's Claude Code
 # sync hook reports news, failures and retries correctly (scripts/test_git_stand_hook.sh), that
-# whats-new marks a frozen template file the site lacks as MISSING (scripts/test_whats_new.sh), and
+# whats-new marks a frozen template file the site lacks as MISSING (scripts/test_whats_new.sh), that
+# each script listed in scripts/test_mktemp_guard.sh stops with an error when mktemp fails and leaves
+# the folder it ran from alone, with a new script that calls mktemp forced onto its list or its
+# exemptions, and
 # that every text file checks out LF even where Git converts to CRLF
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
@@ -225,6 +228,17 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check whats-new marks a frozen template file the site lacks as MISSING
         run: bash scripts/test_whats_new.sh
+  mktemp-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # A listed script that skips (no git, node or python3 on the machine) is not tested; this job
+      # must not stay green having tried fewer scripts, so REQUIRE_EVERY_SCRIPT=1 makes a skip a
+      # failure, as REQUIRE_PERL_MINIMUM does for the Perl check above.
+      - name: Check the scripts listed in test_mktemp_guard.sh stop with an error, and leave the folder they ran from alone, when mktemp fails
+        env:
+          REQUIRE_EVERY_SCRIPT: "1"
+        run: bash scripts/test_mktemp_guard.sh
   lf-checkout:
     runs-on: ubuntu-latest
     steps:
