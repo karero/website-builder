@@ -753,7 +753,7 @@ inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --dep
 # A wording pass, a final full read or a re-gate is not a round and leaves --round off (SKILL.md step 2):
 # the open gate's id is what it must carry, and it must not start a gate of its own.
 rows_join_gate() {   # rows_join_gate <log> <lines before> <gate id>: there are new rows, and each carries the id
-  tail -n +"$(($2 + 1))" "$1" | awk -F'\t' -v g="$3" 'NF { n++; if ($14 != g) bad = 1 } END { exit (n > 0 && !bad) ? 0 : 1 }'
+  tail -n +"$(($2 + 1))" "$1" | awk -F'\t' -v g="$3" 'NF { n++; if (g == "" || $14 != g) bad = 1 } END { exit (n > 0 && !bad) ? 0 : 1 }'
 }
 gate_before="$(cat "$G/.git/independent-review-gate")"; lines_before="$(wc -l <"$GL")"
 inrepo gatenr bash "$SCRIPT" "$T/change.diff" --depth normal
