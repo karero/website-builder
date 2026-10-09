@@ -306,9 +306,9 @@ For implementation, use the **schema-markup** skill.
 
 ## Content Types That Get Cited Most
 
-Not all content is equally citable. Prioritize these formats:
+Not all content is equally citable. Prioritize these formats, in no particular order:
 
-| Content Type | Why AI Cites It |
+| Content Type | What Makes It Citable |
 |-------------|----------------|
 | **Comparison articles** | Structured, balanced, high-intent |
 | **Definitive guides** | Comprehensive, authoritative |
@@ -318,7 +318,11 @@ Not all content is equally citable. Prioritize these formats:
 | **How-to guides** | Step-by-step structure |
 | **Opinion/analysis** | Expert perspective, quotable |
 
-What the numbers say: the largest study we could trace is Profound's, which counted the pages that AI answer engines cite. In April 2025, across ChatGPT, Google AI Overviews, Perplexity and Microsoft Copilot, comparison articles and "best of" lists (Profound counts them as one group) made up 32.5% of 177 million cited sources, and blog and opinion posts made up 9.91% ([Profound, BrightonSEO, April 2025](https://speakerdeck.com/joshbly/josh-blyskal-profound-we-analyed-10000-000-ai-search-results-dot-dot-dot)). In a larger count of 2.6 billion citations that September (Profound says eight answer engines), that group was 25.37% ([Profound, BrightonSEO, September 2025](https://speakerdeck.com/joshbly/josh-blyskal-profound-i-analyzed-40-million-search-results-heres-what-i-found)). Treat these as a snapshot of what gets cited, not proof that the format causes it. We found no study that gives a share for the other formats, so we don't quote one.
+**What the numbers say:** two studies count which kinds of pages AI answers cite. They sort pages differently, so don't line their lists up one by one. In both, list pages come first among the named types.
+- Profound, an AI-visibility company, sorted 177 million citations by page type in an April 2025 talk that covered over 41 million AI search results from ChatGPT, Google AI Overviews, Perplexity and Microsoft Copilot. "Comparative listicles" (lists that compare options, such as "best running shoes") made up 32.5% and blog and opinion posts 9.91% ([Profound](https://speakerdeck.com/joshbly/josh-blyskal-profound-we-analyed-10000-000-ai-search-results-dot-dot-dot), BrightonSEO, April 2025). A September 2025 talk counted 2.6 billion citations, with "Comparative/Listicle" at 25.37% ([Profound](https://speakerdeck.com/joshbly/josh-blyskal-profound-i-analyzed-40-million-search-results-heres-what-i-found), BrightonSEO, September 2025). The two counts differ in size and setup, so don't read the drop as a trend.
+- Peec AI, an AI search analytics company, counted 1,056,727 citations from 75,000 AI answers to non-branded prompts in five industries, on ChatGPT, Google AI Mode and Perplexity. Listicles made up 21.9%, articles 16.7% and product pages 13.7%, the three largest; how-to guides made up 6.2% and comparison pages 2.2% ([Peec AI's Tom Wells](https://www.wix.com/studio/ai-search-lab/research/content-types-most-cited-by-llms), on Wix's AI Search Lab, March 2026).
+
+Profound's April table and Peec's table have no row for definitive guides or original research, so this skill quotes no share for them. These numbers show what was cited at the time, not that a format causes citations.
 
 **Underperformers for AI citation:**
 - Generic blog posts without structure
