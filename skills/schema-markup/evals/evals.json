@@ -24,7 +24,8 @@
         "Implements FAQPage schema in JSON-LD",
         "Shows correct nested structure (FAQPage > Question > Answer)",
         "Provides complete code example",
-        "Explains that Google shows FAQ rich results only for well-known, authoritative government and health sites, and does not promise one",
+        "Explains that Google shows FAQ rich results only for well-known, authoritative government and health sites",
+        "Does not promise a Google FAQ rich result",
         "Notes Google's FAQ schema guidelines",
         "Recommends validation"
       ],
