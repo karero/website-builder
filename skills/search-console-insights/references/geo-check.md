@@ -11,20 +11,17 @@ The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website
 **Quick path** (a site that is already set up). Run these with `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> …`:
 
 1. `--check-drift`: is the question still right? (see "Every session")
-2. no flag: ask the engines (a few minutes); `--engines gemini,openai` asks only some.
+2. no flag: ask the engines (a few minutes); `--engines google-ai-mode,gemini` asks only the listed engines.
 3. `--report`: the owner's page. `--trend`: week over week.
 
 Three rules that are easy to miss: say **"N of M"** with the numbers from the report, because not
 every assistant is asked both ways; never answer the questions yourself or through a coding
 assistant (see "Why the engines are asked blind"); commit results only to a **private** repo.
 
-**Contents:** [What it measures](#what-it-measures--two-columns-per-engine) ·
-[The engines, and how to pay for them](#the-engines-and-how-to-pay-for-them) (costs, HTTP 402) ·
-[Setting it up](#setting-it-up--owner--you) ·
-[Every session: is the question still right?](#every-session-is-the-question-still-right) ·
-[Reading the results](#reading-the-results) (why 0 from memory, stray copies, handing over) ·
-[Why the engines are asked "blind"](#why-the-engines-are-asked-blind) ·
-[Request shapes (for maintenance)](#engines--request-shapes-for-maintenance)
+**Contents** (the headings below, in order): What it measures · The engines, and how to pay for them
+(costs, HTTP 402) · Setting it up · Every session: is the question still right? · Reading the
+results (why 0 from memory, stray copies, handing over) · Why the engines are asked "blind" ·
+Engines: request shapes (for maintenance).
 
 ## What it measures — two columns per engine
 
@@ -124,7 +121,7 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
 
 | Route | What stops | Top up | Rerun |
 |---|---|---|---|
-| **Gemini on its own key** (no OpenRouter key, or `GEO_DIRECT_ENGINES` names it) | Gemini only; the other assistants run normally | Google AI Studio, the project **the key belongs to**, then its billing page | `scripts/geo_check.py <domain> --engines gemini` |
+| **Gemini on its own key** (no OpenRouter key, or `GEO_DIRECT_ENGINES` names it) | Gemini only; the other assistants run normally | Google AI Studio, the project **the key belongs to**, then its billing page | `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --engines gemini` |
 | **Through OpenRouter** (the default for the four chat assistants) | **All** assistants on that route, for the run | openrouter.ai, Credits | the same command without `--engines`, or `--engines` naming the assistants that failed |
 
 The own-key run prints `gemini FAILED: HTTP 402: Your prepayment credits are depleted.` (seen on a
