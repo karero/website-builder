@@ -13,7 +13,7 @@ The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website
 | Column | How it asks | What it tells the owner |
 |---|---|---|
 | **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Judge it over several weeks, not from one week to the next: a single run is only 3 answers per question. |
-| **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited. Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
+| **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited (for Perplexity, the check can only tell which search results it returned, not which of them it quoted). Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
 
 Each engine gets up to three questions:
 
@@ -51,11 +51,20 @@ by default.
   stays on OpenRouter). Reasons to name one: Gemini's free direct key instead of paid credit, and
   Perplexity's "from memory" column plus the site's country sent with its search. The report says which route each assistant went through, and a switch
   between routes is marked in the trend.
-- **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
-  pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
-  barely matters, because its questions name the place ("… in Munich-Schwabing"). A business that
-  sells everywhere gets search results without a country, which can lean towards the US; if that
-  matters, use direct keys or name the market in the question.
+- **Through OpenRouter, this check sends no country with the web searches.** For ChatGPT and Claude
+  it asks OpenRouter's `web` plugin (engine `native`) to search, and OpenRouter's documentation
+  (openrouter.ai/docs/guides/features/plugins/web-search) shows no location setting for that
+  plugin; Perplexity's model searches by itself, with no plugin. The direct keys send the country.
+  OpenRouter's documentation, read 2026-10-09
+  (openrouter.ai/docs/guides/features/server-tools/web-search), describes a newer web search
+  server tool, `openrouter:web_search`, still in beta, whose `user_location` takes a country, city,
+  region and timezone. It works only with a provider's own search and is ignored with OpenRouter's
+  Exa, Firecrawl, Parallel and Perplexity search. This check does not use it: it is in beta, and
+  nobody has captured a request showing that it changes the results.
+  For a local business this barely matters, because its questions name the place
+  ("… in Munich-Schwabing"). A business that sells everywhere gets search results without a
+  country, which can lean towards the US; if that matters, use direct keys or name the market in
+  the question.
 - **Perplexity through OpenRouter only answers "with web search on".** Its model always searches
   by itself, so there is no "from memory" answer to collect on that route (checked: even "What is
   2 + 2?" came back with 20 web sources).
@@ -148,7 +157,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
 1. 🤖 **Draft the questions.**
    - Read the live homepage and `POSITIONING.md` (if the site repo has one).
    - Write a **broad** and a **narrow** buyer question in the site's language, the way a real customer would type it.
-   - For a **local** business, **name the place** in both: engines without location settings (Gemini) otherwise answer for anywhere. A business that sells everywhere (an app, an online shop) leaves the place out.
+   - For a **local** business, **name the place** in both: engines without location settings (Gemini, and any assistant asked through OpenRouter) otherwise answer for anywhere. A business that sells everywhere (an app, an online shop) leaves the place out.
    - Never put the business name in them.
    - Also write the **branded** question.
    - Show all three to the owner and ask them to confirm or change the wording.
@@ -267,7 +276,8 @@ for the owner, so let it speak first, then add two or three sentences of your ow
   each question is asked 3 times: an assistant can write a different answer each time.
 - **One table per question:** ✓ named in every answer, ◐ sometimes, ✗ not named, ! no answer this
   time (the weekly log says why), — Google showed no AI answer, — not asked (with the reason),
-  plus whether their own website was a source and how many answers failed. `*` marks an answer
+  plus whether their own website was a source (for Perplexity, among its search results) and how
+  many answers failed. `*` marks an answer
   to an earlier version of the question. The answers are folded away under "Read what they said".
 - **"Do they describe you correctly?":** the branded answers, to read, never counted.
 
@@ -285,8 +295,24 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 ```
 
 - **named 2/3**: the business was named in 2 of the 3 answers.
-- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. (For Perplexity
-  this means "among the search results it used": its API doesn't say which of them it quoted.)
+- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. For ChatGPT, and for
+  Claude on its own key, the captured answers tie each citation to the text. For Claude through
+  OpenRouter and for Google's AI Overview the captures show a source list with no offsets or marks
+  to check it against, and Google's AI Mode tags only some of its blocks with the references they
+  use. Whether those lists hold only the sources the answer quotes is not verified, so "cited"
+  there means "listed as a source". A paired capture would settle it: the same question through
+  OpenRouter and through Claude's own key, or Google's references next to the answer as Google
+  shows them.
+- **in its results 2/3**: what the trend says for Perplexity instead of "cited". In the captured
+  answer from its own key, Perplexity returned the search results it retrieved with no annotations
+  and no [n] markers, so this check cannot tell which of them the answer quotes. Through
+  OpenRouter the captured text marks the quoted ones with [1], [2]…, which index the list, but the
+  list it came with is longer than the marks (18 pages, 10 marked), no entry carries an offset
+  into the text, and this check does not read the marks. Either way the number is how often the owner's site was among the
+  results (once per answer, however often it appears). Because the results include more than
+  the quoted ones, it can be higher than a citation count would be. The report words it the
+  same way ("your website was among its search results") and captions the list "Search results
+  returned".
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
 - **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.
@@ -319,7 +345,7 @@ that route). So count the assistants actually asked each way, and keep the last 
 every one of them was asked with search and found the business. A hand-asked Gemini answer can
 back the claim for Gemini; say that it was asked once by hand.
 
-**Look for stray copies of the owner's site.** The cited sources can reveal an address the owner
+**Look for stray copies of the owner's site.** The listed sources can reveal an address the owner
 may have forgotten: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`,
 `*.netlify.app` or `*.github.io` that serves the same site. Cheap check over the saved answers:
 
@@ -331,7 +357,7 @@ rg -o -N --no-filename -i -P '[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|
 `-P` needs a ripgrep built with PCRE2; if it says so, drop `-P` and the `(?!…)` part (you then get a
 few false matches such as `foo.github.io.example.com`).
 
-The counts only show how often an address was cited (the same answers repeat it), not how many
+The counts only show how often an address was listed (the same answers repeat it), not how many
 copies exist. It also lists other people's addresses (another business's site on `vercel.app`);
 look only at ones that carry the owner's name, and strip a trailing `.` before opening one. Open the
 full URL from the saved answer. An engine citing an address shows that it exists, not that it
@@ -345,7 +371,7 @@ page(s) and the answers of the run into the site's repo (for example `docs/geo/<
 readable summary next to them, and send the files to the owner.
 
 - **Keep them out of a public repo.** The reports and answers hold the questions, the answers
-  word for word, and every cited source. Commit them only to a **private** repo; for a public one,
+  word for word, and every listed source. Commit them only to a **private** repo; for a public one,
   send the files to the owner and commit nothing, or commit only a summary you wrote.
 - **The "Also see" link breaks in a copy.** A report page may link to the Google page by a relative
   path (`../../../reports/<domain>/google.html`). In the copy that link does not work; tell the
@@ -383,7 +409,8 @@ Checked against the providers' docs on 2026-09-26:
   `max_tokens: 4000` (without it OpenRouter reserves credit for 65k tokens and refuses small
   balances) and `usage: {"include": true}` (the reply carries its real cost). Citations are
   `choices[0].message.annotations[type=url_citation]`, else the top-level `citations` (some
-  replies list their sources only there).
+  replies list their sources only there). For Perplexity the list is every source it came with,
+  not only the ones its text marks.
   "No credit" arrives as HTTP 402 and stops the whole route for that run.
 
 - **Gemini:** `POST …/v1beta/models/{model}:generateContent`, key in the `x-goog-api-key` header; the answer is in `candidates[0].content.parts[].text` and the model in `modelVersion`. No tools (see the terms above).
