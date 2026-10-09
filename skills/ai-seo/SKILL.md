@@ -171,7 +171,7 @@ For detailed templates for each block type, see [references/content-patterns.md]
 
 AI systems prefer sources they can trust. Build citation-worthiness.
 
-**The Princeton GEO research** ([KDD 2024](https://arxiv.org/abs/2311.09735)) tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. The gains below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page, weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics did best there (+37%).
+**The Princeton GEO research** ([KDD 2024](https://arxiv.org/abs/2311.09735)) tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. The results below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page (split equally when a sentence cites several pages), weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics gained up to 37% there.
 
 | Method | Visibility Boost | How to Apply |
 |--------|:---------------:|--------------|
