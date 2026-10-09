@@ -185,6 +185,9 @@ class CheckPage(unittest.TestCase):
         loc = self.locations("<p><span>27</span>,000 clients</p>")
         rows = fc.check_page("u", loc, [fact(value=27000, terms=["client"])], [])
         self.assertEqual([r["status"] for r in rows], ["OK"])
+        loc = self.locations("<p><span>1</span><span>,234</span><span>,567</span> clients</p>")
+        rows = fc.check_page("u", loc, [fact(value=1234567, terms=["client"])], [])
+        self.assertEqual([r["status"] for r in rows], ["OK"])
         # the positioning check reads the same text
         p = fc.PageText()
         p.feed("<p><span>27</span>,000 clients</p>")
@@ -219,6 +222,9 @@ class CheckPage(unittest.TestCase):
             "<p><span>Q2</span><span>,000</span> clients</p>": "Q2 ,000 clients",      # round 6 (GLM): nor a number with a separator
             "<p><span>X1</span><span>.5</span> clients</p>": "X1 .5 clients",
             "<p><span>1,234</span><span>,567</span> clients</p>": "1,234,567 clients",
+            "<p><span>1</span><span>,234</span><span>,567</span> clients</p>": "1,234,567 clients",   # round 7 (Codex)
+            "<p><span>27</span><span>,000</span><span>.50</span> clients</p>": "27,000.50 clients",
+            "<p><span>1</span><span>,</span><span>234</span><span>,</span><span>567</span> clients</p>": "1,234,567 clients",
             "<p>Total<span>-</span><span>5</span></p>": "Total - 5",
         }
         for html, want in cases.items():
@@ -404,6 +410,17 @@ class FetcherRules(unittest.TestCase):
                 self.assertEqual((status, body), (0, b""))
                 self.assertTrue(why.startswith("not a valid address"), why)
 
+    def test_what_makes_an_address_valid_is_what_the_request_sends(self):
+        # round 7 (Codex, GLM): urllib drops the fragment and strips the ends; http.client refuses a space or a control
+        # character in the part it sends
+        for ok in ("http://x.test/a#section 2", " https://x.com/a \n", "https://x.com/a%20b", "HTTPS://X.COM/", "http://[::1]:8080/x",
+                   "https://user@x.com/", "https://m\u00fcnchen.example/"):
+            with self.subTest(ok=ok):
+                self.assertEqual(fc.bad_address(ok), "")
+        for bad in ("https://x.com/a b#c", "https://x.com/a\tb", "https://x.com/\x00", "http://x.com/ a"):
+            with self.subTest(bad=bad):
+                self.assertTrue(fc.bad_address(bad).startswith("not a valid address"), bad)
+
     def test_a_sitemap_with_a_malformed_entry_still_checks_the_other_pages(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
               "<url><loc>ftp://[</loc></url><url><loc>http:// /x</loc></url><url><loc>https://x.com/p</loc></url></urlset>").encode()
@@ -519,7 +536,9 @@ class LoadFacts(unittest.TestCase):
     def test_wrong_types_in_the_positioning_block_are_messages_too(self):
         # round 3 (GLM asked): a rule's "pages" and "exempt" of the wrong type, and a rule that is no object
         for bad in ({"rules": [{"pages": 3, "term": "x"}]}, {"rules": [3]},
-                    {"rules": [{"pages": "/", "term": "x"}], "exempt": 3}):
+                    {"rules": [{"pages": "/", "term": "x"}], "exempt": 3},
+                    {"rules": [{"pages": "http://[", "term": "x"}]},                    # round 7 (GLM): no "/" first
+                    {"rules": [{"pages": "/", "term": "x"}], "exempt": ["a://["]}):
             with self.subTest(bad=bad):
                 path = self.write({"site": "https://x.com", "positioning": bad})
                 with self.assertRaises(fc.FactsError):

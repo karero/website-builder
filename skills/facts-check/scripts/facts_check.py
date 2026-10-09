@@ -481,7 +481,7 @@ def resolve_soft(text: str) -> str:
     # own belongs to the digits after it, unless it sits between two things ("5</span>-</span>10"),
     # and a dash that opens an element after a whole number is a range ("5</span><span>-10"; not "Q2</span><span>-5").
     # (Two list numbers in adjacent spans, "1." and "2", would join; lists use <li>, a hard space.)
-    text = re.sub(r"(?<![\w.,])(\d+(?:[.,]\d+)*)%s*([.,])%s*(?=\d)" % (SOFT, SOFT), r"\1\2", text)
+    text = re.sub(r"(?<![\w.,])\d+(?:%s*[.,]%s*\d+)+" % (SOFT, SOFT), lambda m: m.group(0).replace(SOFT, ""), text)
     text = re.sub(r"(?<![\w.,])(\d+(?:[.,]\d+)*)%s+(?=[-\u2212]\d)" % SOFT, r"\1", text)   # 5</span><span>-10 is a range
 
     def sign(m):
@@ -706,7 +706,8 @@ WEB_ONLY = "only web addresses (http, https) are read"
 
 def bad_address(url: str) -> str:
     """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
-    if re.search(r"[\x00-\x20\x7f]", url.strip()):
+    url = url.strip()  # Request() unwraps it the same way
+    if re.search(r"[\x00-\x20\x7f]", url.split("#", 1)[0]):  # http.client refuses these; a #fragment is never sent
         return "not a valid address (it contains a space or a control character)"
     try:
         p = urllib.parse.urlsplit(url)
