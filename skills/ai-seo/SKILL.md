@@ -66,11 +66,10 @@ Traditional SEO gets you ranked. AI SEO gets you **cited**.
 In traditional search, you need to rank on page 1. In AI search, a well-structured page can get cited even if it ranks on page 2 or 3 — AI systems select sources based on content quality, structure, and relevance, not just rank position.
 
 **Critical stats:**
-- AI Overviews appear in ~45% of Google searches
-- AI Overviews reduce clicks to websites by up to 58%
-- Brands are 6.5x more likely to be cited via third-party sources than their own domains
-- Optimized content gets cited 3x more often than non-optimized
-- Statistics and citations boost visibility by 40%+ across queries
+- AI Overviews appear on about 45% of the queries BrightEdge tracks ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing), late 2025)
+- When an AI Overview appears, the top-ranked page gets about 58% fewer clicks ([Ahrefs](https://ahrefs.com/blog/ai-overviews-reduce-clicks-update/), desktop, 300,000 keywords, December 2025 against December 2023)
+- On "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), 2025)
+- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 30-40% on the paper's word-count measure and 15-30% on its subjective-impression measure ([GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google)
 
 ---
 
@@ -292,14 +291,16 @@ Structured data helps AI systems understand your content. Key schemas:
 | Content Type | Schema | Why It Helps |
 |-------------|--------|-------------|
 | Articles/Blog posts | `Article`, `BlogPosting` | Author, date, topic identification |
-| How-to content | `HowTo` | Step extraction for process queries |
-| FAQs | `FAQPage` | Direct Q&A extraction |
+| How-to content | `HowTo` | Steps in machine-readable form |
+| FAQs | `FAQPage` | Q&A in machine-readable form |
 | Products | `Product` | Pricing, features, reviews |
 | Comparisons | `ItemList` | Structured comparison data |
 | Reviews | `Review`, `AggregateRating` | Trust signals |
 | Organization | `Organization` | Entity recognition |
 
-Content with proper schema shows 30-40% higher AI visibility. For implementation, use the **schema-markup** skill.
+`FAQPage` describes your Q&A to machines, but since August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites, and since September 2023 it shows no HowTo rich results at all ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). For most sites both kinds of markup are valid and harmless and give no rich result in Google.
+
+For implementation, use the **schema-markup** skill.
 
 ---
 
@@ -405,7 +406,7 @@ citations in code, and trends them next to your Google rankings.
 **Optimize:**
 - Step-by-step format with numbered lists
 - Code examples where relevant
-- HowTo schema markup
+- HowTo schema markup (describes the steps to machines; Google has shown no HowTo rich results since September 2023)
 - Screenshots with descriptive alt text
 - Clear prerequisites and expected outcomes
 
@@ -413,7 +414,7 @@ citations in code, and trends them next to your Google rankings.
 
 ## Common Mistakes
 
-- **Ignoring AI search entirely** — ~45% of Google searches now show AI Overviews, and ChatGPT/Perplexity are growing fast
+- **Ignoring AI search entirely** — AI Overviews now show on about 45% of the queries BrightEdge tracks, and ChatGPT/Perplexity are growing fast
 - **Treating AI SEO as separate from SEO** — Good traditional SEO is the foundation; AI SEO adds structure and authority on top
 - **Writing for AI, not humans** — If content reads like it was written to game an algorithm, it won't get cited or convert
 - **No freshness signals** — Undated content loses to dated content because AI systems weight recency heavily. Show when content was last updated
