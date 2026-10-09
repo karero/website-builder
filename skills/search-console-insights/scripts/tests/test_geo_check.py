@@ -1372,7 +1372,8 @@ class ResultsAreNotCitations(GeoTestCase):
     """Perplexity's API returns the search results it retrieved, not which of them the answer
     quotes. Saying the owner's site was "cited" because it was among them overstated the
     result; the trend, the report and the saved-answer captions must say "results" for such an
-    engine and keep "cited" and "a source" for engines whose answers tag their sources."""
+    engine and keep "cited" and "a source" for the others (geo_check.RESULTS_ONLY says what is
+    known about each)."""
 
     OWN = "https://www.example-bakery.de/brot"
 

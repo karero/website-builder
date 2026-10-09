@@ -96,9 +96,10 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
     """The evidence geo_check.RESULTS_ONLY rests on, read from the captured answers (re-take them
     with fixtures/capture.py). Perplexity is worded "in its results" because its captures show a
     source list longer than what the answer marks. ChatGPT and Claude on their own keys tag what
-    they quote, shown below; Claude through OpenRouter and Google's AI answers come with a list
-    and nothing to check it against, and keep "cited". These tests check those conditions in the
-    captured answers; they do not catch every other way an answer could name its sources. If a
+    they quote, shown below. Claude through OpenRouter and Google's AI Overview come with a list
+    nothing can check against the text, and Google's AI Mode tags only some blocks; they keep
+    "cited", unverified either way, and the tests below pin those captures so a refresh brings the
+    question back. These tests check those conditions in the captured answers; they do not catch every other way an answer could name its sources. If a
     refresh changes one of them, a test here fails and the wording must be revisited; do not
     bend the test."""
 
@@ -121,11 +122,35 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         # a bracketed number is a mark only when it points into the list ("[2024]" is not one)
         marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(notes)}
         self.assertTrue(marked)                                    # the text does mark what it quotes...
-        self.assertEqual((len(urls), len(marked)), (18, 10))       # ...the list is longer: the numbers the docs quote
+        self.assertEqual((len(urls), len(marked)), (18, 10),       # ...the list is longer: the numbers the docs quote
+                         "a fresh capture changed the 18 pages / 10 marks quoted in geo-check.md and in "
+                         "the RESULTS_ONLY comment: update both, then these numbers")
         # and no entry is tied to a place in the text: an anchored span ends after position 0, so a 0
         # in an offset field is the empty placeholder (the capture holds 0 and 0), not an anchor
         offsets = [a.get(k) or a["url_citation"].get(k) for a in notes for k in ("start_index", "end_index")]
         self.assertFalse(any(offsets))
+
+    def test_claude_through_openrouter_comes_with_a_list_and_no_offsets(self):
+        msg = load("openrouter-anthropic-finds.json")["choices"][0]["message"]
+        notes = [a["url_citation"] for a in msg["annotations"]]
+        self.assertGreater(len(notes), len({n["url"] for n in notes}))   # entries repeat pages
+        self.assertFalse(any(n.get("end_index") for n in notes))         # none is tied to the text
+        # Kept as "cited", unverified: a fresh capture with offsets would settle it, so revisit then.
+        self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
+
+    def test_google_ai_mode_tags_some_blocks_and_ai_overview_none(self):
+        def blocks(bs):
+            for b in bs or []:
+                yield b
+                yield from blocks([x for x in (b.get("list") or []) if isinstance(x, dict)])
+        mode = load("google-ai-mode-finds.json")
+        mode_blocks = list(blocks(mode["text_blocks"]))
+        tagged = [b for b in mode_blocks if b.get("reference_indexes")]
+        self.assertTrue(tagged and len(tagged) < len(mode_blocks))       # some, not all
+        self.assertTrue(all(i < len(mode["references"]) for b in tagged for i in b["reference_indexes"]))
+        overview = load("google-overview-finds.json")["ai_overview"]
+        self.assertTrue(overview["references"])
+        self.assertFalse([b for b in blocks(overview["text_blocks"]) if b.get("reference_indexes")])
 
     def test_only_perplexity_is_worded_as_results(self):
         # The set is a decision, not a default: Claude through OpenRouter and Google's AI answers come

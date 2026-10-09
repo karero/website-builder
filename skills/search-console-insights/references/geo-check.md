@@ -53,12 +53,14 @@ by default.
   between routes is marked in the trend.
 - **Through OpenRouter, this check sends no country with the web searches.** For ChatGPT and Claude
   it asks OpenRouter's `web` plugin (engine `native`) to search, and OpenRouter's documentation
-  shows no location setting for that plugin; Perplexity's model searches by itself, with no plugin.
-  The direct keys send the country. OpenRouter's documentation, read 2026-10-09, describes a newer
-  web search server tool, `openrouter:web_search`, still in beta, whose `user_location` takes a
-  country, city, region and timezone. It works only with a provider's own search and is ignored
-  with OpenRouter's Exa, Firecrawl, Parallel and Perplexity search. This check does not use it: it
-  is in beta, and nobody has captured a request showing that it changes the results.
+  (openrouter.ai/docs/guides/features/plugins/web-search) shows no location setting for that
+  plugin; Perplexity's model searches by itself, with no plugin. The direct keys send the country.
+  OpenRouter's documentation, read 2026-10-09
+  (openrouter.ai/docs/guides/features/server-tools/web-search), describes a newer web search
+  server tool, `openrouter:web_search`, still in beta, whose `user_location` takes a country, city,
+  region and timezone. It works only with a provider's own search and is ignored with OpenRouter's
+  Exa, Firecrawl, Parallel and Perplexity search. This check does not use it: it is in beta, and
+  nobody has captured a request showing that it changes the results.
   For a local business this barely matters, because its questions name the place
   ("… in Munich-Schwabing"). A business that sells everywhere gets search results without a
   country, which can lean towards the US; if that matters, use direct keys or name the market in
@@ -295,8 +297,12 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 - **named 2/3**: the business was named in 2 of the 3 answers.
 - **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. For ChatGPT, and for
   Claude on its own key, the captured answers tie each citation to the text. For Claude through
-  OpenRouter and for Google's AI answers the list comes without marks or offsets to check that
-  against, so "cited" there means "listed as a source".
+  OpenRouter and for Google's AI Overview the captures show a source list with no offsets or marks
+  to check it against, and Google's AI Mode tags only some of its blocks with the references they
+  use. Whether those lists hold only the sources the answer quotes is not verified, so "cited"
+  there means "listed as a source". A paired capture would settle it: the same question through
+  OpenRouter and through Claude's own key, or Google's references next to the answer as Google
+  shows them.
 - **in its results 2/3**: what the trend says for Perplexity instead of "cited". In the captured
   answer from its own key, Perplexity returned the search results it retrieved with no annotations
   and no [n] markers, so this check cannot tell which of them the answer quotes. Through

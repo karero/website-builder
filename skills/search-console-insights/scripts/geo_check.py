@@ -78,15 +78,20 @@ SERP_ENGINES = {"google-ai-mode", "google-overview"}
 # while the annotation list holds 18 different pages, none with an offset into the text. Their
 # count is how often the owner's site was among the results, and is worded that way. The others
 # keep "cited": ChatGPT's annotations all point into the text, and Claude's own-key citations are
-# a selection of what it searched. Claude through OpenRouter and Google's AI answers come with a
-# source list but no offsets or marks to check that against; they keep the old wording, and the
-# docs say so. test_real_responses.py checks the conditions above in the captures (not every other
-# way an answer could name its sources); if a refresh changes one of them, a test fails: revisit.
+# a selection of what it searched. Claude through OpenRouter (13 entries over 6 pages, every offset
+# 0) and Google's AI Overview (8 references, no block tagged) come with a source list nothing can
+# check against the text, and Google's AI Mode tags only 2 of its 6 blocks with the references
+# they use. Whether those lists hold only quoted sources is unverified either way: they keep the
+# old wording, the docs say so, and a paired capture would settle it. test_real_responses.py pins
+# the captures behind all of this (not every other way an answer could name its sources); if a
+# refresh changes one, a test fails: revisit this set.
 RESULTS_ONLY = {"perplexity"}
 
 
 def cite_word(engine: str) -> str:
     return "in its results" if engine in RESULTS_ONLY else "cited"
+
+
 KEY_VARS = {e: ("SERPAPI_KEY" if e in SERP_ENGINES else f"GEO_{e.upper()}_API_KEY") for e in ENGINES}
 CHAT_ENGINES = [e for e in ENGINES if e not in SERP_ENGINES]
 # The default route: one OpenRouter key and one prepaid balance for all four chat assistants.
