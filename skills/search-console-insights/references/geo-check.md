@@ -92,6 +92,27 @@ Economic Area, Switzerland, or the United Kingdom." Whether an owner running thi
 for themselves counts is unclear. So tell owners there: **turn on billing for the Gemini
 key**. At this volume that should cost next to nothing, but check the pricing page.
 
+**When prepaid credit runs out (HTTP 402).** What happens and what to top up depends on the route
+(see "The simple way" above):
+
+- **Gemini on its own key** (no OpenRouter key, or `GEO_DIRECT_ENGINES` names it): the run prints
+  `gemini FAILED: HTTP 402: Your prepayment credits are depleted.` (seen on a real run, 2026-10) and
+  the other assistants still run normally. The owner tops up in Google AI Studio
+  (https://ai.studio/projects): open the project **the key belongs to**, then its billing page;
+  Google's explanation is at https://ai.google.dev/gemini-api/docs/billing#prepay (taken from the
+  error text; button names may differ from what is on screen). Then rerun only Gemini:
+  `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --engines gemini`.
+- **Through OpenRouter** (the default for the four chat assistants): a 402 means OpenRouter's
+  balance is empty and it stops **all** assistants on that route for the run. Top up at openrouter.ai
+  (Credits), then rerun without `--engines`, or with `--engines` naming the assistants that failed.
+
+What the history keeps: a failed engine writes its rows, marked failed ("N of M failed"), and the
+trend shows "latest attempt failed" next to the last good numbers. History keeps one row per
+engine, mode, question and settings per day, and never swaps a better row for a worse one. So a
+rerun **on the same day with the same settings** replaces the failed rows, and a failure that
+comes **after a good run on the same day** (same settings) is not recorded at all (the run's own "FAILED" line is then the only trace). A
+rerun on a later day leaves the earlier day's failed row in place. None of this needs editing by hand.
+
 ### Costs (measured 2026-09-26 through OpenRouter; prices change, so recheck on openrouter.ai)
 
 A full weekly check for **one site** asks ChatGPT, Claude, Gemini and Perplexity 42 times in total.
@@ -201,7 +222,7 @@ once, 5 or 10 dollars or euros, and that covers the checks for weeks."*
      `--confirm --expect <page code>`. It saves only if the page still matches that preview.
 5. 🤖 **Run it once** (`~/.config/gsc-insights/venv/bin/python scripts/geo_check.py example.com`), then open the report
    (`--report`) and walk the owner through it. It takes a few minutes with every engine on. If an engine shows FAILED, read its
-   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit.
+   reason: "HTTP 401/403" means the key or its permissions; "HTTP 429" means rate limit or no credit; "HTTP 402" means prepaid credit ran out (see "When prepaid credit runs out" above; on OpenRouter it stops every assistant that goes through it).
 6. 🤖 If the site isn't on weekly tracking yet, **ask** (SKILL.md "Weekly auto-tracking"). The AI check rides along with it.
 
 ## Every session: is the question still right?
@@ -273,6 +294,64 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 Every answer is saved verbatim with its sources under
 `~/.config/gsc-insights/geo/answers/<domain>/<run>/`. Quote from those files when explaining a
 result, and read the branded answers for accuracy.
+
+**Why "from memory" is usually 0 at first, and what to tell the owner.** A model is
+much more likely to "remember" a name it saw in many independent places before it was trained:
+press, listings, other people's pages. Wikipedia is one such source, not the only one, and the
+owner's own site is one among many. These are general explanations, not something this check
+measures, so offer them as the usual reasons, not as proof. Two usual reasons for 0, and a third
+that says how long to wait:
+
+- **A young site.** If the website launched recently, most models were trained before it existed.
+  Ask the owner when it went live; a business can be years old and its site still new to the models.
+- **Small models.** The cheaper, faster model of an assistant tends to know fewer niche names. The
+  first line of each saved answer file names the model that answered (for example `model=…-flash-lite`).
+- **Retraining is slow.** This column mostly moves when a new model is released, so judge it over
+  months, not weeks. Never promise the owner a date for being "in the models".
+
+A sentence the owner can use as is, with the numbers from the latest report: *"[N] of [M] assistants
+named us from memory. That is normal for a business this size. An assistant only 'remembers' a
+name that appeared in many places before it was trained. [Only if true in the latest run: When the
+same assistants can search the web, all of them find us.]"* Take every number from the report, not
+from this text: not every assistant is asked both ways. Gemini is never asked with search.
+Perplexity through OpenRouter is only ever asked with search (no "from memory" answer exists on
+that route). So count the assistants actually asked each way, and keep the last sentence only if
+every one of them was asked with search and found the business. A hand-asked Gemini answer can
+back the claim for Gemini; say that it was asked once by hand.
+
+**Look for stray copies of the owner's site.** The cited sources can reveal an address the owner
+may have forgotten: a hosting preview such as `*.workers.dev`, `*.pages.dev`, `*.vercel.app`,
+`*.netlify.app` or `*.github.io` that serves the same site. Cheap check over the saved answers:
+
+```
+rg -o -N --no-filename -i -P '[a-z0-9.-]+\.(workers\.dev|pages\.dev|vercel\.app|netlify\.app|github\.io)(?![a-z0-9-]|\.[a-z0-9-])(/[^ )"<>,;]*)?' \
+  ~/.config/gsc-insights/geo/answers/<domain>/ | sort | uniq -c
+```
+
+`-P` needs a ripgrep built with PCRE2; if it says so, drop `-P` and the `(?!…)` part (you then get a
+few false matches such as `foo.github.io.example.com`).
+
+The counts only show how often an address was cited (the same answers repeat it), not how many
+copies exist. It also lists other people's addresses (another business's site on `vercel.app`);
+look only at ones that carry the owner's name, and strip a trailing `.` before opening one. Open the
+full URL from the saved answer. An engine citing an address shows that it exists, not that it
+still works, so say nothing until you have opened it. If it serves the site, **ask the owner**
+whether that copy is meant to exist before suggesting any change; it may be intentional.
+
+**Hand the results over as files in the owner's repo.** The reports and answers sit in the hidden
+`~/.config/gsc-insights/` folder, which the Claude desktop app may not open (links into it did not
+open when tried once), so a link to a path there may do nothing for the owner. Copy the report
+page(s) and the answers of the run into the site's repo (for example `docs/geo/<date>/`), put the
+readable summary next to them, and send the files to the owner.
+
+- **Keep them out of a public repo.** The reports and answers hold the questions, the answers
+  word for word, and every cited source. Commit them only to a **private** repo; for a public one,
+  send the files to the owner and commit nothing, or commit only a summary you wrote.
+- **The "Also see" link breaks in a copy.** A report page may link to the Google page by a relative
+  path (`../../../reports/<domain>/google.html`). In the copy that link does not work; tell the
+  owner so, rather than letting them find a dead link.
+- **Before moving or deleting a file** another session or a note might point at, search for its
+  path first.
 
 When the broad question has named nobody for about four weeks, suggest the owner focus on
 the narrow one. The owner decides.
