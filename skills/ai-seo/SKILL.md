@@ -308,15 +308,17 @@ For implementation, use the **schema-markup** skill.
 
 Not all content is equally citable. Prioritize these formats:
 
-| Content Type | Citation Share | Why AI Cites It |
-|-------------|:------------:|----------------|
-| **Comparison articles** | ~33% | Structured, balanced, high-intent |
-| **Definitive guides** | ~15% | Comprehensive, authoritative |
-| **Original research/data** | ~12% | Unique, citable statistics |
-| **Best-of/listicles** | ~10% | Clear structure, entity-rich |
-| **Product pages** | ~10% | Specific details AI can extract |
-| **How-to guides** | ~8% | Step-by-step structure |
-| **Opinion/analysis** | ~10% | Expert perspective, quotable |
+| Content Type | Why AI Cites It |
+|-------------|----------------|
+| **Comparison articles** | Structured, balanced, high-intent |
+| **Definitive guides** | Comprehensive, authoritative |
+| **Original research/data** | Unique, citable statistics |
+| **Best-of/listicles** | Clear structure, entity-rich |
+| **Product pages** | Specific details AI can extract |
+| **How-to guides** | Step-by-step structure |
+| **Opinion/analysis** | Expert perspective, quotable |
+
+What the numbers say: the largest study we could trace is Profound's, which counted the pages cited by ChatGPT, Google AI Overviews, Perplexity and Microsoft Copilot. In April 2025, comparison articles and "best of" lists (Profound counts them as one group) made up 32.5% of 177 million cited sources, and blog and opinion posts made up 9.91% ([Profound, BrightonSEO, April 2025](https://speakerdeck.com/joshbly/josh-blyskal-profound-we-analyed-10000-000-ai-search-results-dot-dot-dot)). In a larger count of 2.6 billion citations that September, that group was 25.37% ([Profound, BrightonSEO, September 2025](https://speakerdeck.com/joshbly/josh-blyskal-profound-i-analyzed-40-million-search-results-heres-what-i-found)). Treat these as a snapshot of what gets cited, not proof that the format causes it. We found no study that gives a share for the other formats, so we don't quote one.
 
 **Underperformers for AI citation:**
 - Generic blog posts without structure

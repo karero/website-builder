@@ -33,10 +33,10 @@
     {
       "id": 3,
       "prompt": "What kind of content gets cited most by AI systems? We want to create content specifically optimized for AI search.",
-      "expected_output": "Should reference the content types that get cited most, including comparisons (~33% of AI citations), definitive guides (~15%), and other high-citation content types. Should explain why these formats work (they provide the structured, extractable, authoritative information AI systems need). Should provide specific recommendations for creating AI-optimized content: clear definitions, structured data, original statistics, comparison tables, expert quotes. Should reference the Princeton GEO research on what increases citation probability.",
+      "expected_output": "Should reference the content types that get cited most, including comparison articles and best-of lists (the most-cited group in Profound's 2025 study: 32.5% of 177 million cited sources in April 2025, 25.37% of 2.6 billion citations in September 2025), blog and opinion posts (9.91%), and other high-citation content types such as definitive guides, original research, product pages and how-to guides, without inventing percentages for formats that have no source. Should explain why these formats work (they provide the structured, extractable, authoritative information AI systems need). Should provide specific recommendations for creating AI-optimized content: clear definitions, structured data, original statistics, comparison tables, expert quotes. Should reference the Princeton GEO research on what increases citation probability.",
       "assertions": [
-        "References specific content types with citation rates",
-        "Mentions comparisons as highest-cited format",
+        "References specific content types, with a cited share only where it has a source",
+        "Mentions comparisons and listicles as the most-cited format",
         "Explains why these formats work for AI",
         "Provides specific content creation recommendations",
         "References Princeton GEO research",
