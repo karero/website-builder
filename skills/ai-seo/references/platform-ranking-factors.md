@@ -22,7 +22,7 @@ Beyond these basics, each platform weights different signals. Here's what matter
 
 Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T signals (Experience, Expertise, Authoritativeness, Trustworthiness). BrightEdge found them on about 45% of the queries it tracks by late 2025.
 
-**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The additional AI layer adds a preference for content with cited sources and structured data. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on a research engine and on Perplexity, not on Google).
+**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The AI layer on top seems to favour content that cites its sources: in the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on the authors' own simulated engine and on Perplexity, not on Google).
 
 **Importantly, AI Overviews don't just recycle the traditional Top 10.** Studies disagree on how far AI Overview sources overlap with the organic top 10, but many cited pages don't rank on page 1. Pages that wouldn't crack page 1 in traditional search can still get cited if they have clear, extractable answers.
 
@@ -44,7 +44,7 @@ ChatGPT's web search draws from a Bing-based index. It combines this with its tr
 
 **Freshness is a major differentiator.** In the same SE Ranking study, pages updated within the past three months averaged 6.0 citations, against 3.6 for older ones. ChatGPT clearly favors recent information.
 
-**The most important signal is content-answer fit** — a Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format carried about 55% of the weight in its model predicting which pages get cited. That is far more than domain authority (12%) or on-page structure (14%). Write the way ChatGPT would answer the question, and you're more likely to be the source it cites.
+**The most important signal is content-answer fit** — a Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format carried about 55% of the weight in its model predicting which pages get cited. That is far more than domain authority (12%) or on-page structure (14%). The study shows a link, not a tested cause, but writing the way ChatGPT answers is a cheap bet.
 
 **Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations (August 2024 to June 2025), Wikipedia accounted for 7.8% of all ChatGPT citations, Reddit for 1.8%, and Forbes for 1.1%. Brand official sites are cited frequently but third-party mentions carry significant weight.
 
