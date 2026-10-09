@@ -105,10 +105,11 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         results = [r for it in d["output"] if it["type"] == "search_results" for r in it["results"]]
         content = [c for it in d["output"] if it["type"] == "message" for c in it["content"]]
         text = " ".join(c["text"] for c in content)
+        plain = re.sub(r"\\([()\[\]])", r"\1", text)       # an escaped \( \) \[ \] reads the same
         self.assertGreater(len(results), 1)
         self.assertFalse([c for c in content if c.get("annotations")])     # no tagged citations
-        self.assertFalse(re.search(r"\[\d+\]", text))                       # no [n] markers
-        self.assertFalse(re.search(r"\]\(https?://", text))                  # no inline [label](url) links
+        self.assertFalse(re.search(r"\[\d+\]", plain))                      # no [n] markers
+        self.assertFalse(re.search(r"\]\(https?://", plain))                 # no inline [label](url) links
         self.assertIn("perplexity", geo_check.RESULTS_ONLY)
 
     def test_openrouter_perplexity_lists_more_sources_than_its_text_marks(self):
@@ -119,7 +120,8 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(notes)}
         self.assertTrue(marked)                                    # the text does mark what it quotes...
         self.assertEqual((len(urls), len(marked)), (18, 10))       # ...the list is longer: the numbers the docs quote
-        # and no entry is tied to a place in the text: a populated offset would say which are quoted
+        # and no entry is tied to a place in the text: an anchored span ends after position 0, so a 0
+        # in an offset field is the empty placeholder (the capture holds 0 and 0), not an anchor
         offsets = [a.get(k) or a["url_citation"].get(k) for a in notes for k in ("start_index", "end_index")]
         self.assertFalse(any(offsets))
 
