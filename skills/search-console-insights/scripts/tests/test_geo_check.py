@@ -1368,5 +1368,52 @@ class LinkToGoogleReport(GeoTestCase):
         self.assertEqual(len(stub.STATE["hits"]), hits_before)    # the rebuild made no AI request
 
 
+class ResultsAreNotCitations(GeoTestCase):
+    """Perplexity's API returns the search results it retrieved, not which of them the answer
+    quotes. Saying the owner's site was "cited" because it was among them overstated the
+    result; the trend, the report and the saved-answer captions must say "results" for such an
+    engine and keep "cited" and "a source" for engines whose answers tag their sources."""
+
+    OWN = "https://www.example-bakery.de/brot"
+
+    def setUp(self):
+        super().setUp()
+        self.setup_site()
+        os.environ["GEO_OPENAI_API_KEY"] = OKEY
+        os.environ["GEO_PERPLEXITY_API_KEY"] = "test-pplx-placeholder"
+        stub.engine_reply("openai", "Bäckerei Example.", sources=[self.OWN])
+        stub.engine_reply("perplexity", "Bäckerei Example.", sources=[self.OWN, "https://other.example/"])
+        rc, out = self.cli("--engines", "openai,perplexity")
+        self.assertEqual(rc, 0, out)
+
+    def finds_line(self, out, engine):
+        return next(l for l in out.splitlines() if l.strip().startswith(engine) and "finds you" in l)
+
+    def test_the_count_is_unchanged_only_the_word_differs(self):
+        by_engine = {r["engine"]: r for r in self.history() if r["mode"] == "finds"}
+        self.assertEqual(by_engine["perplexity"]["cited_own"], "3")      # still: own site among the results
+        self.assertEqual(by_engine["openai"]["cited_own"], "3")
+
+    def test_trend_calls_perplexity_results_and_openai_citations(self):
+        rc, out = self.cli("--trend")
+        self.assertIn("in its results 3/3", self.finds_line(out, "perplexity"))
+        self.assertNotIn("cited", self.finds_line(out, "perplexity"))
+        self.assertIn("cited 3/3", self.finds_line(out, "openai"))
+
+    def test_report_and_answer_captions_say_results_for_perplexity(self):
+        rc, out = self.cli("--report")
+        page = html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
+        self.assertIn("your website was among its search results", page)
+        self.assertIn("your website was a source", page)                 # ChatGPT's tagged citation
+        self.assertIn("Search results returned:", page)                  # Perplexity's answers
+        self.assertIn("Sources:", page)                                  # ChatGPT's answers
+
+    def test_site_missing_from_the_results_reads_zero_in_its_results(self):
+        stub.engine_reply("perplexity", "Bäckerei Example.", sources=["https://other.example/"])
+        rc, out = self.cli("--engines", "perplexity")
+        rc, out = self.cli("--trend")
+        self.assertIn("in its results 0/3", self.finds_line(out, "perplexity"))
+
+
 if __name__ == "__main__":
     unittest.main()

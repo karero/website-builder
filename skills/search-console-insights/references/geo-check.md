@@ -13,7 +13,7 @@ The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website
 | Column | How it asks | What it tells the owner |
 |---|---|---|
 | **Knows you** | no web search — the model answers from what it learned in training | Whether the AI already "knows" the business. The long-term goal. Judge it over several weeks, not from one week to the next: a single run is only 3 answers per question. |
-| **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited. Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
+| **Finds you** | web search switched on | What a buyer actually gets today, and which sites the engine cited (Perplexity returns the search results it retrieved, not which of them it quoted). Can move week to week. If it cites directories or review sites instead of the owner's site, that is the next job (see `business-listings-setup`). |
 
 Each engine gets up to three questions:
 
@@ -291,8 +291,12 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
 ```
 
 - **named 2/3**: the business was named in 2 of the 3 answers.
-- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3. (For Perplexity
-  this means "among the search results it used": its API doesn't say which of them it quoted.)
+- **cited 2/3**: the owner's own site was among the cited sources in 2 of 3.
+- **in its results 2/3**: what the trend says for Perplexity instead of "cited". Its API returns
+  the search results it retrieved, with no sign of which of them the answer quotes, so the number
+  is how often the owner's site was among those results. It is not a citation count, and it can
+  run higher than one. The report words it the same way ("your website was among its search
+  results") and captions the list "Search results returned".
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
 - **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.
