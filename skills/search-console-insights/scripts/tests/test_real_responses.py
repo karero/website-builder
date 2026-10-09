@@ -99,9 +99,9 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
     they quote, shown below. Claude through OpenRouter and Google's AI Overview come with a list
     nothing can check against the text, and Google's AI Mode tags only some blocks; they keep
     "cited", unverified either way, and the tests below pin those captures so a refresh brings the
-    question back. These tests check those conditions in the captured answers; they do not catch every other way an answer could name its sources. If a
-    refresh changes one of them, a test here fails and the wording must be revisited; do not
-    bend the test."""
+    question back. These tests check those conditions in the captured answers; they do not
+    catch every other way an answer could name its sources. If a refresh changes one of them, a
+    test here fails and the wording must be revisited; do not bend the test."""
 
     def test_direct_perplexity_returns_results_with_no_sign_of_which_it_quotes(self):
         d = load("perplexity-finds.json")
@@ -122,9 +122,7 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         # a bracketed number is a mark only when it points into the list ("[2024]" is not one)
         marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(notes)}
         self.assertTrue(marked)                                    # the text does mark what it quotes...
-        self.assertEqual((len(urls), len(marked)), (18, 10),       # ...the list is longer: the numbers the docs quote
-                         "a fresh capture changed the 18 pages / 10 marks quoted in geo-check.md and in "
-                         "the RESULTS_ONLY comment: update both, then these numbers")
+        self.assertTrue(0 < len(marked) < len(urls))               # ...and the list is longer than the marks
         # and no entry is tied to a place in the text: an anchored span ends after position 0, so a 0
         # in an offset field is the empty placeholder (the capture holds 0 and 0), not an anchor
         offsets = [a.get(k) or a["url_citation"].get(k) for a in notes for k in ("start_index", "end_index")]
@@ -134,15 +132,18 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         msg = load("openrouter-anthropic-finds.json")["choices"][0]["message"]
         notes = [a["url_citation"] for a in msg["annotations"]]
         self.assertGreater(len(notes), len({n["url"] for n in notes}))   # entries repeat pages
-        self.assertFalse(any(n.get("end_index") for n in notes))         # none is tied to the text
+        self.assertFalse(any(n.get(k) for n in notes for k in ("start_index", "end_index")))   # none is tied to the text
         # Kept as "cited", unverified: a fresh capture with offsets would settle it, so revisit then.
         self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
 
     def test_google_ai_mode_tags_some_blocks_and_ai_overview_none(self):
-        def blocks(bs):
+        def blocks(bs):                  # the children geo_check._flatten_blocks follows
             for b in bs or []:
+                if not isinstance(b, dict):
+                    continue
                 yield b
-                yield from blocks([x for x in (b.get("list") or []) if isinstance(x, dict)])
+                for child in ("list", "text_blocks"):
+                    yield from blocks(b.get(child) if isinstance(b.get(child), list) else [])
         mode = load("google-ai-mode-finds.json")
         mode_blocks = list(blocks(mode["text_blocks"]))
         tagged = [b for b in mode_blocks if b.get("reference_indexes")]
@@ -156,6 +157,15 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         # The set is a decision, not a default: Claude through OpenRouter and Google's AI answers come
         # with a source list we cannot check, and keep "cited". Change this only with new evidence.
         self.assertEqual(geo_check.RESULTS_ONLY, {"perplexity"})
+
+    def test_the_docs_quote_the_numbers_of_the_capture_they_rest_on(self):
+        msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
+        urls = {a["url_citation"]["url"] for a in msg["annotations"]}
+        marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(msg["annotations"])}
+        doc = " ".join((Path(__file__).resolve().parents[2] / "references" / "geo-check.md").read_text(encoding="utf-8").split())
+        self.assertIn(f"({len(urls)} pages, {len(marked)} marked)", doc,
+                      "a fresh capture changed the pages and marks geo-check.md quotes: update that line and "
+                      "the numbers in the RESULTS_ONLY comment in geo_check.py")
 
     def test_chatgpt_tags_each_citation_to_a_place_in_its_text(self):
         d = load("openai-finds.json")
