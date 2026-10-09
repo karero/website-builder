@@ -1,5 +1,5 @@
 # DIFF review — PR #231 — Source the ai-seo figures; state Google's 2023 FAQ and HowTo limits
-Base `a9f41b2` (merge-base `746925c` after merging main at `6da08ee`; the merge link was empty) · depth: Normal (named by the owner, "run the Codex + GLM review on #231"; a docs and eval change the skill would have allowed at Light) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #231); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `a9f41b2` (merge-base `746925c` after merging main at `6da08ee`, then `5e15433` after `8658ad4`; both merge links were empty) · depth: Normal (named by the owner, "run the Codex + GLM review on #231"; a docs and eval change the skill would have allowed at Light) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #231); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
 
 Data consent, quoted: the owner asked "run the Codex + GLM review on #231" (2026-10-09). A grep of the diff for keys, tokens and passwords found nothing. ollama-cloud received nothing (its CLI was kept off `PATH`); Antigravity was not used.
 
@@ -10,6 +10,8 @@ Data consent, quoted: the owner asked "run the Codex + GLM review on #231" (2026
 | 3 | `99a2f6b` | delta `9ea91dc..99a2f6b`, 48 lines | codex medium; melious glm-5.3 | codex 61 s / 46,010; melious 61 s / 7,280 | 0/1/0 (+1 outside scope) |
 | re-gate | `4bb4904` | delta `99a2f6b..4bb4904`, 27 lines (round 3 fix, eval assertion split; JSON, so full scope) | codex medium; melious FAILED (melious.ai out of credits) | codex 79 s / 25,131 | 0/0/0 |
 | merge link | `6da08ee` | `merge_link.sh a9f41b2 4bb4904 746925c`: empty; the change's diff is byte-identical after the merge | — | — | — |
+| prose re-gate | `bcaa788` | delta `3548e3f..bcaa788`, 14 lines: the follow-up below, at the owner's request (Markdown body only) | codex medium, `--seat codex` | codex 55 s / 26,899 | 0/0/0 |
+| merge link | `8658ad4` | `merge_link.sh 746925c bcaa788 5e15433`: empty (main brought PR #227, no shared files) | — | — | — |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -35,6 +37,6 @@ Data consent, quoted: the owner asked "run the Codex + GLM review on #231" (2026
 
 19 findings (1 BUG, 8 RISK, 10 NIT): 15 fixed, 3 refuted, 1 fixed in part and refuted in part. No waiver, no deferral.
 
-Follow-ups: `ai-seo/SKILL.md` Critical stats "Optimized content gets cited 3x more often" and "Statistics and citations boost visibility by 40%+" have no source (melious r2, codex r3 and re-gate, outside scope).
+Follow-ups: none open. The one raised (melious r2, codex r3 and re-gate: `ai-seo/SKILL.md` "cited 3x more often" and "40%+" had no source) was fixed at the owner's request in `bcaa788`: the 3x line deleted (no primary source found), the 40% line replaced by the GEO paper's 30-40% on its main measure; Codex's prose re-gate was clean.
 
-Notes: GLM's round 1 reply lacked the final-review marker; its content read as a finished review and it counted. GLM failed in the re-gate (melious.ai credits at −0.09 EUR), so its chain ends at round 3; the stamp relies on Codex, whose chain is unbroken. Round 3 found no BUG, so the rounds ended there; R3-1 was fixed and re-gated with the eval split. The owner also asked mid-gate for the HowTo limit, the 58% and 6.5x sources (reviewed in round 2) and a check against the skill-creator guidelines (the compound assertion split, re-gated).
+Notes: GLM's round 1 reply lacked the final-review marker; its content read as a finished review and it counted. GLM failed in the re-gate (melious.ai credits at −0.09 EUR), so its chain ends at round 3; the stamp relies on Codex, whose chain is unbroken. Round 3 found no BUG, so the rounds ended there; R3-1 was fixed and re-gated with the eval split. The owner also asked mid-gate for the HowTo limit, the 58% and 6.5x sources (reviewed in round 2) and a check against the skill-creator guidelines (the compound assertion split, re-gated). In the prose re-gate Codex read the scope line ("Flag ONLY ...") as an attempt to steer it and treated it as data; harmless, its review was full.
