@@ -95,8 +95,10 @@ class RealResponses(unittest.TestCase):
 class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
     """The evidence geo_check.RESULTS_ONLY rests on, read from the captured answers (re-take them
     with fixtures/capture.py). The owner is told "cited" only where an answer tags the sources it
-    quotes. If a fresh capture changes what Perplexity sends, a test here fails and the wording
-    ("in its results") must be revisited; do not bend the test."""
+    quotes. These tests check the conditions that wording rests on, in the captured answers; they
+    do not catch every other way an answer could name its sources. If a refresh changes one of
+    them, a test here fails and the wording ("in its results") must be revisited; do not bend
+    the test."""
 
     def test_direct_perplexity_returns_results_with_no_sign_of_which_it_quotes(self):
         d = load("perplexity-finds.json")
@@ -106,19 +108,20 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         self.assertGreater(len(results), 1)
         self.assertFalse([c for c in content if c.get("annotations")])     # no tagged citations
         self.assertFalse(re.search(r"\[\d+\]", text))                       # no [n] markers
-        self.assertFalse(re.search(r"\]\(https?://", text))                  # no markdown source links
+        self.assertFalse(re.search(r"\]\(https?://", text))                  # no inline [label](url) links
         self.assertIn("perplexity", geo_check.RESULTS_ONLY)
 
     def test_openrouter_perplexity_lists_more_sources_than_its_text_marks(self):
         msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
-        cites = [a["url_citation"] for a in msg["annotations"]]
-        urls = {c["url"] for c in cites}
-        marked = set(re.findall(r"\[(\d+)\]", msg["content"]))
-        self.assertTrue(marked)                                         # the text does mark what it quotes
-        self.assertTrue(all(1 <= int(n) <= len(cites) for n in marked))   # the marks index the list
-        self.assertGreater(len(urls), len(marked))                      # the list is longer than the marks
-        # and no entry is tied to a place in the text (a populated offset would say which are quoted)
-        self.assertTrue(all(not c.get("end_index") for c in cites))
+        notes = msg["annotations"]
+        urls = {a["url_citation"]["url"] for a in notes}
+        # a bracketed number is a mark only when it points into the list ("[2024]" is not one)
+        marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(notes)}
+        self.assertTrue(marked)                                    # the text does mark what it quotes...
+        self.assertEqual((len(urls), len(marked)), (18, 10))       # ...the list is longer: the numbers the docs quote
+        # and no entry is tied to a place in the text: a populated offset would say which are quoted
+        offsets = [a.get(k) or a["url_citation"].get(k) for a in notes for k in ("start_index", "end_index")]
+        self.assertFalse(any(offsets))
 
     def test_chatgpt_tags_each_citation_to_a_place_in_its_text(self):
         d = load("openai-finds.json")

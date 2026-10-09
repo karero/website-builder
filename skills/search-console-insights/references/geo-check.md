@@ -298,9 +298,10 @@ anthropic  finds you narrow  named 2/3 (…) → 2/3, cited 0/3, searched only 1
   text marks the quoted ones with [1], [2]…, but the list of sources it came with is longer than
   the marks (18 pages, 10 marked), none of the 18 is tied to a place in the text, and this check
   does not read the marks. Either way the number is how often the owner's site was among the
-  results (once per answer, however often it appears). Because the results include more than the
-  quoted ones, it can be higher than a citation count would be. The report words it the same way ("your website was among its
-  search results") and captions the list "Search results returned".
+  results (once per answer, however often it appears). Because the results include more than
+  the quoted ones, it can be higher than a citation count would be. The report words it the
+  same way ("your website was among its search results") and captions the list "Search results
+  returned".
 - **searched only 1/3**: the engine answered from memory in the other two, even with search on. Those answers are closer to "knows you".
 - **‡ …**: a change that makes the two numbers not directly comparable: the question, the model, the settings (names, domain, country), or the route (direct key ↔ OpenRouter).
 - **latest attempt failed**: the last run for that line didn't get an answer. The numbers shown are the last good ones, with their dates.

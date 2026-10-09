@@ -75,8 +75,9 @@ SERP_ENGINES = {"google-ai-mode", "google-overview"}
 # Perplexity's own API carries no annotations, no [n] markers and no source links in the text, and
 # through OpenRouter the annotation list holds 18 different pages, none tied to a place in the text,
 # where the text marks 10. "Cited" would overstate for it: its count is how often the owner's site
-# was among the results, and is worded that way. test_real_responses.py pins exactly those signals;
-# if a fresh capture shows any of them changed, a test fails: revisit this set.
+# was among the results, and is worded that way. test_real_responses.py checks those conditions in
+# the captures (it does not catch every other way an answer could name its sources); if a refresh
+# changes one of them, a test fails: revisit this set.
 RESULTS_ONLY = {"perplexity"}
 
 
