@@ -34,6 +34,11 @@ def load(name):
     return json.loads((FIX / name).read_text(encoding="utf-8"))
 
 
+def marks_in(msg):
+    """The [n] marks in an OpenRouter answer that point into its annotation list ("[2024]" does not)."""
+    return {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(msg["annotations"])}
+
+
 class RealResponses(unittest.TestCase):
     def parse(self, engine, name):
         return geo_check.parse_response(engine, load(name))
@@ -119,8 +124,7 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
         notes = msg["annotations"]
         urls = {a["url_citation"]["url"] for a in notes}
-        # a bracketed number is a mark only when it points into the list ("[2024]" is not one)
-        marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(notes)}
+        marked = marks_in(msg)
         self.assertTrue(marked)                                    # the text does mark what it quotes...
         self.assertTrue(0 < len(marked) < len(urls))               # ...and the list is longer than the marks
         # and no entry is tied to a place in the text: an anchored span ends after position 0, so a 0
@@ -161,7 +165,7 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
     def test_the_docs_quote_the_numbers_of_the_capture_they_rest_on(self):
         msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
         urls = {a["url_citation"]["url"] for a in msg["annotations"]}
-        marked = {n for n in re.findall(r"\[(\d+)\]", msg["content"]) if 1 <= int(n) <= len(msg["annotations"])}
+        marked = marks_in(msg)
         doc = " ".join((Path(__file__).resolve().parents[2] / "references" / "geo-check.md").read_text(encoding="utf-8").split())
         self.assertIn(f"({len(urls)} pages, {len(marked)} marked)", doc,
                       "a fresh capture changed the pages and marks geo-check.md quotes: update that line and "
