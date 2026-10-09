@@ -182,7 +182,7 @@ Most custom-cake orders now start on a phone. According to the Example Bakers' G
 
 ### Expert Quote Block
 
-In the Princeton GEO study, adding quotations raised visibility the most of any method (+41% on its main measure; see the GEO table in SKILL.md).
+In the Princeton GEO study, adding quotations raised visibility more than any of the nine methods it tested (+41% on its main measure). Pages already ranked first lost visibility from the same edit (see the GEO table in SKILL.md).
 
 ```markdown
 "[Direct quote from expert]," says [Expert Name], [Title/Role] at [Organization]. [1 sentence of context or interpretation].
