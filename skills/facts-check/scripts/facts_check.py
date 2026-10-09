@@ -28,9 +28,12 @@ How a number is tied to a fact (the rules SKILL.md explains to the owner):
   - before: one of the fact's `before` phrases ends right before the number:
             "an NPS of 72" -> before phrase "NPS of".
   - unit:   "%" ties only percentages to the fact; "" (default) only plain numbers.
-  - A year-like number (1900 to 2100, written plainly) and a zero are ignored for a fact
-    whose own value is not in that range, so "Founded in 2016. Clients ..." and a
-    count-up that starts at 0 do not count as client numbers.
+  - A comma, full stop or other sentence mark ends the search, so "in 60 countries,
+    clients ..." does not tie 60 to clients.
+  - A plain year (1900 to 2100 right after "in", "since", "seit", "founded", a month, ... or ©)
+    and a zero are ignored for a fact whose own value is not a year, so "founded in
+    2016 clients ..." and a count-up that starts at 0 are not client numbers; "über
+    2000 Kunden" is.
 Each tied number is OK (the approved value or one in `also_accept`), OUTDATED (in
 `retired`) or MISMATCH (anything else).
 """
@@ -41,6 +44,7 @@ import argparse
 import csv
 import datetime as _dt
 import gzip
+import io
 import json
 import os
 import re
@@ -56,19 +60,21 @@ from typing import Dict, List, Optional, Tuple
 
 USER_AGENT = "facts-check/1.0 (read-only site consistency check)"
 MAX_BYTES = 5 * 1024 * 1024
+SITEMAP_MAX_BYTES = 52 * 1024 * 1024  # the protocol allows 50 MB, uncompressed
 DEFAULT_WINDOW = 4
 
 # ---------------------------------------------------------------------------
 # Numbers
 # ---------------------------------------------------------------------------
 
-# Grouped thousands (27,000 / 27.000 / 27 000 with a normal, no-break or thin space)
+# Grouped thousands (27,000 / 27.000 / 27 000 with a no-break, narrow or thin space;
+# a plain space does not group, or "our 5 120 clients" would read as 5120)
 # or a plain run of digits; then an optional decimal part; then an optional
 # multiplier, plus sign and percent. The lookbehind keeps a match from starting
 # inside a word or inside another number.
 NUM_RE = (
     r"(?<![\w.,])"
-    r"(?P<int>\d{1,3}(?:[,.\u00a0\u202f\u2009 ]\d{3})+(?!\d)|\d+)"
+    r"(?P<int>\d{1,3}(?:[,.\u00a0\u202f\u2009]\d{3})+(?!\d)|\d+)"
     r"(?P<dec>[.,]\d+(?!\d))?"
     r"(?:[\u00a0 ]?(?P<mult>k|K|Tsd\.|M|Mio\.?|Mrd\.?|[Mm]illions?|Millionen|"
     r"[Bb]illions?|Milliarden?|bn)(?!\w))?"
@@ -76,10 +82,24 @@ NUM_RE = (
     r"(?P<pct>[\u00a0 ]?%)?"
 )
 WORD_RE = r"[^\W\d_]+(?:['\u2019\-][^\W\d_]+)*"
-STOP_RE = r"[.!?;](?=\s|$)|[|\u2022\u00b7]"
+STOP_RE = r"[.!?;,](?=\s|$)|[|\u2022\u00b7]"
 TOKEN_RE = re.compile(
     "(?P<num>%s)|(?P<word>%s)|(?P<stop>%s)" % (NUM_RE, WORD_RE, STOP_RE)
 )
+
+# A plain number from 1900 to 2100 right after one of these words (or after ©) is read
+# as a year and not tied to a fact that is not itself a year: "founded in 2016",
+# "seit 2010". Without such a word it is a count: "über 2000 Kunden".
+YEAR_CUES = {
+    "in", "since", "until", "till", "founded", "established", "est", "year", "copyright",
+    "im", "seit", "bis", "ab", "jahr", "gegründet", "gegruendet",
+    # a date: "27 March 2026", "im Herbst 2025"
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+    "januar", "jänner", "februar", "märz", "mai", "juni", "juli", "oktober", "dezember",
+    "spring", "summer", "autumn", "fall", "winter", "frühjahr", "frühling", "sommer", "herbst",
+}
 
 MULTIPLIERS = {
     "k": 1e3, "K": 1e3, "Tsd.": 1e3,
@@ -263,7 +283,9 @@ def find_mentions(text: str, fact: dict) -> List[dict]:
             continue
         num, plain = parse_number(m)
         if plain and 1900 <= num <= 2100 and not fact_is_year:
-            continue
+            prev = tokens[i - 1][1].group(0).lower() if i > 0 and tokens[i - 1][0] == "word" else ""
+            if prev in YEAR_CUES or text[max(0, m.start() - 3):m.start()].strip().endswith("\u00a9"):
+                continue
         if num == 0 and value != 0:
             continue
         tied = False
@@ -340,8 +362,8 @@ BLOCK_TAGS = {
     "p", "div", "li", "ul", "ol", "dt", "dd", "h1", "h2", "h3", "h4", "h5", "h6",
     "td", "th", "tr", "br", "section", "article", "header", "footer", "main",
     "nav", "aside", "figure", "figcaption", "blockquote", "span", "a", "button",
-    "label", "summary", "details", "strong", "em", "b", "i",
-}
+    "label", "summary", "details",
+}  # inline formatting (b, i, strong, em, ...) is not here: "<b>27</b>,000" stays 27,000
 SKIP_TAGS = {"script", "style", "noscript", "template", "svg", "iframe", "canvas"}
 
 
@@ -414,25 +436,34 @@ class PageText(HTMLParser):
         except ValueError:
             return
 
-        def walk(o):
+        def words(key: str) -> str:
+            return re.sub(r"([a-z])([A-Z])", r"\1 \2", key).lower()
+
+        def walk(o, key=""):
             if isinstance(o, dict):
-                for v in o.values():
-                    walk(v)
+                for k, v in o.items():
+                    # {"numberOfEmployees": {"value": 500}}: the value's name is its parent's
+                    walk(v, key if k in ("value", "minValue", "maxValue") else k)
             elif isinstance(o, list):
                 for v in o:
-                    walk(v)
+                    walk(v, key)
             elif isinstance(o, str) and not o.startswith(("http://", "https://")):
                 self.parts["structured data"].append(o)
+            elif _num(o):
+                # "500 number of employees": the property name follows like a term would
+                self.parts["structured data"].append("%s %s" % (fmt_value(o), words(key)))
 
         walk(obj)
 
     def locations(self) -> Dict[str, str]:
         out = {}
         for k, v in self.parts.items():
-            sep = " " if k == "page text" else " | "
-            if k != "page text":  # og: and twitter: descriptions often repeat one text
-                v = list(dict.fromkeys(s.strip() for s in v))
-            text = re.sub(r"[ \t\r\n\u00a0]+", " ", sep.join(s for s in v if s.strip())).strip()
+            if k == "page text":
+                joined = "".join(v)  # block tags already added their spaces
+            else:  # og: and twitter: descriptions often repeat one text
+                joined = " | ".join(s for s in dict.fromkeys(x.strip() for x in v) if s)
+            # No-break spaces stay: they group thousands ("27\u00a0000").
+            text = re.sub(r"[ \t\r\n]+", " ", joined).strip()
             if text:
                 out[k] = text
         return out
@@ -453,14 +484,15 @@ class Fetcher:
             time.sleep(self.delay - gap)
         self._last = time.monotonic()
 
-    def get(self, url: str) -> Tuple[int, str, bytes, str]:
-        """(status, content type, body, final url). Status 0 = no answer."""
+    def get(self, url: str, limit: int = MAX_BYTES) -> Tuple[int, str, bytes, str]:
+        """(status, content type, body, final url). Status 0 = no answer. The body is
+        cut at `limit` bytes."""
         self._wait()
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
         try:
             with self._opener.open(req, timeout=self.timeout) as r:
-                body = r.read(MAX_BYTES + 1)[:MAX_BYTES]
+                body = r.read(limit)
                 return r.status, r.headers.get("Content-Type", ""), body, r.geturl()
         except urllib.error.HTTPError as e:
             return e.code, "", b"", url
@@ -487,14 +519,17 @@ class Fetcher:
 
 def decode(body: bytes, ctype: str) -> str:
     m = re.search(r"charset=([\w-]+)", ctype or "", re.I)
-    enc = m.group(1) if m else "utf-8"
+    if not m:  # <meta charset="..."> or <meta http-equiv="Content-Type" content="...; charset=...">
+        m = re.search(rb"<meta[^>]+charset=[\"']?([\w-]+)", body[:4096], re.I)
+    enc = (m.group(1).decode("ascii") if isinstance(m.group(1), bytes) else m.group(1)) if m else "utf-8"
     try:
         return body.decode(enc, "replace")
     except LookupError:
         return body.decode("utf-8", "replace")
 
 
-def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str]) -> List[str]:
+def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str],
+                 only: str = "") -> List[str]:
     pages: List[str] = []
     queue = list(start)
     seen = set()
@@ -503,29 +538,44 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
         if sm in seen:
             continue
         seen.add(sm)
-        status, ctype, body, _ = fetcher.get(sm)
+        status, ctype, body, _ = fetcher.get(sm, SITEMAP_MAX_BYTES + 1)
         if status != 200 or not body:
             notes.append("sitemap %s: %s" % (sm, status or ctype or "no answer"))
             continue
         if sm.endswith(".gz") or body[:2] == b"\x1f\x8b":
             try:
-                body = gzip.decompress(body)
-            except OSError:
+                with gzip.GzipFile(fileobj=io.BytesIO(body)) as gz:
+                    body = gz.read(SITEMAP_MAX_BYTES + 1)
+            except (OSError, EOFError):
                 notes.append("sitemap %s: not a readable .gz file" % sm)
                 continue
+        if len(body) > SITEMAP_MAX_BYTES:
+            notes.append("sitemap %s: larger than the 50 MB a sitemap may be; not read" % sm)
+            continue
         try:
             root = ET.fromstring(body)
         except ET.ParseError:
             notes.append("sitemap %s: not valid XML" % sm)
             continue
-        locs = [el.text.strip() for el in root.iter() if el.tag.endswith("loc") and el.text]
-        if root.tag.endswith("sitemapindex"):
+        # Only <url><loc> and <sitemap><loc>: image:loc and video:*_loc are not pages.
+        locs = [loc.text.strip()
+                for entry in root if _local(entry.tag) in ("url", "sitemap")
+                for loc in entry if _local(loc.tag) == "loc" and loc.text and loc.text.strip()]
+        if _local(root.tag) == "sitemapindex":
             queue.extend(locs)
         else:
             for u in locs:
+                if only and only not in u:
+                    continue
                 if u not in pages:
                     pages.append(u)
+                    if len(pages) >= limit:
+                        break
     return pages[:limit]
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
 
 
 def default_sitemaps(fetcher: Fetcher, site: str) -> List[str]:
@@ -575,7 +625,7 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
         source = "the facts file's page list"
     else:
         start = [data["sitemap"]] if data.get("sitemap") else default_sitemaps(fetcher, site)
-        pages = sitemap_urls(fetcher, start, max_pages * 4 if only else max_pages, notes)
+        pages = sitemap_urls(fetcher, start, max_pages, notes, only)
         source = "the sitemap"
     if only:
         pages = [u for u in pages if only in u]
@@ -646,6 +696,10 @@ def report_md(result: dict) -> str:
     if result["pages_listed"] == 0:
         L.append("")
         L.append("**No pages were found, so nothing was checked.** See the notes at the end.")
+    elif not any(p["origin"] == "own" for p in result["read"]):
+        L.append("")
+        L.append("**No page of the site could be read, so nothing was checked.** "
+                 "The counts below say nothing about the site. See the list at the end.")
     L.append("")
     L.append("**%d mismatch%s, %d outdated value%s, %d retired phrase%s**, %d mention%s that match."
              % (c["MISMATCH"], "" if c["MISMATCH"] == 1 else "es",
@@ -771,11 +825,12 @@ def main(argv: Optional[List[str]] = None, fetcher: Optional[Fetcher] = None) ->
     if a.json:
         with open(a.json, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
+    if result["pages_listed"] == 0 or not any(p["origin"] == "own" for p in result["read"]):
+        print("No page of the site could be read; nothing was checked%s."
+              % (", and the history was not updated" if a.history else ""), file=sys.stderr)
+        return 2
     if a.history:
         append_history(a.history, result)
-    if result["pages_listed"] == 0 or not any(p["origin"] == "own" for p in result["read"]):
-        print("No page of the site could be read; nothing was checked.", file=sys.stderr)
-        return 2
     c = counts(result)
     return 1 if (c["MISMATCH"] or c["OUTDATED"] or c["RETIRED"]) else 0
 

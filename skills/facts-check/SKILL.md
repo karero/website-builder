@@ -65,8 +65,13 @@ review profile, a press article; reported as "not your site") and `retired_phras
 (`{"text": "Old Name GmbH", "note": "renamed in 2024"}`).
 
 Language: write `terms` and `before` in every language the site uses. Numbers are read
-in English and German notation alike (`27,000`, `27.000`, `27 000`, `27k`, `2,5 Mio.`,
-`1.5 million`).
+in English and German notation alike (`27,000`, `27.000`, `27k`, `2,5 Mio.`,
+`1.5 million`, and `27 000` with a no-break or thin space). A plain space does not group
+thousands, or "our 5 120 clients" would read as 5120.
+
+Structured data counts too: a number in the JSON-LD is read with its property name after
+it, so `"numberOfEmployees": {"value": 500}` reads as "500 number of employees" and the
+term `employee` ties it.
 
 ## Step 2: run it
 
@@ -131,7 +136,9 @@ to an approved fact is then reviewed like any other change.
   named nowhere.
 - **It ties numbers by nearby words, not by meaning.** "We answer 30,000 agent calls a
   day" next to the term `agent` is tied to an agent count. The rules are kept narrow by
-  default (terms after the number, a short window, years and zero ignored) and every
+  default: terms after the number, a short window, a comma or full stop ends the search,
+  zero is ignored, and so is a plain year right after "in", "since", "seit", "founded", a month
+  and the like (a four-digit count such as "über 2000 Kunden" is still read). Every
   finding shows its sentence, so a person decides.
 - **It checks numbers and exact phrases**, not paraphrased claims ("market leader").
   Retire such claims as phrases, or leave them to the content review.

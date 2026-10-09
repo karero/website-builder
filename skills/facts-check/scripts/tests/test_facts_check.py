@@ -35,7 +35,7 @@ def fact(**kw):
 class ParseNumber(unittest.TestCase):
     def test_formats(self):
         cases = {
-            "27,000+ agents": 27000, "27.000 Agenten": 27000, "27 000 agents": 27000,
+            "27,000+ agents": 27000, "27.000 Agenten": 27000, "27\u202f000 agents": 27000,
             "27 000 agents": 27000, "27k agents": 27000, "2,5 Mio. Nutzer": 2.5e6,
             "1.5 million users": 1.5e6, "100M revenue": 1e8, "1,234.5 units": 1234.5,
             "1.234,5 Einheiten": 1234.5, "3.14 ratio": 3.14, "72% NPS": 72,
@@ -55,6 +55,10 @@ class ParseNumber(unittest.TestCase):
         self.assertTrue(first_num("since 2016")[1])
         self.assertFalse(first_num("2,016 agents")[1])
         self.assertFalse(first_num("2016+ agents")[1])
+
+    def test_a_plain_space_does_not_group_thousands(self):
+        # review finding: "our 5 120 clients" was read as 5120
+        self.assertEqual(first_num("5 120 clients")[0], 5)
 
     def test_no_match_inside_words_or_codes(self):
         self.assertIsNone(first_num("model X7 and ISO9001"))
@@ -82,6 +86,22 @@ class FindMentions(unittest.TestCase):
         self.assertEqual(self.statuses("We grew 30,000. Our agents are great", f), [])
         self.assertEqual(self.statuses("27,000 of the very best trained agents", fact(window=6)),
                          [("OK", 27000)])
+
+    def test_a_comma_ends_the_search(self):
+        # review finding: 60 was tied to clients across the comma
+        f = fact(value=120, terms=["client"])
+        self.assertEqual(self.statuses("in 60 countries, clients love us", f), [])
+        self.assertEqual(self.statuses("Our 5 120 clients", f), [("OK", 120)])
+
+    def test_a_plain_four_digit_count_is_not_taken_for_a_year(self):
+        # review finding: "Über 2000 Kunden" was skipped as a year
+        f = fact(value=1800, terms=["Kunden"])
+        self.assertEqual(self.statuses("Über 2000 Kunden vertrauen uns", f), [("MISMATCH", 2000)])
+        self.assertEqual(self.statuses("seit 2010 Kunden", f), [])
+        # found on a real site: a date right before the term
+        self.assertEqual(self.statuses("launched on 27 March 2026 with these Kunden", f), [])
+        self.assertEqual(self.statuses("im Herbst 2025 Kunden", f), [])
+        self.assertEqual(self.statuses("\u00a9 2024 Kunden GmbH", f), [])
 
     def test_years_and_zero_are_ignored_unless_the_fact_is_one(self):
         f = fact(value=120, terms=["client"])
@@ -117,6 +137,37 @@ class CheckPage(unittest.TestCase):
         p.feed(html)
         rows = fc.check_page("u", p.locations(), [fact()], [])
         self.assertEqual([r["status"] for r in rows], ["MISMATCH"])
+
+
+    def locations(self, html, ctype=""):
+        p = fc.PageText()
+        p.feed(fc.decode(html, ctype) if isinstance(html, bytes) else html)
+        return p.locations()
+
+    def test_inline_formatting_does_not_split_numbers_or_words(self):
+        # review finding: "<b>27</b>,000" became "27 ,000" and gave MISMATCH 27
+        loc = self.locations("<p><b>27</b>,000 clients. Tr<i>u</i>sted.</p>")
+        self.assertEqual(loc["page text"], "27,000 clients. Trusted.")
+        rows = fc.check_page("u", loc, [fact(value=27000, terms=["client"])],
+                             [{"text": "Trusted"}])
+        self.assertEqual(sorted(r["status"] for r in rows), ["OK", "RETIRED"])
+
+    def test_numbers_in_structured_data_carry_their_property_name(self):
+        # review finding: numeric JSON-LD values were dropped
+        loc = self.locations('<script type="application/ld+json">{"@type": "Organization", '
+                             '"numberOfEmployees": {"@type": "QuantitativeValue", "value": 30000}}'
+                             '</script>')
+        self.assertIn("30,000 number of employees", loc["structured data"])
+        rows = fc.check_page("u", loc, [fact(value=27000, terms=["employee"])], [])
+        self.assertEqual([(r["status"], r["found_value"]) for r in rows], [("MISMATCH", 30000)])
+
+    def test_meta_charset_is_used_when_the_header_names_none(self):
+        # review finding: a Latin-1 page was read as UTF-8
+        html = '<html><head><meta charset="iso-8859-1"></head><p>27\xa0000 Agenten, Müller GmbH</p>'
+        loc = self.locations(html.encode("iso-8859-1"), "text/html")
+        self.assertIn("Müller GmbH", loc["page text"])
+        rows = fc.check_page("u", loc, [fact(terms=["Agenten"])], [])
+        self.assertEqual([r["status"] for r in rows], ["OK"])
 
 
 class LoadFacts(unittest.TestCase):
@@ -159,7 +210,8 @@ PAGES = {
         "<sitemap><loc>{base}/sitemap-0.xml</loc></sitemap></sitemapindex>"),
     "/sitemap-0.xml": ("application/xml",
         '<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        "<url><loc>{base}/</loc></url><url><loc>{base}/about</loc></url>"
+        '<url><loc>{base}/</loc><image:image xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'
+        "<image:loc>{base}/hero.jpg</image:loc></image:image></url><url><loc>{base}/about</loc></url>"
         "<url><loc>{base}/private/x</loc></url><url><loc>{base}/gone</loc></url>"
         "<url><loc>{base}/brochure.pdf</loc></url></urlset>"),
     "/": ("text/html; charset=utf-8",
@@ -238,8 +290,10 @@ class FullRun(unittest.TestCase):
             md = f.read()
         with open(js) as f:
             result = json.load(f)
-        with open(hist) as f:
-            history = f.read()
+        history = ""
+        if os.path.exists(hist):  # a run that checked nothing writes no history line
+            with open(hist) as f:
+                history = f.read()
         return code, md, result, history
 
     def facts(self, **kw):
@@ -287,6 +341,41 @@ class FullRun(unittest.TestCase):
         self.assertEqual(lines[0].split(",")[4], "mismatches")
         self.assertEqual(lines[1].split(",")[2:7], ["2", "3", "1", "2", "1"])
 
+    def test_image_entries_in_the_sitemap_are_not_pages(self):
+        # review finding: image:loc was fetched as a page
+        _, _, result, _ = self.run_check(self.facts())
+        self.assertEqual(result["pages_listed"], 5)
+        listed = [p["url"] for p in result["read"] + result["failed"] + result["skipped"]]
+        self.assertFalse([u for u in listed if u.endswith(".jpg")])
+
+    def test_a_run_that_reads_no_page_is_never_clean(self):
+        # review finding: all pages failing gave a clean headline and a 0/0/0 history line
+        facts = self.facts(pages=[self.server.base + "/gone", self.server.base + "/also-gone"])
+        tmp = tempfile.mkdtemp()
+        path, out, hist = (os.path.join(tmp, n) for n in ("f.json", "r.md", "h.csv"))
+        try:
+            with open(path, "w") as f:
+                json.dump(facts, f)
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+                code = fc.main([path, "--out", out, "--history", hist, "--delay", "0"])
+            with open(out) as f:
+                md = f.read()
+            self.assertEqual(code, 2)
+            self.assertIn("No page of the site could be read, so nothing was checked", md)
+            self.assertFalse(os.path.exists(hist))
+            self.assertIn("history was not updated", err.getvalue())
+        finally:
+            for n in os.listdir(tmp):
+                os.remove(os.path.join(tmp, n))
+            os.rmdir(tmp)
+
+    def test_only_is_applied_while_the_sitemap_is_read(self):
+        # review finding: --only filtered after the list was cut to max_pages * 4
+        # The brochure is the sitemap's last entry, past the old cut-off of 4 x 1 entries.
+        _, _, result, _ = self.run_check(self.facts(), "--only", "brochure", "--max-pages", "1")
+        self.assertEqual(result["pages_listed"], 1)
+        self.assertEqual([p["url"] for p in result["skipped"]], [self.server.base + "/brochure.pdf"])
+
     def test_clean_site_exits_zero(self):
         facts = self.facts(pages=[self.server.base + "/"], retired_phrases=[],
                            facts=[{"id": "clients", "value": 120, "terms": ["client"]}])
@@ -309,9 +398,32 @@ class FullRun(unittest.TestCase):
 
     def test_no_pages_is_an_error_not_a_pass(self):
         facts = self.facts(sitemap=self.server.base + "/nothing.xml")
-        code, md, result, _ = self.run_check(facts)
+        code, md, result, history = self.run_check(facts)
         self.assertEqual(code, 2)
         self.assertIn("No pages were found", md)
+        self.assertEqual(history, "")
+
+
+class LargeSitemap(unittest.TestCase):
+    def test_a_sitemap_over_5_mb_is_read_in_full(self):
+        # review finding: every response was cut at 5 MB, so a large sitemap failed to parse
+        import gzip
+        urls = "".join("<url><loc>https://example.com/p/%06d-%s</loc></url>" % (i, "x" * 60)
+                       for i in range(70000))
+        xml = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+               + urls + "</urlset>").encode()
+        self.assertGreater(len(xml), 5 * 1024 * 1024)
+
+        class Fake:
+            def get(self, url, limit=fc.MAX_BYTES):
+                body = gzip.compress(xml) if url.endswith(".gz") else xml
+                return 200, "application/xml", body[:limit], url
+
+        for name in ("sitemap.xml", "sitemap.xml.gz"):
+            with self.subTest(name=name):
+                notes = []
+                pages = fc.sitemap_urls(Fake(), ["https://example.com/" + name], 100000, notes)
+                self.assertEqual((len(pages), notes), (70000, []))
 
 
 class Cli(unittest.TestCase):
