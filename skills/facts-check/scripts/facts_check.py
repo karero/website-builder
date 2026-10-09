@@ -763,24 +763,33 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
 
 
 def robots_rules_need_the_convention(text: str) -> bool:
-    """Does this robots.txt have an Allow rule, or a *, $ or % in a rule? Only then does it matter whether the parser
-    takes the first matching rule or the longest, and how it reads wildcards and percent-escapes. The lines are the
-    ones RobotFileParser.parse() gets, so a bare CR splits them here too."""
+    """Is there a Disallow rule that a parser can read differently: one next to an Allow rule (first match against
+    longest match), or with a *, $ or % in a rule path? Without a Disallow rule to apply, or with plain ones alone, all
+    parsers agree. The lines are the ones RobotFileParser.parse() gets, so a bare CR splits them here too."""
+    allow = disallow = special = False
     for line in text.lstrip("\ufeff").splitlines():
         directive, colon, rest = line.split("#", 1)[0].partition(":")
         directive = directive.strip().lower()
-        if colon and (directive == "allow" or (directive == "disallow" and re.search(r"[*$%]", rest))):
-            return True
-    return False
+        if not colon or directive not in ("allow", "disallow"):
+            continue
+        if directive == "allow":
+            allow = True
+        elif rest.strip():
+            disallow = True  # an empty "Disallow:" allows everything
+        if re.search(r"[*$%]", rest):
+            special = True
+    return disallow and (allow or special)
 
 
 _PARSER_FOLLOWS: Optional[bool] = None
 
 
 def robots_parser_follows_convention() -> bool:
-    """Does the standard robots.txt parser of the Python that runs this read the rules as RFC 9309 does? Some versions
-    (3.9's among them) take the FIRST matching rule instead of the longest, ignore * and $, and decode %2F. It is asked
-    once, with a file that tells, so that no version number is promised."""
+    """Can the standard robots.txt parser of the Python that runs this let through a page that the file disallows? Some
+    versions (3.9's among them) take the FIRST matching rule instead of the longest, ignore * and $, and decode %2F, so
+    they read a page that a longer Disallow rule, a wildcard or an encoded-slash rule forbids. It is asked those three
+    questions once, with a file that tells, so that no version number is promised. (Python 3.13 passes, yet decodes %2F
+    the other way as well: it keeps out a page that the convention would allow. That page is skipped, not read.)"""
     global _PARSER_FOLLOWS
     if _PARSER_FOLLOWS is None:
         rp = urllib.robotparser.RobotFileParser()
@@ -850,13 +859,13 @@ class Fetcher:
             status, _, body, _ = self.get(root + "/robots.txt")
             why = "robots.txt"
             if status == 200:
-                text = body.decode("utf-8", "replace")
+                text = body.decode("utf-8", "replace").lstrip("\ufeff")  # the parser drops a BOM-first "User-agent" group
                 rp.parse(text.splitlines())
                 if not robots_parser_follows_convention() and robots_rules_need_the_convention(text):
                     self.warnings.append(
-                        "robots.txt of %s: the robots.txt parser of Python %d.%d, which ran this check, does not read Allow rules, "
-                        "wildcards (* and $) and %%-escapes as the convention does, so a page that a rule of this file disallows "
-                        "may have been read" % (root, sys.version_info[0], sys.version_info[1]))
+                        "robots.txt of %s: the robots.txt parser of Python %d.%d, which ran this check, cannot be relied on to apply "
+                        "the longest matching rule, wildcards (* and $) and an encoded slash (%%2F) as the convention does, so a "
+                        "page that a rule of this file disallows may have been read" % (root, sys.version_info[0], sys.version_info[1]))
             elif status in (401, 403):
                 rp.disallow_all = True
             elif status == 0 or status >= 500 or 300 <= status < 400:

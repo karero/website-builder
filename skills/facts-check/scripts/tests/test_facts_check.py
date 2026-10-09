@@ -450,14 +450,24 @@ class FetcherRules(unittest.TestCase):
             with self.subTest(allowed=url):
                 self.assertEqual(f.blocked(url), "")
 
+    def test_a_byte_order_mark_does_not_lose_the_first_group_of_robots_txt(self):
+        # round 12 (GLM, checked on Python 3.9.6 and 3.13.16): "\ufeffUser-agent: *" is not "user-agent" to the standard
+        # parser, so the group was dropped and every page was allowed
+        robots = b"\xef\xbb\xbfUser-agent: *\nDisallow: /private/\n"
+        f = self.Fake({"https://x.com/robots.txt": (200, "text/plain", robots)})
+        self.assertEqual(f.blocked("https://x.com/private/x"), "robots.txt")
+        self.assertEqual(f.blocked("https://x.com/public"), "")
+
     def test_which_robots_files_need_a_parser_that_follows_the_convention(self):
         # round 11 (Codex, GLM): the lines are the ones RobotFileParser.parse() gets (a bare CR splits them too), a BOM
         # does not hide the first one, comments and look-alike words do not count
         yes = (b"User-agent: *\nAllow: /public/\nDisallow: /public/secret\n", b"User-agent: *\rAllow: /public/\rDisallow: /public/secret\r",
-               b"\xef\xbb\xbfAllow: /\n", b"User-agent: *\nDisallow: /*.pdf$\n", b"User-agent: *\nDISALLOW : /private*\n",
-               b"User-agent: *\nDisallow: /public%2Fsecret\n", b"User-agent: *\r\n  allow:/x # fine\r\n")
+               b"\xef\xbb\xbfAllow: /public/\nDisallow: /public/secret\n", b"User-agent: *\nDisallow: /*.pdf$\n", b"User-agent: *\nDISALLOW : /private*\n",
+               b"User-agent: *\nDisallow: /public%2Fsecret\n", b"User-agent: *\r\n  allow:/x # fine\r\ndisallow: /x/y\r\n")
         no = (b"", b"User-agent: *\nDisallow: /private/\n", b"User-agent: *\n# Allow: /x\nDisallow: /y # no * here\n", b"User-agent: *\nAllowed: /x\n",
-              b"Sitemap: https://x.com/s*.xml\nUser-agent: *\nDisallow: /\n")
+              b"Sitemap: https://x.com/s*.xml\nUser-agent: *\nDisallow: /\n",
+              # round 12 (GLM): nothing a parser reads differently without a Disallow rule to apply
+              b"User-agent: *\nAllow: /public/\n", b"User-agent: *\nDisallow:\nAllow: /x\n", b"User-agent: *\nAllow: /caf%E9\n")
         for body in yes:
             with self.subTest(yes=body):
                 self.assertTrue(fc.robots_rules_need_the_convention(body.decode("utf-8", "replace")))
