@@ -12,7 +12,8 @@
 # checks passed", and the EXIT trap deleted the folder. Under `make check` that folder is the
 # repo. The scripts that did not reassign T ran on with it empty, so every "$T/…" path pointed
 # at the filesystem root. These cases pin the repair: with mktemp failing, the script leaves the
-# folder it ran from byte for byte as it was, ends with a non-zero status, and prints the message
+# folder it ran from as it was (same files, the sentinel with the same checksum and length), ends
+# with a non-zero status, and prints the message
 # that says why as its last line. They do not prove it stopped AT that line: a guard that printed
 # the message and then went on in silence to fail would pass. A script that goes on normally
 # prints or errors, which puts something after the message.
@@ -82,15 +83,15 @@ fail() { printf 'FAIL %s\n' "$1"; fails=$((fails+1)); }
 
 # probe <script> — runs it from a folder holding one file, "sentinel", with mktemp failing.
 # Sets p_rc (its exit status), p_out (what it printed), p_left (the names the folder holds
-# afterwards; empty if the folder is gone) and p_same (yes if the sentinel is byte for byte as
-# it was; the appended x stops $(…) dropping a changed trailing newline, as in
-# check_skill_budgets.sh).
+# afterwards; empty if the folder is gone) and p_same (yes if the sentinel has the checksum and
+# length it had; cksum sees every byte, a NUL and a trailing newline included, which $(cat …)
+# would drop).
 probe() {
   local d="$T/run.$n"; n=$((n+1))
   mkdir "$d" && cp "$T/sentinel.orig" "$d/sentinel" || { echo "FAIL — could not set up $d."; exit 1; }
   p_out="$(cd "$d" && HOME="$T/home" PATH="$T/stub:$PATH" TMPDIR="$T/missing" $TO bash "$1" 2>&1 </dev/null)"; p_rc=$?
   p_left="$(ls -A "$d" 2>/dev/null)"
-  if [ "$(cat "$T/sentinel.orig"; echo x)" = "$(cat "$d/sentinel" 2>/dev/null; echo x)" ]; then p_same=yes; else p_same=no; fi
+  if [ "$(cksum <"$T/sentinel.orig")" = "$({ cksum <"$d/sentinel"; } 2>/dev/null)" ]; then p_same=yes; else p_same=no; fi
 }
 
 # why_wrong — empty when the last probe went right, otherwise what went wrong. The message must
@@ -135,6 +136,7 @@ printf 'exit 1\n' >"$T/fx/silent.sh"
 printf 'echo "FAIL — could not create a temp dir."\n: >stray\nexit 1\n' >"$T/fx/litters.sh"
 printf 'echo "FAIL — could not create a temp dir."\necho changed >sentinel\nexit 1\n' >"$T/fx/rewrites.sh"
 printf 'echo "FAIL — could not create a temp dir."\necho >>sentinel\nexit 1\n' >"$T/fx/appends.sh"
+printf 'echo "FAIL — could not create a temp dir."\nprintf "\\000" >>sentinel\nexit 1\n' >"$T/fx/nul.sh"
 printf 'echo "FAIL — could not create a temp dir."\necho "and on it went"\nexit 1\n' >"$T/fx/goes-on.sh"
 catch "the old three lines"                    "deleted the folder"     "$T/fx/old.sh"
 catch "a script that runs on and exits 0"      "exited 0"               "$T/fx/runs-on.sh"
@@ -143,6 +145,7 @@ catch "a script that goes on after its message" "last line"             "$T/fx/g
 catch "a script that leaves a file behind"     "not just the sentinel"  "$T/fx/litters.sh"
 catch "a script that rewrites the sentinel"    "changed the sentinel"   "$T/fx/rewrites.sh"
 catch "a script that adds a newline to it"     "changed the sentinel"   "$T/fx/appends.sh"
+catch "a script that adds a NUL byte to it"    "changed the sentinel"   "$T/fx/nul.sh"
 
 # Completeness: every shell script that mentions mktemp is in SCRIPTS or EXEMPT, so a new one
 # forces a choice instead of going untested. list_shell_scripts.sh finds the scripts (by
