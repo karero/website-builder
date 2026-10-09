@@ -28,7 +28,7 @@ Use for "What is [X]?" queries.
 ```markdown
 ## What is Answer Engine Optimization?
 
-Answer Engine Optimization (AEO) is the practice of structuring content so AI-powered systems can easily extract and present it as direct answers to user queries. Unlike traditional SEO that focuses on ranking in search results, AEO optimizes for featured snippets, AI Overviews, and voice assistant responses. This approach has become essential as over 60% of Google searches now end without a click.
+Answer Engine Optimization (AEO) is the practice of structuring content so AI-powered systems can easily extract and present it as direct answers to user queries. Unlike traditional SEO that focuses on ranking in search results, AEO optimizes for featured snippets, AI Overviews, and voice assistant responses.
 ```
 
 ### Step-by-Step Block
@@ -60,8 +60,6 @@ Earning featured snippets requires strategic formatting and direct answers to se
 3. **Answer the question directly**: Provide a clear, concise answer (40-60 words for paragraph snippets) immediately after the question heading.
 4. **Add supporting context**: Expand on your answer with examples, data, and expert insights in the following paragraphs.
 5. **Use proper heading structure**: Place your target question as an H2 or H3, with the answer immediately following.
-
-Most featured snippets appear within 2-4 weeks of publishing well-optimized content.
 ```
 
 ### Comparison Table Block
@@ -135,8 +133,8 @@ Use for topic pages with multiple common questions. Essential for FAQ schema.
   H2s alongside question forms. Google's "People Also Ask" is "Ähnliche
   Fragen" in German SERPs — mine it the same way. Worked example:
   H2 "Was kostet eine professionelle Zahnreinigung?" answered in the first
-  sentence ("Eine professionelle Zahnreinigung kostet in Deutschland meist
-  80 bis 120 Euro."), details after.
+  sentence ("Eine professionelle Zahnreinigung kostet in unserer Praxis
+  95 Euro." — a made-up price; use your own), details after.
 - Include question words: what, how, why, when, where, who, which
 - Match "People Also Ask" queries from search results
 - Keep answers between 50-100 words
@@ -171,7 +169,7 @@ These patterns optimize content for citation by AI assistants like ChatGPT, Clau
 
 ### Statistic Citation Block
 
-In the Princeton GEO study, adding statistics raised a source's visibility in AI answers by about 31% on its main measure (see the GEO table in SKILL.md). Always include sources.
+In the Princeton GEO study, adding statistics raised a source's visibility in AI answers by about 31% on its main measure, mostly on the authors' own simulated engine. Pages already ranked first lost visibility from the same edit (see the GEO table in SKILL.md). Always include sources.
 
 ```markdown
 [Claim statement]. According to [Source/Organization], [specific statistic with number and timeframe]. [Context for why this matters].
@@ -184,13 +182,13 @@ Most custom-cake orders now start on a phone. According to the Example Bakers' G
 
 ### Expert Quote Block
 
-Named expert attribution adds credibility and increases citation likelihood.
+In the Princeton GEO study, adding quotations raised visibility the most of any method (+41% on its main measure; see the GEO table in SKILL.md).
 
 ```markdown
 "[Direct quote from expert]," says [Expert Name], [Title/Role] at [Organization]. [1 sentence of context or interpretation].
 ```
 
-**Example** (made up: never invent a quote from a real person; quote only what someone actually said, with their permission or a public source):
+**Example** (made up: never invent a quote from a real person; quote only what someone actually said, from a public source or, for a private remark, with their permission):
 ```markdown
 "People no longer search for a bakery; they ask for the best birthday cake near them," says Jane Example, owner of Example Bakery. That shift is why each product page answers one question in its first sentence.
 ```
@@ -216,9 +214,9 @@ Create quotable, standalone statements that AI can extract directly.
 **[Topic/Question]**: [Complete, self-contained answer that makes sense without additional context. Include specific details, numbers, or examples in 2-3 sentences.]
 ```
 
-**Example:**
+**Example** (made up: the source and figures are placeholders; use numbers you have checked):
 ```markdown
-**Ideal blog post length for SEO**: The optimal length for SEO blog posts is 1,500-2,500 words for competitive topics. This range allows comprehensive topic coverage while maintaining reader engagement. HubSpot research shows long-form content earns 77% more backlinks than short articles, directly impacting search rankings.
+**Ideal blog post length for SEO**: For competitive topics, aim for 1,500-2,500 words. That is long enough to cover the topic fully and short enough to keep readers. In Example Research Co.'s 2025 study, long articles earned 77% more backlinks than short ones.
 ```
 
 ### Evidence Sandwich Block
