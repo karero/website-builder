@@ -171,15 +171,15 @@ These patterns optimize content for citation by AI assistants like ChatGPT, Clau
 
 ### Statistic Citation Block
 
-Statistics increase AI citation rates by 15-30%. Always include sources.
+In the Princeton GEO study, adding statistics raised a source's visibility in AI answers by about 31% on its main measure (see the GEO table in SKILL.md). Always include sources.
 
 ```markdown
 [Claim statement]. According to [Source/Organization], [specific statistic with number and timeframe]. [Context for why this matters].
 ```
 
-**Example:**
+**Example** (made up: every name and number is a placeholder; use a real source you have checked):
 ```markdown
-Mobile optimization is no longer optional for SEO success. According to Google's 2024 Core Web Vitals report, 70% of web traffic now comes from mobile devices, and pages failing mobile usability standards see 24% higher bounce rates. This makes mobile-first indexing a critical ranking factor.
+Most custom-cake orders now start on a phone. According to the Example Bakers' Guild's 2025 member survey, 68% of custom-cake orders were placed from a mobile device, up from 52% in 2023. That is why the order form sits at the top of every page.
 ```
 
 ### Expert Quote Block
@@ -190,9 +190,9 @@ Named expert attribution adds credibility and increases citation likelihood.
 "[Direct quote from expert]," says [Expert Name], [Title/Role] at [Organization]. [1 sentence of context or interpretation].
 ```
 
-**Example:**
+**Example** (made up: never invent a quote from a real person; quote only what someone actually said, with their permission or a public source):
 ```markdown
-"The shift from keyword-driven search to intent-driven discovery represents the most significant change in SEO since mobile-first indexing," says Rand Fishkin, Co-founder of SparkToro. This perspective highlights why content strategies must evolve beyond traditional keyword optimization.
+"People no longer search for a bakery; they ask for the best birthday cake near them," says Jane Example, owner of Example Bakery. That shift is why each product page answers one question in its first sentence.
 ```
 
 ### Authoritative Claim Block
