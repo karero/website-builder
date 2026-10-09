@@ -18,7 +18,7 @@ Three rules that are easy to miss: say **"N of M"** with the numbers from the re
 every assistant is asked both ways; never answer the questions yourself or through a coding
 assistant (see "Why the engines are asked blind"); commit results only to a **private** repo.
 
-**Contents** (the headings below, in order): What it measures · The engines, and how to pay for them
+**Contents** (the sections of this file, in order, with shortened names): What it measures · The engines, and how to pay for them
 (costs, HTTP 402) · Setting it up · Every session: is the question still right? · Reading the
 results (why 0 from memory, stray copies, handing over) · Why the engines are asked "blind" ·
 Engines: request shapes (for maintenance).
