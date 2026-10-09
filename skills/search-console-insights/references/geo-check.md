@@ -51,11 +51,17 @@ by default.
   stays on OpenRouter). Reasons to name one: Gemini's free direct key instead of paid credit, and
   Perplexity's "from memory" column plus the site's country sent with its search. The report says which route each assistant went through, and a switch
   between routes is marked in the trend.
-- **Through OpenRouter, the web searches don't know the site's country.** OpenRouter has no way to
-  pass it on (checked 2026-09-26), while the direct keys send it. For a local business this
-  barely matters, because its questions name the place ("… in Munich-Schwabing"). A business that
-  sells everywhere gets search results without a country, which can lean towards the US; if that
-  matters, use direct keys or name the market in the question.
+- **Through OpenRouter, the web searches don't know the site's country.** This check asks
+  OpenRouter's `web` plugin (engine `native`) to search, and that plugin has no location field,
+  while the direct keys send the country. OpenRouter's documentation, read 2026-10-09, describes
+  a newer web search server tool, `openrouter:web_search`, still in beta, whose `user_location`
+  takes a country, city, region and timezone. It works only with a provider's own search and is
+  ignored with OpenRouter's Exa, Firecrawl, Parallel and Perplexity search. This check does not
+  use it: it is in beta, and nobody has captured a request showing that it changes the results.
+  For a local business this barely matters, because its questions name the place
+  ("… in Munich-Schwabing"). A business that sells everywhere gets search results without a
+  country, which can lean towards the US; if that matters, use direct keys or name the market in
+  the question.
 - **Perplexity through OpenRouter only answers "with web search on".** Its model always searches
   by itself, so there is no "from memory" answer to collect on that route (checked: even "What is
   2 + 2?" came back with 20 web sources).
