@@ -476,11 +476,12 @@ SOFT = "\u2063"
 
 def resolve_soft(text: str) -> str:
     # A soft space is a space, except where a tag cuts a number: "27</span>,000", "27,</span><span>000",
-    # "27</span>,<span>000" and "29</span>.99" are 27,000 and 29.99. A minus sign in an element of its
+    # "27</span>,<span>000" and "29</span>.99" are 27,000 and 29.99 (but "Q2</span>,000" is not 2,000: the
+    # digits must be a whole number, not the end of a word). A minus sign in an element of its
     # own belongs to the digits after it, unless it sits between two things ("5</span>-</span>10"),
     # and a dash that opens an element after a whole number is a range ("5</span><span>-10"; not "Q2</span><span>-5").
     # (Two list numbers in adjacent spans, "1." and "2", would join; lists use <li>, a hard space.)
-    text = re.sub(r"(?<=\d)%s*([.,])%s*(?=\d)" % (SOFT, SOFT), r"\1", text)
+    text = re.sub(r"(?<![\w.,])(\d+(?:[.,]\d+)*)%s*([.,])%s*(?=\d)" % (SOFT, SOFT), r"\1\2", text)
     text = re.sub(r"(?<![\w.,])(\d+(?:[.,]\d+)*)%s+(?=[-\u2212]\d)" % SOFT, r"\1", text)   # 5</span><span>-10 is a range
 
     def sign(m):
@@ -705,6 +706,8 @@ WEB_ONLY = "only web addresses (http, https) are read"
 
 def bad_address(url: str) -> str:
     """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
+    if re.search(r"[\x00-\x20\x7f]", url.strip()):
+        return "not a valid address (it contains a space or a control character)"
     try:
         p = urllib.parse.urlsplit(url)
         p.port  # raises ValueError for a port out of range
@@ -923,7 +926,9 @@ SURFACE_LABEL = {"title": "<title>", "desc": "<meta description>", "h1": "<h1>/i
 
 def norm_path(url_or_path: str) -> str:
     """/en/about/, /en/about.html and /en/about/index.html all read as /en/about."""
-    path = urllib.parse.urlsplit(url_or_path).path if "://" in url_or_path else url_or_path
+    # a rule path ("/en/about") is a path even if "://" occurs inside it; only an address is parsed
+    path = (urllib.parse.urlsplit(url_or_path).path if "://" in url_or_path and not url_or_path.startswith("/")
+            else url_or_path)
     path = urllib.parse.unquote(path or "/")
     for tail in ("/index.html", ".html"):
         if path.endswith(tail):

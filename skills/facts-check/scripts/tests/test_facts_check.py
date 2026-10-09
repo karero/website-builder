@@ -216,6 +216,9 @@ class CheckPage(unittest.TestCase):
             "<p><span>5</span><span>-10</span> clients</p>": "5-10 clients",           # round 4 (Codex): a range, not minus ten
             "<p><span>1,234</span><span>-10</span> clients</p>": "1,234-10 clients",
             "<p><span>Q2</span><span>-5</span> clients</p>": "Q2 -5 clients",          # round 5 (Codex): digits inside a word end no range
+            "<p><span>Q2</span><span>,000</span> clients</p>": "Q2 ,000 clients",      # round 6 (GLM): nor a number with a separator
+            "<p><span>X1</span><span>.5</span> clients</p>": "X1 .5 clients",
+            "<p><span>1,234</span><span>,567</span> clients</p>": "1,234,567 clients",
             "<p>Total<span>-</span><span>5</span></p>": "Total - 5",
         }
         for html, want in cases.items():
@@ -395,7 +398,7 @@ class FetcherRules(unittest.TestCase):
         # round 4 (Codex, found in the old code): "ftp://[" in a sitemap raised ValueError out of main()
         f = fc.Fetcher(timeout=1, delay=0, respect_robots=True)
         for url in ("ftp://[", "http://[::1", "http://127.0.0.1:99999/x", "http:///nohost", "http://:80/x", "http://@/",
-                    "http://user@:80/x", "x.com/p", ""):
+                    "http://user@:80/x", "x.com/p", "", "http:// /x", "https://x.com/a b", "https://x.com/a\tb"):
             with self.subTest(url=url):
                 status, why, body, _ = f.get(url)
                 self.assertEqual((status, body), (0, b""))
@@ -403,15 +406,15 @@ class FetcherRules(unittest.TestCase):
 
     def test_a_sitemap_with_a_malformed_entry_still_checks_the_other_pages(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-              "<url><loc>ftp://[</loc></url><url><loc>https://x.com/p</loc></url></urlset>").encode()
+              "<url><loc>ftp://[</loc></url><url><loc>http:// /x</loc></url><url><loc>https://x.com/p</loc></url></urlset>").encode()
         f = self.Fake({"https://x.com/sm.xml": (200, "application/xml", sm),
                        "https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")})
         result = fc.run({"site": "https://x.com", "sitemap": "https://x.com/sm.xml", "facts": [
-            {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+            {"id": "f", "value": 1, "terms": ["agent"]}]}, 1, 0, 1, "", True, f)   # a budget of ONE page
         self.assertEqual([p["url"] for p in result["read"]], ["https://x.com/p"])
         self.assertEqual(result["failed"], [])
         self.assertEqual(result["pages_listed"], 1)   # a left-out entry takes none of the page budget
-        self.assertIn("sitemap entries that are not web addresses were left out: 1 (the first: ftp://[)", result["notes"])
+        self.assertIn("sitemap entries that are not web addresses were left out: 2 (the first: ftp://[)", result["notes"])
 
     def test_a_robots_txt_that_redirects_without_end_keeps_the_site_out(self):
         # round 3 (Codex, found in the old code): a redirect loop surfaced as status 302, which meant "allow all"
@@ -880,6 +883,15 @@ class FullRun(unittest.TestCase):
         self.assertEqual(len(bad), 1)
         self.assertIn("only web addresses (http, https) are read", bad[0]["why"])
         self.assertIn(base + "/", [p["url"] for p in result["read"]])
+
+    def test_a_positioning_rule_path_is_a_path_even_with_a_scheme_in_it(self):
+        # round 6 (Codex, found in the old code): "//[://x" passed the rule check and then raised ValueError in norm_path
+        base = self.server.base
+        facts = self.facts(facts=[], retired_phrases=[], pages=[base + "/"],
+                           positioning={"rules": [{"pages": "//[://x", "term": "x"}], "exempt": ["/a://[b"]})
+        code, md, result, _ = self.run_check(facts)
+        self.assertEqual(result["positioning"]["uncovered"], [base + "/"])   # no rule matches the home page
+        self.assertEqual(code, 0)
 
     def test_a_malformed_address_in_the_page_list_does_not_stop_the_run(self):
         # round 4 (Codex): the page list takes http(s):// text, and "http://[::1" is not an address
