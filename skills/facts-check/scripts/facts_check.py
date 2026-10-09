@@ -477,13 +477,17 @@ SOFT = "\u2063"
 def resolve_soft(text: str) -> str:
     # A soft space is a space, except where a tag cuts a number: "27</span>,000", "27,</span><span>000",
     # "27</span>,<span>000" and "29</span>.99" are 27,000 and 29.99. A minus sign in an element of its
-    # own belongs to the digits after it, unless it sits between two things ("5</span>-</span>10").
+    # own belongs to the digits after it, unless it sits between two things ("5</span>-</span>10"),
+    # and a dash that opens an element after a digit is a range ("5</span><span>-10").
     # (Two list numbers in adjacent spans, "1." and "2", would join; lists use <li>, a hard space.)
     text = re.sub(r"(?<=\d)%s*([.,])%s*(?=\d)" % (SOFT, SOFT), r"\1", text)
+    text = re.sub(r"(?<=\d)%s+(?=[-\u2212]\d)" % SOFT, "", text)   # 5</span><span>-10 is a range
 
     def sign(m):
-        before = text[:m.start()].rstrip(SOFT)
-        return m.group(0) if before and re.match(r"[\w.,/+\u00b1]", before[-1]) else m.group(1)
+        i = m.start() - 1
+        while i >= 0 and text[i] == SOFT:
+            i -= 1
+        return m.group(0) if i >= 0 and re.match(r"[\w.,/+\u00b1]", text[i]) else m.group(1)
 
     text = re.sub(r"([-\u2212])%s+(?=\d)" % SOFT, sign, text)
     return text.replace(SOFT, " ")
@@ -699,6 +703,18 @@ class PageText(HTMLParser):
 WEB_ONLY = "only web addresses (http, https) are read"
 
 
+def bad_address(url: str) -> str:
+    """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
+    try:
+        p = urllib.parse.urlsplit(url)
+        p.port  # raises ValueError for a port out of range
+    except ValueError as e:
+        return "not a valid address (%s)" % e
+    if p.scheme.lower() not in ("http", "https"):
+        return WEB_ONLY
+    return "" if p.netloc else "not a valid address (no host)"
+
+
 class _RedirectBlocked(Exception):
     def __init__(self, url: str, why: str, robots: bool):
         super().__init__(url)
@@ -714,9 +730,10 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         self.fetcher = fetcher
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if urllib.parse.urlsplit(newurl).scheme.lower() not in ("http", "https"):
+        bad = bad_address(newurl)
+        if bad:
             fp.close()
-            raise _RedirectBlocked(newurl, WEB_ONLY, False)
+            raise _RedirectBlocked(newurl, bad, False)
         guard = getattr(req, "guard_robots", False)
         if guard:
             why = self.fetcher.blocked(newurl)
@@ -749,8 +766,9 @@ class Fetcher:
         """(status, content type, body, final url). Status 0 = no answer. The body is
         cut at `limit` bytes. With `guard_redirects`, a redirect to an address robots.txt does
         not allow is not followed: the status is REDIRECT_BLOCKED and the content type says why."""
-        if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
-            return 0, WEB_ONLY, b"", url  # a sitemap may list anything: file: and ftp: are not pages
+        bad = bad_address(url)
+        if bad:
+            return 0, bad, b"", url  # a sitemap may list anything: file:, ftp: and nonsense are not pages
         self._wait()
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
@@ -996,6 +1014,10 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
     redirected: List[dict] = []
     also_read: List[str] = []
     for url, origin in own + extra:
+        bad = bad_address(url)
+        if bad:
+            failed.append({"url": url, "origin": origin, "why": bad})
+            continue
         why = fetcher.blocked(url)
         if why:
             skipped.append({"url": url, "origin": origin, "why": why})

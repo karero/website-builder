@@ -213,6 +213,7 @@ class CheckPage(unittest.TestCase):
             "<p>NPS of <span>-</span><span>5</span></p>": "NPS of -5",
             "<p>NPS of <span>\u2212</span><span>5</span></p>": "NPS of \u22125",
             "<p>5<span>-</span><span>10</span> clients</p>": "5 - 10 clients",          # a dash between things, no sign
+            "<p><span>5</span><span>-10</span> clients</p>": "5-10 clients",           # round 4 (Codex): a range, not minus ten
             "<p>Total<span>-</span><span>5</span></p>": "Total - 5",
         }
         for html, want in cases.items():
@@ -221,6 +222,17 @@ class CheckPage(unittest.TestCase):
         loc = self.locations("<p>NPS of <span>-</span><span>5</span></p>")
         rows = fc.check_page("u", loc, [fact(value=5, terms=[], before=["NPS of"])], [])
         self.assertEqual([(r["status"], r["found_value"]) for r in rows], [("MISMATCH", -5)])
+
+    def test_resolving_soft_spaces_takes_linear_time(self):
+        # round 4 (Codex): sign() copied the whole text before each match: 120,000 of them took 6 seconds
+        import time
+        unit = "NPS of %s-%s%s5%s " % ((fc.SOFT,) * 4)
+        text = unit * 100000
+        started = time.monotonic()
+        out = fc.resolve_soft(text)
+        self.assertLess(time.monotonic() - started, 3.0)
+        self.assertEqual(out[:12], "NPS of  -5  ")
+        self.assertNotIn(fc.SOFT, out)
 
     def test_numbers_in_structured_data_carry_their_property_name(self):
         # review finding: numeric JSON-LD values were dropped
@@ -375,6 +387,25 @@ class FetcherRules(unittest.TestCase):
                 status, why, body, _ = f.get(url)
                 self.assertEqual((status, body), (0, b""))
                 self.assertIn("only web addresses", why)
+
+    def test_a_malformed_address_is_no_page_and_no_crash(self):
+        # round 4 (Codex, found in the old code): "ftp://[" in a sitemap raised ValueError out of main()
+        f = fc.Fetcher(timeout=1, delay=0, respect_robots=True)
+        for url in ("ftp://[", "http://[::1", "http://127.0.0.1:99999/x", "http:///nohost"):
+            with self.subTest(url=url):
+                status, why, body, _ = f.get(url)
+                self.assertEqual((status, body), (0, b""))
+                self.assertTrue(why.startswith("not a valid address") or "only web addresses" in why, why)
+
+    def test_a_sitemap_with_a_malformed_entry_still_checks_the_other_pages(self):
+        sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+              "<url><loc>ftp://[</loc></url><url><loc>https://x.com/p</loc></url></urlset>").encode()
+        f = self.Fake({"https://x.com/sm.xml": (200, "application/xml", sm),
+                       "https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")})
+        result = fc.run({"site": "https://x.com", "sitemap": "https://x.com/sm.xml", "facts": [
+            {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+        self.assertEqual([p["url"] for p in result["read"]], ["https://x.com/p"])
+        self.assertEqual([(p["url"], p["why"]) for p in result["failed"]], [("ftp://[", "not a valid address (Invalid IPv6 URL)")])
 
     def test_a_robots_txt_that_redirects_without_end_keeps_the_site_out(self):
         # round 3 (Codex, found in the old code): a redirect loop surfaced as status 302, which meant "allow all"
@@ -836,6 +867,15 @@ class FullRun(unittest.TestCase):
         self.assertEqual(len(bad), 1)
         self.assertIn("only web addresses (http, https) are read", bad[0]["why"])
         self.assertIn(base + "/", [p["url"] for p in result["read"]])
+
+    def test_a_malformed_address_in_the_page_list_does_not_stop_the_run(self):
+        # round 4 (Codex): the page list takes http(s):// text, and "http://[::1" is not an address
+        base = self.server.base
+        facts = self.facts(pages=["http://[::1", "http://127.0.0.1:99999/x", base + "/"], retired_phrases=[])
+        code, md, result, _ = self.run_check(facts)
+        self.assertEqual(len(result["failed"]), 2)
+        self.assertTrue(all(f["why"].startswith("not a valid address") for f in result["failed"]))
+        self.assertEqual([p["url"] for p in result["read"]], [base + "/"])
 
     def test_a_body_shorter_than_its_content_length_is_not_a_page(self):
         # round 3 (Codex, found in the old code): a cut-off body was read as the whole page and could exit clean

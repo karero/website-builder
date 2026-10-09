@@ -3,7 +3,7 @@
 Base `746925c` (rounds up to R1), `5e15433` after the merge of `origin/main` · depth: Normal (new code that
 fetches other sites and reports what a company says publicly; owner's choice, 2026-10-09). The standard
 pair is incomplete: Codex could not run in the build environment (no CLI, no OpenAI credential), and
-the Ollama seat answered HTTP 429. Round 2 (Codex) was handed to the owner to run locally; it ran on 2026-10-09 from a checkout of `578a67a`. Codex produced the review; the GLM 5.3 seat on Melious timed out at the 300 s limit set for the run (a 110,000-character artifact), and the Ollama stand-in answered HTTP 429, so round 2 counts one reviewer. Its eight BUGs were fixed in `9f030e3`. Round 3 verified those fixes with both seats counted (Codex 587 s, GLM 5.3 515 s under a 900 s limit); its findings are fixed in the commit after `483528c`.
+the Ollama seat answered HTTP 429. Round 2 (Codex) was handed to the owner to run locally; it ran on 2026-10-09 from a checkout of `578a67a`. Codex produced the review; the GLM 5.3 seat on Melious timed out at the 300 s limit set for the run (a 110,000-character artifact), and the Ollama stand-in answered HTTP 429, so round 2 counts one reviewer. Its eight BUGs were fixed in `9f030e3`. Round 3 verified those fixes with both seats counted (Codex 587 s, GLM 5.3 515 s under a 900 s limit); its findings were fixed in `0555099`. Round 4 (the fixes of round 3) counted Codex only: the GLM seat timed out again, at 900 s with 3.6 MB of output, and the Ollama stand-in answered HTTP 429; its findings are fixed in the commit after `58b9de5`.
 
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
@@ -14,6 +14,7 @@ the Ollama seat answered HTTP 429. Round 2 (Codex) was handed to the owner to ru
 | ML | `1a66054` | merge link `746925c` to `5e15433` (merge of `origin/main`: PRs 227, 229) | `merge_link.sh` | empty: no file of this change moved | no review needed |
 | 2 | `578a67a` | full, `5e15433...578a67a` (2,150 lines) | Codex (read-only); melious (glm-5.3) FAILED, curl exit 28 at the 300 s limit; ollama-cloud FAILED, HTTP 429 | codex 412 s, 91,401 tokens | 8 / 1 / 0 |
 | 3 | `483528c` | delta since `578a67a`, 30 lines of context (1,681 lines; includes the merge of PR 232's `geo-check.md`, which is not this PR's) | Codex (read-only); melious (glm-5.3, 900 s limit) | codex 587 s, 95,739 tokens; melious 515 s, 56,364 tokens | 5 / 2 / 6 |
+| 4 | `58b9de5` | delta since `483528c`, `skills/facts-check` only, 30 lines of context (827 lines) | Codex (read-only); melious (glm-5.3, 900 s limit) FAILED, curl exit 28; ollama-cloud FAILED, HTTP 429 | codex 754 s, 125,287 tokens | 0 / 1 / 0, and 2 BUG in older code |
 
 Not yet seen by an outside reviewer: `cf49427...10131ad` (3 files: the R1 fixes, the retired-phrase places
 from the evals, the description), covered by round 2's full artifact.
@@ -51,9 +52,14 @@ from the evals, the description), covered by round 2's full artifact.
 | F28 | NIT | melious | 3 (outside scope) | The h1, intro and title buffers get no separator between tags: `<h1><span>CX</span><span>outsourcing</span></h1>` reads `CXoutsourcing` | no change | the starter's `positioning.spec.ts` reads `textContent` (line 85), which joins inline elements the same way; the script matches it on purpose |
 
 Codex also listed, without a finding, what it could not check: complete runs on Python 3.9 and 3.12 (3.9 and 3.13 run here, 3.12 in CI), parity of the HTML reader with a browser, the RFC 9309 and 50 MB citations, and statements about AI engines. Also found, outside round 2, by both outside seats while they checked a claim about this script against its code: the module docstring said a zero is ignored "for a fact whose own value is not a year"; the code ignores it unless the fact is 0. Fixed in `9f030e3` (docstring and SKILL.md).
+| F29 | RISK | codex | 4 | The soft-space sign check copied the whole text before each match: 120,000 matches on a 5 MB page took 6 s | fixed | `CheckPage.test_resolving_soft_spaces_takes_linear_time`; the check now looks back by index over the adjacent markers |
+| F30 | BUG | codex | 4 (old code, outside scope) | A sitemap entry that is no address (`ftp://[`, a port out of range, `http:///x`) raised `ValueError` out of `main()` and ended the run | fixed | `bad_address()` checks every address before it is fetched, redirected to or listed; `FullRun.test_a_malformed_address_in_the_page_list_does_not_stop_the_run`, `FetcherRules.test_a_malformed_address_is_no_page_and_no_crash`, `FetcherRules.test_a_sitemap_with_a_malformed_entry_still_checks_the_other_pages` |
+| F31 | BUG | codex | 4 (F18 again, outside scope) | `<span>5</span><span>-10</span> clients` read as `5 -10`, minus ten, against SKILL.md's "a hyphen in 5-10 is no sign" | fixed | a digit, soft spaces and a dash with digits after it join into a range; case added to `CheckPage.test_a_separator_or_a_sign_in_a_span_of_its_own_still_belongs_to_the_number` |
 
-Raw reviewer output of rounds 1 to 3 is in the PR comment, collapsed per round (`references/closeout.md`); it is not committed as files.
+Codex's unverifiable list for round 4 (no finding): the upstream tag records and the cited job (F15 quotes them), the RFC 9309 clause on unresolved redirects, a browser comparison for `textContent`, and replays of the historical test runs.
 
-Notes: round 2 counted one reviewer (Codex): the GLM seat hit its time limit and the Ollama stand-in its weekly quota. Round 4 is earned by F16 to F18, three BUGs the round 2 fixes introduced or left partial, and by F20 and F21, found in old code.
+Raw reviewer output of rounds 1 to 4 is in the PR comment, collapsed per round (`references/closeout.md`); it is not committed as files.
 
-Verdict: open until round 4 (Codex and GLM 5.3 on Melious, the fixes since `483528c`) has run and its findings are fixed or refuted.
+Notes: round 2 counted one reviewer (Codex): the GLM seat hit its time limit and the Ollama stand-in its weekly quota. Round 4 was earned by F16 to F18, three BUGs the round 2 fixes introduced or left partial, and by F20 and F21, found in old code. Round 5 is earned by F30 and F31.
+
+Verdict: open until round 5 (the fixes since `58b9de5`) has run and its findings are fixed or refuted.

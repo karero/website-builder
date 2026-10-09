@@ -96,7 +96,8 @@ python3 skills/facts-check/scripts/facts_check.py facts.json \
   A page that redirects to an address robots.txt disallows is not followed there: the report
   lists it as skipped, with the address it led to. Sitemaps and robots.txt themselves are read
   wherever they redirect. Only http and https addresses are read: a sitemap entry or a redirect
-  to file: or ftp: is never followed.
+  to file: or ftp: is never followed, and an entry that is not an address at all is listed as
+  not read.
 - The site's `/llms.txt`, written for AI assistants, is read too when it exists (not with
   `--only` or a fixed `pages` list). Pages over 5 MB are read up to 5 MB, and the report
   says so.
