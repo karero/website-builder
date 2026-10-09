@@ -8,6 +8,24 @@ comes up in the answer. It is the AI-age twin of "where do I rank on Google".
 Script: `scripts/geo_check.py`. The weekly `track.sh` runs it after Google and Bing.
 The design and its review: `docs/reviews/SKILL-PLAN-geo-check.md` in the website-builder repo.
 
+**Quick path** (a site that is already set up). Run these with `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> …`:
+
+1. `--check-drift`: is the question still right? (see "Every session")
+2. no flag: ask the engines (a few minutes); `--engines gemini,openai` asks only some.
+3. `--report`: the owner's page. `--trend`: week over week.
+
+Three rules that are easy to miss: say **"N of M"** with the numbers from the report, because not
+every assistant is asked both ways; never answer the questions yourself or through a coding
+assistant (see "Why the engines are asked blind"); commit results only to a **private** repo.
+
+**Contents:** [What it measures](#what-it-measures--two-columns-per-engine) ·
+[The engines, and how to pay for them](#the-engines-and-how-to-pay-for-them) (costs, HTTP 402) ·
+[Setting it up](#setting-it-up--owner--you) ·
+[Every session: is the question still right?](#every-session-is-the-question-still-right) ·
+[Reading the results](#reading-the-results) (why 0 from memory, stray copies, handing over) ·
+[Why the engines are asked "blind"](#why-the-engines-are-asked-blind) ·
+[Request shapes (for maintenance)](#engines--request-shapes-for-maintenance)
+
 ## What it measures — two columns per engine
 
 | Column | How it asks | What it tells the owner |
@@ -104,16 +122,15 @@ key**. At this volume that should cost next to nothing, but check the pricing pa
 **When prepaid credit runs out (HTTP 402).** What happens and what to top up depends on the route
 (see "The simple way" above):
 
-- **Gemini on its own key** (no OpenRouter key, or `GEO_DIRECT_ENGINES` names it): the run prints
-  `gemini FAILED: HTTP 402: Your prepayment credits are depleted.` (seen on a real run, 2026-10) and
-  the other assistants still run normally. The owner tops up in Google AI Studio
-  (https://ai.studio/projects): open the project **the key belongs to**, then its billing page;
-  Google's explanation is at https://ai.google.dev/gemini-api/docs/billing#prepay (taken from the
-  error text; button names may differ from what is on screen). Then rerun only Gemini:
-  `~/.config/gsc-insights/venv/bin/python scripts/geo_check.py <domain> --engines gemini`.
-- **Through OpenRouter** (the default for the four chat assistants): a 402 means OpenRouter's
-  balance is empty and it stops **all** assistants on that route for the run. Top up at openrouter.ai
-  (Credits), then rerun without `--engines`, or with `--engines` naming the assistants that failed.
+| Route | What stops | Top up | Rerun |
+|---|---|---|---|
+| **Gemini on its own key** (no OpenRouter key, or `GEO_DIRECT_ENGINES` names it) | Gemini only; the other assistants run normally | Google AI Studio, the project **the key belongs to**, then its billing page | `scripts/geo_check.py <domain> --engines gemini` |
+| **Through OpenRouter** (the default for the four chat assistants) | **All** assistants on that route, for the run | openrouter.ai, Credits | the same command without `--engines`, or `--engines` naming the assistants that failed |
+
+The own-key run prints `gemini FAILED: HTTP 402: Your prepayment credits are depleted.` (seen on a
+real run, 2026-10). The top-up pages, taken from that error text, are https://ai.studio/projects and
+Google's explanation at https://ai.google.dev/gemini-api/docs/billing#prepay (button names may
+differ from what is on screen).
 
 What the history keeps: a failed engine writes its rows, marked failed ("N of M failed"), and the
 trend shows "latest attempt failed" next to the last good numbers. History keeps one row per
