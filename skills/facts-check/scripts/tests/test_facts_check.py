@@ -384,6 +384,163 @@ class MorePlaces(unittest.TestCase):
         self.assertNotIn("image alt text", q.locations())
 
 
+class RobotsMatcher(unittest.TestCase):
+    """robots.txt as RFC 9309 reads it, in this script's own matcher, so that the result does not depend on the Python that
+    runs it (round 13: the standard parser of 3.9, the stock python3 of macOS, takes the first matching rule, ignores * and $,
+    decodes %2F, ignores a second group for the same agent and loses a group that starts with a BOM)."""
+
+    URL = "https://x.com"
+
+    def allowed(self, robots, path):
+        rules = fc.RobotsRules()
+        rules.parse(robots)
+        return rules.allowed(self.URL + path)
+
+    def test_the_path_matching_table_of_googles_documentation(self):
+        # developers.google.com/search/docs/crawling-indexing/robots/robots_txt, "URL matching based on path values"
+        # (read 9 October 2026): rule -> (paths it matches, paths it does not)
+        table = {
+            "/": (["/", "/any", "/any/lower/level?q=1"], []),
+            "/*": (["/", "/any"], []),
+            "/$": (["/"], ["/any", "/?q=1"]),
+            "/fish": (["/fish", "/fish.html", "/fish/salmon.html", "/fishheads", "/fishheads/yummy.html", "/fish.php?id=anything"],
+                      ["/Fish.asp", "/catfish", "/?id=fish", "/desert/fish"]),
+            "/fish*": (["/fish", "/fish.html", "/fish/salmon.html", "/fishheads", "/fishheads/yummy.html", "/fish.php?id=anything"],
+                       ["/Fish.asp", "/catfish", "/?id=fish", "/desert/fish"]),
+            "/fish/": (["/fish/", "/fish/?id=anything", "/fish/salmon.htm"], ["/fish", "/fish.html", "/animals/fish/", "/Fish/Salmon.asp"]),
+            "/*.php": (["/index.php", "/filename.php", "/folder/filename.php", "/folder/filename.php?parameters",
+                        "/folder/any.php.file.html", "/filename.php/"], ["/", "/windows.PHP"]),
+            "/*.php$": (["/filename.php", "/folder/filename.php"], ["/filename.php?parameters", "/filename.php/", "/filename.php5", "/windows.PHP"]),
+            "/fish*.php": (["/fish.php", "/fishheads/catfish.php?parameters"], ["/Fish.PHP"]),
+            # RFC 9309, 5.2: the longer rule is the one that counts
+            "/example/page/disallowed.gif": (["/example/page/disallowed.gif"], ["/example/page/", "/example/page/other.gif"]),
+        }
+        for pattern, (hit, miss) in table.items():
+            robots = "User-agent: *\nDisallow: %s\n" % pattern
+            for path in hit:
+                with self.subTest(pattern=pattern, hit=path):
+                    self.assertFalse(self.allowed(robots, path))
+            for path in miss:
+                with self.subTest(pattern=pattern, miss=path):
+                    self.assertTrue(self.allowed(robots, path))
+
+    def test_a_rule_that_ends_in_dollar_needs_its_last_piece_after_the_others(self):
+        # "/a*ab$" asks for "/a", anything, then "ab" at the end: "/ab" has only the one "a" for both
+        robots = "User-agent: *\nDisallow: /a*ab$\n"
+        for path, want in (("/ab", True), ("/aab", False), ("/axab", False), ("/aab/", True), ("/aabx", True)):
+            with self.subTest(path=path):
+                self.assertEqual(self.allowed(robots, path), want)
+
+    def test_the_longest_matching_rule_wins_and_allow_wins_a_tie(self):
+        # RFC 9309, 2.2.2. The first six are the table "Order of precedence for rules" of Google's documentation (read
+        # 9 October 2026): the rule path's length counts, as written. "/*.ph" is as long as "/page", so the Allow wins (it
+        # would not if what a rule matched were measured: "/page.ph" is longer than "/page")
+        cases = [("Allow: /p\nDisallow: /", "/page", True), ("Allow: /folder\nDisallow: /folder", "/folder/page", True),
+                 ("Allow: /page\nDisallow: /*.htm", "/page.htm", False), ("Allow: /page\nDisallow: /*.ph", "/page.php5", True),
+                 ("Allow: /$\nDisallow: /", "/", True), ("Allow: /$\nDisallow: /", "/page.htm", False),
+                 ("Disallow: /folder\nAllow: /folder", "/folder/page", True),
+                 ("Allow: /public/\nDisallow: /public/secret", "/public/secret", False),
+                 ("Disallow: /public/secret\nAllow: /public/", "/public/secret", False),
+                 ("Allow: /public/\nDisallow: /public/secret", "/public/open", True),
+                 # a real file (the New York Times, October 2026): an Allow for a folder beats a wildcard Disallow that matches more
+                 ("Disallow: /athletic/*/discuss/*\nAllow: /athletic/live-blogs/discuss/", "/athletic/live-blogs/discuss/x", True)]
+        for rules, path, want in cases:
+            with self.subTest(rules=rules, path=path):
+                self.assertEqual(self.allowed("User-agent: *\n" + rules + "\n", path), want)
+
+    def test_groups(self):
+        # RFC 9309, 2.2.1: the group of the product token, else the group of "*"; groups of one agent are combined
+        robots = ("User-agent: *\nDisallow: /everyone\n\nUser-agent: facts-check\nDisallow: /mine\n\n"
+                  "User-agent: other\nUser-agent: Facts-Check\nDisallow: /both\n")
+        self.assertFalse(self.allowed(robots, "/mine"))
+        self.assertFalse(self.allowed(robots, "/both"))          # the agent lines are case-insensitive
+        self.assertTrue(self.allowed(robots, "/everyone"))        # the "*" group does not apply: ours exists
+        # other lines belong to no group and end none (Google's documentation: "a" and "b" share the one group)
+        self.assertFalse(self.allowed("User-agent: facts-check\nSitemap: https://x.com/s.xml\nUser-agent: other\nDisallow: /\n", "/x"))
+        # the name at the start of the value counts, so a pasted "facts-check/1.0" names this tool, "facts-check-bot" does not
+        self.assertFalse(self.allowed("User-agent: facts-check/1.0\nDisallow: /\n\nUser-agent: *\nDisallow:\n", "/x"))
+        self.assertTrue(self.allowed("User-agent: facts-check-bot\nDisallow: /\n", "/x"))
+        two_stars = "User-agent: *\nDisallow: /a\n\nUser-agent: *\nDisallow: /b\n"
+        self.assertFalse(self.allowed(two_stars, "/a"))
+        self.assertFalse(self.allowed(two_stars, "/b"))           # round 13: Python 3.9's parser reads the first group only
+        self.assertTrue(self.allowed("User-agent: other\nDisallow: /\n", "/x"))   # no group for us and none for "*": allowed
+        self.assertTrue(self.allowed("Disallow: /\n", "/x"))     # a rule before any User-agent line belongs to no group
+        self.assertTrue(self.allowed("User-agent: *\nDisallow:\n", "/x"))         # an empty Disallow allows everything
+        # round 13 (GLM): an empty Allow says nothing, whatever stands next to it
+        self.assertFalse(self.allowed("User-agent: *\nAllow:\nDisallow: /\n", "/x"))
+        self.assertFalse(self.allowed("User-agent: *\nDisallow: /\nAllow:\n", "/x"))
+        # a group that names the tool shuts out the "*" group even when its own rules are empty
+        self.assertTrue(self.allowed("User-agent: facts-check\nDisallow:\n\nUser-agent: *\nDisallow: /\n", "/x"))
+
+    def test_the_file_as_the_lines_it_has(self):
+        for sep in ("\n", "\r\n", "\r"):
+            with self.subTest(sep=repr(sep)):
+                robots = sep.join(["# a comment", "USER-AGENT : *   # all", "disallow:/private/", "Sitemap: https://x.com/s.xml", "Crawl-delay: 5", ""])
+                self.assertFalse(self.allowed(robots, "/private/x"))
+                self.assertTrue(self.allowed(robots, "/open"))
+        # round 12 (GLM): a BOM before the first line must not lose its group; round 13 (GLM): nor one after blank lines
+        # or white space, nor one at the head of a later line (two files with a BOM each, put together)
+        for head in ("\ufeff", "\ufeff\ufeff", "\n\n\ufeff", "  \ufeff", "\ufeff \t"):
+            with self.subTest(head=head):
+                self.assertFalse(self.allowed(head + "User-agent: *\nDisallow: /private/\n", "/private/x"))
+        self.assertFalse(self.allowed("User-agent: other\nDisallow: /x\n\ufeffUser-agent: *\nDisallow: /private/\n", "/private/x"))
+
+    def test_percent_escapes_as_the_rfc_has_them(self):
+        # unreserved characters are the same encoded or not; a reserved one (%2F) is not the character it encodes
+        robots = ("User-agent: *\nDisallow: /~user\nDisallow: /a%20b\nAllow: /public/\nDisallow: /public%2Fsecret\n"
+                  "Disallow: /caf%C3%A9\nDisallow: /x-y\nDisallow: /p%61th\n")
+        for path, want in (("/%7Euser/page", False), ("/~user/page", False), ("/a%20b", False), ("/a b", False),
+                           ("/public/secret", True), ("/public%2Fsecret", False), ("/public%2fsecret", False),
+                           ("/caf\u00e9", False), ("/caf%c3%a9", False), ("/cafe", True),
+                           ("/x%2Dy", False), ("/x%2dy", False), ("/path", False), ("/p%61th", False), ("/pAth", True)):
+            with self.subTest(path=path):
+                self.assertEqual(self.allowed(robots, path), want)
+        # RFC 9309, Figure 4 (rows 3 to 5): a raw UTF-8 rule and its escaped form are one rule, and so are "baz" and "%62%61%7A"
+        for rule in ("/foo/bar/\u30c4", "/foo/bar/%E3%83%84", "/foo/bar/%e3%83%84"):
+            for path in ("/foo/bar/%E3%83%84", "/foo/bar/\u30c4", "/foo/bar/%e3%83%84"):
+                with self.subTest(rule=rule, path=path):
+                    self.assertFalse(self.allowed("User-agent: *\nDisallow: %s\n" % rule, path))
+        for path in ("/foo/bar/baz", "/foo/bar/%62%61%7A"):
+            with self.subTest(path=path):
+                self.assertFalse(self.allowed("User-agent: *\nDisallow: /foo/bar/%62%61%7A\n", path))
+        # round 10 (Codex): "Disallow: /a" and "Allow: /a%2Fb" - the Allow rule names an encoded slash, which "/a/b" is not
+        self.assertFalse(self.allowed("User-agent: *\nDisallow: /a\nAllow: /a%2Fb\n", "/a/b"))
+        self.assertTrue(self.allowed("User-agent: *\nDisallow: /a\nAllow: /a%2Fb\n", "/a%2Fb"))
+
+    def test_the_robots_txt_file_itself_is_always_allowed(self):
+        # RFC 9309, 2.2.2
+        self.assertTrue(self.allowed("User-agent: *\nDisallow: /\n", "/robots.txt"))
+        self.assertFalse(self.allowed("User-agent: *\nDisallow: /\n", "/robots.txt/x"))
+        self.assertFalse(self.allowed("User-agent: *\nDisallow: /\n", "/robots.txtx"))
+
+    def test_the_path_that_is_requested(self):
+        # round 10 (Codex): "http://x.test?private" is requested as "/?private"
+        rules = fc.RobotsRules()
+        rules.parse("User-agent: *\nDisallow: /?private\n")
+        self.assertFalse(rules.allowed("http://x.test?private"))
+        self.assertTrue(rules.allowed("http://x.test?public"))
+        self.assertTrue(rules.allowed("http://x.test/"))
+
+    def test_a_hostile_pattern_costs_little_time(self):
+        # a robots.txt is written by the site we read: twelve * against a long path must not take exponential time
+        import time
+        robots = "User-agent: *\nDisallow: /" + "*a" * 12 + "b\n"
+        started = time.monotonic()
+        self.assertTrue(self.allowed(robots, "/" + "a" * 5000))
+        self.assertLess(time.monotonic() - started, 3.0)
+        started = time.monotonic()
+        self.assertTrue(self.allowed("\n" * 500000 + "User-agent: *\nDisallow: /x\n", "/y"))
+        self.assertLess(time.monotonic() - started, 3.0)
+
+    def test_the_flags_of_a_robots_txt_that_cannot_be_read(self):
+        rules = fc.RobotsRules()
+        rules.disallow_all = True
+        self.assertFalse(rules.allowed("https://x.com/"))
+        rules = fc.RobotsRules()
+        rules.allow_all = True
+        self.assertTrue(rules.allowed("https://x.com/"))
+
+
 class FetcherRules(unittest.TestCase):
     class Fake(fc.Fetcher):
         def __init__(self, answers):
@@ -457,53 +614,6 @@ class FetcherRules(unittest.TestCase):
         f = self.Fake({"https://x.com/robots.txt": (200, "text/plain", robots)})
         self.assertEqual(f.blocked("https://x.com/private/x"), "robots.txt")
         self.assertEqual(f.blocked("https://x.com/public"), "")
-
-    def test_which_robots_files_need_a_parser_that_follows_the_convention(self):
-        # round 11 (Codex, GLM): the lines are the ones RobotFileParser.parse() gets (a bare CR splits them too), a BOM
-        # does not hide the first one, comments and look-alike words do not count
-        yes = (b"User-agent: *\nAllow: /public/\nDisallow: /public/secret\n", b"User-agent: *\rAllow: /public/\rDisallow: /public/secret\r",
-               b"\xef\xbb\xbfAllow: /public/\nDisallow: /public/secret\n", b"User-agent: *\nDisallow: /*.pdf$\n", b"User-agent: *\nDISALLOW : /private*\n",
-               b"User-agent: *\nDisallow: /public%2Fsecret\n", b"User-agent: *\r\n  allow:/x # fine\r\ndisallow: /x/y\r\n")
-        no = (b"", b"User-agent: *\nDisallow: /private/\n", b"User-agent: *\n# Allow: /x\nDisallow: /y # no * here\n", b"User-agent: *\nAllowed: /x\n",
-              b"Sitemap: https://x.com/s*.xml\nUser-agent: *\nDisallow: /\n",
-              # round 12 (GLM): nothing a parser reads differently without a Disallow rule to apply
-              b"User-agent: *\nAllow: /public/\n", b"User-agent: *\nDisallow:\nAllow: /x\n", b"User-agent: *\nAllow: /caf%E9\n")
-        for body in yes:
-            with self.subTest(yes=body):
-                self.assertTrue(fc.robots_rules_need_the_convention(body.decode("utf-8", "replace")))
-        for body in no:
-            with self.subTest(no=body):
-                self.assertFalse(fc.robots_rules_need_the_convention(body.decode("utf-8", "replace")))
-
-    def test_looking_at_a_big_robots_txt_takes_linear_time(self):
-        # round 11 (Codex): a regex whose ^\s* crossed newlines took seconds on 16 KB of blank lines
-        import time
-        for body in ("\n" * 500000 + "Disallow: /x\n", " \n" * 250000 + "x", "Disallow: /a%s\n" % ("b" * 500000), "\r" * 500000):
-            started = time.monotonic()
-            fc.robots_rules_need_the_convention(body)
-            self.assertLess(time.monotonic() - started, 3.0)
-
-    def test_the_report_says_when_this_pythons_robots_parser_does_not_follow_the_convention(self):
-        # round 10 (Codex): the standard parser of some Pythons takes the FIRST matching rule, ignores * and $ and
-        # decodes %2F. The check probes the running parser, so no version number is claimed
-        self.assertIsInstance(fc.robots_parser_follows_convention(), bool)
-        body = b"User-agent: *\nDisallow: /*.pdf$\n"
-        pages = {"https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")}
-        for follows, robots, expected in ((False, body, 1), (True, body, 0), (False, b"User-agent: *\nDisallow: /private/\n", 0), (False, b"", 0)):
-            with self.subTest(follows=follows, robots=robots):
-                f = self.Fake(dict(pages, **{"https://x.com/robots.txt": (200, "text/plain", robots)}))
-                old = fc._PARSER_FOLLOWS
-                fc._PARSER_FOLLOWS = follows
-                try:
-                    result = fc.run({"site": "https://x.com", "pages": ["https://x.com/p"], "facts": [
-                        {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
-                finally:
-                    fc._PARSER_FOLLOWS = old
-                said = [n for n in result["notes"] if n.startswith("robots.txt of https://x.com")]
-                self.assertEqual(len(said), expected, said)
-                if said:
-                    self.assertIn("Python %d.%d" % sys.version_info[:2], said[0])
-                    self.assertNotIn("newer", said[0])   # no version is promised as better
 
     def test_sitemap_entries_differing_only_in_the_fragment_are_one_page(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'

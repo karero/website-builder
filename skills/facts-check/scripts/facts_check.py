@@ -66,7 +66,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import urllib.robotparser
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from typing import Dict, List, Optional, Tuple
@@ -762,41 +761,106 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         return new
 
 
-def robots_rules_need_the_convention(text: str) -> bool:
-    """Is there a Disallow rule that a parser can read differently: one next to an Allow rule (first match against
-    longest match), or with a *, $ or % in a rule path? Without a Disallow rule to apply, or with plain ones alone, all
-    parsers agree. The lines are the ones RobotFileParser.parse() gets, so a bare CR splits them here too."""
-    allow = disallow = special = False
-    for line in text.lstrip("\ufeff").splitlines():
-        directive, colon, rest = line.split("#", 1)[0].partition(":")
-        directive = directive.strip().lower()
-        if not colon or directive not in ("allow", "disallow"):
-            continue
-        if directive == "allow":
-            allow = True
-        elif rest.strip():
-            disallow = True  # an empty "Disallow:" allows everything
-        if re.search(r"[*$%]", rest):
-            special = True
-    return disallow and (allow or special)
+ROBOTS_TOKEN = USER_AGENT.split("/")[0].lower()  # the name a robots.txt group calls this tool by
+_UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+_ESCAPE_OR_ODD = re.compile(r"%[0-9A-Fa-f]{2}|[^A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]")
+_LINE_END = re.compile(r"\r\n|\r|\n")
+_AGENT_NAME = re.compile(r"[A-Za-z_-]*")
 
 
-_PARSER_FOLLOWS: Optional[bool] = None
+def robots_form(text: str) -> str:
+    """A rule or a request path as RFC 9309 (2.2.2) compares them, both alike: a character that is no URI character (any
+    non-ASCII one, a space) becomes percent escapes of its UTF-8 bytes, an escape of an unreserved character becomes the
+    character ("%7E" is "~"), any other escape gets capital hex digits. "%2F" stays apart from "/": it names a slash that
+    is no separator. The other reserved characters (/ ? : & =) are compared as they are written: the RFC's Figure 4 shows
+    "https://foo.bar" in a query value as "https%3A%2F%2Ffoo.bar", which Google's own parser does not do either."""
+    def one(m):
+        s = m.group()
+        if len(s) == 3 and s[0] == "%":
+            c = chr(int(s[1:], 16))
+            return c if c in _UNRESERVED else s.upper()
+        return "".join("%%%02X" % b for b in s.encode("utf-8", "replace"))
+    return _ESCAPE_OR_ODD.sub(one, text)
 
 
-def robots_parser_follows_convention() -> bool:
-    """Can the standard robots.txt parser of the Python that runs this let through a page that the file disallows? Some
-    versions (3.9's among them) take the FIRST matching rule instead of the longest, ignore * and $, and decode %2F, so
-    they read a page that a longer Disallow rule, a wildcard or an encoded-slash rule forbids. It is asked those three
-    questions once, with a file that tells, so that no version number is promised. (Python 3.13 passes, yet decodes %2F
-    the other way as well: it keeps out a page that the convention would allow. That page is skipped, not read.)"""
-    global _PARSER_FOLLOWS
-    if _PARSER_FOLLOWS is None:
-        rp = urllib.robotparser.RobotFileParser()
-        rp.parse(["User-agent: *", "Allow: /a/", "Disallow: /a/b", "Disallow: /*.pdf$", "Allow: /c/", "Disallow: /c%2Fd"])
-        _PARSER_FOLLOWS = bool(rp.can_fetch(USER_AGENT, "http://h/a/") and not rp.can_fetch(USER_AGENT, "http://h/a/b")
-                               and not rp.can_fetch(USER_AGENT, "http://h/doc.pdf") and not rp.can_fetch(USER_AGENT, "http://h/c%2Fd"))
-    return _PARSER_FOLLOWS
+def _matches(parts: List[str], anchored: bool, path: str) -> bool:
+    """Does a rule, split at its *, match the start of `path` (all of it, if the rule ended in $)? The pieces are looked
+    for one after the other from the left: that is enough for a *, and it takes time in proportion to the path."""
+    if not path.startswith(parts[0]):
+        return False
+    pos = len(parts[0])
+    if len(parts) == 1:
+        return len(path) == pos if anchored else True
+    for piece in parts[1:-1]:
+        at = path.find(piece, pos)
+        if at < 0:
+            return False
+        pos = at + len(piece)
+    last = parts[-1]
+    if anchored:  # the last piece ends the path, beyond what the earlier pieces used
+        return len(path) - len(last) >= pos and path.endswith(last)
+    return path.find(last, pos) >= 0
+
+
+class RobotsRules:
+    """What a robots.txt allows this tool, read as RFC 9309 reads it. The standard library's parser reads the same file
+    differently from one Python to the next (the first matching rule instead of the longest, no * or $, "%2F" decoded,
+    a second group of one name lost, a group dropped after a leading byte-order mark), so the same site would keep other
+    pages out on another machine. A line is "name: value" with a "#" comment cut off; groups are runs of User-agent lines
+    followed by Allow and Disallow rules (other lines, such as Sitemap, belong to no group and end none); the group that
+    names this tool counts, else the group of "*", else nothing does; the groups of one name are combined. The longest
+    rule that matches wins, measured by the rule as written, "*" and "$" counted, as Google's parser does and its
+    documentation shows; an Allow wins a tie. The newer standard parser measures what a rule matched instead, which
+    differs for rules with a "*"."""
+
+    def __init__(self):
+        self.allow_all = False  # set by the caller for a robots.txt that is not there
+        self.disallow_all = False  # ... and for one that cannot be read
+        self.rules: List[Tuple[int, bool, List[str], bool]] = []  # (length, allow, pieces, ends in $), best first
+
+    def parse(self, text: str) -> None:
+        named: List[tuple] = []
+        everyone: List[tuple] = []
+        any_named = mine = star = in_rules = False
+        for line in _LINE_END.split(text):
+            name, colon, value = line.split("#", 1)[0].lstrip(" \t\ufeff").partition(":")
+            name = name.strip().lower()
+            if not colon:
+                continue
+            value = value.strip()
+            if name == "user-agent":
+                if in_rules:  # an agent line after rules starts the next group
+                    mine = star = in_rules = False
+                if _AGENT_NAME.match(value).group().lower() == ROBOTS_TOKEN:  # "facts-check/1.0" names this tool too
+                    mine = any_named = True
+                elif value == "*":
+                    star = True
+            elif name in ("allow", "disallow"):
+                in_rules = True
+                if not value or not (mine or star):  # an empty rule says nothing, and another agent's is not read
+                    continue
+                pattern = robots_form(value)
+                anchored = pattern.endswith("$")
+                rule = (len(pattern), name == "allow", (pattern[:-1] if anchored else pattern).split("*"), anchored)
+                if mine:
+                    named.append(rule)
+                if star:
+                    everyone.append(rule)
+        self.rules = sorted(named if any_named else everyone, key=lambda r: (-r[0], not r[1]))
+
+    def allowed(self, url: str) -> bool:
+        if self.disallow_all:
+            return False
+        if self.allow_all:
+            return True
+        p = urllib.parse.urlsplit(url)  # "http://x.test?private" is requested as "/?private"
+        path = robots_form(urllib.parse.urlunsplit(("", "", p.path or "/", p.query, "")))
+        if path == "/robots.txt":  # RFC 9309 (2.2.2): the file itself is always allowed
+            return True
+        for _, allow, parts, anchored in self.rules:
+            if _matches(parts, anchored, path):
+                return allow
+        return True
 
 
 class Fetcher:
@@ -804,9 +868,8 @@ class Fetcher:
         self.timeout = timeout
         self.delay = delay
         self.respect_robots = respect_robots
-        self.warnings: List[str] = []  # said once per site, added to the report's notes by run()
         self._opener = urllib.request.build_opener(_RedirectGuard(self))
-        self._robots: Dict[str, Tuple[urllib.robotparser.RobotFileParser, str]] = {}
+        self._robots: Dict[str, Tuple[RobotsRules, str]] = {}
         self._last = 0.0
 
     def _wait(self):
@@ -855,33 +918,25 @@ class Fetcher:
         p = urllib.parse.urlsplit(url)
         root = "%s://%s" % (p.scheme, p.netloc)
         if root not in self._robots:
-            rp = urllib.robotparser.RobotFileParser()
+            rules = RobotsRules()
             status, _, body, _ = self.get(root + "/robots.txt")
             why = "robots.txt"
             if status == 200:
-                text = body.decode("utf-8", "replace").lstrip("\ufeff")  # the parser drops a BOM-first "User-agent" group
-                rp.parse(text.splitlines())
-                if not robots_parser_follows_convention() and robots_rules_need_the_convention(text):
-                    self.warnings.append(
-                        "robots.txt of %s: the robots.txt parser of Python %d.%d, which ran this check, cannot be relied on to apply "
-                        "the longest matching rule, wildcards (* and $) and an encoded slash (%%2F) as the convention does, so a "
-                        "page that a rule of this file disallows may have been read" % (root, sys.version_info[0], sys.version_info[1]))
+                rules.parse(body.decode("utf-8", "replace"))
             elif status in (401, 403):
-                rp.disallow_all = True
+                rules.disallow_all = True
             elif status == 0 or status >= 500 or 300 <= status < 400:
                 # A robots.txt that cannot be read (no answer, a server error, a redirect that
                 # never resolves) means "keep out" by the robots convention (RFC 9309), not
                 # "everything allowed".
-                rp.disallow_all = True
+                rules.disallow_all = True
                 why = ("robots.txt could not be read (%s); --ignore-robots reads the pages "
                        "anyway, on a site you own" % (status or "no answer"))
             else:
-                rp.allow_all = True
-            self._robots[root] = (rp, why)
-        rp, why = self._robots[root]
-        if not p.path:  # "http://x.test?private" is requested as "/?private"
-            url = urllib.parse.urlunsplit(p._replace(path="/"))
-        return "" if rp.can_fetch(USER_AGENT, url) else why
+                rules.allow_all = True
+            self._robots[root] = (rules, why)
+        rules, why = self._robots[root]
+        return "" if rules.allowed(url) else why
 
 
 def decode(body: bytes, ctype: str) -> str:
@@ -1149,7 +1204,6 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
                 row["origin"] = "own"
                 rows.append(row)
             also_read.append(llms)
-    notes.extend(getattr(fetcher, "warnings", []))
     return {
         "site": site,
         "date": _dt.date.today().isoformat(),
