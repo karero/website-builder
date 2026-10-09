@@ -245,6 +245,13 @@ class CheckPage(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 3.0)
         self.assertEqual(out[:12], "NPS of  -5  ")
         self.assertNotIn(fc.SOFT, out)
+        # round 8 (GLM): the rule that joins a split number (1, ,234, ,567) is timed too
+        text = ("1%s,%s234%s,%s567 " % ((fc.SOFT,) * 4)) * 200000
+        started = time.monotonic()
+        out = fc.resolve_soft(text)
+        self.assertLess(time.monotonic() - started, 3.0)
+        self.assertEqual(out[:20], "1,234,567 1,234,567 ")
+        self.assertNotIn(fc.SOFT, out)
 
     def test_numbers_in_structured_data_carry_their_property_name(self):
         # review finding: numeric JSON-LD values were dropped
@@ -499,6 +506,18 @@ class LoadFacts(unittest.TestCase):
             f.write(obj if isinstance(obj, str) else json.dumps(obj))
         self.addCleanup(os.remove, path)
         return path
+
+    def test_a_pasted_address_is_read_without_the_space_or_line_break_at_its_ends(self):
+        # round 8 (host seat): "https://x.com/a \n" in the page list was read as a redirect to /a and
+        # left out of the positioning check; " https://x.com/b" was refused
+        path = self.write({"site": "https://x.com", "pages": ["https://x.com/a \n", " https://x.com/b"],
+                           "extra_urls": ["\thttps://y.com/c "], "retired_phrases": [{"text": "Old Name"}]})
+        data = fc.load_facts(path)
+        self.assertEqual(data["pages"], ["https://x.com/a", "https://x.com/b"])
+        self.assertEqual(data["extra_urls"], ["https://y.com/c"])
+        path = self.write({"site": "https://x.com", "pages": ["   "], "retired_phrases": [{"text": "Old Name"}]})
+        with self.assertRaises(fc.FactsError):
+            fc.load_facts(path)
 
     def test_problems_are_listed_together(self):
         path = self.write({"site": "example.com", "facts": [

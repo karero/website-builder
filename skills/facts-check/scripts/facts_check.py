@@ -284,8 +284,10 @@ def load_facts(path: str) -> dict:
             problems.append('retired phrase %d needs a "text"' % (i + 1))
     for key in ("pages", "extra_urls"):
         val = data.get(key, []) or []
-        if not isinstance(val, list) or not all(isinstance(u, str) and u.startswith(("http://", "https://")) for u in val):
+        if not isinstance(val, list) or not all(isinstance(u, str) and u.strip().startswith(("http://", "https://")) for u in val):
             problems.append('"%s" must be a list of full addresses (https://...)' % key)
+        elif val:
+            data[key] = [u.strip() for u in val]  # a pasted address may end in a space or a line break
     if problems:
         raise FactsError("%s has problems:\n  - %s" % (path, "\n  - ".join(problems)))
     data["facts"] = facts
