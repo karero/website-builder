@@ -5,7 +5,8 @@ geo_check.py — weekly "does AI name you?" check (GEO), next to the GSC + Bing 
 Asks up to four AI engines — plus, if switched on per site, Google's AI Mode and AI Overview
 via SerpApi — the owner's confirmed buyer questions, in two modes:
   knows  — no web tools: what the model learned in training (the long-term goal)
-  finds  — web search on: what a buyer gets today, plus which sites were cited
+  finds  — web search on: what a buyer gets today, plus which sites were cited (Perplexity: which
+          search results it returned)
 and counts, in code, how often the business is named. Each answer is saved verbatim;
 one row per engine x mode x question lands in geo_history.csv; --trend prints the
 week-over-week movement and --report a readable page. The plan and its review trail:
@@ -70,14 +71,17 @@ ENGINES = ["gemini", "openai", "anthropic", "perplexity", "google-ai-mode", "goo
 # Google's two AI surfaces come through SerpApi and share the key the skill's Top-10 check
 # (serp_check.py) already uses; the chat engines get GEO_* names of their own.
 SERP_ENGINES = {"google-ai-mode", "google-overview"}
-# Engines that return the search results they retrieved, but not which of them the answer quotes.
-# In the captured answers (tests/fixtures/perplexity-finds.json, openrouter-perplexity-finds.json),
-# Perplexity's own API carries no annotations, no [n] markers and no source links in the text, and
-# through OpenRouter the annotation list holds 18 different pages, none tied to a place in the text,
-# where the text marks 10. "Cited" would overstate for it: its count is how often the owner's site
-# was among the results, and is worded that way. test_real_responses.py checks those conditions in
-# the captures (it does not catch every other way an answer could name its sources); if a refresh
-# changes one of them, a test fails: revisit this set.
+# Engines whose captured answers come with a source list longer than what the answer marks, so
+# that "cited" would overstate (tests/fixtures/perplexity-finds.json, openrouter-perplexity-finds.json):
+# Perplexity's own API sends 15 search results with no annotations, no [n] markers and no source
+# links in the text; through OpenRouter the text marks 10 sources with [n] (they index the list)
+# while the annotation list holds 18 different pages, none with an offset into the text. Their
+# count is how often the owner's site was among the results, and is worded that way. The others
+# keep "cited": ChatGPT's annotations all point into the text, and Claude's own-key citations are
+# a selection of what it searched. Claude through OpenRouter and Google's AI answers come with a
+# source list but no offsets or marks to check that against; they keep the old wording, and the
+# docs say so. test_real_responses.py checks the conditions above in the captures (not every other
+# way an answer could name its sources); if a refresh changes one of them, a test fails: revisit.
 RESULTS_ONLY = {"perplexity"}
 
 
@@ -1251,8 +1255,15 @@ def build_report(domain: str, run_id=None):
         parts = []
         for i, fp in enumerate(files, 1):
             _, text, sources = read_answer(fp)
-            uniq = list(dict.fromkeys(sources))[:12]      # a reply may cite the same page several times
+            uniq = list(dict.fromkeys(sources))           # a reply may cite the same page several times
+            # The owner's own pages first: the note above this list says whether the site was in it,
+            # so the list must show it even when the cap cuts the rest.
+            own = [s for s in uniq if host_matches(norm_host(s), cfg.get("domains", []))]
+            shown = (own + [s for s in uniq if s not in own])[:12]
             caption = "Search results returned" if r["engine"] in RESULTS_ONLY else "Sources"
+            if len(uniq) > len(shown):
+                caption += f" (first {len(shown)} of {len(uniq)})"
+            uniq = shown
             src = (f"<div class='sources'>{caption}: " + " ".join(_link(s) for s in uniq) + "</div>") if uniq else ""
             label = f"Answer {i} of {len(files)}" if len(files) > 1 else "The answer"
             parts.append(f"<details><summary>{label}</summary>"

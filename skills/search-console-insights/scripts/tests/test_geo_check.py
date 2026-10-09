@@ -1400,13 +1400,37 @@ class ResultsAreNotCitations(GeoTestCase):
         self.assertNotIn("cited", self.finds_line(out, "perplexity"))
         self.assertIn("cited 3/3", self.finds_line(out, "openai"))
 
-    def test_report_and_answer_captions_say_results_for_perplexity(self):
+    def report_page(self):
         rc, out = self.cli("--report")
-        page = html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
-        self.assertIn("your website was among its search results", page)
-        self.assertIn("your website was a source", page)                 # ChatGPT's tagged citation
-        self.assertIn("Search results returned:", page)                  # Perplexity's answers
-        self.assertIn("Sources:", page)                                  # ChatGPT's answers
+        return html.unescape(Path(out.split("Report: ")[1].strip()).read_text())
+
+    def part(self, page, pattern):
+        m = re.search(pattern, page, re.S)
+        self.assertTrue(m, pattern)
+        return m.group(0)
+
+    def test_report_says_results_for_perplexity_and_source_for_chatgpt_in_their_own_places(self):
+        page = self.report_page()
+        for engine, here, other in (("Perplexity", "among its search results", "was a source"),
+                                    ("ChatGPT", "was a source", "among its search results")):
+            row = self.part(page, rf"<tr><td><strong>{engine}</strong>.*?</tr>")
+            self.assertIn(here, row)
+            self.assertNotIn(other, row)
+        pplx = self.part(page, r"<summary>Perplexity · [^<]*</summary>.*?</details>")
+        gpt = self.part(page, r"<summary>ChatGPT · [^<]*</summary>.*?</details>")
+        self.assertIn("Search results returned:", pplx)
+        self.assertNotIn("Sources:", pplx)
+        self.assertIn("Sources:", gpt)
+        self.assertNotIn("Search results returned", gpt)
+
+    def test_the_owners_site_shows_in_the_list_even_past_the_twelve_link_cap(self):
+        others = [f"https://other{i}.example/" for i in range(14)]
+        stub.engine_reply("perplexity", "Bäckerei Example.", sources=others + [self.OWN])   # own site is no. 15
+        rc, out = self.cli("--engines", "perplexity")
+        self.assertEqual(rc, 0, out)
+        pplx = self.part(self.report_page(), r"<summary>Perplexity · [^<]*</summary>.*?</details>")
+        self.assertIn("example-bakery.de", pplx)          # the note above the list says it was there
+        self.assertIn("first 12 of 15", pplx)             # and the caption says the list is cut
 
     def test_site_missing_from_the_results_reads_zero_in_its_results(self):
         stub.engine_reply("perplexity", "Bäckerei Example.", sources=["https://other.example/"])

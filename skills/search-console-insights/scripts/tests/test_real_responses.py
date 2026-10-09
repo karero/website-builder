@@ -94,11 +94,13 @@ class RealResponses(unittest.TestCase):
 
 class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
     """The evidence geo_check.RESULTS_ONLY rests on, read from the captured answers (re-take them
-    with fixtures/capture.py). The owner is told "cited" only where an answer tags the sources it
-    quotes. These tests check the conditions that wording rests on, in the captured answers; they
-    do not catch every other way an answer could name its sources. If a refresh changes one of
-    them, a test here fails and the wording ("in its results") must be revisited; do not bend
-    the test."""
+    with fixtures/capture.py). Perplexity is worded "in its results" because its captures show a
+    source list longer than what the answer marks. ChatGPT and Claude on their own keys tag what
+    they quote, shown below; Claude through OpenRouter and Google's AI answers come with a list
+    and nothing to check it against, and keep "cited". These tests check those conditions in the
+    captured answers; they do not catch every other way an answer could name its sources. If a
+    refresh changes one of them, a test here fails and the wording must be revisited; do not
+    bend the test."""
 
     def test_direct_perplexity_returns_results_with_no_sign_of_which_it_quotes(self):
         d = load("perplexity-finds.json")
@@ -125,6 +127,11 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         offsets = [a.get(k) or a["url_citation"].get(k) for a in notes for k in ("start_index", "end_index")]
         self.assertFalse(any(offsets))
 
+    def test_only_perplexity_is_worded_as_results(self):
+        # The set is a decision, not a default: Claude through OpenRouter and Google's AI answers come
+        # with a source list we cannot check, and keep "cited". Change this only with new evidence.
+        self.assertEqual(geo_check.RESULTS_ONLY, {"perplexity"})
+
     def test_chatgpt_tags_each_citation_to_a_place_in_its_text(self):
         d = load("openai-finds.json")
         ann = [a for it in d["output"] if it.get("type") == "message"
@@ -138,7 +145,7 @@ class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
         results = {r["url"] for b in d["content"] if b.get("type") == "web_search_tool_result"
                    for r in (b.get("content") or []) if isinstance(r, dict)}
         cited = {c["url"] for b in d["content"] if b.get("type") == "text" for c in b.get("citations", []) or []}
-        self.assertTrue(cited and cited != results)   # citations are a selection, not the whole list
+        self.assertTrue(cited and cited < results)    # citations are a selection of what it searched
         self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
 
 
