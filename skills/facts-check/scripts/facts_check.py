@@ -762,9 +762,32 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         return new
 
 
-# Before Python 3.13 the standard robots.txt parser takes the FIRST matching rule (the convention says the longest),
-# ignores * and $, and decodes %2F. A file with an Allow rule or such a character in a rule is read differently there.
-ROBOTS_NEEDS_3_13 = re.compile(r"(?mi)^\s*allow\s*:|^\s*(?:dis)?allow\s*:[^#\r\n]*[*$%]")
+def robots_rules_need_the_convention(text: str) -> bool:
+    """Does this robots.txt have an Allow rule, or a *, $ or % in a rule? Only then does it matter whether the parser
+    takes the first matching rule or the longest, and how it reads wildcards and percent-escapes. The lines are the
+    ones RobotFileParser.parse() gets, so a bare CR splits them here too."""
+    for line in text.lstrip("\ufeff").splitlines():
+        directive, colon, rest = line.split("#", 1)[0].partition(":")
+        directive = directive.strip().lower()
+        if colon and (directive == "allow" or (directive == "disallow" and re.search(r"[*$%]", rest))):
+            return True
+    return False
+
+
+_PARSER_FOLLOWS: Optional[bool] = None
+
+
+def robots_parser_follows_convention() -> bool:
+    """Does the standard robots.txt parser of the Python that runs this read the rules as RFC 9309 does? Some versions
+    (3.9's among them) take the FIRST matching rule instead of the longest, ignore * and $, and decode %2F. It is asked
+    once, with a file that tells, so that no version number is promised."""
+    global _PARSER_FOLLOWS
+    if _PARSER_FOLLOWS is None:
+        rp = urllib.robotparser.RobotFileParser()
+        rp.parse(["User-agent: *", "Allow: /a/", "Disallow: /a/b", "Disallow: /*.pdf$", "Allow: /c/", "Disallow: /c%2Fd"])
+        _PARSER_FOLLOWS = bool(rp.can_fetch(USER_AGENT, "http://h/a/") and not rp.can_fetch(USER_AGENT, "http://h/a/b")
+                               and not rp.can_fetch(USER_AGENT, "http://h/doc.pdf") and not rp.can_fetch(USER_AGENT, "http://h/c%2Fd"))
+    return _PARSER_FOLLOWS
 
 
 class Fetcher:
@@ -829,11 +852,11 @@ class Fetcher:
             if status == 200:
                 text = body.decode("utf-8", "replace")
                 rp.parse(text.splitlines())
-                if sys.version_info < (3, 13) and ROBOTS_NEEDS_3_13.search(text):
+                if not robots_parser_follows_convention() and robots_rules_need_the_convention(text):
                     self.warnings.append(
-                        "robots.txt of %s: Python %d.%d, which ran this check, matches the rules in the order written, ignores "
-                        "* and $ and decodes %%2F, so a page that such a rule disallows may have been read; Python 3.13 or "
-                        "newer reads them as the convention says" % (root, sys.version_info[0], sys.version_info[1]))
+                        "robots.txt of %s: the robots.txt parser of Python %d.%d, which ran this check, does not read Allow rules, "
+                        "wildcards (* and $) and %%-escapes as the convention does, so a page that a rule of this file disallows "
+                        "may have been read" % (root, sys.version_info[0], sys.version_info[1]))
             elif status in (401, 403):
                 rp.disallow_all = True
             elif status == 0 or status >= 500 or 300 <= status < 400:

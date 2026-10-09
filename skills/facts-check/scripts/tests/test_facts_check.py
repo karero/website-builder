@@ -450,23 +450,50 @@ class FetcherRules(unittest.TestCase):
             with self.subTest(allowed=url):
                 self.assertEqual(f.blocked(url), "")
 
-    def test_the_report_says_when_this_pythons_robots_parser_cannot_read_the_rules_as_written(self):
-        # round 10 (Codex): before Python 3.13 the standard parser ignores * and $, takes the FIRST matching rule
-        # (not the longest) and decodes %2F; a page such a rule disallows may have been read. Say so, once per site
-        old_python = sys.version_info < (3, 13)
-        for robots, warns in ((b"User-agent: *\nDisallow: /*.pdf$\n", True), (b"User-agent: *\nDisallow: /public%2Fsecret\n", True),
-                              (b"User-agent: *\nAllow: /public/\nDisallow: /public/secret\n", True),
-                              (b"User-agent: *\nDisallow: /private/\n", False), (b"", False)):
-            with self.subTest(robots=robots):
-                f = self.Fake({"https://x.com/robots.txt": (200, "text/plain", robots),
-                               "https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")})
-                result = fc.run({"site": "https://x.com", "pages": ["https://x.com/p"], "facts": [
-                    {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+    def test_which_robots_files_need_a_parser_that_follows_the_convention(self):
+        # round 11 (Codex, GLM): the lines are the ones RobotFileParser.parse() gets (a bare CR splits them too), a BOM
+        # does not hide the first one, comments and look-alike words do not count
+        yes = (b"User-agent: *\nAllow: /public/\nDisallow: /public/secret\n", b"User-agent: *\rAllow: /public/\rDisallow: /public/secret\r",
+               b"\xef\xbb\xbfAllow: /\n", b"User-agent: *\nDisallow: /*.pdf$\n", b"User-agent: *\nDISALLOW : /private*\n",
+               b"User-agent: *\nDisallow: /public%2Fsecret\n", b"User-agent: *\r\n  allow:/x # fine\r\n")
+        no = (b"", b"User-agent: *\nDisallow: /private/\n", b"User-agent: *\n# Allow: /x\nDisallow: /y # no * here\n", b"User-agent: *\nAllowed: /x\n",
+              b"Sitemap: https://x.com/s*.xml\nUser-agent: *\nDisallow: /\n")
+        for body in yes:
+            with self.subTest(yes=body):
+                self.assertTrue(fc.robots_rules_need_the_convention(body.decode("utf-8", "replace")))
+        for body in no:
+            with self.subTest(no=body):
+                self.assertFalse(fc.robots_rules_need_the_convention(body.decode("utf-8", "replace")))
+
+    def test_looking_at_a_big_robots_txt_takes_linear_time(self):
+        # round 11 (Codex): a regex whose ^\s* crossed newlines took seconds on 16 KB of blank lines
+        import time
+        for body in ("\n" * 500000 + "Disallow: /x\n", " \n" * 250000 + "x", "Disallow: /a%s\n" % ("b" * 500000), "\r" * 500000):
+            started = time.monotonic()
+            fc.robots_rules_need_the_convention(body)
+            self.assertLess(time.monotonic() - started, 3.0)
+
+    def test_the_report_says_when_this_pythons_robots_parser_does_not_follow_the_convention(self):
+        # round 10 (Codex): the standard parser of some Pythons takes the FIRST matching rule, ignores * and $ and
+        # decodes %2F. The check probes the running parser, so no version number is claimed
+        self.assertIsInstance(fc.robots_parser_follows_convention(), bool)
+        body = b"User-agent: *\nDisallow: /*.pdf$\n"
+        pages = {"https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")}
+        for follows, robots, expected in ((False, body, 1), (True, body, 0), (False, b"User-agent: *\nDisallow: /private/\n", 0), (False, b"", 0)):
+            with self.subTest(follows=follows, robots=robots):
+                f = self.Fake(dict(pages, **{"https://x.com/robots.txt": (200, "text/plain", robots)}))
+                old = fc._PARSER_FOLLOWS
+                fc._PARSER_FOLLOWS = follows
+                try:
+                    result = fc.run({"site": "https://x.com", "pages": ["https://x.com/p"], "facts": [
+                        {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+                finally:
+                    fc._PARSER_FOLLOWS = old
                 said = [n for n in result["notes"] if n.startswith("robots.txt of https://x.com")]
-                self.assertEqual(len(said), 1 if (warns and old_python) else 0, said)
+                self.assertEqual(len(said), expected, said)
                 if said:
                     self.assertIn("Python %d.%d" % sys.version_info[:2], said[0])
-                    self.assertIn("3.13", said[0])
+                    self.assertNotIn("newer", said[0])   # no version is promised as better
 
     def test_sitemap_entries_differing_only_in_the_fragment_are_one_page(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'

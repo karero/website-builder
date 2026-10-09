@@ -94,10 +94,10 @@ python3 skills/facts-check/scripts/facts_check.py facts.json \
   site out, as the robots convention says; the report gives that reason. `--ignore-robots`
   reads disallowed pages too: only on a site the owner runs, never on someone else's.
   A page that redirects to an address robots.txt disallows is not followed there: the report
-  lists it as skipped, with the address it led to. The rules are matched with Python's own parser. Before Python 3.13 it takes the first matching
-  rule instead of the longest, ignores `*` and `$`, and decodes `%2F`; when a file has an `Allow`
-  rule or such a character, the report says so, and Python 3.13 or newer reads the file as the
-  convention says. Sitemaps and robots.txt themselves are read wherever they redirect. Only http and https addresses are read: a sitemap entry or a redirect
+  lists it as skipped, with the address it led to. The rules are matched with Python's own parser. Some versions (3.9 among them) take the first
+  matching rule instead of the longest, ignore `*` and `$`, and decode `%2F`. The check asks the
+  running parser once, with a file that tells; when it fails and a robots.txt has an `Allow` rule
+  or such a character, the report says so, once for that site. Sitemaps and robots.txt themselves are read wherever they redirect. Only http and https addresses are read: a sitemap entry or a redirect
   to file: or ftp: is never followed. A sitemap entry that is not a web address is left out and
   the report says how many; an entry in your own page list that is not one is listed as not read.
 - The site's `/llms.txt`, written for AI assistants, is read too when it exists (not with
