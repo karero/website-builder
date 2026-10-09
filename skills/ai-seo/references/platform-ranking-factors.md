@@ -22,7 +22,7 @@ Beyond these basics, each platform weights different signals. Here's what matter
 
 Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T signals (Experience, Expertise, Authoritativeness, Trustworthiness). BrightEdge found them on about 45% of the queries it tracks by late 2025.
 
-**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The AI layer on top seems to favour content that cites its sources: in the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on the authors' own simulated engine and on Perplexity, not on Google).
+**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. We found no Google-specific test of what the AI layer adds on top. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on the authors' own simulated engine and on Perplexity, not on Google).
 
 **Importantly, AI Overviews don't just recycle the traditional Top 10.** Studies disagree on how far AI Overview sources overlap with the organic top 10, but many cited pages don't rank on page 1. Pages that wouldn't crack page 1 in traditional search can still get cited if they have clear, extractable answers.
 
