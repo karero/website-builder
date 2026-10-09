@@ -19,9 +19,11 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-T="$(mktemp -d "${TMPDIR:-/tmp}/whats-new-test.XXXXXX")"
+T="$(mktemp -d "${TMPDIR:-/tmp}/whats-new-test.XXXXXX")" \
+  || { echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$T"' EXIT
-T="$(CDPATH= cd -- "$T" && pwd -P)"
+phys="$(CDPATH= cd -- "$T" && pwd -P)" || exit 1
+T="$phys"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 git="git -c user.name=t -c user.email=t@t -c init.defaultBranch=main -c commit.gpgsign=false -c core.hooksPath=/dev/null"
 fails=0
