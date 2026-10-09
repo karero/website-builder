@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-facts_check.py — compare every figure on a live site with one list of approved facts.
+facts_check.py — compare every figure on a live site with one list of approved facts,
+and check that every page still carries the positioning term it owns.
 
 Read-only. It reads the site's sitemap (or a page list), fetches each page once, finds
 every number that names a fact ("27,000+ agents", "NPS of 72", "35 languages") in the
@@ -36,6 +37,13 @@ How a number is tied to a fact (the rules SKILL.md explains to the owner):
     2000 Kunden" is.
 Each tied number is OK (the approved value or one in `also_accept`), OUTDATED (in
 `retired`) or MISMATCH (anything else).
+
+Positioning (optional `positioning` block): rules map address paths (`/en/business/*`) to
+an audience and a term. The term must appear in the <title>, the meta description and the
+<h1> or intro paragraph, the rule the starter's tests/positioning.spec.ts enforces; or
+clauses per surface (title, desc, h1, body), each a phrase or a list of alternatives. The
+first matching rule wins. A page that lost its term is a finding; a page with no rule and
+not exempt is listed as a warning.
 """
 
 from __future__ import annotations
@@ -43,6 +51,7 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as _dt
+import fnmatch
 import gzip
 import io
 import json
@@ -171,6 +180,14 @@ STARTER = {
     "retired_phrases": [
         {"text": "[an old product name or claim]", "note": "[why it is retired]"}
     ],
+    "positioning": {
+        "rules": [
+            {"pages": "/", "audience": "[buyers]", "term": "[the term the home page owns]"},
+            {"pages": ["/en/careers", "/en/careers/*"], "audience": "[applicants]",
+             "term": "[the term the careers pages own]"},
+        ],
+        "exempt": ["/privacy", "/imprint"],
+    },
 }
 
 
@@ -196,10 +213,15 @@ def load_facts(path: str) -> dict:
     site = data.get("site", "")
     if not isinstance(site, str) or not re.match(r"https?://[^/\s]+", site):
         problems.append('"site" must be the site\'s address, e.g. "https://example.com"')
-    facts = data.get("facts")
-    if not isinstance(facts, list) or not facts:
-        problems.append('"facts" must be a list with at least one fact')
+    facts = data.get("facts", [])
+    if facts is None:
         facts = []
+    if not isinstance(facts, list):
+        problems.append('"facts" must be a list of facts')
+        facts = []
+    problems.extend(_positioning_problems(data.get("positioning")))
+    if not facts and not data.get("retired_phrases") and not (data.get("positioning") or {}).get("rules"):
+        problems.append('nothing to check: add "facts", "retired_phrases" or "positioning" rules')
     seen = set()
     for i, fact in enumerate(facts):
         where = "fact %d" % (i + 1)
@@ -244,7 +266,59 @@ def load_facts(path: str) -> dict:
             problems.append('"%s" must be a list of full addresses (https://...)' % key)
     if problems:
         raise FactsError("%s has problems:\n  - %s" % (path, "\n  - ".join(problems)))
+    data.setdefault("facts", [])
+    if data["facts"] is None:
+        data["facts"] = []
     return data
+
+
+SURFACES = ("title", "desc", "h1", "body")
+
+
+def _clause_ok(c) -> bool:
+    if isinstance(c, str):
+        return bool(c.strip())
+    return isinstance(c, list) and bool(c) and all(isinstance(x, str) and x.strip() for x in c)
+
+
+def _patterns(rule: dict) -> List[str]:
+    p = rule.get("pages")
+    return [p] if isinstance(p, str) else list(p or [])
+
+
+def _positioning_problems(pos) -> List[str]:
+    if pos is None:
+        return []
+    if not isinstance(pos, dict) or not isinstance(pos.get("rules"), list):
+        return ['"positioning" must be an object with a list of "rules"']
+    problems = []
+    for i, r in enumerate(pos["rules"]):
+        where = "positioning rule %d" % (i + 1)
+        if not isinstance(r, dict):
+            problems.append("%s is not an object" % where)
+            continue
+        pats = r.get("pages")
+        if not (isinstance(pats, str) or isinstance(pats, list)) or not _patterns(r) or not all(
+                isinstance(x, str) and x.startswith("/") for x in _patterns(r)):
+            problems.append('%s: "pages" must be an address path or a list of them, '
+                            'each starting with "/" (a * matches any rest: "/en/business/*")' % where)
+        if "audience" in r and not isinstance(r["audience"], str):
+            problems.append('%s: "audience" must be a name' % where)
+        if "term" in r:
+            if not isinstance(r["term"], str) or not r["term"].strip():
+                problems.append('%s: "term" must be a phrase' % where)
+            if any(k in r for k in ("title", "desc", "h1")):
+                problems.append('%s: use "term" or "title"/"desc"/"h1", not both' % where)
+        elif not any(r.get(k) for k in ("title", "desc", "h1", "body")):
+            problems.append('%s needs a "term", or clauses for "title", "desc", "h1" or "body"' % where)
+        for k in SURFACES:
+            if k in r and (not isinstance(r[k], list) or not all(_clause_ok(c) for c in r[k])):
+                problems.append('%s: "%s" must be a list of phrases, each a phrase or a list '
+                                'of alternatives' % (where, k))
+    ex = pos.get("exempt", [])
+    if not isinstance(ex, list) or not all(isinstance(x, str) and x.startswith("/") for x in ex):
+        problems.append('"positioning" "exempt" must be a list of address paths starting with "/"')
+    return problems
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +438,10 @@ BLOCK_TAGS = {
     "nav", "aside", "figure", "figcaption", "blockquote", "span", "a", "button",
     "label", "summary", "details",
 }  # inline formatting (b, i, strong, em, ...) is not here: "<b>27</b>,000" stays 27,000
+P_CLOSERS = {
+    "p", "div", "ul", "ol", "dl", "table", "section", "article", "main", "header", "footer",
+    "nav", "aside", "figure", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "form",
+}
 SKIP_TAGS = {"script", "style", "noscript", "template", "svg", "iframe", "canvas"}
 
 
@@ -380,6 +458,16 @@ class PageText(HTMLParser):
         self._in_title = False
         self._in_ldjson = False
         self._ld_buf: List[str] = []
+        # For the positioning check: every <h1>, and the intro, the first <p> of <main>
+        # (else of <article>, else of the page), chosen as the starter's positioning test does.
+        self.h1s: List[str] = []
+        self._h1_depth = 0
+        self._h1_buf: List[str] = []
+        self._depth = {"main": 0, "article": 0}
+        self._saw = {"main": False, "article": False}
+        self.first_p: Dict[str, Optional[str]] = {"main": None, "article": None, "body": None}
+        self._p_buf: Optional[List[str]] = None
+        self._p_slots: List[str] = []
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
@@ -390,6 +478,21 @@ class PageText(HTMLParser):
         if tag in SKIP_TAGS:
             self._skip += 1
             return
+        if self._p_buf is not None and tag in P_CLOSERS:
+            self._end_p()  # a <p> closed implicitly by the next block
+        if tag in self._depth:
+            self._depth[tag] += 1
+            self._saw[tag] = True
+        elif tag == "h1":
+            self._h1_depth += 1
+            if self._h1_depth == 1:
+                self._h1_buf = []
+        elif tag == "p" and self._p_buf is None:
+            slots = [k for k in ("main", "article") if self._depth[k] and self.first_p[k] is None]
+            if self.first_p["body"] is None:
+                slots.append("body")
+            if slots:
+                self._p_buf, self._p_slots = [], slots
         if tag == "title":
             self._in_title = True
         elif tag == "meta":
@@ -417,6 +520,16 @@ class PageText(HTMLParser):
             return
         if tag == "title":
             self._in_title = False
+        if tag == "p" and self._p_buf is not None:
+            self._end_p()
+        elif tag == "h1" and self._h1_depth:
+            self._h1_depth -= 1
+            if not self._h1_depth:
+                self.h1s.append("".join(self._h1_buf))
+        elif tag in self._depth and self._depth[tag]:
+            if self._p_buf is not None:
+                self._end_p()
+            self._depth[tag] -= 1
         if tag in BLOCK_TAGS:
             self.parts["page text"].append(" ")
 
@@ -429,6 +542,32 @@ class PageText(HTMLParser):
             self.parts["title"].append(data)
         else:
             self.parts["page text"].append(data)
+            if self._h1_depth:
+                self._h1_buf.append(data)
+            if self._p_buf is not None:
+                self._p_buf.append(data)
+
+    def _end_p(self):
+        text = "".join(self._p_buf or [])
+        for slot in self._p_slots:
+            self.first_p[slot] = text
+        self._p_buf, self._p_slots = None, []
+
+    def surfaces(self) -> Dict[str, str]:
+        """The four places the positioning check reads, as the starter's test reads them."""
+        if self._p_buf is not None:
+            self._end_p()
+        if self._h1_depth:
+            self.h1s.append("".join(self._h1_buf))
+            self._h1_depth = 0
+        box = "main" if self._saw["main"] else "article" if self._saw["article"] else "body"
+        clean = lambda t: re.sub(r"\s+", " ", t or "").strip()  # noqa: E731
+        return {
+            "title": clean("".join(self.parts["title"])),
+            "desc": clean(self.parts["meta description"][0] if self.parts["meta description"] else ""),
+            "h1": clean(" \u00b7 ".join(self.h1s) + " \u00b7 " + (self.first_p[box] or "")),
+            "body": clean("".join(self.parts["page text"])),
+        }
 
     def _add_ldjson(self, raw: str):
         try:
@@ -592,6 +731,55 @@ def default_sitemaps(fetcher: Fetcher, site: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
+# Positioning
+# ---------------------------------------------------------------------------
+
+SURFACE_LABEL = {"title": "<title>", "desc": "<meta description>", "h1": "<h1>/intro",
+                 "body": "body"}
+
+
+def norm_path(url_or_path: str) -> str:
+    """/en/about/, /en/about.html and /en/about/index.html all read as /en/about."""
+    path = urllib.parse.urlsplit(url_or_path).path if "://" in url_or_path else url_or_path
+    path = urllib.parse.unquote(path or "/")
+    for tail in ("/index.html", ".html"):
+        if path.endswith(tail):
+            path = path[: -len(tail)] or "/"
+    if len(path) > 1:
+        path = path.rstrip("/") or "/"
+    return path
+
+
+def find_rule(path: str, rules: List[dict]) -> Optional[dict]:
+    """The first rule with a matching pattern wins, so put specific rules first."""
+    for r in rules:
+        for pat in _patterns(r):
+            if fnmatch.fnmatchcase(path, norm_path(pat)):
+                return r
+    return None
+
+
+def rule_clauses(rule: dict) -> Dict[str, list]:
+    if "term" in rule:
+        t = rule["term"]
+        return {"title": [t], "desc": [t], "h1": [t], "body": rule.get("body", [])}
+    return {k: rule.get(k, []) for k in SURFACES}
+
+
+def check_positioning(surfaces: Dict[str, str], rule: dict) -> List[str]:
+    """Every clause the page does not meet, in the starter test's wording."""
+    missing = []
+    for k, clauses in rule_clauses(rule).items():
+        hay = surfaces.get(k, "").lower()
+        for c in clauses:
+            alts = c if isinstance(c, list) else [c]
+            if not any(a.lower() in hay for a in alts):
+                missing.append("%s needs %s" % (SURFACE_LABEL[k], (
+                    "one of [%s]" % " | ".join(alts)) if isinstance(c, list) else "\u201c%s\u201d" % c))
+    return missing
+
+
+# ---------------------------------------------------------------------------
 # The run
 # ---------------------------------------------------------------------------
 
@@ -638,6 +826,10 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
     retired_phrases = data.get("retired_phrases", []) or []
     rows: List[dict] = []
     read, failed, skipped = [], [], []
+    pos = data.get("positioning") or None
+    pos_pages: List[dict] = []
+    uncovered: List[str] = []
+    exempt = [norm_path(x) for x in (pos or {}).get("exempt", [])]
     for url, origin in own + extra:
         if not fetcher.allowed(url):
             skipped.append({"url": url, "origin": origin, "why": "robots.txt"})
@@ -656,6 +848,16 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
         except Exception as e:  # a broken page must not stop the run
             failed.append({"url": url, "origin": origin, "why": "could not parse: %s" % e})
             continue
+        if pos and origin == "own":
+            path = norm_path(final)
+            rule = find_rule(path, pos["rules"])
+            if rule is not None:
+                pos_pages.append({
+                    "url": url, "path": path, "audience": rule.get("audience", ""),
+                    "rule": ", ".join(_patterns(rule)),
+                    "missing": check_positioning(parser.surfaces(), rule)})
+            elif not any(fnmatch.fnmatchcase(path, e) for e in exempt):
+                uncovered.append(url)
         for row in check_page(url, parser.locations(), facts, retired_phrases):
             row["origin"] = origin
             if final != url:
@@ -670,13 +872,16 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
         "read": read, "failed": failed, "skipped": skipped,
         "notes": notes, "rows": rows,
         "facts": facts, "retired_phrases": retired_phrases,
+        "positioning": None if not pos else {"pages": pos_pages, "uncovered": uncovered},
     }
 
 
 def counts(result: dict) -> Dict[str, int]:
-    c = {"OK": 0, "MISMATCH": 0, "OUTDATED": 0, "RETIRED": 0}
+    c = {"OK": 0, "MISMATCH": 0, "OUTDATED": 0, "RETIRED": 0, "POSITIONING": 0}
     for r in result["rows"]:
         c[r["status"]] += 1
+    if result.get("positioning"):
+        c["POSITIONING"] = sum(1 for p in result["positioning"]["pages"] if p["missing"])
     return c
 
 
@@ -702,15 +907,24 @@ def report_md(result: dict) -> str:
         L.append("")
         L.append("**No page of the site could be read, so nothing was checked.** "
                  "The counts below say nothing about the site. See the list at the end.")
-    L.append("")
-    L.append("**%d mismatch%s, %d outdated value%s, %d retired phrase%s**, %d mention%s that match."
-             % (c["MISMATCH"], "" if c["MISMATCH"] == 1 else "es",
-                c["OUTDATED"], "" if c["OUTDATED"] == 1 else "s",
-                c["RETIRED"], "" if c["RETIRED"] == 1 else "s",
-                c["OK"], "" if c["OK"] == 1 else "s"))
-    L.append("")
-    L.append("| Fact | Approved | Match | Mismatch | Outdated | Pages naming it |")
-    L.append("|---|---|---|---|---|---|")
+    if result["facts"] or result["retired_phrases"]:  # a positioning-only run has no fact counts
+        L.append("")
+        L.append("**%d mismatch%s, %d outdated value%s, %d retired phrase%s**, %d mention%s that match."
+                 % (c["MISMATCH"], "" if c["MISMATCH"] == 1 else "es",
+                    c["OUTDATED"], "" if c["OUTDATED"] == 1 else "s",
+                    c["RETIRED"], "" if c["RETIRED"] == 1 else "s",
+                    c["OK"], "" if c["OK"] == 1 else "s"))
+    pos = result.get("positioning")
+    if pos:
+        L.append("")
+        L.append("**%d page%s lost %s positioning term**, of %d with a rule; %d page%s with no rule."
+                 % (c["POSITIONING"], "" if c["POSITIONING"] == 1 else "s",
+                    "its" if c["POSITIONING"] == 1 else "their", len(pos["pages"]),
+                    len(pos["uncovered"]), "" if len(pos["uncovered"]) == 1 else "s"))
+    if result["facts"]:
+        L.append("")
+        L.append("| Fact | Approved | Match | Mismatch | Outdated | Pages naming it |")
+        L.append("|---|---|---|---|---|---|")
     for f in result["facts"]:
         fr = [r for r in rows if r["kind"] == "fact" and r["fact"] == f["id"]]
         unit = f.get("unit", "")
@@ -746,6 +960,34 @@ def report_md(result: dict) -> str:
             note = (" (%s)" % r["note"]) if r.get("note") and not r["note"].startswith("[") else ""
             L.append("- \u201c%s\u201d%s on %s%s, %s: \u201c%s\u201d"
                      % (r["phrase"], note, r["url"], tag, r["where"], r["snippet"]))
+    if pos:
+        L.append("")
+        L.append("## Positioning")
+        L.append("")
+        L.append("| Audience | Pages with a rule | Carry their term | Lost it |")
+        L.append("|---|---|---|---|")
+        for aud in sorted({p["audience"] for p in pos["pages"]}):
+            ap_ = [p for p in pos["pages"] if p["audience"] == aud]
+            L.append("| %s | %d | %d | %d |" % (aud or "(none named)", len(ap_),
+                                                 sum(1 for p in ap_ if not p["missing"]),
+                                                 sum(1 for p in ap_ if p["missing"])))
+        lost = [p for p in pos["pages"] if p["missing"]]
+        if lost:
+            L.append("")
+            L.append("### Pages that lost their term")
+            L.append("Either the page or the term needs to change; the team decides which.")
+            for p in sorted(lost, key=lambda p: (p["audience"], p["path"])):
+                aud = (" (%s)" % p["audience"]) if p["audience"] else ""
+                L.append("- %s%s, rule %s: %s" % (p["url"], aud, p["rule"], "; ".join(p["missing"])))
+        if pos["uncovered"]:
+            L.append("")
+            L.append("### Pages with no positioning rule")
+            L.append("Not an error: each page here owns no term yet. Add a rule, or list a "
+                     "legal or utility page under \u201cexempt\u201d.")
+            for u in pos["uncovered"][:50]:
+                L.append("- %s" % u)
+            if len(pos["uncovered"]) > 50:
+                L.append("- and %d more (all are in the JSON result)" % (len(pos["uncovered"]) - 50))
     never = [f for f in result["facts"]
              if not any(r["kind"] == "fact" and r["fact"] == f["id"] for r in rows)]
     if never:
@@ -775,15 +1017,18 @@ def append_history(path: str, result: dict) -> None:
         w = csv.writer(f)
         if new:
             w.writerow(["date", "site", "pages_read", "pages_not_read", "mismatches",
-                        "outdated", "retired_phrases", "matches"])
+                        "outdated", "retired_phrases", "matches", "positioning_lost"])
         w.writerow([result["date"], result["site"],
                     sum(1 for p in result["read"] if p["origin"] == "own"),
                     sum(1 for p in result["failed"] + result["skipped"] if p["origin"] == "own"),
-                    c["MISMATCH"], c["OUTDATED"], c["RETIRED"], c["OK"]])
+                    c["MISMATCH"], c["OUTDATED"], c["RETIRED"], c["OK"],
+                    c["POSITIONING"] if result.get("positioning") else ""])
 
 
 def main(argv: Optional[List[str]] = None, fetcher: Optional[Fetcher] = None) -> int:
-    ap = argparse.ArgumentParser(description="Compare every figure on a live site with one list of approved facts. Read-only.")
+    ap = argparse.ArgumentParser(description="Compare every figure on a live site with one list of "
+                                 "approved facts, and check that each page carries its positioning "
+                                 "term. Read-only.")
     ap.add_argument("facts", help="the facts file (JSON)")
     ap.add_argument("--init", action="store_true", help="write a starter facts file at that path and stop")
     ap.add_argument("--out", default="", help="write the Markdown report here (default: print it)")
@@ -834,7 +1079,7 @@ def main(argv: Optional[List[str]] = None, fetcher: Optional[Fetcher] = None) ->
     if a.history:
         append_history(a.history, result)
     c = counts(result)
-    return 1 if (c["MISMATCH"] or c["OUTDATED"] or c["RETIRED"]) else 0
+    return 1 if (c["MISMATCH"] or c["OUTDATED"] or c["RETIRED"] or c["POSITIONING"]) else 0
 
 
 if __name__ == "__main__":

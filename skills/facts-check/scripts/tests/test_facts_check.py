@@ -170,6 +170,60 @@ class CheckPage(unittest.TestCase):
         self.assertEqual([r["status"] for r in rows], ["OK"])
 
 
+class Positioning(unittest.TestCase):
+    def surfaces(self, html):
+        p = fc.PageText()
+        p.feed(html)
+        return p.surfaces()
+
+    PAGE = ('<html><head><title>CX outsourcing | Acme</title>'
+            '<meta name="description" content="Flexible CX outsourcing for retailers.">'
+            '<meta property="og:description" content="Something else"></head><body>'
+            '<header><p>Skip to content</p></header><main><h1>Help when <em>you</em> need it</h1>'
+            '<p>On-demand <b>CX outsourcing</b> for retail.</p><p>Second paragraph.</p></main>'
+            '<footer>Careers at Acme</footer></body></html>')
+
+    def test_surfaces_as_the_starter_test_reads_them(self):
+        s = self.surfaces(self.PAGE)
+        self.assertEqual(s["title"], "CX outsourcing | Acme")
+        self.assertEqual(s["desc"], "Flexible CX outsourcing for retailers.")
+        # all h1s, then the intro: the first <p> of <main>, not the header's
+        self.assertEqual(s["h1"], "Help when you need it \u00b7 On-demand CX outsourcing for retail.")
+        self.assertIn("Careers at Acme", s["body"])
+
+    def test_intro_falls_back_to_article_then_page(self):
+        self.assertTrue(self.surfaces("<article><p>A</p></article><p>B</p>")["h1"].endswith("A"))
+        self.assertTrue(self.surfaces("<div><p>B<div>x</div></div>")["h1"].endswith("B"))
+        # a <main> without a <p> gives no intro, as in the starter test
+        self.assertEqual(self.surfaces("<p>B</p><main><h1>H</h1></main>")["h1"], "H \u00b7")
+
+    def test_term_rule_needs_title_description_and_h1_or_intro(self):
+        s = self.surfaces(self.PAGE)
+        self.assertEqual(fc.check_positioning(s, {"term": "cx outsourcing"}), [])
+        missing = fc.check_positioning(s, {"term": "contact center"})
+        self.assertEqual([m.split(" needs")[0] for m in missing],
+                         ["<title>", "<meta description>", "<h1>/intro"])
+
+    def test_surface_rules_alternatives_and_body(self):
+        s = self.surfaces(self.PAGE)
+        rule = {"title": [["contact center", "CX outsourcing"]], "body": ["careers"], "desc": ["retail"]}
+        self.assertEqual(fc.check_positioning(s, rule), [])
+        self.assertEqual(fc.check_positioning(s, {"h1": [["call center", "BPO"]]}),
+                         ["<h1>/intro needs one of [call center | BPO]"])
+
+    def test_paths_and_first_matching_rule(self):
+        for u, want in (("https://x.com/en/about/", "/en/about"), ("https://x.com/en/about.html", "/en/about"),
+                        ("https://x.com/en/about/index.html", "/en/about"), ("https://x.com/", "/"),
+                        ("https://x.com/index.html", "/"), ("https://x.com/%C3%BCber", "/\u00fcber")):
+            self.assertEqual(fc.norm_path(u), want, u)
+        rules = [{"pages": "/en/business/pricing", "term": "a"}, {"pages": "/en/business/*", "term": "b"},
+                 {"pages": ["/", "/en"], "term": "c"}]
+        self.assertEqual(fc.find_rule("/en/business/pricing", rules)["term"], "a")
+        self.assertEqual(fc.find_rule("/en/business/telco/retail", rules)["term"], "b")
+        self.assertEqual(fc.find_rule("/en", rules)["term"], "c")
+        self.assertIsNone(fc.find_rule("/en/business", rules))  # "/*" needs something after it
+
+
 class LoadFacts(unittest.TestCase):
     def write(self, obj):
         fd, path = tempfile.mkstemp(suffix=".json")
@@ -189,6 +243,26 @@ class LoadFacts(unittest.TestCase):
         for part in ('"site"', "numeric", 'needs "terms" or "before"', "appears twice",
                      "also listed as retired", '"unit"'):
             self.assertIn(part, msg)
+
+    def test_positioning_rules_are_validated(self):
+        path = self.write({"site": "https://x.com", "positioning": {"rules": [
+            {"pages": "en/*", "term": "a"},
+            {"pages": "/", "term": "a", "title": ["b"]},
+            {"pages": "/x"},
+            {"pages": "/y", "h1": [[]]},
+        ], "exempt": ["privacy"]}})
+        with self.assertRaises(fc.FactsError) as cm:
+            fc.load_facts(path)
+        msg = str(cm.exception)
+        for part in ('starting with "/"', "not both", 'needs a "term"', '"h1" must be', '"exempt"'):
+            self.assertIn(part, msg)
+
+    def test_positioning_alone_is_enough(self):
+        path = self.write({"site": "https://x.com", "positioning": {"rules": [{"pages": "/", "term": "a"}]}})
+        self.assertEqual(fc.load_facts(path)["facts"], [])
+        with self.assertRaises(fc.FactsError) as cm:
+            fc.load_facts(self.write({"site": "https://x.com"}))
+        self.assertIn("nothing to check", str(cm.exception))
 
     def test_starter_file_is_valid(self):
         path = self.write(fc.STARTER)
@@ -375,6 +449,24 @@ class FullRun(unittest.TestCase):
         _, _, result, _ = self.run_check(self.facts(), "--only", "brochure", "--max-pages", "1")
         self.assertEqual(result["pages_listed"], 1)
         self.assertEqual([p["url"] for p in result["skipped"]], [self.server.base + "/brochure.pdf"])
+
+    def test_positioning_on_the_stub_site(self):
+        facts = self.facts(facts=[], retired_phrases=[], positioning={
+            "rules": [{"pages": "/", "audience": "buyers",  # no h1 here: the intro counts
+                       "title": ["agents"], "desc": ["agents"], "h1": [["clients", "customers"]]},
+                      {"pages": "/about", "audience": "buyers", "term": "clients"}],
+            "exempt": ["/private/*"]})
+        code, md, result, history = self.run_check(facts)
+        self.assertEqual(code, 1)
+        pages = {p["path"]: p["missing"] for p in result["positioning"]["pages"]}
+        # "/" meets its per-surface rule; /about has no description and "About" as title
+        self.assertEqual(pages["/"], [])
+        self.assertEqual([m.split(" needs")[0] for m in pages["/about"]], ["<title>", "<meta description>"])
+        self.assertIn("**1 page lost its positioning term**, of 2 with a rule; 0 pages with no rule.", md)
+        self.assertNotIn("mismatches", md)  # no facts were checked, so no fact counts
+        self.assertIn("| buyers | 2 | 1 | 1 |", md)
+        self.assertIn("rule /about: <title> needs", md)
+        self.assertEqual(history.strip().splitlines()[1].split(",")[-1], "1")
 
     def test_clean_site_exits_zero(self):
         facts = self.facts(pages=[self.server.base + "/"], retired_phrases=[],

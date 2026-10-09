@@ -259,7 +259,9 @@ skills/            the suite skills (canonical)
   search-console-setup, business-listings-setup   (bundled deps)
   facts-check      (read-only, any live site on any stack: one approved facts list
                    in, every page in the sitemap compared with it, each differing
-                   figure and retired phrase out; runs weekly beside the AI check)
+                   figure and retired phrase out; plus the positioning check, each
+                   page against the term it owns per audience; runs weekly beside
+                   the AI check)
   website-motion   (optional polish — count-ups + scroll reveals with the
                    reduced-motion contract; copied to every site, never runs unasked)
   website-story    (optional story layer — the home page as the customer's story:

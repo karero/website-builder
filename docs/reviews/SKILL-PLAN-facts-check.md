@@ -1,4 +1,4 @@
-# Plan: facts-check, one approved facts list against every page of a live site
+# Plan: facts-check, one approved facts list and the positioning terms against every page of a live site
 
 Requirements record for `skills/facts-check`. Where it and the shipped files disagree,
 the files win. Names of sites and people stay out of this public repo on purpose.
@@ -42,13 +42,20 @@ approved facts list: not built").
 | 11 | a facts file with several mistakes | the check starts | every problem listed at once, exit 2 | `LoadFacts.test_problems_are_listed_together` |
 | 12 | a profile on a review site in `extra_urls` | the check runs | its findings marked "not your site" | `test_only_and_extra_urls` |
 | 13 | weekly runs | `--history` | one CSV line of counts per run; none when nothing was read | `FullRun`, `test_a_run_that_reads_no_page_is_never_clean` |
+| P1 | a rule `{"pages": "/", "term": "X"}` | the page lacks X in the title, description or H1/intro | each missing surface is named; exit 1 | `Positioning.test_term_rule_needs_title_description_and_h1_or_intro`, `FullRun.test_positioning_on_the_stub_site` |
+| P2 | a human H1 ("Help when you need it") and the term in the first paragraph of `<main>` | the check runs | the term counts; a header paragraph before `<main>` does not | `test_surfaces_as_the_starter_test_reads_them`, `test_intro_falls_back_to_article_then_page` |
+| P3 | per-surface clauses with alternatives and `body` | the check runs | all clauses must match; one alternative per list is enough | `test_surface_rules_alternatives_and_body` |
+| P4 | `/en/business/*` and a specific rule for one page; `/about/`, `/about.html` | rules are matched | the first matching rule wins; the address forms read alike | `test_paths_and_first_matching_rule` |
+| P5 | a page with no rule, and a legal page in `exempt` | the check runs | the first is listed as a warning, the second not at all | `FullRun.test_positioning_on_the_stub_site`, real-site run |
+| P6 | a facts file with only positioning rules | it loads | valid; a file with nothing to check is refused | `test_positioning_alone_is_enough`, `test_positioning_rules_are_validated` |
 
 ## Status
 
 | Step | State | Evidence |
 |---|---|---|
 | Script and SKILL.md | built | `skills/facts-check/` |
-| Scenarios 1 to 13 | done (stub site on 127.0.0.1) | `scripts/tests/test_facts_check.py`, 32 tests, Python 3.9 and 3.13 |
+| Scenarios 1 to 13 | done (stub site on 127.0.0.1) | `scripts/tests/test_facts_check.py`, Python 3.9 and 3.13 |
+| Positioning check (P1 to P6), owner request 2026-10-09 | done | same file, 40 tests in all. Real site: its own `positioning.spec.ts` map, converted, run against its production build: 12 of 12 pages carry their term, as its test gate says. With one term changed, that page is reported on all three surfaces, and a page no longer exempt is listed as having no rule |
 | Code review (`/code-review`, one round) | done: 10 findings, all fixed | 2026-10-09. Image and video entries read as pages; a run that read no page reported clean and wrote a zero history line; four-digit counts skipped as years; inline tags splitting numbers; sitemaps cut at 5 MB; `--only` applied after the cut; numbers in JSON-LD dropped; `<meta charset>` ignored; a plain space joining two numbers; no stop at a comma. Each fix has a test that fails on the code before it. A second run on the real site's pages then caught one regression from the year fix ("launched on 27 March 2026 with these skills" read as a skill count); month and season names now count as year cues, with that sentence as a test |
 | CI | added | `.github/workflows/clean.yml`, job `facts-check-tests` (3.9, 3.12) |
 | Run on a real site's pages | done, served locally | 2026-10-09: the production build of a real Astro site (14 pages), served on 127.0.0.1. Every tied number was about its fact; a deliberately wrong fact was caught in both places it appears; the run surfaced the repeated og/twitter description, fixed since. Outside sites were unreachable from the build environment, so a run over the network on a large non-Astro site is still open |
@@ -58,6 +65,5 @@ approved facts list: not built").
 
 - Copy `facts-check` into every scaffolded site, as `outgoing-link-audit` is? It needs no
   starter, so it is useful there too; it would change `new-website`'s copy list and count.
-- Add a stack-independent positioning check of live pages (each page's term in title,
-  description and heading) as a second mode, reusing the page reader? Named as the next
-  gap in the same showcase.
+- A `--snapshot` mode that stores each page's text as a file in git, so the weekly run
+  also shows what changed on the site (the base for Q&A and content work on large sites).

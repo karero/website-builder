@@ -1,20 +1,24 @@
 ---
 name: facts-check
 description: >
-  Read-only consistency check of the FACTS on any live site, on any stack: the owner
-  keeps one approved facts list (value, source, owner, date checked), and
-  scripts/facts_check.py reads every page in the sitemap and reports each figure that
-  differs from it, in the visible text, the title, the meta and social descriptions and
-  the structured data, plus retired phrases (an old name, an old claim) still in use.
-  AI answer engines quote whichever figure they find, so two client counts on two pages
-  cost trust and citations. Standard-library Python, no install; runs weekly beside the
-  AI check, in-house. Changes nothing on the site. Trigger phrases: "facts check",
-  "check our figures", "are our numbers consistent", "do our pages contradict each
-  other", "find old figures on the site", "facts list", "claims register", "is the old
-  name still on the site", "consistency check of the live site".
+  Read-only consistency check of any live site, on any stack. FACTS: one approved facts
+  list (value, source, owner); scripts/facts_check.py reports every figure on the
+  sitemap's pages that differs from it (text, title, descriptions, structured data) and
+  retired phrases still in use. POSITIONING: rules map page paths (/en/business/*) to an
+  audience and the term each page owns; it lists pages that lost the term in title,
+  meta description or H1/intro, as the starter's positioning test does. AI answer
+  engines quote whatever figure and wording they find. Stdlib Python; runs weekly beside
+  the AI check, in-house. Trigger phrases: "facts check", "check our figures", "do our
+  pages contradict each other", "claims register", "is the old name still on the
+  site", "positioning check of the live site", "do our pages still carry their terms".
 ---
 
 # Facts check: one list of approved facts, every page compared with it
+
+Two checks in one run, both read-only, both from the same reading of the live pages:
+**facts** (every figure against the approved list, steps 1 to 4 below) and
+**positioning** (every page against the term it owns, see "The positioning check").
+Either can be used alone.
 
 A site that has grown for years says the same thing in many places: the client count on
 the home page, in the about page, in a press page, in the meta description and in the
@@ -127,6 +131,55 @@ scheduled CI job, e.g.
 
 Keep `facts.json` under version control next to the site or the team's docs: a change
 to an approved fact is then reviewed like any other change.
+
+## The positioning check
+
+The same idea for words. The positioning skill (`website-positioning`) works out what a
+site offers, for whom and in which category, and names the term each page owns. On a site
+built with the starter, `tests/positioning.spec.ts` fails the build when a page loses its
+term. This check applies the same rule to any live site, from its published pages, so a
+corporate site on any CMS gets it too.
+
+Add a `positioning` block to the facts file (the facts list can then stay empty):
+
+```json
+"positioning": {
+  "rules": [
+    {"pages": "/", "audience": "buyers", "term": "customer service outsourcing"},
+    {"pages": ["/en/careers", "/en/careers/*"], "audience": "applicants", "term": "remote customer service jobs"},
+    {"pages": "/en/business/*", "audience": "buyers",
+     "title": [["CX outsourcing", "customer service outsourcing"]], "h1": ["outsourcing"]}
+  ],
+  "exempt": ["/privacy", "/imprint", "/en/legal/*"]
+}
+```
+
+- **`pages`**: an address path, or a list of them. `*` matches the rest of the path, so
+  `/en/business/*` covers every page below `/en/business/` (but not that page itself:
+  list both, as for careers above). `/about/`, `/about.html` and `/about/index.html` all
+  read as `/about`. **The first matching rule wins**, so put specific rules first.
+- **`audience`**: a name for the group the page speaks to (buyers, applicants,
+  investors). The report counts pages per audience. A large company usually has one
+  positioning per audience: what that group would use instead, what you offer it, why
+  it should believe you. The company itself (name, category, facts) stays the same for
+  all of them.
+- **`term`**: the shorthand. The phrase must appear in the `<title>`, the meta
+  description, and the `<h1>` or the intro paragraph (so the heading can stay human).
+- **Or per surface**: `title`, `desc`, `h1`, `body`, each a list of clauses that must
+  all match. A clause is a phrase, or a list of phrases of which any one is enough. Use
+  it where a page's surfaces legitimately differ. `body` checks the whole page text.
+- **`exempt`**: legal and utility pages that own no term. Every other page with no rule
+  is listed under "Pages with no positioning rule": a warning, not a finding.
+
+Matching ignores case. The intro is the first `<p>` of `<main>` (else of `<article>`, else
+of the page), as in the starter's test. A page that lost its term is a finding (exit 1, and
+the `positioning_lost` column of the history file); the report names each surface and the
+phrase it needs. Whether the page or the term changes is the team's call.
+
+Where the rules come from: the positioning work (`website-positioning`, run once per
+audience on a large site), written down in `POSITIONING.md` or the team's docs. On a
+starter site, copy the `POSITIONING` map of `tests/positioning.spec.ts`: each key becomes
+`pages`, the rest stays as it is.
 
 ## What it does not do
 
