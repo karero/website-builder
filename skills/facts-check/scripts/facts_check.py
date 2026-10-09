@@ -223,10 +223,10 @@ def load_facts(path: str) -> dict:
     if not isinstance(data, dict):
         raise FactsError("%s must hold one JSON object" % path)
     site = data.get("site", "")
-    if not isinstance(site, str) or not re.match(r"https?://[^/\s]+", site):
+    if not isinstance(site, str) or not re.match(r"https?://[^/\s]+", site) or bad_address(site):
         problems.append('"site" must be the site\'s address, e.g. "https://example.com"')
     sitemap = data.get("sitemap", "")
-    if sitemap and not (isinstance(sitemap, str) and sitemap.startswith(("http://", "https://"))):
+    if sitemap and (not isinstance(sitemap, str) or bad_address(sitemap)):
         problems.append('"sitemap" must be a full address (https://...)')
     facts = data.get("facts", [])
     if facts is None:
@@ -478,10 +478,10 @@ def resolve_soft(text: str) -> str:
     # A soft space is a space, except where a tag cuts a number: "27</span>,000", "27,</span><span>000",
     # "27</span>,<span>000" and "29</span>.99" are 27,000 and 29.99. A minus sign in an element of its
     # own belongs to the digits after it, unless it sits between two things ("5</span>-</span>10"),
-    # and a dash that opens an element after a digit is a range ("5</span><span>-10").
+    # and a dash that opens an element after a whole number is a range ("5</span><span>-10"; not "Q2</span><span>-5").
     # (Two list numbers in adjacent spans, "1." and "2", would join; lists use <li>, a hard space.)
     text = re.sub(r"(?<=\d)%s*([.,])%s*(?=\d)" % (SOFT, SOFT), r"\1", text)
-    text = re.sub(r"(?<=\d)%s+(?=[-\u2212]\d)" % SOFT, "", text)   # 5</span><span>-10 is a range
+    text = re.sub(r"(?<![\w.,])(\d+(?:[.,]\d+)*)%s+(?=[-\u2212]\d)" % SOFT, r"\1", text)   # 5</span><span>-10 is a range
 
     def sign(m):
         i = m.start() - 1
@@ -710,9 +710,11 @@ def bad_address(url: str) -> str:
         p.port  # raises ValueError for a port out of range
     except ValueError as e:
         return "not a valid address (%s)" % e
+    if not p.scheme:
+        return "not a valid address (it does not start with http:// or https://)"
     if p.scheme.lower() not in ("http", "https"):
         return WEB_ONLY
-    return "" if p.netloc else "not a valid address (no host)"
+    return "" if p.hostname else "not a valid address (no host)"
 
 
 class _RedirectBlocked(Exception):
@@ -770,10 +772,10 @@ class Fetcher:
         if bad:
             return 0, bad, b"", url  # a sitemap may list anything: file:, ftp: and nonsense are not pages
         self._wait()
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
-                                                   "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
-        req.guard_robots = guard_redirects
         try:
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
+                                                       "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
+            req.guard_robots = guard_redirects
             with self._opener.open(req, timeout=self.timeout) as r:
                 body = r.read(limit)
                 if getattr(r, "length", None) and len(body) < limit:
@@ -843,6 +845,7 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
     known = set()  # a list lookup per address made a 50,000-address sitemap quadratic
     queue = list(start)
     seen = set()
+    junk: List[str] = []
     while queue and len(pages) < limit and len(seen) < MAX_SITEMAP_FILES:
         sm = queue.pop(0)
         if sm in seen:
@@ -877,11 +880,17 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
             for u in locs:
                 if only and only not in u:
                     continue
+                if bad_address(u):
+                    junk.append(u)  # left out and said so below: it takes none of the page budget
+                    continue
                 if u not in known:
                     known.add(u)
                     pages.append(u)
                     if len(pages) >= limit:
                         break
+    if junk:
+        notes.append("sitemap entries that are not web addresses were left out: %d (the first: %s)"
+                     % (len(set(junk)), junk[0]))
     unread = {u for u in queue if u not in seen}
     if unread and len(pages) < limit:
         notes.append("sitemaps: stopped after %d sitemap files; %d more were not read, so pages "

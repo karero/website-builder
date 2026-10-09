@@ -214,6 +214,8 @@ class CheckPage(unittest.TestCase):
             "<p>NPS of <span>\u2212</span><span>5</span></p>": "NPS of \u22125",
             "<p>5<span>-</span><span>10</span> clients</p>": "5 - 10 clients",          # a dash between things, no sign
             "<p><span>5</span><span>-10</span> clients</p>": "5-10 clients",           # round 4 (Codex): a range, not minus ten
+            "<p><span>1,234</span><span>-10</span> clients</p>": "1,234-10 clients",
+            "<p><span>Q2</span><span>-5</span> clients</p>": "Q2 -5 clients",          # round 5 (Codex): digits inside a word end no range
             "<p>Total<span>-</span><span>5</span></p>": "Total - 5",
         }
         for html, want in cases.items():
@@ -224,10 +226,11 @@ class CheckPage(unittest.TestCase):
         self.assertEqual([(r["status"], r["found_value"]) for r in rows], [("MISMATCH", -5)])
 
     def test_resolving_soft_spaces_takes_linear_time(self):
-        # round 4 (Codex): sign() copied the whole text before each match: 120,000 of them took 6 seconds
+        # round 4 (Codex): sign() copied the whole text before each match: 120,000 of them took 6 seconds.
+        # 200,000 matches take about 0.2 s as written; the old code needed over 10 s
         import time
         unit = "NPS of %s-%s%s5%s " % ((fc.SOFT,) * 4)
-        text = unit * 100000
+        text = unit * 200000
         started = time.monotonic()
         out = fc.resolve_soft(text)
         self.assertLess(time.monotonic() - started, 3.0)
@@ -391,11 +394,12 @@ class FetcherRules(unittest.TestCase):
     def test_a_malformed_address_is_no_page_and_no_crash(self):
         # round 4 (Codex, found in the old code): "ftp://[" in a sitemap raised ValueError out of main()
         f = fc.Fetcher(timeout=1, delay=0, respect_robots=True)
-        for url in ("ftp://[", "http://[::1", "http://127.0.0.1:99999/x", "http:///nohost"):
+        for url in ("ftp://[", "http://[::1", "http://127.0.0.1:99999/x", "http:///nohost", "http://:80/x", "http://@/",
+                    "http://user@:80/x", "x.com/p", ""):
             with self.subTest(url=url):
                 status, why, body, _ = f.get(url)
                 self.assertEqual((status, body), (0, b""))
-                self.assertTrue(why.startswith("not a valid address") or "only web addresses" in why, why)
+                self.assertTrue(why.startswith("not a valid address"), why)
 
     def test_a_sitemap_with_a_malformed_entry_still_checks_the_other_pages(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -405,7 +409,9 @@ class FetcherRules(unittest.TestCase):
         result = fc.run({"site": "https://x.com", "sitemap": "https://x.com/sm.xml", "facts": [
             {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
         self.assertEqual([p["url"] for p in result["read"]], ["https://x.com/p"])
-        self.assertEqual([(p["url"], p["why"]) for p in result["failed"]], [("ftp://[", "not a valid address (Invalid IPv6 URL)")])
+        self.assertEqual(result["failed"], [])
+        self.assertEqual(result["pages_listed"], 1)   # a left-out entry takes none of the page budget
+        self.assertIn("sitemap entries that are not web addresses were left out: 1 (the first: ftp://[)", result["notes"])
 
     def test_a_robots_txt_that_redirects_without_end_keeps_the_site_out(self):
         # round 3 (Codex, found in the old code): a redirect loop surfaced as status 302, which meant "allow all"
@@ -527,6 +533,10 @@ class LoadFacts(unittest.TestCase):
                                                  "facts": [{"id": "a", "value": 5, "terms": ["x"]}]},
             '"sitemap" must be a full address': {"site": "https://x.com", "sitemap": 3,
                                                  "facts": [{"id": "a", "value": 5, "terms": ["x"]}]},
+            '"site" must be the site': {"site": "http://[", "sitemap": "https://x.com/sm.xml",
+                                        "facts": [{"id": "a", "value": 5, "terms": ["x"]}]},
+            '"sitemap" must be a full address (https://...)': {"site": "https://x.com", "sitemap": "http://[",
+                                                              "facts": [{"id": "a", "value": 5, "terms": ["x"]}]},
         }
         for want, obj in cases.items():
             with self.subTest(want=want):
@@ -585,7 +595,7 @@ PAGES = {
     "/llms.txt": ("text/plain; charset=utf-8", "# Acme\n> Formerly Old Name GmbH. 30,000 agents.\n"),
     # round 2, end to end: a minus sign, a number cut by a span, JSON-LD inside a template
     "/round2": ("text/html", "<html><head><title>Round 2</title></head><body>"
-        "<p>An NPS of -5.</p><p><span>27</span>,000 agents</p>"
+        "<p>An NPS of -5.</p><p><span>27</span>,000 agents</p><p><span>Q2</span><span>-5</span> clients</p>"
         '<template><script type="application/ld+json">{"description": "30,000 agents"}</script></template>'
         "</body></html>"),
     # robots.txt keeps /private/ out; /via-redirect leads there (round 2: a redirect must not get around robots.txt)
@@ -852,10 +862,13 @@ class FullRun(unittest.TestCase):
         # <template> says nothing the page shows
         facts = self.facts(pages=[self.server.base + "/round2"], retired_phrases=[], facts=[
             {"id": "nps", "value": 5, "terms": [], "before": ["NPS of"]},
-            {"id": "agents", "value": 27000, "terms": ["agent"]}])
+            {"id": "agents", "value": 27000, "terms": ["agent"]},
+            {"id": "clients", "value": 5, "terms": ["client"]}])
         code, md, result, _ = self.run_check(facts)
         got = sorted((r["fact"], r["status"], r["found_value"], r["where"]) for r in result["rows"])
-        self.assertEqual(got, [("agents", "OK", 27000, "page text"), ("nps", "MISMATCH", -5, "page text")])
+        # "Q2" and "-5" in two spans are a quarter and minus five, not the range "Q2-5" (round 5, Codex)
+        self.assertEqual(got, [("agents", "OK", 27000, "page text"), ("clients", "MISMATCH", -5, "page text"),
+                               ("nps", "MISMATCH", -5, "page text")])
         self.assertEqual(code, 1)
 
     def test_a_redirect_to_a_non_web_address_is_not_followed(self):
