@@ -1235,6 +1235,35 @@ class FullRun(unittest.TestCase):
         self.assertEqual([(f["url"], "8,000 bytes" in f["why"]) for f in result["failed"]], [(too_long, True)])
         self.assertEqual([p["url"] for p in result["read"]], [base + "/"])
 
+    def test_an_address_with_letters_beyond_ascii_is_sent_as_a_browser_sends_it(self):
+        # round 16 (Codex): http.client refuses a character beyond ASCII in the request line ("ordinal not in range(128)"),
+        # so a sitemap that lists "/über-uns" as written had that page reported as not read. It is sent as a browser
+        # sends it, each such character as the %XX of its UTF-8 bytes; the host keeps its letters (http.client sends IDNA)
+        base = self.server.base
+        f = fc.Fetcher(timeout=2, delay=0, respect_robots=False)
+        for url, line in ((base + "/\u00fcber-uns", "GET /%C3%BCber-uns HTTP/1.1"),
+                          (base + "/about?q=\u00fc#\u00e4", "GET /about?q=%C3%BC HTTP/1.1"),
+                          (base + "/\U0001F600", "GET /%F0%9F%98%80 HTTP/1.1"),
+                          (base + "/%C3%BCber-uns", "GET /%C3%BCber-uns HTTP/1.1")):
+            with self.subTest(url=url):
+                self.server.requestlines.clear()
+                status, why, _, _ = f.get(url)
+                self.assertNotEqual(status, 0, why)
+                self.assertEqual(self.server.requestlines, [line])
+        self.assertEqual(fc.clean_address("https://m\u00fcnchen.example/\u00fc?\u00e4=1#x"), "https://m\u00fcnchen.example/%C3%BC?%C3%A4=1")
+        # the positioning rules still read such a page by the path a person writes
+        self.assertEqual(fc.norm_path(fc.clean_address("https://x.test/\u00fcber-uns/")), "/\u00fcber-uns")
+
+    def test_the_limit_holds_for_the_address_as_the_robots_matcher_reads_it(self):
+        # round 16 (Codex): a lone surrogate is no character; quote() made it "?" and robots_form() "%3F", so 7,986 of them
+        # passed the 8,000 limit and gave the matcher a path of 23,959 characters. A surrogate makes no address now, and the
+        # limit is measured on the address as the matcher reads it
+        self.assertTrue(fc.bad_address("http://x.test/" + "\ud800" * 7986).startswith("not a valid address"))
+        self.assertTrue(fc.bad_address("http://x.test/a\udfffb").startswith("not a valid address"))
+        braces = "http://x.test/" + "{" * 3000      # 3,014 characters as sent, 9,014 as the matcher reads it
+        self.assertIn("8,000 bytes", fc.bad_address(braces))
+        self.assertEqual(fc.bad_address("http://x.test/" + "{" * 2600), "")
+
     def test_the_path_robots_txt_is_judged_on_is_the_path_the_request_sends(self):
         # round 15 (Codex): "Disallow: //a" did not hold for "http://x.test//a?" because the path was rebuilt from its parts.
         # The judged path is urllib's own selector now, so it cannot differ from what the server receives
