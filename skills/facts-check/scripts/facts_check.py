@@ -220,7 +220,9 @@ def load_facts(path: str) -> dict:
         problems.append('"facts" must be a list of facts')
         facts = []
     problems.extend(_positioning_problems(data.get("positioning")))
-    if not facts and not data.get("retired_phrases") and not (data.get("positioning") or {}).get("rules"):
+    pos = data.get("positioning")
+    has_rules = isinstance(pos, dict) and isinstance(pos.get("rules"), list) and bool(pos["rules"])
+    if not facts and not data.get("retired_phrases") and not has_rules:
         problems.append('nothing to check: add "facts", "retired_phrases" or "positioning" rules')
     seen = set()
     for i, fact in enumerate(facts):
@@ -266,9 +268,7 @@ def load_facts(path: str) -> dict:
             problems.append('"%s" must be a list of full addresses (https://...)' % key)
     if problems:
         raise FactsError("%s has problems:\n  - %s" % (path, "\n  - ".join(problems)))
-    data.setdefault("facts", [])
-    if data["facts"] is None:
-        data["facts"] = []
+    data["facts"] = facts
     return data
 
 
@@ -438,10 +438,14 @@ BLOCK_TAGS = {
     "nav", "aside", "figure", "figcaption", "blockquote", "span", "a", "button",
     "label", "summary", "details",
 }  # inline formatting (b, i, strong, em, ...) is not here: "<b>27</b>,000" stays 27,000
+# Start tags that close an open <p> (the HTML rule for an omitted </p>).
 P_CLOSERS = {
-    "p", "div", "ul", "ol", "dl", "table", "section", "article", "main", "header", "footer",
-    "nav", "aside", "figure", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "form",
+    "address", "article", "aside", "blockquote", "details", "dialog", "div", "dl", "fieldset",
+    "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header",
+    "hgroup", "hr", "main", "menu", "nav", "ol", "p", "pre", "search", "section", "table", "ul",
 }
+VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
+             "param", "source", "track", "wbr"}
 SKIP_TAGS = {"script", "style", "noscript", "template", "svg", "iframe", "canvas"}
 
 
@@ -460,13 +464,19 @@ class PageText(HTMLParser):
         self._ld_buf: List[str] = []
         # For the positioning check: every <h1>, and the intro, the first <p> of <main>
         # (else of <article>, else of the page), chosen as the starter's positioning test does.
+        # Only the first <main> and the first <article> count, and the first <p> in each,
+        # as with document.querySelector('main').querySelector('p'). A stack of open
+        # elements tells where a <p> ends when its </p> is left out.
         self.h1s: List[str] = []
         self._h1_depth = 0
         self._h1_buf: List[str] = []
-        self._depth = {"main": 0, "article": 0}
+        self._titles = 0
+        self._stack: List[str] = []
+        self._first_at: Dict[str, Optional[int]] = {"main": None, "article": None}
         self._saw = {"main": False, "article": False}
         self.first_p: Dict[str, Optional[str]] = {"main": None, "article": None, "body": None}
         self._p_buf: Optional[List[str]] = None
+        self._p_at: Optional[int] = None
         self._p_slots: List[str] = []
 
     def handle_starttag(self, tag, attrs):
@@ -478,23 +488,35 @@ class PageText(HTMLParser):
         if tag in SKIP_TAGS:
             self._skip += 1
             return
-        if self._p_buf is not None and tag in P_CLOSERS:
-            self._end_p()  # a <p> closed implicitly by the next block
-        if tag in self._depth:
-            self._depth[tag] += 1
+        if self._p_at is not None and tag in P_CLOSERS:
+            self._close_to(self._p_at)  # a <p> closed implicitly by the next block
+        if tag in ("li", "dd", "dt"):  # a new item closes the open one, and a <p> in it
+            fence = {"li": ("ul", "ol", "menu"), "dd": ("dl",), "dt": ("dl",)}[tag]
+            for i in range(len(self._stack) - 1, -1, -1):
+                if self._stack[i] in fence:
+                    break
+                if self._stack[i] in (("li",) if tag == "li" else ("dd", "dt")):
+                    self._close_to(i)
+                    break
+        if tag in self._first_at and not self._saw[tag]:
             self._saw[tag] = True
+            self._first_at[tag] = len(self._stack)
         elif tag == "h1":
             self._h1_depth += 1
             if self._h1_depth == 1:
                 self._h1_buf = []
         elif tag == "p" and self._p_buf is None:
-            slots = [k for k in ("main", "article") if self._depth[k] and self.first_p[k] is None]
+            slots = [k for k in ("main", "article")
+                     if self._first_at[k] is not None and self.first_p[k] is None]
             if self.first_p["body"] is None:
                 slots.append("body")
             if slots:
-                self._p_buf, self._p_slots = [], slots
+                self._p_buf, self._p_slots, self._p_at = [], slots, len(self._stack)
+        if tag not in VOID_TAGS:
+            self._stack.append(tag)
         if tag == "title":
             self._in_title = True
+            self._titles += 1
         elif tag == "meta":
             name = (a.get("name") or a.get("property") or "").lower()
             content = a.get("content", "")
@@ -520,16 +542,12 @@ class PageText(HTMLParser):
             return
         if tag == "title":
             self._in_title = False
-        if tag == "p" and self._p_buf is not None:
-            self._end_p()
-        elif tag == "h1" and self._h1_depth:
+        if tag == "h1" and self._h1_depth:
             self._h1_depth -= 1
             if not self._h1_depth:
                 self.h1s.append("".join(self._h1_buf))
-        elif tag in self._depth and self._depth[tag]:
-            if self._p_buf is not None:
-                self._end_p()
-            self._depth[tag] -= 1
+        if tag in self._stack:  # an end tag closes its element and everything inside it
+            self._close_to(len(self._stack) - 1 - self._stack[::-1].index(tag))
         if tag in BLOCK_TAGS:
             self.parts["page text"].append(" ")
 
@@ -539,7 +557,8 @@ class PageText(HTMLParser):
         elif self._skip:
             return
         elif self._in_title:
-            self.parts["title"].append(data)
+            if self._titles == 1:  # document.title is the first <title> only
+                self.parts["title"].append(data)
         else:
             self.parts["page text"].append(data)
             if self._h1_depth:
@@ -547,11 +566,20 @@ class PageText(HTMLParser):
             if self._p_buf is not None:
                 self._p_buf.append(data)
 
+    def _close_to(self, i: int):
+        """Close the element at stack index i and everything opened inside it."""
+        if self._p_at is not None and i <= self._p_at:
+            self._end_p()
+        for k, at in self._first_at.items():
+            if at is not None and i <= at:
+                self._first_at[k] = None  # only the first <main>/<article> is ever read
+        del self._stack[i:]
+
     def _end_p(self):
         text = "".join(self._p_buf or [])
         for slot in self._p_slots:
             self.first_p[slot] = text
-        self._p_buf, self._p_slots = None, []
+        self._p_buf, self._p_slots, self._p_at = None, [], None
 
     def surfaces(self) -> Dict[str, str]:
         """The four places the positioning check reads, as the starter's test reads them."""
@@ -561,12 +589,15 @@ class PageText(HTMLParser):
             self.h1s.append("".join(self._h1_buf))
             self._h1_depth = 0
         box = "main" if self._saw["main"] else "article" if self._saw["article"] else "body"
-        clean = lambda t: re.sub(r"\s+", " ", t or "").strip()  # noqa: E731
+        # As the browser gives them to the starter test: document.title strips and collapses
+        # ASCII whitespace only (a no-break space stays); the description and the h1/intro
+        # text come raw; the body is collapsed, as innerText roughly is.
+        title = re.sub(r"[ \t\n\f\r]+", " ", "".join(self.parts["title"])).strip(" \t\n\f\r")
         return {
-            "title": clean("".join(self.parts["title"])),
-            "desc": clean(self.parts["meta description"][0] if self.parts["meta description"] else ""),
-            "h1": clean(" \u00b7 ".join(self.h1s) + " \u00b7 " + (self.first_p[box] or "")),
-            "body": clean("".join(self.parts["page text"])),
+            "title": title,
+            "desc": self.parts["meta description"][0] if self.parts["meta description"] else "",
+            "h1": " \u00b7 ".join(self.h1s) + " \u00b7 " + (self.first_p[box] or ""),
+            "body": re.sub(r"\s+", " ", "".join(self.parts["page text"])).strip(),
         }
 
     def _add_ldjson(self, raw: str):
@@ -753,10 +784,13 @@ def norm_path(url_or_path: str) -> str:
 def find_rule(path: str, rules: List[dict]) -> Optional[dict]:
     """The first rule with a matching pattern wins, so put specific rules first."""
     for r in rules:
-        for pat in _patterns(r):
-            if fnmatch.fnmatchcase(path, norm_path(pat)):
-                return r
+        if matches(path, [norm_path(p) for p in _patterns(r)]):
+            return r
     return None
+
+
+def matches(path: str, normed_patterns: List[str]) -> bool:
+    return any(fnmatch.fnmatchcase(path, p) for p in normed_patterns)
 
 
 def rule_clauses(rule: dict) -> Dict[str, list]:
@@ -830,6 +864,9 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
     pos_pages: List[dict] = []
     uncovered: List[str] = []
     exempt = [norm_path(x) for x in (pos or {}).get("exempt", [])]
+    # Patterns normalised once, not once per page
+    normed_rules = [dict(r, pages=[norm_path(p) for p in _patterns(r)]) for r in (pos or {}).get("rules", [])]
+    redirected: List[dict] = []
     for url, origin in own + extra:
         if not fetcher.allowed(url):
             skipped.append({"url": url, "origin": origin, "why": "robots.txt"})
@@ -849,15 +886,21 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
             failed.append({"url": url, "origin": origin, "why": "could not parse: %s" % e})
             continue
         if pos and origin == "own":
-            path = norm_path(final)
-            rule = find_rule(path, pos["rules"])
-            if rule is not None:
-                pos_pages.append({
-                    "url": url, "path": path, "audience": rule.get("audience", ""),
-                    "rule": ", ".join(_patterns(rule)),
-                    "missing": check_positioning(parser.surfaces(), rule)})
-            elif not any(fnmatch.fnmatchcase(path, e) for e in exempt):
-                uncovered.append(url)
+            path = norm_path(url)
+            moved = urllib.parse.urlsplit(final)
+            if (moved.netloc, norm_path(final)) != (urllib.parse.urlsplit(url).netloc, path):
+                # an old address that redirects is not a page of its own: list it, check
+                # its target where the sitemap lists that
+                redirected.append({"url": url, "final": final})
+            elif not matches(path, exempt):  # exempt wins over any rule
+                rule = next((r for r in normed_rules if matches(path, r["pages"])), None)
+                if rule is not None:
+                    pos_pages.append({
+                        "url": url, "path": path, "audience": rule.get("audience", ""),
+                        "rule": ", ".join(_patterns(rule)),
+                        "missing": check_positioning(parser.surfaces(), rule)})
+                else:
+                    uncovered.append(url)
         for row in check_page(url, parser.locations(), facts, retired_phrases):
             row["origin"] = origin
             if final != url:
@@ -872,7 +915,8 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
         "read": read, "failed": failed, "skipped": skipped,
         "notes": notes, "rows": rows,
         "facts": facts, "retired_phrases": retired_phrases,
-        "positioning": None if not pos else {"pages": pos_pages, "uncovered": uncovered},
+        "positioning": None if not pos else {"pages": pos_pages, "uncovered": uncovered,
+                                             "redirected": redirected},
     }
 
 
@@ -988,6 +1032,13 @@ def report_md(result: dict) -> str:
                 L.append("- %s" % u)
             if len(pos["uncovered"]) > 50:
                 L.append("- and %d more (all are in the JSON result)" % (len(pos["uncovered"]) - 50))
+        if pos.get("redirected"):
+            L.append("")
+            L.append("### Addresses that redirect")
+            L.append("Not checked for positioning: each is an old address that leads elsewhere. "
+                     "Consider taking it out of the sitemap.")
+            for r in pos["redirected"][:50]:
+                L.append("- %s \u2192 %s" % (r["url"], r["final"]))
     never = [f for f in result["facts"]
              if not any(r["kind"] == "fact" and r["fact"] == f["id"] for r in rows)]
     if never:

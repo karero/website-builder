@@ -195,7 +195,29 @@ class Positioning(unittest.TestCase):
         self.assertTrue(self.surfaces("<article><p>A</p></article><p>B</p>")["h1"].endswith("A"))
         self.assertTrue(self.surfaces("<div><p>B<div>x</div></div>")["h1"].endswith("B"))
         # a <main> without a <p> gives no intro, as in the starter test
-        self.assertEqual(self.surfaces("<p>B</p><main><h1>H</h1></main>")["h1"], "H \u00b7")
+        self.assertEqual(self.surfaces("<p>B</p><main><h1>H</h1></main>")["h1"], "H \u00b7 ")
+
+    def test_a_paragraph_ends_where_the_browser_ends_it(self):
+        # review findings: the intro ran on past a </div> or a new <li> that closes the <p>
+        self.assertEqual(self.surfaces("<main><div><p>Short intro</div><a>term</a></main>")["h1"],
+                         " \u00b7 Short intro")
+        self.assertEqual(self.surfaces("<main><ul><li><p>first<li>term</ul></main>")["h1"], " \u00b7 first")
+        self.assertEqual(self.surfaces("<main><p>one<pre>term</pre></main>")["h1"], " \u00b7 one")
+        # inline markup inside the paragraph stays part of it
+        self.assertEqual(self.surfaces("<main><p>a <a>b</a> <span>c</span></p></main>")["h1"],
+                         " \u00b7 a b c")
+
+    def test_only_the_first_main_counts(self):
+        # review finding: a later <main> supplied the intro the starter test would not see
+        html = "<main><h1>H</h1></main><dialog><main><p>term</p></main></dialog>"
+        self.assertEqual(self.surfaces(html)["h1"], "H \u00b7 ")
+
+    def test_title_is_the_first_title_and_keeps_no_break_spaces(self):
+        # review finding: every <title> was joined and no-break spaces collapsed
+        s = self.surfaces("<head><title>\n  Acme\u00a0Pro  </title></head><body><title>term</title></body>")
+        self.assertEqual(s["title"], "Acme\u00a0Pro")
+        self.assertEqual(fc.check_positioning(s, {"title": ["Acme Pro"]}),
+                         ["<title> needs \u201cAcme Pro\u201d"])
 
     def test_term_rule_needs_title_description_and_h1_or_intro(self):
         s = self.surfaces(self.PAGE)
@@ -243,6 +265,14 @@ class LoadFacts(unittest.TestCase):
         for part in ('"site"', "numeric", 'needs "terms" or "before"', "appears twice",
                      "also listed as retired", '"unit"'):
             self.assertIn(part, msg)
+
+    def test_a_malformed_positioning_block_is_a_message_not_a_crash(self):
+        # review finding: a list here raised AttributeError (exit 1, read as "findings")
+        for bad in (["x"], "x", {"rules": "x"}):
+            with self.subTest(bad=bad):
+                with self.assertRaises(fc.FactsError) as cm:
+                    fc.load_facts(self.write({"site": "https://x.com", "positioning": bad}))
+                self.assertIn('"positioning" must be an object', str(cm.exception))
 
     def test_positioning_rules_are_validated(self):
         path = self.write({"site": "https://x.com", "positioning": {"rules": [
@@ -306,6 +336,11 @@ PAGES = {
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/old-offer":
+            self.send_response(301)
+            self.send_header("Location", self.server.base + "/")
+            self.end_headers()
+            return
         page = PAGES.get(self.path)
         if page is None:
             self.send_response(404)
@@ -467,6 +502,20 @@ class FullRun(unittest.TestCase):
         self.assertIn("| buyers | 2 | 1 | 1 |", md)
         self.assertIn("rule /about: <title> needs", md)
         self.assertEqual(history.strip().splitlines()[1].split(",")[-1], "1")
+
+    def test_exempt_wins_over_a_wildcard_rule_and_redirects_are_listed(self):
+        # review findings: an exempt page under "/*" was still checked; an old address
+        # that redirects to "/" was checked as the home page and counted twice
+        base = self.server.base
+        facts = self.facts(facts=[], retired_phrases=[], pages=[base + "/", base + "/about", base + "/old-offer"],
+                           positioning={"rules": [{"pages": ["/", "/*"], "term": "agents"}],
+                                        "exempt": ["/about"]})
+        code, md, result, _ = self.run_check(facts)
+        pos = result["positioning"]
+        self.assertEqual([p["path"] for p in pos["pages"]], ["/"])
+        self.assertEqual(pos["uncovered"], [])
+        self.assertEqual([r["url"] for r in pos["redirected"]], [base + "/old-offer"])
+        self.assertIn("### Addresses that redirect", md)
 
     def test_clean_site_exits_zero(self):
         facts = self.facts(pages=[self.server.base + "/"], retired_phrases=[],
