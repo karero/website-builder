@@ -11,8 +11,11 @@
 # became the folder the script was started in, the whole suite ran there and printed "all
 # checks passed", and the EXIT trap deleted the folder. Under `make check` that folder is the
 # repo. The scripts that did not reassign T ran on with it empty, so every "$T/…" path pointed
-# at the filesystem root. These cases pin the repair: a failed mktemp ends the script, with a
-# non-zero status, on a message that says why, before it does anything else.
+# at the filesystem root. These cases pin the repair: with mktemp failing, the script leaves the
+# folder it ran from byte for byte as it was, ends with a non-zero status, and prints the message
+# that says why as its last line. They do not prove it stopped AT that line: a guard that printed
+# the message and then went on in silence to fail would pass. A script that goes on normally
+# prints or errors, which puts something after the message.
 #
 # Which scripts: any shell script that mentions mktemp is in SCRIPTS (tested here) or in
 # EXEMPT (with the reason it needs no case here). The completeness check below fails until a
@@ -69,6 +72,7 @@ trap 'rm -rf "$T"' EXIT
 mkdir "$T/stub" \
   && printf '#!/bin/sh\necho "mktemp: stub: cannot create a temp file or folder" >&2\nexit 1\n' >"$T/stub/mktemp" \
   && chmod +x "$T/stub/mktemp" \
+  && echo keep >"$T/sentinel.orig" \
   || { echo "FAIL — could not build the failing mktemp."; exit 1; }
 # Where timeout exists (not on a stock Mac) it ends a script whose guard has broken and that
 # then hangs. One that merely runs on finishes as it does under make check.
@@ -78,13 +82,15 @@ fail() { printf 'FAIL %s\n' "$1"; fails=$((fails+1)); }
 
 # probe <script> — runs it from a folder holding one file, "sentinel", with mktemp failing.
 # Sets p_rc (its exit status), p_out (what it printed), p_left (the names the folder holds
-# afterwards; empty if the folder is gone) and p_kept (what the sentinel holds afterwards).
+# afterwards; empty if the folder is gone) and p_same (yes if the sentinel is byte for byte as
+# it was; the appended x stops $(…) dropping a changed trailing newline, as in
+# check_skill_budgets.sh).
 probe() {
   local d="$T/run.$n"; n=$((n+1))
-  mkdir "$d" && echo keep >"$d/sentinel" || { echo "FAIL — could not set up $d."; exit 1; }
+  mkdir "$d" && cp "$T/sentinel.orig" "$d/sentinel" || { echo "FAIL — could not set up $d."; exit 1; }
   p_out="$(cd "$d" && HOME="$T/home" PATH="$T/stub:$PATH" TMPDIR="$T/missing" $TO bash "$1" 2>&1 </dev/null)"; p_rc=$?
   p_left="$(ls -A "$d" 2>/dev/null)"
-  p_kept="$(cat "$d/sentinel" 2>/dev/null)"
+  if [ "$(cat "$T/sentinel.orig"; echo x)" = "$(cat "$d/sentinel" 2>/dev/null; echo x)" ]; then p_same=yes; else p_same=no; fi
 }
 
 # why_wrong — empty when the last probe went right, otherwise what went wrong. The message must
@@ -94,7 +100,7 @@ why_wrong() {
     echo "it deleted the folder it ran from, sentinel and all"
   elif [ "$p_left" != sentinel ]; then
     echo "it left [$(printf '%s' "$p_left" | tr '\n' ' ')] in the folder it ran from, not just the sentinel"
-  elif [ "$p_kept" != keep ]; then
+  elif [ "$p_same" != yes ]; then
     echo "it changed the sentinel"
   elif [ "$p_rc" -eq 0 ]; then
     echo "exited 0"
@@ -128,6 +134,7 @@ printf 'echo "all checks passed"\n' >"$T/fx/runs-on.sh"
 printf 'exit 1\n' >"$T/fx/silent.sh"
 printf 'echo "FAIL — could not create a temp dir."\n: >stray\nexit 1\n' >"$T/fx/litters.sh"
 printf 'echo "FAIL — could not create a temp dir."\necho changed >sentinel\nexit 1\n' >"$T/fx/rewrites.sh"
+printf 'echo "FAIL — could not create a temp dir."\necho >>sentinel\nexit 1\n' >"$T/fx/appends.sh"
 printf 'echo "FAIL — could not create a temp dir."\necho "and on it went"\nexit 1\n' >"$T/fx/goes-on.sh"
 catch "the old three lines"                    "deleted the folder"     "$T/fx/old.sh"
 catch "a script that runs on and exits 0"      "exited 0"               "$T/fx/runs-on.sh"
@@ -135,6 +142,7 @@ catch "a script that exits without a word"     "last line"              "$T/fx/s
 catch "a script that goes on after its message" "last line"             "$T/fx/goes-on.sh"
 catch "a script that leaves a file behind"     "not just the sentinel"  "$T/fx/litters.sh"
 catch "a script that rewrites the sentinel"    "changed the sentinel"   "$T/fx/rewrites.sh"
+catch "a script that adds a newline to it"     "changed the sentinel"   "$T/fx/appends.sh"
 
 # Completeness: every shell script that mentions mktemp is in SCRIPTS or EXEMPT, so a new one
 # forces a choice instead of going untested. list_shell_scripts.sh finds the scripts (by
