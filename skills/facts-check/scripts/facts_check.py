@@ -762,11 +762,17 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         return new
 
 
+# Before Python 3.13 the standard robots.txt parser takes the FIRST matching rule (the convention says the longest),
+# ignores * and $, and decodes %2F. A file with an Allow rule or such a character in a rule is read differently there.
+ROBOTS_NEEDS_3_13 = re.compile(r"(?mi)^\s*allow\s*:|^\s*(?:dis)?allow\s*:[^#\r\n]*[*$%]")
+
+
 class Fetcher:
     def __init__(self, timeout: float, delay: float, respect_robots: bool):
         self.timeout = timeout
         self.delay = delay
         self.respect_robots = respect_robots
+        self.warnings: List[str] = []  # said once per site, added to the report's notes by run()
         self._opener = urllib.request.build_opener(_RedirectGuard(self))
         self._robots: Dict[str, Tuple[urllib.robotparser.RobotFileParser, str]] = {}
         self._last = 0.0
@@ -821,7 +827,13 @@ class Fetcher:
             status, _, body, _ = self.get(root + "/robots.txt")
             why = "robots.txt"
             if status == 200:
-                rp.parse(body.decode("utf-8", "replace").splitlines())
+                text = body.decode("utf-8", "replace")
+                rp.parse(text.splitlines())
+                if sys.version_info < (3, 13) and ROBOTS_NEEDS_3_13.search(text):
+                    self.warnings.append(
+                        "robots.txt of %s: Python %d.%d, which ran this check, matches the rules in the order written, ignores "
+                        "* and $ and decodes %%2F, so a page that such a rule disallows may have been read; Python 3.13 or "
+                        "newer reads them as the convention says" % (root, sys.version_info[0], sys.version_info[1]))
             elif status in (401, 403):
                 rp.disallow_all = True
             elif status == 0 or status >= 500 or 300 <= status < 400:
@@ -835,6 +847,8 @@ class Fetcher:
                 rp.allow_all = True
             self._robots[root] = (rp, why)
         rp, why = self._robots[root]
+        if not p.path:  # "http://x.test?private" is requested as "/?private"
+            url = urllib.parse.urlunsplit(p._replace(path="/"))
         return "" if rp.can_fetch(USER_AGENT, url) else why
 
 
@@ -1103,6 +1117,7 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
                 row["origin"] = "own"
                 rows.append(row)
             also_read.append(llms)
+    notes.extend(getattr(fetcher, "warnings", []))
     return {
         "site": site,
         "date": _dt.date.today().isoformat(),

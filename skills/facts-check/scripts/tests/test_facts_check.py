@@ -439,6 +439,35 @@ class FetcherRules(unittest.TestCase):
         self.assertEqual(result["read"], [])
         self.assertEqual([(s["url"], s["why"]) for s in result["skipped"]], [("https://x.com/about", "robots.txt")])
 
+    def test_robots_txt_judges_the_path_that_is_requested_for_an_empty_path(self):
+        # round 10 (Codex, older code): "http://x.test?private" was judged as "?private" and requested as "/?private"
+        robots = b"User-agent: *\nDisallow: /?private\nDisallow: /a%20\nDisallow: /~user\n"
+        f = self.Fake({"http://x.test/robots.txt": (200, "text/plain", robots)})
+        for url in ("http://x.test?private", "http://x.test/a%20b", "http://x.test/%7Euser/page", "http://x.test/~user/page"):
+            with self.subTest(blocked=url):
+                self.assertEqual(f.blocked(url), "robots.txt")
+        for url in ("http://x.test/", "http://x.test?public", "http://x.test/about", "http://x.test/a%2Db"):
+            with self.subTest(allowed=url):
+                self.assertEqual(f.blocked(url), "")
+
+    def test_the_report_says_when_this_pythons_robots_parser_cannot_read_the_rules_as_written(self):
+        # round 10 (Codex): before Python 3.13 the standard parser ignores * and $, takes the FIRST matching rule
+        # (not the longest) and decodes %2F; a page such a rule disallows may have been read. Say so, once per site
+        old_python = sys.version_info < (3, 13)
+        for robots, warns in ((b"User-agent: *\nDisallow: /*.pdf$\n", True), (b"User-agent: *\nDisallow: /public%2Fsecret\n", True),
+                              (b"User-agent: *\nAllow: /public/\nDisallow: /public/secret\n", True),
+                              (b"User-agent: *\nDisallow: /private/\n", False), (b"", False)):
+            with self.subTest(robots=robots):
+                f = self.Fake({"https://x.com/robots.txt": (200, "text/plain", robots),
+                               "https://x.com/p": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")})
+                result = fc.run({"site": "https://x.com", "pages": ["https://x.com/p"], "facts": [
+                    {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+                said = [n for n in result["notes"] if n.startswith("robots.txt of https://x.com")]
+                self.assertEqual(len(said), 1 if (warns and old_python) else 0, said)
+                if said:
+                    self.assertIn("Python %d.%d" % sys.version_info[:2], said[0])
+                    self.assertIn("3.13", said[0])
+
     def test_sitemap_entries_differing_only_in_the_fragment_are_one_page(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
               "<url><loc>https://x.com/p#a b#c</loc></url><url><loc>https://x.com/p#other</loc></url></urlset>").encode()
