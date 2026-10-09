@@ -1,5 +1,5 @@
 # DIFF review — PR #238 — Source the ai-seo content-type citation shares, drop the unsourced ones
-Base `abfbca1` (merge-base `938e625` after merging main twice, at `af15875` and `a755f16`) · depth: Normal (SKILL.md is an instruction file agents follow; the owner's standing rule keeps those off Light) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #238); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `abfbca1` (merge-base `568e8de` after merging main three times, at `af15875`, `a755f16` and a third time with main at `568e8de`) · depth: Normal (SKILL.md is an instruction file agents follow; the owner's standing rule keeps those off Light) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #238); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
 
 Data consent: the owner's task named the pair ("Codex + GLM 5.3 on melious", the GLM seat to get the source excerpts in the brief, marked as context). A grep of the diff for keys, tokens, passwords and secrets found nothing; the briefs add only public source text. ollama-cloud received nothing; Antigravity was not used.
 
@@ -11,6 +11,7 @@ Data consent: the owner's task named the pair ("Codex + GLM 5.3 on melious", the
 | merge link 1 | `af15875` | `merge_link.sh abfbca1 120db1c f412047`: empty (main's 35 new commits touch nothing under `skills/ai-seo`) | — | — | — |
 | merge link 2, first run | `a755f16` | `merge_link.sh f412047 120db1c 938e625`: one line, eval 3's ending ("citation probability" became "visibility in AI answers", from merged PR #237); run without its brief by the author's error | codex medium; melious glm-5.3 | codex 55 s / 25,712; melious 14 s / 6,878 | 0/1/0 |
 | merge link 2, rerun | `a755f16` | the same link, with the brief (the skill line it must agree with, and the grep that shows no "citation probability" left under `skills/ai-seo`) | codex medium; melious glm-5.3 | codex 67 s / 32,947; melious 12 s / 6,651 | 0/0/0 |
+| merge link 3 | main `568e8de` | `merge_link.sh 938e625 9a4fbea 568e8de`: empty (main brought PR #240, a retrospective under `docs/reviews/`, no shared files; the diff against main is still the same three files). Not sent to a seat: nothing to read | — | — | — |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
