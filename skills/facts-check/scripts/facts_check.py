@@ -706,10 +706,16 @@ class PageText(HTMLParser):
 WEB_ONLY = "only web addresses (http, https) are read"
 
 
+def clean_address(url: str) -> str:
+    """The address as a request sends it: stripped (Request() unwraps it) and without the #fragment, which no
+    request carries. Cut at the FIRST "#": urllib cuts at the last one, which would keep text of a second."""
+    return url.strip().split("#", 1)[0]
+
+
 def bad_address(url: str) -> str:
     """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
-    url = url.strip()  # Request() unwraps it the same way
-    if re.search(r"[\x00-\x20\x7f]", url.split("#", 1)[0]):  # http.client refuses these; a #fragment is never sent
+    url = clean_address(url)
+    if re.search(r"[\x00-\x20\x7f]", url):  # http.client refuses a space or a control character in what it sends
         return "not a valid address (it contains a space or a control character)"
     try:
         p = urllib.parse.urlsplit(url)
@@ -738,6 +744,7 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         self.fetcher = fetcher
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        newurl = clean_address(newurl)  # urllib would request "/about#a%20b" for "Location: /about#a b#c"
         bad = bad_address(newurl)
         if bad:
             fp.close()
@@ -774,6 +781,7 @@ class Fetcher:
         """(status, content type, body, final url). Status 0 = no answer. The body is
         cut at `limit` bytes. With `guard_redirects`, a redirect to an address robots.txt does
         not allow is not followed: the status is REDIRECT_BLOCKED and the content type says why."""
+        url = clean_address(url)
         bad = bad_address(url)
         if bad:
             return 0, bad, b"", url  # a sitemap may list anything: file:, ftp: and nonsense are not pages
@@ -880,6 +888,7 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
         locs = [loc.text.strip()
                 for entry in root if _local(entry.tag) in ("url", "sitemap")
                 for loc in entry if _local(loc.tag) == "loc" and loc.text and loc.text.strip()]
+        locs = [clean_address(u) for u in locs]
         if _local(root.tag) == "sitemapindex":
             queue.extend(locs)
         else:
@@ -1005,19 +1014,19 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
         respect_robots: bool, fetcher: Optional[Fetcher] = None) -> dict:
     fetcher = fetcher or Fetcher(timeout, delay, respect_robots)
     notes: List[str] = []
-    site = data["site"].rstrip("/")
+    site = clean_address(data["site"]).rstrip("/")
     if data.get("pages"):
-        pages = list(dict.fromkeys(data["pages"]))
+        pages = list(dict.fromkeys(clean_address(u) for u in data["pages"]))
         source = "the facts file's page list"
     else:
-        start = [data["sitemap"]] if data.get("sitemap") else default_sitemaps(fetcher, site)
+        start = [clean_address(data["sitemap"])] if data.get("sitemap") else default_sitemaps(fetcher, site)
         pages = sitemap_urls(fetcher, start, max_pages, notes, only)
         source = "the sitemap"
     if only:
         pages = [u for u in pages if only in u]
     pages = pages[:max_pages]
     own = [(u, "own") for u in pages]
-    extra = [(u, "elsewhere") for u in dict.fromkeys(data.get("extra_urls", []) or [])]
+    extra = [(u, "elsewhere") for u in dict.fromkeys(clean_address(u) for u in data.get("extra_urls", []) or [])]
     facts = data["facts"]
     retired_phrases = data.get("retired_phrases", []) or []
     rows: List[dict] = []

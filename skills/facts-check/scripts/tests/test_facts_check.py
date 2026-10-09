@@ -5,6 +5,7 @@ Run:  python3 -m unittest discover -s skills/facts-check/scripts/tests
 """
 
 import contextlib
+import http.client
 import io
 import json
 import os
@@ -12,6 +13,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -417,10 +419,22 @@ class FetcherRules(unittest.TestCase):
                 self.assertEqual((status, body), (0, b""))
                 self.assertTrue(why.startswith("not a valid address"), why)
 
-    def test_what_makes_an_address_valid_is_what_the_request_sends(self):
+    def test_clean_address_is_the_address_as_a_request_sends_it(self):
+        self.assertEqual(fc.clean_address(" http://x/a#b c#d \n"), "http://x/a")
+        self.assertEqual(fc.clean_address("http://x/a?q=1#"), "http://x/a?q=1")
+        self.assertEqual(fc.clean_address("#only"), "")
+
+    def test_sitemap_entries_differing_only_in_the_fragment_are_one_page(self):
+        sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+              "<url><loc>https://x.com/p#a b#c</loc></url><url><loc>https://x.com/p#other</loc></url></urlset>").encode()
+        notes = []
+        pages = fc.sitemap_urls(self.Fake({"https://x.com/sm.xml": (200, "application/xml", sm)}), ["https://x.com/sm.xml"], 10, notes)
+        self.assertEqual((pages, notes), (["https://x.com/p"], []))
+
+    def test_bad_address_ignores_the_fragment_and_the_ends(self):
         # round 7 (Codex, GLM): urllib drops the fragment and strips the ends; http.client refuses a space or a control
-        # character in the part it sends
-        for ok in ("http://x.test/a#section 2", " https://x.com/a \n", "https://x.com/a%20b", "HTTPS://X.COM/", "http://[::1]:8080/x",
+        # character in the part it sends. test_what_is_requested_is_the_cleaned_address sends real requests
+        for ok in ("http://x.test/a#section 2", "http://x.test/a#section 2#end", " https://x.com/a \n", "https://x.com/a%20b", "HTTPS://X.COM/", "http://[::1]:8080/x",
                    "https://user@x.com/", "https://m\u00fcnchen.example/"):
             with self.subTest(ok=ok):
                 self.assertEqual(fc.bad_address(ok), "")
@@ -642,11 +656,13 @@ PAGES = {
     # robots.txt keeps /private/ out; /via-redirect leads there (round 2: a redirect must not get around robots.txt)
     "/private/secret": ("text/html", "<html><head><title>Secret</title></head><body><p>We have 9,999 agents.</p></body></html>"),
 }
-REDIRECTS = {"/old-offer": "/", "/via-redirect": "/private/secret", "/to-ftp": "ftp://127.0.0.1:9/page.html"}
+REDIRECTS = {"/old-offer": "/", "/via-redirect": "/private/secret", "/to-ftp": "ftp://127.0.0.1:9/page.html",
+             "/with-fragment": "/about#a b#c"}
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        self.server.requestlines.append(self.requestline)   # round 8: tests look at what was actually sent
         if self.path in REDIRECTS:
             self.send_response(301)
             target = REDIRECTS[self.path]
@@ -718,6 +734,7 @@ class FullRun(unittest.TestCase):
         os.environ["no_proxy"] = os.environ["NO_PROXY"] = "127.0.0.1,localhost"
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         cls.server.base = "http://127.0.0.1:%d" % cls.server.server_address[1]
+        cls.server.requestlines = []
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
 
@@ -930,6 +947,38 @@ class FullRun(unittest.TestCase):
         code, md, result, _ = self.run_check(facts)
         self.assertEqual(result["positioning"]["uncovered"], [base + "/"])   # no rule matches the home page
         self.assertEqual(code, 0)
+
+    def test_what_is_requested_is_the_cleaned_address(self):
+        # round 8 (Codex, GLM): the validator and the request must agree about the #fragment and the ends. urllib splits
+        # the fragment at the LAST "#", so "...#a b#c" kept "a b" in what it sent
+        base = self.server.base
+        f = fc.Fetcher(timeout=2, delay=0, respect_robots=False)
+        for url in (base + "/about#frag with space", " " + base + "/about \n", base + "/about#a b#c", base + "/about#x#y z"):
+            with self.subTest(url=url):
+                self.server.requestlines.clear()
+                status, _, body, _ = f.get(url)
+                self.assertEqual(status, 200)
+                self.assertEqual(self.server.requestlines, ["GET /about HTTP/1.1"])
+        # a redirect whose Location carries such a fragment is followed to the page, not to a request that cannot be sent
+        self.server.requestlines.clear()
+        status, _, body, final = f.get(base + "/with-fragment", guard_redirects=True)
+        self.assertEqual((status, final), (200, base + "/about"))
+        self.assertEqual(self.server.requestlines, ["GET /with-fragment HTTP/1.1", "GET /about HTTP/1.1"])
+        # a space in what would be sent is refused before anything is sent ...
+        self.server.requestlines.clear()
+        status, why, _, _ = f.get(base + "/about b")
+        self.assertEqual((status, self.server.requestlines), (0, []))
+        self.assertTrue(why.startswith("not a valid address"), why)
+        # ... because http.client would refuse it, which is the claim the check rests on
+        with self.assertRaises(http.client.InvalidURL):
+            urllib.request.urlopen(base + "/about b", timeout=2)
+
+    def test_a_padded_site_address_is_cleaned_once_for_every_address_built_from_it(self):
+        # round 8 (Codex): "http://x.test:80 \n" passed the check, then run() built "http://x.test:80 \n/sitemap.xml"
+        code, md, result, _ = self.run_check(self.facts(site=self.server.base + " \n"))
+        self.assertEqual(result["pages_listed"], 5)   # the stub's sitemap lists five
+        self.assertEqual(result["site"], self.server.base)
+        self.assertIn(code, (0, 1))
 
     def test_a_malformed_address_in_the_page_list_does_not_stop_the_run(self):
         # round 4 (Codex): the page list takes http(s):// text, and "http://[::1" is not an address
