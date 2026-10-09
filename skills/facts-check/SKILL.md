@@ -71,7 +71,9 @@ review profile, a press article; reported as "not your site") and `retired_phras
 Language: write `terms` and `before` in every language the site uses. Numbers are read
 in English and German notation alike (`27,000`, `27.000`, `27k`, `2,5 Mio.`,
 `1.5 million`, and `27 000` with a no-break or thin space). A plain space does not group
-thousands, or "our 5 120 clients" would read as 5120.
+thousands, or "our 5 120 clients" would read as 5120. A minus sign counts: "NPS of -5" is
+minus five, so it differs from an approved 5 (if your pages write a drop that way, such as
+"-30%", list -30 in `also_accept`). A hyphen in "5-10", "2024-10-09" or "+/-3%" is no sign.
 
 Structured data counts too: a number in the JSON-LD is read with its property name after
 it, so `"numberOfEmployees": {"value": 500}` reads as "500 number of employees" and the
@@ -86,10 +88,13 @@ python3 skills/facts-check/scripts/facts_check.py facts.json \
 
 - `--only /en/` checks one section first (useful on a large site, and for a first look).
 - `--max-pages` (default 1000), `--delay` (default 0.5 seconds between requests),
-  `--timeout`.
+  `--timeout`. A sitemap index is followed through at most 200 sitemap files; if it lists
+  more, the report says how many were left unread.
 - robots.txt is respected. One that answers with a server error, or not at all, keeps the
   site out, as the robots convention says; the report gives that reason. `--ignore-robots`
   reads disallowed pages too: only on a site the owner runs, never on someone else's.
+  A page that redirects to an address robots.txt disallows is not followed there: the report
+  lists it as skipped, with the address it led to.
 - The site's `/llms.txt`, written for AI assistants, is read too when it exists (not with
   `--only` or a fixed `pages` list). Pages over 5 MB are read up to 5 MB, and the report
   says so.
@@ -198,8 +203,9 @@ starter site, copy the `POSITIONING` map of `tests/positioning.spec.ts`: each ke
 - **It ties numbers by nearby words, not by meaning.** "We answer 30,000 agent calls a
   day" next to the term `agent` is tied to an agent count. The rules are kept narrow by
   default: terms after the number, a short window, a comma or full stop ends the search,
-  zero is ignored, and so is a plain year right after "in", "since", "seit", "founded", a month
-  and the like (a four-digit count such as "über 2000 Kunden" is still read). Every
+  a zero is ignored unless the fact is 0, and so is a plain year right after "in", "since",
+  "seit", "founded", a month, © and the like unless the fact is itself a year (a four-digit
+  count such as "über 2000 Kunden" is still read). Every
   finding shows its sentence, so a person decides.
 - **It checks numbers and exact phrases**, not paraphrased claims ("market leader").
   Retire such claims as phrases, or leave them to the content review.

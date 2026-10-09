@@ -32,9 +32,11 @@ How a number is tied to a fact (the rules SKILL.md explains to the owner):
   - A comma, full stop or other sentence mark ends the search, so "in 60 countries,
     clients ..." does not tie 60 to clients.
   - A plain year (1900 to 2100 right after "in", "since", "seit", "founded", a month, ... or ©)
-    and a zero are ignored for a fact whose own value is not a year, so "founded in
-    2016 clients ..." and a count-up that starts at 0 are not client numbers; "über
-    2000 Kunden" is.
+    is ignored for a fact whose own value is not a year, and a zero for a fact whose own
+    value is not 0, so "founded in 2016 clients ..." and a count-up that starts at 0 are
+    not client numbers; "über 2000 Kunden" is.
+  - A minus sign counts: "NPS of -5" is minus five, not five. A hyphen between things
+    ("5-10", "2024-10-09", "COVID-19") is no sign.
 Each tied number is OK (the approved value or one in `also_accept`), OUTDATED (in
 `retired`) or MISMATCH (anything else).
 
@@ -51,8 +53,10 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as _dt
+import email.message
 import fnmatch
 import gzip
+import http.client
 import io
 import json
 import os
@@ -70,6 +74,8 @@ from typing import Dict, List, Optional, Tuple
 USER_AGENT = "facts-check/1.0 (read-only site consistency check)"
 MAX_BYTES = 5 * 1024 * 1024
 SITEMAP_MAX_BYTES = 52 * 1024 * 1024  # the protocol allows 50 MB, uncompressed
+MAX_SITEMAP_FILES = 200  # sitemap files read in one run: a guard against loops and endless indexes
+REDIRECT_BLOCKED = -1  # Fetcher.get status: a redirect led to an address robots.txt does not allow
 DEFAULT_WINDOW = 4
 
 # ---------------------------------------------------------------------------
@@ -80,8 +86,12 @@ DEFAULT_WINDOW = 4
 # a plain space does not group, or "our 5 120 clients" would read as 5120)
 # or a plain run of digits; then an optional decimal part; then an optional
 # multiplier, plus sign and percent. The lookbehind keeps a match from starting
-# inside a word or inside another number.
+# inside a word or inside another number. A minus sign (hyphen or U+2212) right before
+# the digits is part of the number unless it follows a word character, a digit, a full
+# stop, a comma, a slash or a plus: "NPS of -5" is minus five; "5-10", "2024-10-09",
+# "COVID-19" and "+/-3%" have no sign.
 NUM_RE = (
+    r"(?:(?<![\w.,/+\u00b1])(?P<sign>[-\u2212])(?=\d))?"
     r"(?<![\w.,])"
     r"(?P<int>\d{1,3}(?:[,.\u00a0\u202f\u2009]\d{3})+(?!\d)|\d+)"
     r"(?P<dec>[.,]\d+(?!\d))?"
@@ -120,7 +130,7 @@ MULTIPLIERS = {
 
 
 def parse_number(m: "re.Match") -> Tuple[float, bool]:
-    """Value of a NUM match, and whether it was written plainly (no grouping,
+    """Value of a NUM match, and whether it was written plainly (no sign, grouping,
     decimals, multiplier, plus or percent): only a plain number can be a year."""
     raw_int = m.group("int")
     digits = re.sub(r"[,.\u00a0\u202f\u2009 ]", "", raw_int)
@@ -132,7 +142,9 @@ def parse_number(m: "re.Match") -> Tuple[float, bool]:
     if mult:
         value *= MULTIPLIERS[mult]
     plain = (digits == raw_int and not dec and not mult
-             and not m.group("plus") and not m.group("pct"))
+             and not m.group("plus") and not m.group("pct") and not m.group("sign"))
+    if m.group("sign"):
+        value = -value
     return value, plain
 
 
@@ -213,6 +225,9 @@ def load_facts(path: str) -> dict:
     site = data.get("site", "")
     if not isinstance(site, str) or not re.match(r"https?://[^/\s]+", site):
         problems.append('"site" must be the site\'s address, e.g. "https://example.com"')
+    sitemap = data.get("sitemap", "")
+    if sitemap and not (isinstance(sitemap, str) and sitemap.startswith(("http://", "https://"))):
+        problems.append('"sitemap" must be a full address (https://...)')
     facts = data.get("facts", [])
     if facts is None:
         facts = []
@@ -253,13 +268,18 @@ def load_facts(path: str) -> dict:
             val = fact.get(key, [])
             if not isinstance(val, list) or not all(_num(v) for v in val):
                 problems.append('%s: "%s" must be a list of numbers' % (where, key))
-        if _num(fact.get("value")) and any(
-                _num(v) and same(v, fact["value"]) for v in fact.get("retired", []) or []):
+        retired = fact.get("retired", [])
+        if _num(fact.get("value")) and isinstance(retired, list) and any(
+                _num(v) and same(v, fact["value"]) for v in retired):
             problems.append("%s: the approved value is also listed as retired" % where)
         w = fact.get("window", DEFAULT_WINDOW)
         if not isinstance(w, int) or isinstance(w, bool) or not 1 <= w <= 12:
             problems.append('%s: "window" must be a whole number from 1 to 12' % where)
-    for i, rp in enumerate(data.get("retired_phrases", []) or []):
+    phrases = data.get("retired_phrases", []) or []
+    if not isinstance(phrases, list):
+        problems.append('"retired_phrases" must be a list of phrases, each with a "text"')
+        phrases = []
+    for i, rp in enumerate(phrases):
         if not isinstance(rp, dict) or not isinstance(rp.get("text"), str) or not rp["text"].strip():
             problems.append('retired phrase %d needs a "text"' % (i + 1))
     for key in ("pages", "extra_urls"):
@@ -447,6 +467,17 @@ P_CLOSERS = {
 VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
              "param", "source", "track", "wbr"}
 SKIP_TAGS = {"script", "style", "noscript", "template", "svg", "iframe", "canvas"}
+# Inline elements that still separate words (<span>27</span><span>agents</span> is "27 agents"),
+# but not where a tag cuts a number: "<span>27</span>,000" is 27,000. They write a soft
+# space that resolve_soft() settles once the whole text is known.
+SOFT_TAGS = {"span", "a", "button", "label"}
+SOFT = "\u2063"
+
+
+def resolve_soft(text: str) -> str:
+    text = re.sub(r"(?<=\d)%s+(?=[.,]\d)" % SOFT, "", text)   # 27</span>,000 and 29</span>.99
+    text = re.sub(r"(?<=\d[.,])%s+(?=\d)" % SOFT, "", text)   # 27,</span><span>000
+    return text.replace(SOFT, " ")
 
 
 class PageText(HTMLParser):
@@ -484,7 +515,7 @@ class PageText(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
-        if tag == "script" and a.get("type", "").lower() == "application/ld+json":
+        if tag == "script" and a.get("type", "").lower() == "application/ld+json" and not self._skip:
             self._in_ldjson = True
             self._ld_buf = []
             return
@@ -540,7 +571,7 @@ class PageText(HTMLParser):
             elif name in ("og:url", "og:image", "twitter:image") and content.strip():
                 self.parts["link addresses"].append(content)
         if tag in BLOCK_TAGS:
-            self.parts["page text"].append(" ")
+            self.parts["page text"].append(SOFT if tag in SOFT_TAGS else " ")
 
     def handle_startendtag(self, tag, attrs):
         self.handle_starttag(tag, attrs)
@@ -566,7 +597,7 @@ class PageText(HTMLParser):
         if tag in self._stack:  # an end tag closes its element and everything inside it
             self._close_to(len(self._stack) - 1 - self._stack[::-1].index(tag))
         if tag in BLOCK_TAGS:
-            self.parts["page text"].append(" ")
+            self.parts["page text"].append(SOFT if tag in SOFT_TAGS else " ")
 
     def handle_data(self, data):
         if self._in_ldjson:
@@ -614,7 +645,7 @@ class PageText(HTMLParser):
             "title": title,
             "desc": self.parts["meta description"][0] if self.parts["meta description"] else "",
             "h1": " \u00b7 ".join(self.h1s) + " \u00b7 " + (self.first_p[box] or ""),
-            "body": re.sub(r"\s+", " ", "".join(self.parts["page text"])).strip(),
+            "body": re.sub(r"\s+", " ", resolve_soft("".join(self.parts["page text"]))).strip(),
         }
 
     def _add_ldjson(self, raw: str):
@@ -646,7 +677,7 @@ class PageText(HTMLParser):
         out = {}
         for k, v in self.parts.items():
             if k == "page text":
-                joined = "".join(v)  # block tags already added their spaces
+                joined = resolve_soft("".join(v))  # block tags already added their spaces
             else:  # og: and twitter: descriptions often repeat one text
                 joined = " | ".join(s for s in dict.fromkeys(x.strip() for x in v) if s)
             # No-break spaces stay: they group thousands ("27\u00a0000").
@@ -656,12 +687,37 @@ class PageText(HTMLParser):
         return out
 
 
+class _RedirectBlocked(Exception):
+    def __init__(self, url: str, why: str):
+        super().__init__(url)
+        self.url, self.why = url, why
+
+
+class _RedirectGuard(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect only where robots.txt allows the address it leads to. Only requests
+    marked `guard_robots` (page fetches) are checked, not robots.txt or the sitemaps."""
+
+    def __init__(self, fetcher: "Fetcher"):
+        self.fetcher = fetcher
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        guard = getattr(req, "guard_robots", False)
+        if guard:
+            why = self.fetcher.blocked(newurl)
+            if why:
+                raise _RedirectBlocked(newurl, why)
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None:
+            new.guard_robots = guard  # the next hop is checked too
+        return new
+
+
 class Fetcher:
     def __init__(self, timeout: float, delay: float, respect_robots: bool):
         self.timeout = timeout
         self.delay = delay
         self.respect_robots = respect_robots
-        self._opener = urllib.request.build_opener()
+        self._opener = urllib.request.build_opener(_RedirectGuard(self))
         self._robots: Dict[str, Tuple[urllib.robotparser.RobotFileParser, str]] = {}
         self._last = 0.0
 
@@ -671,19 +727,28 @@ class Fetcher:
             time.sleep(self.delay - gap)
         self._last = time.monotonic()
 
-    def get(self, url: str, limit: int = MAX_BYTES) -> Tuple[int, str, bytes, str]:
+    def get(self, url: str, limit: int = MAX_BYTES,
+            guard_redirects: bool = False) -> Tuple[int, str, bytes, str]:
         """(status, content type, body, final url). Status 0 = no answer. The body is
-        cut at `limit` bytes."""
+        cut at `limit` bytes. With `guard_redirects`, a redirect to an address robots.txt does
+        not allow is not followed: the status is REDIRECT_BLOCKED and the content type says why."""
         self._wait()
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT,
                                                    "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
+        req.guard_robots = guard_redirects
         try:
             with self._opener.open(req, timeout=self.timeout) as r:
                 body = r.read(limit)
                 return r.status, r.headers.get("Content-Type", ""), body, r.geturl()
+        except _RedirectBlocked as e:
+            said = ("redirects to %s, which robots.txt does not allow" % e.url if e.why == "robots.txt"
+                    else "redirects to %s; %s" % (e.url, e.why))
+            return REDIRECT_BLOCKED, said, b"", url
         except urllib.error.HTTPError as e:
             return e.code, "", b"", url
-        except (urllib.error.URLError, OSError, ValueError) as e:
+        except http.client.IncompleteRead:
+            return 0, "the response ended before it was complete", b"", url
+        except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException) as e:
             return 0, str(getattr(e, "reason", e)), b"", url
 
     def blocked(self, url: str) -> str:
@@ -714,10 +779,15 @@ class Fetcher:
 
 
 def decode(body: bytes, ctype: str) -> str:
-    m = re.search(r"charset=([\w-]+)", ctype or "", re.I)
-    if not m:  # <meta charset="..."> or <meta http-equiv="Content-Type" content="...; charset=...">
+    try:  # charset=iso-8859-1 and charset="iso-8859-1" (RFC 9110 allows the quotes) both
+        header = email.message.Message()
+        header["Content-Type"] = ctype or ""
+        enc = header.get_content_charset()
+    except Exception:
+        enc = None
+    if not enc:  # <meta charset="..."> or <meta http-equiv="Content-Type" content="...; charset=...">
         m = re.search(rb"<meta[^>]+charset=[\"']?([\w-]+)", body[:4096], re.I)
-    enc = (m.group(1).decode("ascii") if isinstance(m.group(1), bytes) else m.group(1)) if m else "utf-8"
+        enc = m.group(1).decode("ascii") if m else "utf-8"
     try:
         return body.decode(enc, "replace")
     except LookupError:
@@ -730,7 +800,7 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
     known = set()  # a list lookup per address made a 50,000-address sitemap quadratic
     queue = list(start)
     seen = set()
-    while queue and len(pages) < limit and len(seen) < 200:
+    while queue and len(pages) < limit and len(seen) < MAX_SITEMAP_FILES:
         sm = queue.pop(0)
         if sm in seen:
             continue
@@ -769,6 +839,10 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
                     pages.append(u)
                     if len(pages) >= limit:
                         break
+    unread = {u for u in queue if u not in seen}
+    if unread and len(pages) < limit:
+        notes.append("sitemaps: stopped after %d sitemap files; %d more were not read, so pages "
+                     "listed only there are missing" % (MAX_SITEMAP_FILES, len(unread)))
     return pages[:limit]
 
 
@@ -901,7 +975,10 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
         if why:
             skipped.append({"url": url, "origin": origin, "why": why})
             continue
-        status, ctype, body, final = fetcher.get(url, MAX_BYTES + 1)
+        status, ctype, body, final = fetcher.get(url, MAX_BYTES + 1, guard_redirects=True)
+        if status == REDIRECT_BLOCKED:
+            skipped.append({"url": url, "origin": origin, "why": ctype})
+            continue
         if len(body) > MAX_BYTES:
             body = body[:MAX_BYTES]
             notes.append("%s: larger than 5 MB; only the first 5 MB were read" % url)
@@ -944,7 +1021,7 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
     # Not part of the sitemap; read once, unless --only narrows the run to a section.
     llms = site + "/llms.txt"
     if not only and not data.get("pages") and read and not fetcher.blocked(llms):
-        status, ctype, body, _ = fetcher.get(llms)
+        status, ctype, body, _ = fetcher.get(llms, guard_redirects=True)
         if status == 200 and body and "html" not in ctype.lower():
             for row in check_page(llms, {"llms.txt": decode(body, ctype)}, facts, retired_phrases):
                 row["origin"] = "own"

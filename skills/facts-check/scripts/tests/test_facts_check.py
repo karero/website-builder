@@ -111,6 +111,21 @@ class FindMentions(unittest.TestCase):
         self.assertEqual(self.statuses("Founded in 2016 in Munich", founded), [("OK", 2016)])
         self.assertEqual(self.statuses("founded in 2015", founded), [("MISMATCH", 2015)])
 
+    def test_a_minus_sign_is_part_of_the_number(self):
+        # round 2 (Codex): "NPS of -5" read as 5, so it matched an approved 5
+        nps = fact(value=5, terms=[], before=["NPS of"])
+        self.assertEqual(self.statuses("an NPS of -5", nps), [("MISMATCH", -5)])
+        self.assertEqual(self.statuses("an NPS of \u22125", nps), [("MISMATCH", -5)])
+        self.assertEqual(self.statuses("an NPS of -5", fact(value=-5, terms=[], before=["NPS of"])), [("OK", -5)])
+        self.assertEqual(self.statuses("an NPS of -5", fact(value=5, terms=[], before=["NPS of"], also_accept=[-5])),
+                         [("OK", -5)])
+        # a hyphen or dash between things is no sign: a range, a date, a product name
+        self.assertEqual(self.statuses("an NPS of 5-10, on 2024-10-09 and in COVID-19", nps), [("OK", 5)])
+        self.assertEqual(self.statuses("an NPS of 5\u201310", nps), [("OK", 5)])
+        self.assertEqual(self.statuses("an NPS of +/-5, or an NPS of \u00b1-5", nps), [("OK", 5), ("OK", 5)])
+        # a signed number is not a plain one, so it is never taken for a year
+        self.assertFalse(first_num("-2016")[1])
+
     def test_before_phrase_and_percent_unit(self):
         nps = fact(value=72, terms=[], before=["NPS of"])
         self.assertEqual(self.statuses("an NPS of 72 last year", nps), [("OK", 72)])
@@ -151,6 +166,37 @@ class CheckPage(unittest.TestCase):
         rows = fc.check_page("u", loc, [fact(value=27000, terms=["client"])],
                              [{"text": "Trusted"}])
         self.assertEqual(sorted(r["status"] for r in rows), ["OK", "RETIRED"])
+
+    def test_a_span_does_not_split_a_number_but_still_separates_a_number_from_its_label(self):
+        # round 2 (Codex): "<span>27</span>,000 clients" became "27 ,000 clients" and gave MISMATCH 27
+        cases = {
+            "<p><span>27</span>,000 clients</p>": "27,000 clients",
+            "<p><a href='/x'>27</a>,000 clients</p>": "27,000 clients",
+            "<p><span>29</span><span>.99</span> euros</p>": "29.99 euros",
+            "<p><span>27,</span><span>000</span> clients</p>": "27,000 clients",
+            "<div><span>27.000+</span><span>Agenten</span></div>": "27.000+ Agenten",   # number and label stay apart
+            "<p><span>big</span><span>clients</span></p>": "big clients",
+            "<p><span>2024</span><span>10</span></p>": "2024 10",                        # two numbers stay two
+            "<p><span>Total</span> 27</p><p>,000 more</p>": "Total 27 ,000 more",        # a block ends the number
+        }
+        for html, want in cases.items():
+            with self.subTest(html=html):
+                self.assertEqual(self.locations(html)["page text"], want)
+        loc = self.locations("<p><span>27</span>,000 clients</p>")
+        rows = fc.check_page("u", loc, [fact(value=27000, terms=["client"])], [])
+        self.assertEqual([r["status"] for r in rows], ["OK"])
+        # the positioning check reads the same text
+        p = fc.PageText()
+        p.feed("<p><span>27</span>,000 clients</p>")
+        self.assertEqual(p.surfaces()["body"], "27,000 clients")
+
+    def test_structured_data_inside_a_template_or_noscript_is_not_read(self):
+        # round 2 (Codex): JSON-LD was collected before the skip check
+        ld = '<script type="application/ld+json">{"description": "30,000 agents"}</script>'
+        for wrap in ("template", "noscript", "svg"):
+            with self.subTest(wrap=wrap):
+                self.assertNotIn("structured data", self.locations("<%s>%s</%s><p>ok</p>" % (wrap, ld, wrap)))
+        self.assertIn("structured data", self.locations(ld + "<p>ok</p>"))   # outside, it still counts
 
     def test_numbers_in_structured_data_carry_their_property_name(self):
         # review finding: numeric JSON-LD values were dropped
@@ -287,7 +333,7 @@ class FetcherRules(unittest.TestCase):
             super().__init__(timeout=1, delay=0, respect_robots=True)
             self.answers = answers
 
-        def get(self, url, limit=fc.MAX_BYTES):
+        def get(self, url, limit=fc.MAX_BYTES, guard_redirects=False):
             status, ctype, body = self.answers.get(url, (404, "", b""))
             return status, ctype, body[:limit], url
 
@@ -306,6 +352,35 @@ class FetcherRules(unittest.TestCase):
                         10, 0, 1, "", True, f)
         self.assertEqual(len(result["read"]), 1)
         self.assertIn("only the first 5 MB were read", " ".join(result["notes"]))
+
+
+class SitemapFileLimit(unittest.TestCase):
+    SM = '<?xml version="1.0"?><%s xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">%s</%s>'
+
+    def site(self, children):
+        answers = {"https://x.com/sitemap.xml": (200, "application/xml", (self.SM % (
+            "sitemapindex", "".join("<sitemap><loc>https://x.com/s%d.xml</loc></sitemap>" % i
+                                    for i in range(children)), "sitemapindex")).encode())}
+        for i in range(children):
+            answers["https://x.com/s%d.xml" % i] = (200, "application/xml", (self.SM % (
+                "urlset", "<url><loc>https://x.com/p%d</loc></url>" % i, "urlset")).encode())
+        return FetcherRules.Fake(answers)
+
+    def result(self, children):
+        data = {"site": "https://x.com", "sitemap": "https://x.com/sitemap.xml",
+                "facts": [{"id": "f", "value": 1, "terms": ["agent"]}]}
+        return fc.run(data, 1000, 0, 1, "", True, self.site(children))
+
+    def test_an_index_cut_by_the_file_limit_says_so(self):
+        # round 2 (Codex): 201 child sitemaps gave 199 pages and no word about the other two
+        result = self.result(201)
+        self.assertEqual(result["pages_listed"], 199)
+        self.assertIn("stopped after 200 sitemap files; 2 more were not read", " ".join(result["notes"]))
+
+    def test_an_index_within_the_limit_says_nothing(self):
+        result = self.result(3)
+        self.assertEqual(result["pages_listed"], 3)
+        self.assertNotIn("stopped after", " ".join(result["notes"]))
 
 
 class LoadFacts(unittest.TestCase):
@@ -348,6 +423,26 @@ class LoadFacts(unittest.TestCase):
         msg = str(cm.exception)
         for part in ('starting with "/"', "not both", 'needs a "term"', '"h1" must be', '"exempt"'):
             self.assertIn(part, msg)
+
+    def test_a_wrong_type_is_a_message_not_a_crash(self):
+        # round 2 (Codex): "retired": 3 and "retired_phrases": 3 raised TypeError (a traceback, exit 1)
+        cases = {
+            '"retired" must be a list of numbers': {"site": "https://x.com", "facts": [
+                {"id": "a", "value": 5, "terms": ["x"], "retired": 3}]},
+            '"retired_phrases" must be a list': {"site": "https://x.com", "retired_phrases": 3,
+                                                 "facts": [{"id": "a", "value": 5, "terms": ["x"]}]},
+            '"sitemap" must be a full address': {"site": "https://x.com", "sitemap": 3,
+                                                 "facts": [{"id": "a", "value": 5, "terms": ["x"]}]},
+        }
+        for want, obj in cases.items():
+            with self.subTest(want=want):
+                path = self.write(obj)
+                with self.assertRaises(fc.FactsError) as cm:
+                    fc.load_facts(path)
+                self.assertIn(want, str(cm.exception))
+                with contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertEqual(fc.main([path]), 2)   # the command line: exit 2, no traceback
+                self.assertIn(want, err.getvalue())
 
     def test_positioning_alone_is_enough(self):
         path = self.write({"site": "https://x.com", "positioning": {"rules": [{"pages": "/", "term": "a"}]}})
@@ -394,15 +489,42 @@ PAGES = {
         "<p>An NPS of 72.</p></body></html>"),
     "/brochure.pdf": ("application/pdf", "%PDF-1.4"),
     "/llms.txt": ("text/plain; charset=utf-8", "# Acme\n> Formerly Old Name GmbH. 30,000 agents.\n"),
+    # round 2, end to end: a minus sign, a number cut by a span, JSON-LD inside a template
+    "/round2": ("text/html", "<html><head><title>Round 2</title></head><body>"
+        "<p>An NPS of -5.</p><p><span>27</span>,000 agents</p>"
+        '<template><script type="application/ld+json">{"description": "30,000 agents"}</script></template>'
+        "</body></html>"),
+    # robots.txt keeps /private/ out; /via-redirect leads there (round 2: a redirect must not get around robots.txt)
+    "/private/secret": ("text/html", "<html><head><title>Secret</title></head><body><p>We have 9,999 agents.</p></body></html>"),
 }
+REDIRECTS = {"/old-offer": "/", "/via-redirect": "/private/secret"}
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/old-offer":
+        if self.path in REDIRECTS:
             self.send_response(301)
-            self.send_header("Location", self.server.base + "/")
+            self.send_header("Location", self.server.base + REDIRECTS[self.path])
             self.end_headers()
+            return
+        if self.path == "/cut-off":
+            # round 2: a chunked body that ends inside a chunk (the chunk says 256 bytes, 41 come)
+            self.protocol_version = "HTTP/1.1"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            self.wfile.write(b"100\r\n<html><body><p>We have 1,234 agents")
+            self.close_connection = True
+            return
+        if self.path == "/latin1":
+            # round 2: a quoted charset parameter, which RFC 9110 allows
+            data = "<html><body><p>30 employés</p></body></html>".encode("iso-8859-1")
+            self.send_response(200)
+            self.send_header("Content-Type", 'text/html; charset="iso-8859-1"')
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         page = PAGES.get(self.path)
         if page is None:
@@ -606,6 +728,50 @@ class FullRun(unittest.TestCase):
         self.assertTrue(own[0].endswith("/about"))
         self.assertIn("(not your site)", md)
 
+    def test_a_redirect_into_a_page_robots_txt_disallows_is_not_followed(self):
+        # round 2 (Codex): /via-redirect is allowed, /private/ is not, and the fetch followed the redirect
+        base = self.server.base
+        facts = self.facts(pages=[base + "/via-redirect", base + "/"], retired_phrases=[])
+        code, md, result, _ = self.run_check(facts)
+        self.assertFalse([r for r in result["rows"] if r.get("found_value") == 9999])
+        skipped = [s for s in result["skipped"] if s["url"].endswith("/via-redirect")]
+        self.assertEqual(len(skipped), 1)
+        self.assertIn("redirects to " + base + "/private/secret", skipped[0]["why"])
+        self.assertIn("robots.txt does not allow", skipped[0]["why"])
+        self.assertIn("skipped (redirects to", md)
+        # the owner of the site can still read it all
+        _, _, result, _ = self.run_check(facts, "--ignore-robots")
+        self.assertTrue([r for r in result["rows"] if r.get("found_value") == 9999])
+
+    def test_a_sign_a_split_number_and_a_template_through_a_full_run(self):
+        # round 2 (Codex), end to end: -5 is not 5, <span>27</span>,000 is 27,000, and JSON-LD in a
+        # <template> says nothing the page shows
+        facts = self.facts(pages=[self.server.base + "/round2"], retired_phrases=[], facts=[
+            {"id": "nps", "value": 5, "terms": [], "before": ["NPS of"]},
+            {"id": "agents", "value": 27000, "terms": ["agent"]}])
+        code, md, result, _ = self.run_check(facts)
+        got = sorted((r["fact"], r["status"], r["found_value"], r["where"]) for r in result["rows"])
+        self.assertEqual(got, [("agents", "OK", 27000, "page text"), ("nps", "MISMATCH", -5, "page text")])
+        self.assertEqual(code, 1)
+
+    def test_a_response_that_ends_in_the_middle_does_not_stop_the_run(self):
+        # round 2 (Codex): http.client.IncompleteRead escaped get() and ended the whole run
+        base = self.server.base
+        facts = self.facts(pages=[base + "/cut-off", base + "/"], retired_phrases=[])
+        code, md, result, _ = self.run_check(facts)
+        self.assertEqual(code, 1)
+        cut = [f for f in result["failed"] if f["url"].endswith("/cut-off")]
+        self.assertEqual(len(cut), 1)
+        self.assertIn("ended before it was complete", cut[0]["why"])
+        self.assertIn(base + "/", [p["url"] for p in result["read"]])
+
+    def test_a_quoted_charset_in_the_header_is_honoured(self):
+        # round 2 (Codex): charset="iso-8859-1" turned the accent into a replacement character
+        facts = self.facts(pages=[self.server.base + "/latin1"], retired_phrases=[],
+                           facts=[{"id": "staff", "value": 25, "terms": ["employ\u00e9"]}])
+        _, _, result, _ = self.run_check(facts)
+        self.assertEqual([(r["status"], r["found_value"]) for r in result["rows"]], [("MISMATCH", 30)])
+
     def test_no_pages_is_an_error_not_a_pass(self):
         facts = self.facts(sitemap=self.server.base + "/nothing.xml")
         code, md, result, history = self.run_check(facts)
@@ -625,7 +791,7 @@ class LargeSitemap(unittest.TestCase):
         self.assertGreater(len(xml), 5 * 1024 * 1024)
 
         class Fake:
-            def get(self, url, limit=fc.MAX_BYTES):
+            def get(self, url, limit=fc.MAX_BYTES, guard_redirects=False):
                 body = gzip.compress(xml) if url.endswith(".gz") else xml
                 return 200, "application/xml", body[:limit], url
 
