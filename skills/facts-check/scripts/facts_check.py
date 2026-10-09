@@ -707,9 +707,10 @@ WEB_ONLY = "only web addresses (http, https) are read"
 
 
 def clean_address(url: str) -> str:
-    """The address as a request sends it: stripped (Request() unwraps it) and without the #fragment, which no
-    request carries. Cut at the FIRST "#": urllib cuts at the last one, which would keep text of a second."""
-    return url.strip().split("#", 1)[0]
+    """The address as a request sends it: without the #fragment, which no request carries, and stripped
+    (Request() unwraps it). The fragment goes first, and at the FIRST "#" (urllib cuts at the last one, which
+    would keep text of a second); stripping first would leave the space that stood before the "#"."""
+    return url.split("#", 1)[0].strip()
 
 
 def bad_address(url: str) -> str:

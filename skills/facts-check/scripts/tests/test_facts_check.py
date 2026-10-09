@@ -423,6 +423,21 @@ class FetcherRules(unittest.TestCase):
         self.assertEqual(fc.clean_address(" http://x/a#b c#d \n"), "http://x/a")
         self.assertEqual(fc.clean_address("http://x/a?q=1#"), "http://x/a?q=1")
         self.assertEqual(fc.clean_address("#only"), "")
+        # round 9 (Codex): the fragment goes first, then the ends, so that nothing is left to strip twice
+        self.assertEqual(fc.clean_address("http://x.test/about #fragment"), "http://x.test/about")
+        for url in (" http://x/a #b \n", "http://x/a \t#b#c", "\thttp://x/a\n", "http://x/a b #c", "# #", "  ", ""):
+            with self.subTest(url=url):
+                self.assertEqual(fc.clean_address(fc.clean_address(url)), fc.clean_address(url))
+
+    def test_robots_txt_judges_the_address_that_is_requested(self):
+        # round 9 (Codex): "/about #fragment" was judged as "/about%20" (allowed) and fetched as "/about" (disallowed)
+        robots = b"User-agent: *\nAllow: /about%20\nDisallow: /about\n"
+        f = self.Fake({"https://x.com/robots.txt": (200, "text/plain", robots),
+                       "https://x.com/about": (200, "text/html", b"<html><body><p>We have 27,000 agents</p></body></html>")})
+        result = fc.run({"site": "https://x.com", "pages": ["https://x.com/about #fragment"], "facts": [
+            {"id": "f", "value": 1, "terms": ["agent"]}]}, 10, 0, 1, "", True, f)
+        self.assertEqual(result["read"], [])
+        self.assertEqual([(s["url"], s["why"]) for s in result["skipped"]], [("https://x.com/about", "robots.txt")])
 
     def test_sitemap_entries_differing_only_in_the_fragment_are_one_page(self):
         sm = ('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
@@ -979,6 +994,17 @@ class FullRun(unittest.TestCase):
         self.assertEqual(result["pages_listed"], 5)   # the stub's sitemap lists five
         self.assertEqual(result["site"], self.server.base)
         self.assertIn(code, (0, 1))
+
+    def test_an_address_with_a_space_before_its_fragment_is_the_page_it_names(self):
+        # round 9 (Codex): "/about #fragment" was fetched as /about but labelled a redirect to itself, and left out of
+        # the positioning check
+        base = self.server.base
+        facts = self.facts(facts=[], retired_phrases=[], pages=[base + "/about #fragment"],
+                           positioning={"rules": [{"pages": "/about", "term": "clients"}]})
+        code, md, result, _ = self.run_check(facts)
+        pos = result["positioning"]
+        self.assertEqual([p["url"] for p in pos["pages"]], [base + "/about"])
+        self.assertEqual(pos["redirected"], [])
 
     def test_a_malformed_address_in_the_page_list_does_not_stop_the_run(self):
         # round 4 (Codex): the page list takes http(s):// text, and "http://[::1" is not an address
