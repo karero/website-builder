@@ -1174,7 +1174,7 @@ report_round() {
   # and the rest of this summary are the same as at round 8. ROUND is 1-99 or empty (parsed above).
   local capnote=""
   if [ -n "$ROUND" ] && [ "$ROUND" -ge 9 ]; then
-    capnote="⚠ Round $ROUND is past round 8 (SKILL.md step 6): further rounds are the owner's decision, one at a time. Record the decision and the owner's words in the trail."
+    capnote="⚠ Round $ROUND is past round 8 (SKILL.md step 6): each round from here on is the owner's decision, one at a time. Record this round's grant and the next one's, with the owner's words, in the trail."
   fi
   printf '\n---\n%s\n' "$line"
   printf '%s\n' "$line" >&2

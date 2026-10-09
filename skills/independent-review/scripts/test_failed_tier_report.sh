@@ -1364,7 +1364,7 @@ run round12 bash "$SCRIPT" "$T/change.diff" --depth normal --round 12
 run noround bash "$SCRIPT" "$T/change.diff"
 check "round 8: no past-round-8 notice" lacks round8.out "is past round 8"
 check "round 9: the notice names the round, the step and the owner" \
-  has round9.out "⚠ Round 9 is past round 8 (SKILL.md step 6): further rounds are the owner's decision, one at a time."
+  has round9.out "⚠ Round 9 is past round 8 (SKILL.md step 6): each round from here on is the owner's decision, one at a time."
 check "round 9: the notice also reaches stderr" has round9.err "Round 9 is past round 8"
 check "round 9: exit code as at round 8" [ "$(cat "$T/round9.rc")" = "$(cat "$T/round8.rc")" ]
 check "round 9: the reviewers line is the one round 8 prints" \
