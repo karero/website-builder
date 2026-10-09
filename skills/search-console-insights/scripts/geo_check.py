@@ -70,10 +70,12 @@ ENGINES = ["gemini", "openai", "anthropic", "perplexity", "google-ai-mode", "goo
 # Google's two AI surfaces come through SerpApi and share the key the skill's Top-10 check
 # (serp_check.py) already uses; the chat engines get GEO_* names of their own.
 SERP_ENGINES = {"google-ai-mode", "google-overview"}
-# Engines that return the search results they retrieved, but not which of them the answer quotes:
-# Perplexity's own API sends no annotations and no [n] markers, and through OpenRouter the
-# annotations list every source, not only the ones the text marks. "Cited" would overstate for
-# them: their count is how often the owner's site was among the results, and is worded that way.
+# Engines that return the search results they retrieved, but not which of them the answer quotes.
+# In the captured answers (tests/fixtures/perplexity-finds.json, openrouter-perplexity-finds.json;
+# test_real_responses.py pins this), Perplexity's own API sends no annotations and no [n] markers,
+# and through OpenRouter the annotations list every source (18) where the text marks 10. "Cited"
+# would overstate for it: its count is how often the owner's site was among the results, and is
+# worded that way. If a fresh capture shows quoted sources marked, those tests fail: revisit this.
 RESULTS_ONLY = {"perplexity"}
 
 
@@ -1246,9 +1248,9 @@ def build_report(domain: str, run_id=None):
         files = sorted(adir.glob(f"{r['engine']}-{r['mode']}-{r['slot']}-*.txt"))
         parts = []
         for i, fp in enumerate(files, 1):
-            meta, text, sources = read_answer(fp)
+            _, text, sources = read_answer(fp)
             uniq = list(dict.fromkeys(sources))[:12]      # a reply may cite the same page several times
-            caption = "Search results returned" if meta.get("engine") in RESULTS_ONLY else "Sources"
+            caption = "Search results returned" if r["engine"] in RESULTS_ONLY else "Sources"
             src = (f"<div class='sources'>{caption}: " + " ".join(_link(s) for s in uniq) + "</div>") if uniq else ""
             label = f"Answer {i} of {len(files)}" if len(files) > 1 else "The answer"
             parts.append(f"<details><summary>{label}</summary>"

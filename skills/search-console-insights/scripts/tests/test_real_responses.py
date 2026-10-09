@@ -19,6 +19,7 @@ Run:  python3 -m unittest discover -s skills/search-console-insights/scripts/tes
 """
 import json
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -89,6 +90,45 @@ class RealResponses(unittest.TestCase):
         # {} is what remains of a response without an ai_overview block once trimmed (synthetic).
         text, *_ = self.parse("google-overview", "google-overview-finds-absent.json")
         self.assertEqual(text, geo_check.NO_OVERVIEW)
+
+
+class WhatEachEngineSaysAboutItsSources(unittest.TestCase):
+    """The evidence geo_check.RESULTS_ONLY rests on, read from the captured answers (re-take them
+    with fixtures/capture.py). The owner is told "cited" only where an answer tags the sources it
+    quotes. If a fresh capture changes what Perplexity sends, a test here fails and the wording
+    ("in its results") must be revisited; do not bend the test."""
+
+    def test_direct_perplexity_returns_results_with_no_sign_of_which_it_quotes(self):
+        d = load("perplexity-finds.json")
+        results = [r for it in d["output"] if it["type"] == "search_results" for r in it["results"]]
+        content = [c for it in d["output"] if it["type"] == "message" for c in it["content"]]
+        self.assertGreater(len(results), 1)
+        self.assertFalse([c for c in content if c.get("annotations")])
+        self.assertFalse(re.search(r"\[\d+\]", " ".join(c["text"] for c in content)))
+        self.assertIn("perplexity", geo_check.RESULTS_ONLY)
+
+    def test_openrouter_perplexity_lists_more_sources_than_its_text_marks(self):
+        msg = load("openrouter-perplexity-finds.json")["choices"][0]["message"]
+        urls = {a["url_citation"]["url"] for a in msg["annotations"]}
+        marked = set(re.findall(r"\[(\d+)\]", msg["content"]))
+        self.assertTrue(marked)                       # the text does mark what it quotes...
+        self.assertGreater(len(urls), len(marked))    # ...and the list is longer than the marks
+
+    def test_chatgpt_tags_each_citation_to_a_place_in_its_text(self):
+        d = load("openai-finds.json")
+        ann = [a for it in d["output"] if it.get("type") == "message"
+               for c in it["content"] for a in c.get("annotations", [])]
+        self.assertTrue(ann)
+        self.assertTrue(all(a["end_index"] > 0 for a in ann))
+        self.assertNotIn("openai", geo_check.RESULTS_ONLY)
+
+    def test_claude_cites_only_some_of_the_results_it_searched(self):
+        d = load("anthropic-finds.json")
+        results = {r["url"] for b in d["content"] if b.get("type") == "web_search_tool_result"
+                   for r in (b.get("content") or []) if isinstance(r, dict)}
+        cited = {c["url"] for b in d["content"] if b.get("type") == "text" for c in b.get("citations", []) or []}
+        self.assertTrue(cited and cited < results)    # a strict subset: citations are not the whole list
+        self.assertNotIn("anthropic", geo_check.RESULTS_ONLY)
 
 
 if __name__ == "__main__":

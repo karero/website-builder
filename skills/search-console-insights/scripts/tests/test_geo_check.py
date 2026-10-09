@@ -1411,6 +1411,7 @@ class ResultsAreNotCitations(GeoTestCase):
     def test_site_missing_from_the_results_reads_zero_in_its_results(self):
         stub.engine_reply("perplexity", "Bäckerei Example.", sources=["https://other.example/"])
         rc, out = self.cli("--engines", "perplexity")
+        self.assertEqual(rc, 0, out)
         rc, out = self.cli("--trend")
         self.assertIn("in its results 0/3", self.finds_line(out, "perplexity"))
 
