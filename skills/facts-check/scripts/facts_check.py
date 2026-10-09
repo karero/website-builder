@@ -706,19 +706,39 @@ class PageText(HTMLParser):
 WEB_ONLY = "only web addresses (http, https) are read"
 
 
+_AUTHORITY = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^/?]*")
+
+
+def _escape_beyond_ascii(m) -> str:
+    try:
+        return urllib.parse.quote(m.group(), safe="")
+    except UnicodeEncodeError:  # a lone surrogate is no character: left as it is, for bad_address() to refuse
+        return m.group()
+
+
 def clean_address(url: str) -> str:
     """The address as a request sends it: without the #fragment, which no request carries, and stripped
     (Request() unwraps it). The fragment goes first, and at the FIRST "#" (urllib cuts at the last one, which
-    would keep text of a second); stripping first would leave the space that stood before the "#"."""
-    return url.split("#", 1)[0].strip()
+    would keep text of a second); stripping first would leave the space that stood before the "#". After the
+    host, a character beyond ASCII becomes the %XX of its UTF-8 bytes, as a browser sends it: http.client
+    refuses it raw ("ordinal not in range(128)"). The host keeps its letters; http.client sends it in IDNA."""
+    url = url.split("#", 1)[0].strip()
+    if url.isascii():
+        return url
+    m = _AUTHORITY.match(url)
+    head = m.group() if m else ""
+    return head + re.sub(r"[^\x00-\x7f]+", _escape_beyond_ascii, url[len(head):])
 
 
 def bad_address(url: str) -> str:
     """Why this cannot be fetched (not an http or https address, or not an address at all), or ""."""
     url = clean_address(url)
-    # As it travels: every byte beyond ASCII is sent as %XX, so one emoji takes 12. Matching robots.txt rules takes time in
-    # proportion to this; the cut keeps a gigantic address from being counted.
-    if len(urllib.parse.quote(url[:MAX_ADDRESS + 1], safe="%:/?#[]@!$&'()*+,;=", errors="replace")) > MAX_ADDRESS:
+    if re.search("[\ud800-\udfff]", url):
+        return "not a valid address (it contains a lone surrogate, which is no character)"
+    # As it travels (clean_address() has escaped every byte beyond ASCII after the host, so one emoji takes 12) and as the
+    # robots.txt matcher reads it (robots_form() escapes "{" and the like): matching takes time in proportion to this.
+    # The cut keeps a gigantic address from being counted.
+    if len(url) > MAX_ADDRESS or len(robots_form(url[:MAX_ADDRESS + 1])) > MAX_ADDRESS:
         return "not a valid address (longer than %s bytes)" % format(MAX_ADDRESS, ",")
     if re.search(r"[\x00-\x20\x7f]", url):  # http.client refuses a space or a control character in what it sends
         return "not a valid address (it contains a space or a control character)"
@@ -863,7 +883,7 @@ class RobotsRules:
     def allowed(self, url: str) -> bool:
         """May this address be read? It is judged on the path the request sends ("http://x.test?private" is requested as
         "/?private"). The time grows with the rules in the file and the length of that path; Fetcher.blocked() hands over
-        only addresses that bad_address() accepts, which are 8,000 characters at most once escaped."""
+        only addresses that bad_address() accepts, which are 8,000 characters at most as robots_form() reads them."""
         if self.disallow_all:
             return False
         if self.allow_all:
