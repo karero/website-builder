@@ -293,6 +293,7 @@ scripts/
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
   test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
+  test_mktemp_guard.sh      every script that builds a throwaway folder stops with an error, and leaves the folder it ran from alone, when mktemp fails (make check)
   check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)
 docs/          (all of these ship in the zip; docs/reviews/ and docs/local/ do not)
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
