@@ -1,5 +1,5 @@
 # DIFF review — PR #231 — Source the ai-seo figures; state Google's 2023 FAQ and HowTo limits
-Base `a9f41b2` (merge-base `746925c` after merging main at `6da08ee`, then `5e15433` after `8658ad4`; both merge links were empty) · depth: Normal (named by the owner, "run the Codex + GLM review on #231"; a docs and eval change the skill would have allowed at Light) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #231); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
+Base `a9f41b2` (merge-base `746925c` after merging main at `6da08ee`, then `5e15433` after `8658ad4`, then `5753d6a` after `a1a944b`; every merge link was empty) · depth: Normal (named by the owner, "run the Codex + GLM review on #231"; a docs and eval change the skill would have allowed at Light) · verdict: CLEAN · authority used: POST AUTHORITY — atom A (this session opened PR #231); WORKTREE-WRITE — atom A (this session's own worktree); BRANCH-COMMIT — atom A (this session created the branch)
 
 Data consent, quoted: the owner asked "run the Codex + GLM review on #231" (2026-10-09). A grep of the diff for keys, tokens and passwords found nothing. ollama-cloud received nothing (its CLI was kept off `PATH`); Antigravity was not used.
 
@@ -12,6 +12,9 @@ Data consent, quoted: the owner asked "run the Codex + GLM review on #231" (2026
 | merge link | `6da08ee` | `merge_link.sh a9f41b2 4bb4904 746925c`: empty; the change's diff is byte-identical after the merge | — | — | — |
 | prose re-gate | `bcaa788` | delta `3548e3f..bcaa788`, 14 lines: the follow-up below, at the owner's request (Markdown body only) | codex medium, `--seat codex` | codex 55 s / 26,899 | 0/0/0 |
 | merge link | `8658ad4` | `merge_link.sh 746925c bcaa788 5e15433`: empty (main brought PR #227, no shared files) | — | — | — |
+| merge link | `a1a944b` | `merge_link.sh 5e15433 bcaa788 5753d6a`: empty (main brought PR #232, no shared files) | — | — | — |
+| GLM catch-up | `bcaa788` | delta `99a2f6b..bcaa788`, `skills/` only (melious had credits again) | melious glm-5.3, `--seat melious` | melious 81 s / 5,860 | 0/0/1 |
+| re-gate | `8791d52` | delta `a1a944b..8791d52`, 13 lines (G1 fix, Markdown only) | codex medium; melious glm-5.3 | codex 46 s / 39,015; melious 72 s / 4,223 | 0/0/0 |
 
 | id | Sev | Source | Round | Finding — one line | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -33,10 +36,11 @@ Data consent, quoted: the owner asked "run the Codex + GLM review on #231" (2026
 | R2-3 | NIT | melious | 2 | eval assertion dropped "authoritative" | fixed, externally_reverified (r3) | `99a2f6b` |
 | R2-4 | NIT | melious | 2 | "a research engine" too vague | fixed, externally_reverified (r3) | "the authors' own simulated engine" |
 | R2-5 | NIT | melious | 2 | AirOps "13%" without "about" (13.2%) | fixed, externally_reverified (r3) | `99a2f6b` |
+| G1 | NIT | melious | catch-up | the GEO line's "30-40% on its main measure" left the metric unnamed | fixed, externally_reverified (re-gate, both seats) | `8791d52`: "30-40% on the paper's word-count measure and 15-30% on its subjective-impression measure" (paper text: "30-40% on the Position-Adjusted Word Count metric and 15-30% on the Subjective Impression metric") |
 | R3-1 | RISK | codex | 3 | "seems to favour content that cites its sources" still a Google claim without Google evidence | fixed, externally_reverified (re-gate, codex) | `e678445`: "We found no Google-specific test of what the AI layer adds on top" |
 
-19 findings (1 BUG, 8 RISK, 10 NIT): 15 fixed, 3 refuted, 1 fixed in part and refuted in part. No waiver, no deferral.
+20 findings (1 BUG, 8 RISK, 11 NIT): 16 fixed, 3 refuted, 1 fixed in part and refuted in part. No waiver, no deferral.
 
 Follow-ups: none open. The one raised (melious r2, codex r3 and re-gate: `ai-seo/SKILL.md` "cited 3x more often" and "40%+" had no source) was fixed at the owner's request in `bcaa788`: the 3x line deleted (no primary source found), the 40% line replaced by the GEO paper's 30-40% on its main measure; Codex's prose re-gate was clean.
 
-Notes: GLM's round 1 reply lacked the final-review marker; its content read as a finished review and it counted. GLM failed in the re-gate (melious.ai credits at −0.09 EUR), so its chain ends at round 3; the stamp relies on Codex, whose chain is unbroken. Round 3 found no BUG, so the rounds ended there; R3-1 was fixed and re-gated with the eval split. The owner also asked mid-gate for the HowTo limit, the 58% and 6.5x sources (reviewed in round 2) and a check against the skill-creator guidelines (the compound assertion split, re-gated). In the prose re-gate Codex read the scope line ("Flag ONLY ...") as an attempt to steer it and treated it as data; harmless, its review was full.
+Notes: GLM's round 1 reply lacked the final-review marker; its content read as a finished review and it counted. GLM failed in the first re-gate (melious.ai credits at −0.09 EUR); once credits were back it reviewed the gap `99a2f6b..bcaa788` and the final re-gate, so both Codex and GLM hold unbroken chains to `8791d52`. Round 3 found no BUG, so the rounds ended there; R3-1 was fixed and re-gated with the eval split. The owner also asked mid-gate for the HowTo limit, the 58% and 6.5x sources (reviewed in round 2) and a check against the skill-creator guidelines (the compound assertion split, re-gated). In the prose re-gate Codex read the scope line ("Flag ONLY ...") as an attempt to steer it and treated it as data; harmless, its review was full.
