@@ -26,7 +26,7 @@ append rows rather than renumbering.
 | Create or edit the trail file in a worktree — 9(a) | **WORKTREE-WRITE AUTHORITY** | Write the same content where THIS session's own work durably lives — **not** a temp dir that gets cleaned, since the trail is the permanent record. If nowhere durable exists, hand it to the owner inline and say plainly that no durable trail was written. |
 | Commit or push the trail onto a branch — clerk item 3 | **BRANCH-COMMIT AUTHORITY** | Leave it uncommitted in your own durable location and record in the trail that no in-repo copy was committed. **Never in their worktree.** |
 | Stamp the consolidated marker — clerk item 2 | **GATED-THIS-DIFF** | Do not stamp. Re-gate per clerk item 2 (which bounds the retries), or block. |
-| Add or replace the round-claim line in the gate's PR/MR comment — 9(b) | **POST AUTHORITY** | Skip the line, without asking the owner for atom B: it is advisory. Name the claim in this session's report and go on. |
+| Add or replace the round-claim line in the gate's PR/MR comment — 9(b) | **POST AUTHORITY** | Skip the line, without asking the owner for atom B: it is advisory (a gate with no PR/MR has no comment for it either). Name the claim in this session's report and go on. |
 
 **Evidence — exactly two kinds.**
 - **Atom A — a record of the creating action itself:** this session created that exact PR/MR (POST
@@ -79,9 +79,9 @@ reviewers" — that governs who approves, not whether the review is visible. Che
 the tests pass"; a gate that exists only in a file is not satisfied.
 
 **A round claim (advisory).** Before launching a round (step 2), read the comment's current
-status; two sessions once ran the same round at once. With POST AUTHORITY, add one line below the
-marker: session, commit under review, scope, seats. The round's rewrite of the comment replaces
-it. It names no exclusive owner.
+status; two sessions once ran the same round at once. With POST AUTHORITY, add one line (at the
+top while the comment has no marker, below the marker after): session, commit under review,
+scope, seats. Delete it when the round's findings are posted. It names no exclusive owner.
 
 ## The clerk procedure — who posts what (explain this to the user)
 

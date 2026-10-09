@@ -132,8 +132,9 @@ Codex's effort for any run.
    verification round silently drops to medium: `scripts/independent_review.sh <artifact|-> [--plan|--diff]
    [--verify <prior-findings>] --depth <light|normal|high> --round <N>` (relative to this skill's
    directory; depth and round feed the cost log, and a run with no `--depth` says so; the notice
-   past round 8 needs `--round` on every run — a wording pass, final full read or re-gate carries
-   the last round's number, a redesign restarts at 1). Type is
+   past round 8 needs `--round` on every round, a redesign restarts at 1; a wording pass, final
+   full read or re-gate is not a round: leave `--round` off, the cost log still attaches it to
+   the gate). Type is
    auto-detected
    (`.diff`/`.patch` or stdin → diff, else plan); pass it when that guesses wrong, always for a plan
    on stdin. A DIFF artifact is the change without the trail:
@@ -234,8 +235,8 @@ Codex's effort for any run.
      prior-findings file.
    - **Prior findings.** A file with the last round's findings and dispositions, plus each deferred
      BUG's tracker row, merge-base reproduction and KNOWN WRONG test names, plus every row refuted
-     in an earlier round with its one-line evidence, so the reviewer checks that evidence instead
-     of deriving the claim again (the record stays the author's claim to check; step 4's coverage
+     in an earlier round with its one-line evidence, so the reviewer can check that evidence
+     (the record stays the author's claim to check; step 4's coverage
      rule applies the same way: a carried row closes a re-raise only where its evidence covers the
      reasoning raised). Pass it with
      `--verify <file>`: the script sends it with the round's scope (`PROMPT_VERIFY`; at High
