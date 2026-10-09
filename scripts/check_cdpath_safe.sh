@@ -94,8 +94,8 @@ if [ -n "$stale" ]; then
 fi
 
 # --- behavioural case: CDPATH must change nothing --------------------------------------------
-decoy="$(mktemp -d)"
-proj="$(mktemp -d)"
+decoy="$(mktemp -d)" || { echo "FAIL — could not create a temp dir."; exit 1; }
+proj="$(mktemp -d)" || { rm -rf "$decoy"; echo "FAIL — could not create a temp dir."; exit 1; }
 trap 'rm -rf "$decoy" "$proj"' EXIT
 # The decoy must contain the first path segment of each subject, or cd never resolves into it.
 mkdir -p "$decoy/scripts" "$decoy/skills/independent-review/scripts"

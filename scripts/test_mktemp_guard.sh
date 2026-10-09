@@ -23,10 +23,21 @@
 set -u
 
 # Scripts that build a throwaway folder and remove it on exit. A script under `set -e` stops on
-# a failed mktemp by itself, and is not listed.
+# a failed mktemp by itself, and is not listed. The first two deleted the folder they ran from;
+# the rest ran on with the folder's name empty.
 SCRIPTS=(
   scripts/test_whats_new.sh
   scripts/test_verify.sh
+  scripts/check_cdpath_safe.sh
+  scripts/test_clean_denylist.sh
+  scripts/test_git_stand_hook.sh
+  scripts/test_install_pin.sh
+  scripts/test_package_leak.sh
+  scripts/test_pre_push_hook.sh
+  scripts/test_whats_new_removed_skill.sh
+  skills/independent-review/scripts/check_prompt_sync.sh
+  skills/independent-review/scripts/test_failed_tier_report.sh
+  skills/independent-review/scripts/test_sweep_claims.sh
 )
 
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
