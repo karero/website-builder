@@ -531,6 +531,7 @@ def decode(body: bytes, ctype: str) -> str:
 def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str],
                  only: str = "") -> List[str]:
     pages: List[str] = []
+    known = set()  # a list lookup per address made a 50,000-address sitemap quadratic
     queue = list(start)
     seen = set()
     while queue and len(pages) < limit and len(seen) < 200:
@@ -567,7 +568,8 @@ def sitemap_urls(fetcher: Fetcher, start: List[str], limit: int, notes: List[str
             for u in locs:
                 if only and only not in u:
                     continue
-                if u not in pages:
+                if u not in known:
+                    known.add(u)
                     pages.append(u)
                     if len(pages) >= limit:
                         break

@@ -48,7 +48,7 @@ approved facts list: not built").
 | Step | State | Evidence |
 |---|---|---|
 | Script and SKILL.md | built | `skills/facts-check/` |
-| Scenarios 1 to 13 | done (stub site on 127.0.0.1) | `scripts/tests/test_facts_check.py`, 33 tests, Python 3.9 and 3.13 |
+| Scenarios 1 to 13 | done (stub site on 127.0.0.1) | `scripts/tests/test_facts_check.py`, 32 tests, Python 3.9 and 3.13 |
 | Code review (`/code-review`, one round) | done: 10 findings, all fixed | 2026-10-09. Image and video entries read as pages; a run that read no page reported clean and wrote a zero history line; four-digit counts skipped as years; inline tags splitting numbers; sitemaps cut at 5 MB; `--only` applied after the cut; numbers in JSON-LD dropped; `<meta charset>` ignored; a plain space joining two numbers; no stop at a comma. Each fix has a test that fails on the code before it. A second run on the real site's pages then caught one regression from the year fix ("launched on 27 March 2026 with these skills" read as a skill count); month and season names now count as year cues, with that sentence as a test |
 | CI | added | `.github/workflows/clean.yml`, job `facts-check-tests` (3.9, 3.12) |
 | Run on a real site's pages | done, served locally | 2026-10-09: the production build of a real Astro site (14 pages), served on 127.0.0.1. Every tied number was about its fact; a deliberately wrong fact was caught in both places it appears; the run surfaced the repeated og/twitter description, fixed since. Outside sites were unreachable from the build environment, so a run over the network on a large non-Astro site is still open |
