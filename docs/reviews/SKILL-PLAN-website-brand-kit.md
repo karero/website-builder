@@ -9,7 +9,7 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ drafted, not reviewed | branch `feat/brand-kit-plan`, unpushed |
-| 2 | Close the open decisions below (D1 to D4) | ⏸ not started | — |
+| 2 | Close the open decisions below (D1 to D4) | ▶ D1 and D4 settled 2026-10-09; D2 and D3 open | D4 row: branch `docs/buglog-missing-icons` (84d9792, unpushed) |
 | 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ⏸ not started | — |
 | 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
 | 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
@@ -91,8 +91,8 @@ the test exists; a row without a test is a promise, not a fact.
 
 | # | Given | When | Then | Test |
 |---|-------|------|------|------|
-| 1 | `POSITIONING.md` and `BRAND.md` are filled and the owner has never heard of this skill | the build reaches the brand step | the owner is offered it once, in plain words, with Yes and No (No is the default); the answer is recorded in the project README; on No nothing more is said | — |
-| 2 | the owner already has a logo and colours | they say so | no prompt is written; the skill goes straight to the intake with their files | — |
+| 1 | `POSITIONING.md` and `BRAND.md` are filled, and the interview has not asked about a logo or colours | the build reaches the brand step | the owner is asked once, in plain words: "Do you already have a logo and brand colours?"; the answer is recorded in the project README; if they want no help, nothing more is said | — |
+| 2 | the owner answers Yes, they have them | the build goes on | no prompt is written; the skill goes straight to the intake with their files | — |
 | 3 | the owner said No during the build | months later they say "I need a logo" | the skill runs on the existing site, reading its `POSITIONING.md` and `BRAND.md` | — |
 | 4 | the positioning names the Leipzig bakery's audience and the voice guide says warm and plain | the palette prompt is written | it names the audience and the mood, asks for the `BRAND.md` token table in hex, and contains no tool name | — |
 | 5 | the owner chose a palette | the logo prompt is written | it holds the chosen hex values, asks for an SVG mark that reads at 16 px and a one-colour version, and says what to return if the tool cannot draw a vector | — |
@@ -113,8 +113,12 @@ only through the intake script's own check; the script can pass while the site's
 
 ## Decisions taken
 
-1. **Optional, offered once, never unasked.** Same pattern as `website-story` §2a: the
-   offer text lives once in the skill, `new-website` reads it from there.
+1. **Optional, asked once, never run unasked.** The ask is an interview question after
+   step 3, not a pitch: "Do you already have a logo and brand colours?" Yes means the
+   intake with the owner's files; No means an offer to write the prompts. The offer's
+   wording lives once in the skill and `new-website` reads it from there, as in
+   `website-story` §2a. Today the interview asks nothing about a logo, colours or a
+   tagline (checked on origin/main 2026-10-09).
 2. **Palette before logo.** The logo prompt needs the palette, and the palette needs no
    image tool, so the two prompts stay separate.
 3. **The prompt is judgment, the intake is code.** Contrast, SVG safety and the icon set
@@ -126,13 +130,17 @@ only through the intake script's own check; the script can pass while the site's
 
 ## Open decisions
 
-- **D1. One offer or two, together with `website-tagline`.** Another session planned
-  `website-tagline` for 0.32 as well (its note: optional, modelled on `website-story`,
-  owner picks one line). Both sit at the same place in the pipeline (after step 3), and
-  both edit `new-website/SKILL.md` and `README.md`. Recommendation: two skills, one
-  offer paragraph ("colours and a logo, and a line under it"), each runnable alone, so
-  the owner is asked once and the two plans do not fight over the same lines. To agree
-  with that plan before step 6, not after.
+- **D1. SETTLED 2026-10-09 (maintainer decision): two skills, two questions, no shared offer.**
+  Another session planned `website-tagline` for 0.32 as well (optional, modelled on
+  `website-story`, owner picks one line). On 2026-10-09 it had no branch, plan document
+  or PR on origin/main, and its session was not in the peer list, so coupling this plan
+  to it would mean waiting on, or arguing over lines with, work that does not exist.
+  Each skill asks its own plain question after step 3 and runs alone; `website-tagline`
+  adds its own beside this one when it is built. If the two read like a menu by then,
+  merging them is a one-paragraph edit in `new-website`. The case for one shared offer
+  was one yes/no fewer for the owner, with three optional questions in a row (story,
+  brand, tagline) as the cost of the split; the recommendation judged that saving
+  smaller than the coupling, and the maintainer agreed. A judgment, not a measurement.
 - **D2. Where the derivation script lives.** Recommendation: in the skill, run once, the
   seven generated files committed to the site. The starter gets no new dependency and no
   `npm run` step. The rasteriser is open: `sharp` is in the starter's lockfile through
@@ -145,11 +153,13 @@ only through the intake script's own check; the script can pass while the site's
   someone has tried it and seen what it returns; an untried tool stays out. Not yet
   verified for any tool: what Claude Design returns (an SVG, a page, an image), and who
   can use it.
-- **D4. The missing icon files on a fresh site.** A site that never opts in still links
-  seven files it does not have, and no test says so. That is a bug in the starter, not in
-  this skill. Recommendation: a row in `docs/BUGLOG.md` now (bug-triage bucket C), and
-  decide in step 2 whether the skill's own test is where a "linked icons exist" check
-  belongs. Not fixed here.
+- **D4. SETTLED 2026-10-09 (maintainer decision): log it separately.** A site that never opts in still
+  links seven files it does not have, and no test says so. That is a bug in the starter,
+  not in this skill. It is one row in `docs/BUGLOG.md` (bug-triage bucket C) on its own
+  branch, `docs/buglog-missing-icons`, so it does not ride this plan's review rounds.
+  Still open for step 2: whether the skill's own test is where a "linked icons exist"
+  check belongs, and what the fix is (placeholder icons plus a test, or no links until a
+  site has the files). Not fixed here.
 
 ## Hooks
 
@@ -178,5 +188,6 @@ prompt (scenario 6) and does not try to search trademark registers.
 
 ## Review trail
 
-None yet. The plan gets the Normal gate (Codex plus GLM 5.3) once D1 to D4 are closed;
-reviewing before then is how a plan reaches round seven.
+None yet. The plan gets the Normal gate (Codex plus GLM 5.3) once D2 and D3 are closed
+(D1 and D4 were settled 2026-10-09); reviewing before then is how a plan reaches round
+seven.
