@@ -1,0 +1,151 @@
+---
+name: facts-check
+description: >
+  Read-only consistency check of the FACTS on any live site, on any stack: the owner
+  keeps one approved facts list (value, source, owner, date checked), and
+  scripts/facts_check.py reads every page in the sitemap and reports each figure that
+  differs from it, in the visible text, the title, the meta and social descriptions and
+  the structured data, plus retired phrases (an old name, an old claim) still in use.
+  AI answer engines quote whichever figure they find, so two client counts on two pages
+  cost trust and citations. Standard-library Python, no install; runs weekly beside the
+  AI check, in-house. Changes nothing on the site. Trigger phrases: "facts check",
+  "check our figures", "are our numbers consistent", "do our pages contradict each
+  other", "find old figures on the site", "facts list", "claims register", "is the old
+  name still on the site", "consistency check of the live site".
+---
+
+# Facts check: one list of approved facts, every page compared with it
+
+A site that has grown for years says the same thing in many places: the client count on
+the home page, in the about page, in a press page, in the meta description and in the
+structured data. They drift. One page says 500 clients and another 700, and an AI
+assistant that reads both may quote either, or neither. People rarely notice, because
+nobody reads 400 pages side by side. A script does.
+
+The skill has two halves. **People decide what is true**: the facts list, with a source
+and an owner for every value. **The script compares**: it reads the live pages and
+reports every number that names a fact and differs from the list. It never edits a page
+and never decides which of two figures is right.
+
+## When to run
+
+- First, once, to see how far a grown site has drifted. Expect findings.
+- Then weekly, beside the AI check (`search-console-insights`, `geo_check.py`): the AI
+  check shows what assistants believe, this check shows what the site says.
+- After any change to a fact (a new client count, a new product name): update the list
+  first, then run, and the report lists every page still on the old value.
+- Before a launch or a campaign that quotes figures.
+
+## Step 1: the facts list
+
+```bash
+python3 skills/facts-check/scripts/facts_check.py --init facts.json
+```
+
+writes a starter file. Fill it **with the owner**, never from the pages themselves:
+copying today's figures off the site would approve whichever one happened to be read
+first. Each fact:
+
+| Field | Meaning |
+|---|---|
+| `id`, `label` | A short key, and the name the report shows |
+| `value` | The approved number, written as a number: `27000`, not `"27,000+"` |
+| `unit` | `""` (plain numbers, default) or `"%"` (only percentages are tied to it) |
+| `terms` | Words that follow the number when a page states the fact: `["client", "customer", "Kunden"]`. A term matches every word that starts with it, so `client` covers `clients` |
+| `before` | Phrases that come right before the number: `["NPS of", "founded in"]` |
+| `window` | How many words after the number to look for a term (default 4, 1 to 12) |
+| `also_accept` | Other numbers that are true too, e.g. a rounded `100` for `120` ("100+ clients") |
+| `retired` | Known old values. They are reported as OUTDATED rather than MISMATCH |
+| `source`, `owner`, `checked` | Where the value comes from, who vouches for it, when it was last confirmed. The report prints the source next to each finding |
+
+Top level: `site` (the address), optionally `sitemap` (otherwise robots.txt, then
+`/sitemap.xml`, `/sitemap-index.xml`, `/sitemap_index.xml`), optionally `pages` (a fixed
+list instead of the sitemap), `extra_urls` (pages you do not own: a directory listing, a
+review profile, a press article; reported as "not your site") and `retired_phrases`
+(`{"text": "Old Name GmbH", "note": "renamed in 2024"}`).
+
+Language: write `terms` and `before` in every language the site uses. Numbers are read
+in English and German notation alike (`27,000`, `27.000`, `27 000`, `27k`, `2,5 Mio.`,
+`1.5 million`).
+
+## Step 2: run it
+
+```bash
+python3 skills/facts-check/scripts/facts_check.py facts.json \
+    --out facts-report.md --json facts-report.json --history facts-history.csv
+```
+
+- `--only /en/` checks one section first (useful on a large site, and for a first look).
+- `--max-pages` (default 1000), `--delay` (default 0.5 seconds between requests),
+  `--timeout`.
+- robots.txt is respected. `--ignore-robots` reads disallowed pages too: only on a site
+  the owner runs, never on someone else's.
+
+Exit code: **0** every tied number matches, **1** at least one finding, **2** the run
+could not start or read no page of the site (a bad facts file, no sitemap found). A
+run that read nothing is never reported as clean.
+
+## Step 3: read the report with the owner
+
+The report opens with one line of counts and a table per fact, then:
+
+- **Mismatches**: a number tied to the fact that is neither approved nor known-old.
+  Either the page is wrong, or the list is (a new figure nobody entered). Ask; do not
+  guess which.
+- **Outdated values**: a known old value still on a page. Usually a straight fix.
+- **Retired phrases still in use**.
+- **Facts no page names**: either no page states them, or the `terms` do not match how
+  the pages phrase it. Look at one page that should name it and widen the terms.
+- **Not checked**: pages that answered with an error, were skipped by robots.txt, or were
+  not HTML (a PDF).
+
+Each finding carries the page, where on the page (page text, title, meta description,
+social description, structured data) and the sentence around the number, with the
+number in bold, so the editor can find it.
+
+A false tie (a number that is not about the fact) means the rules were too loose: shorten
+`window`, make a term more specific, or move it to `before`. Fix the list; never ignore a
+finding without saying so in the report you hand over.
+
+## Step 4: fix, then keep it fixed
+
+The script edits nothing. Fixes go through the site's own process: in a CMS as drafts
+for the editors, in a repository as a pull request. After the fixes, run again: the
+counts in `facts-history.csv` should fall to zero and stay there.
+
+To run it weekly: a cron line or a systemd timer on Linux, launchd on macOS, or a
+scheduled CI job, e.g.
+
+```cron
+0 6 * * 1  cd /path/to/workdir && python3 /path/to/facts_check.py facts.json --out facts-report.md --history facts-history.csv
+```
+
+Keep `facts.json` under version control next to the site or the team's docs: a change
+to an approved fact is then reviewed like any other change.
+
+## What it does not do
+
+- **It does not run JavaScript.** Text a page adds only in the browser is not seen, and
+  a count-up that renders 0 before its script runs is ignored rather than reported. For
+  a site that renders everything in the browser, the report will say most facts are
+  named nowhere.
+- **It ties numbers by nearby words, not by meaning.** "We answer 30,000 agent calls a
+  day" next to the term `agent` is tied to an agent count. The rules are kept narrow by
+  default (terms after the number, a short window, years and zero ignored) and every
+  finding shows its sentence, so a person decides.
+- **It checks numbers and exact phrases**, not paraphrased claims ("market leader").
+  Retire such claims as phrases, or leave them to the content review.
+- **It reads pages, not PDFs or images.** A figure in a picture is invisible to it, and
+  to most AI assistants too.
+- **It does not decide what is true.** The facts list does, and people keep the list.
+
+## Related
+
+- `search-console-insights`: the weekly AI check (`geo_check.py`). Its branded
+  question, read for accuracy, shows which wrong figure has already spread to the
+  assistants.
+- `business-listings-setup`: checks that profile links resolve; this check's
+  `extra_urls` reads what those profiles say.
+- `ai-seo`, `schema-markup`: how to state facts so assistants can quote them.
+- `website-positioning`: the same idea for words: one approved positioning term per
+  page, held by a test on sites built with the starter.
