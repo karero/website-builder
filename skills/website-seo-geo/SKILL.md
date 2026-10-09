@@ -96,11 +96,12 @@ write within that budget, not the budget itself.
 
 - Every page: `WebSite` + `Organization` (once, site-wide) and a `WebPage` node.
 - Add page-type schema via `schema-markup`: `BreadcrumbList` on nested pages,
-  `FAQPage` on FAQs (it describes the Q&A to machines, but since 8 August 2023
-  Google shows FAQ rich results only for well-known, authoritative government
-  and health sites — [Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes); most sites get none), `Article`/`TechArticle` with author `@id` + dates on posts,
+  `FAQPage` on FAQs, `Article`/`TechArticle` with author `@id` + dates on posts,
   `Service`/`Product` as relevant. Author/Organization `@id`s and `sameAs` feed
   EEAT (see `website-content-guide`); keep `sameAs` URLs that actually resolve.
+- **`FAQPage` describes the Q&A to machines, not a Google rich result.** Since August
+  2023 Google shows FAQ rich results only for well-known, authoritative government
+  and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)); most sites get none. Don't promise one.
 - **Datetimes in JSON-LD carry an explicit timezone.** `VideoObject.uploadDate`,
   `Event.startDate/endDate`, `Offer.validFrom`, `Article` dates etc. must be full
   ISO-8601 with an offset (`2026-03-11T00:00:00+00:00`, not a bare `2026-03-11`).

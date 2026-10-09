@@ -22,12 +22,12 @@ Beyond these basics, each platform weights different signals. Here's what matter
 
 Google AI Overviews pull from Google's own index and lean heavily on E-E-A-T signals (Experience, Expertise, Authoritativeness, Trustworthiness). BrightEdge found them on about 45% of the queries it tracks by late 2025.
 
-**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The additional AI layer adds a preference for content with cited sources and structured data. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on a simulated AI engine, not on Google itself).
+**What makes Google AI Overviews different:** They already have your traditional SEO signals — backlinks, page authority, topical relevance. The additional AI layer adds a preference for content with cited sources and structured data. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on a research engine and on Perplexity, not on Google).
 
-**Importantly, AI Overviews don't just recycle the traditional Top 10.** Studies disagree on how far AI Overview sources overlap with the organic top 10, but many cited pages don't rank on page 1. Pages that wouldn't crack page 1 in traditional search can still get cited if they have strong structured data and clear, extractable answers.
+**Importantly, AI Overviews don't just recycle the traditional Top 10.** Studies disagree on how far AI Overview sources overlap with the organic top 10, but many cited pages don't rank on page 1. Pages that wouldn't crack page 1 in traditional search can still get cited if they have clear, extractable answers.
 
 **What to focus on:**
-- Schema markup — Article, FAQPage, HowTo, and Product schemas give AI Overviews structured context to work with. We found no study that measures how much it lifts AI visibility, so treat it as good hygiene, not a guaranteed boost
+- Schema markup — Article, FAQPage, HowTo, and Product schemas describe your page to machines. We found no study that measures how much it lifts AI visibility, so treat it as good hygiene, not a guaranteed boost. Google no longer shows HowTo rich results at all, and FAQ rich results only for government and health sites ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes))
 - Build topical authority through content clusters with strong internal linking
 - Include named, sourced citations in your content (not just claims)
 - Author bios with real credentials matter — E-E-A-T is weighted heavily
@@ -44,13 +44,13 @@ ChatGPT's web search draws from a Bing-based index. It combines this with its tr
 
 **Freshness is a major differentiator.** In the same SE Ranking study, pages updated within the past three months averaged 6.0 citations, against 3.6 for older ones. ChatGPT clearly favors recent information.
 
-**The most important signal is content-answer fit** — a Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format accounts for about 55% of citation likelihood. This is far more important than domain authority (12%) or on-page structure (14%) alone. Write the way ChatGPT would answer the question, and you're more likely to be the source it cites.
+**The most important signal is content-answer fit** — a Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format carried about 55% of the weight in its model predicting which pages get cited. That is far more than domain authority (12%) or on-page structure (14%). Write the way ChatGPT would answer the question, and you're more likely to be the source it cites.
 
 **Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations (August 2024 to June 2025), Wikipedia accounted for 7.8% of all ChatGPT citations, Reddit for 1.8%, and Forbes for 1.1%. Brand official sites are cited frequently but third-party mentions carry significant weight.
 
 **What to focus on:**
 - Invest in backlinks and domain authority — it's the strongest baseline signal
-- Update competitive content at least monthly
+- Update competitive content at least every three months
 - Structure your content the way ChatGPT structures its answers (conversational, direct, well-organized)
 - Include verifiable statistics with named sources
 - Clean heading hierarchy (H1 > H2 > H3) with descriptive headings
@@ -136,7 +136,7 @@ If you're optimizing for AI search for the first time, focus your effort where y
 
 **Start with Google AI Overviews** — They reach the most users (about 45% of the queries BrightEdge tracks) and you likely already have Google SEO foundations in place. Add schema markup, include cited sources in your content, and strengthen E-E-A-T signals.
 
-**Then address ChatGPT** — It's the most-used standalone AI search tool for tech and business audiences. Focus on freshness (update content monthly), domain authority, and matching your content structure to how ChatGPT formats its responses.
+**Then address ChatGPT** — It's the most-used standalone AI search tool for tech and business audiences. Focus on freshness (update content at least every three months), domain authority, and matching your content structure to how ChatGPT formats its responses.
 
 **Then expand to Perplexity** — Especially valuable if your audience includes researchers, early adopters, or tech professionals. Add FAQ schema, publish PDF resources, and write in clear, self-contained paragraphs.
 
@@ -146,7 +146,7 @@ If you're optimizing for AI search for the first time, focus your effort where y
 1. Allow all AI bots in robots.txt
 2. Implement schema markup (FAQPage, Article, Organization at minimum)
 3. Include statistics with named sources in your content
-4. Update content regularly — monthly for competitive topics
+4. Update content regularly — at least every three months for competitive topics
 5. Use clear heading structure (H1 > H2 > H3)
 6. Keep page load time under 2 seconds
 7. Add author bios with credentials
