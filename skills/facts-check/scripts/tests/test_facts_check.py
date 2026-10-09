@@ -246,6 +246,68 @@ class Positioning(unittest.TestCase):
         self.assertIsNone(fc.find_rule("/en/business", rules))  # "/*" needs something after it
 
 
+class MorePlaces(unittest.TestCase):
+    PAGE = ('<html><head><title>Acme</title>'
+            '<meta property="og:title" content="Old Name GmbH: 30,000 agents">'
+            '<meta property="og:url" content="https://oldname.example/en/">'
+            '<link rel="canonical" href="https://oldname.example/en/"></head><body>'
+            '<img src="team.jpg" alt="Our 30,000 agents at the Old Name GmbH summit">'
+            '<a href="/blog/2024/30000-agents">read more</a>'
+            '<template><p>Old Name GmbH</p></template><main><p>Intro text.</p></main></body></html>')
+
+    def rows(self, fact_list, phrases):
+        p = fc.PageText()
+        p.feed(self.PAGE)
+        return p, fc.check_page("u", p.locations(), fact_list, phrases)
+
+    def test_retired_phrases_in_alt_text_share_tags_and_addresses(self):
+        # the gap found in the eval run: these places were never searched
+        _, rows = self.rows([], [{"text": "Old Name GmbH"}, {"text": "oldname.example"}])
+        where = sorted((r["phrase"], r["where"]) for r in rows)
+        self.assertEqual(where, [("Old Name GmbH", "image alt text"), ("Old Name GmbH", "share title"),
+                                 ("oldname.example", "link addresses")])
+
+    def test_facts_in_alt_text_and_share_title_but_not_in_addresses(self):
+        _, rows = self.rows([fact()], [])
+        self.assertEqual(sorted(r["where"] for r in rows), ["image alt text", "share title"])
+
+    def test_template_and_noscript_content_is_not_page_structure(self):
+        # outside review finding: a <p> inside <template> took the intro's place
+        p, _ = self.rows([], [])
+        self.assertEqual(p.surfaces()["h1"], " \u00b7 Intro text.")
+        q = fc.PageText()
+        q.feed("<noscript><p>Enable JS</p><img alt='Old Name GmbH'></noscript><p>Real intro</p>")
+        self.assertTrue(q.surfaces()["h1"].endswith("Real intro"))
+        self.assertNotIn("image alt text", q.locations())
+
+
+class FetcherRules(unittest.TestCase):
+    class Fake(fc.Fetcher):
+        def __init__(self, answers):
+            super().__init__(timeout=1, delay=0, respect_robots=True)
+            self.answers = answers
+
+        def get(self, url, limit=fc.MAX_BYTES):
+            status, ctype, body = self.answers.get(url, (404, "", b""))
+            return status, ctype, body[:limit], url
+
+    def test_a_robots_txt_that_cannot_be_read_keeps_the_site_out(self):
+        # outside review finding: a 503 on robots.txt meant "everything allowed"
+        f = self.Fake({"https://x.com/robots.txt": (503, "", b"")})
+        self.assertIn("could not be read (503)", f.blocked("https://x.com/a"))
+        self.assertEqual(self.Fake({}).blocked("https://x.com/a"), "")  # a 404 allows all
+
+    def test_a_page_over_5_mb_is_reported_as_cut(self):
+        # outside review finding: the cut was silent
+        big = b"<html><body><p>" + b"x " * (3 * 1024 * 1024) + b"</p></body></html>"
+        f = self.Fake({"https://x.com/big": (200, "text/html", big)})
+        result = fc.run({"site": "https://x.com", "pages": ["https://x.com/big"], "facts": [],
+                         "retired_phrases": [{"text": "Old Name"}]},
+                        10, 0, 1, "", True, f)
+        self.assertEqual(len(result["read"]), 1)
+        self.assertIn("only the first 5 MB were read", " ".join(result["notes"]))
+
+
 class LoadFacts(unittest.TestCase):
     def write(self, obj):
         fd, path = tempfile.mkstemp(suffix=".json")
@@ -331,6 +393,7 @@ PAGES = {
         "<h2>70+</h2><p>clients from startups to large firms</p>"
         "<p>An NPS of 72.</p></body></html>"),
     "/brochure.pdf": ("application/pdf", "%PDF-1.4"),
+    "/llms.txt": ("text/plain; charset=utf-8", "# Acme\n> Formerly Old Name GmbH. 30,000 agents.\n"),
 }
 
 
@@ -361,7 +424,8 @@ class Handler(BaseHTTPRequestHandler):
 FACTS = {
     "facts": [
         {"id": "agents", "label": "Agents in the network", "value": 27000,
-         "terms": ["agent", "Agenten"], "retired": [25000], "source": "HR system"},
+         "terms": ["agent", "Agenten"], "retired": [25000], "source": "HR system",
+         "owner": "Workforce planning", "checked": "[date]"},
         {"id": "clients", "label": "Clients", "value": 120, "terms": ["client"],
          "retired": [70]},
         {"id": "nps", "label": "Customer NPS", "value": 72, "terms": [], "before": ["NPS of"]},
@@ -431,11 +495,15 @@ class FullRun(unittest.TestCase):
         self.assertFalse([r for r in rows if r.get("found_value") in (60, 2016)])
         # clients: 120 OK on the home page, 70+ outdated on /about across a heading and a paragraph
         self.assertTrue(find("OK", 120))
+        # /llms.txt is read too: its old name and its figure count
+        llms = [r for r in rows if r["where"] == "llms.txt"]
+        self.assertEqual(sorted(r["status"] for r in llms), ["MISMATCH", "RETIRED"])
+        self.assertIn("Also read: %s/llms.txt." % self.server.base, md)
         about = find("OUTDATED", 70)
         self.assertEqual(len(about), 1)
         self.assertTrue(about[0]["url"].endswith("/about"))
         self.assertTrue(find("OK", 72))
-        self.assertEqual(len(find("RETIRED")), 1)
+        self.assertEqual(len(find("RETIRED")), 2)  # the page text and /llms.txt
         # what was not read, and why
         self.assertTrue(any(s["url"].endswith("/private/x") and s["why"] == "robots.txt"
                             for s in result["skipped"]))
@@ -443,12 +511,13 @@ class FullRun(unittest.TestCase):
         self.assertTrue(any(f["url"].endswith("/gone") and f["why"] == "404" for f in result["failed"]))
         # the report names it all
         for part in ("## Mismatches", "## Outdated values", "## Retired phrases still in use",
+                     "Source: HR system. Owner: Workforce planning.",
                      "## Facts no page names", "- Languages", "Source: HR system.",
                      "**30,000**", "skipped (robots.txt)", "could not be read (404)"):
             self.assertIn(part, md)
         lines = history.strip().splitlines()
         self.assertEqual(lines[0].split(",")[4], "mismatches")
-        self.assertEqual(lines[1].split(",")[2:7], ["2", "3", "1", "2", "1"])
+        self.assertEqual(lines[1].split(",")[2:7], ["2", "3", "2", "2", "2"])
 
     def test_image_entries_in_the_sitemap_are_not_pages(self):
         # review finding: image:loc was fetched as a page

@@ -457,6 +457,9 @@ class PageText(HTMLParser):
         self.parts: Dict[str, List[str]] = {
             "page text": [], "title": [], "meta description": [],
             "social description": [], "structured data": [],
+            # read for retired phrases (and, except link addresses, for facts): AI
+            # crawlers read alt texts, share tags and URLs too
+            "image alt text": [], "share title": [], "link addresses": [],
         }
         self._skip = 0
         self._in_title = False
@@ -488,6 +491,14 @@ class PageText(HTMLParser):
         if tag in SKIP_TAGS:
             self._skip += 1
             return
+        if self._skip:
+            # inside <template>, <noscript>, <svg>...: no structure the page shows, and
+            # no paragraph for the intro (querySelector does not see these either)
+            return
+        if tag == "img" and a.get("alt", "").strip():
+            self.parts["image alt text"].append(a["alt"])
+        if tag in ("a", "area", "link") and a.get("href", "").strip():
+            self.parts["link addresses"].append(a["href"])
         if self._p_at is not None and tag in P_CLOSERS:
             self._close_to(self._p_at)  # a <p> closed implicitly by the next block
         if tag in ("li", "dd", "dt"):  # a new item closes the open one, and a <p> in it
@@ -524,6 +535,10 @@ class PageText(HTMLParser):
                 self.parts["meta description"].append(content)
             elif name in ("og:description", "twitter:description"):
                 self.parts["social description"].append(content)
+            elif name in ("og:title", "twitter:title", "og:site_name", "application-name", "author"):
+                self.parts["share title"].append(content)
+            elif name in ("og:url", "og:image", "twitter:image") and content.strip():
+                self.parts["link addresses"].append(content)
         if tag in BLOCK_TAGS:
             self.parts["page text"].append(" ")
 
@@ -539,6 +554,8 @@ class PageText(HTMLParser):
             return
         if tag in SKIP_TAGS:
             self._skip = max(0, self._skip - 1)
+            return
+        if self._skip:
             return
         if tag == "title":
             self._in_title = False
@@ -645,7 +662,7 @@ class Fetcher:
         self.delay = delay
         self.respect_robots = respect_robots
         self._opener = urllib.request.build_opener()
-        self._robots: Dict[str, Optional[urllib.robotparser.RobotFileParser]] = {}
+        self._robots: Dict[str, Tuple[urllib.robotparser.RobotFileParser, str]] = {}
         self._last = 0.0
 
     def _wait(self):
@@ -669,22 +686,31 @@ class Fetcher:
         except (urllib.error.URLError, OSError, ValueError) as e:
             return 0, str(getattr(e, "reason", e)), b"", url
 
-    def allowed(self, url: str) -> bool:
+    def blocked(self, url: str) -> str:
+        """Why robots.txt keeps this address from being read, or "" when it may be."""
         if not self.respect_robots:
-            return True
+            return ""
         p = urllib.parse.urlsplit(url)
         root = "%s://%s" % (p.scheme, p.netloc)
         if root not in self._robots:
             rp = urllib.robotparser.RobotFileParser()
             status, _, body, _ = self.get(root + "/robots.txt")
+            why = "robots.txt"
             if status == 200:
                 rp.parse(body.decode("utf-8", "replace").splitlines())
             elif status in (401, 403):
                 rp.disallow_all = True
+            elif status == 0 or status >= 500:
+                # A robots.txt that cannot be read means "keep out" by the robots
+                # convention (RFC 9309), not "everything allowed".
+                rp.disallow_all = True
+                why = ("robots.txt could not be read (%s); --ignore-robots reads the pages "
+                       "anyway, on a site you own" % (status or "no answer"))
             else:
                 rp.allow_all = True
-            self._robots[root] = rp
-        return self._robots[root].can_fetch(USER_AGENT, url)
+            self._robots[root] = (rp, why)
+        rp, why = self._robots[root]
+        return "" if rp.can_fetch(USER_AGENT, url) else why
 
 
 def decode(body: bytes, ctype: str) -> str:
@@ -823,6 +849,8 @@ def check_page(url: str, locations: Dict[str, str], facts: List[dict],
     seen = set()
     for fact in facts:
         for where, text in locations.items():
+            if where == "link addresses":  # "/blog/2024/10-tips" states no fact
+                continue
             for hit in find_mentions(text, fact):
                 key = (fact["id"], where, hit["snippet"])
                 if key in seen:
@@ -867,11 +895,16 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
     # Patterns normalised once, not once per page
     normed_rules = [dict(r, pages=[norm_path(p) for p in _patterns(r)]) for r in (pos or {}).get("rules", [])]
     redirected: List[dict] = []
+    also_read: List[str] = []
     for url, origin in own + extra:
-        if not fetcher.allowed(url):
-            skipped.append({"url": url, "origin": origin, "why": "robots.txt"})
+        why = fetcher.blocked(url)
+        if why:
+            skipped.append({"url": url, "origin": origin, "why": why})
             continue
-        status, ctype, body, final = fetcher.get(url)
+        status, ctype, body, final = fetcher.get(url, MAX_BYTES + 1)
+        if len(body) > MAX_BYTES:
+            body = body[:MAX_BYTES]
+            notes.append("%s: larger than 5 MB; only the first 5 MB were read" % url)
         if status != 200:
             failed.append({"url": url, "origin": origin, "why": str(status or ctype or "no answer")})
             continue
@@ -907,13 +940,23 @@ def run(data: dict, max_pages: int, delay: float, timeout: float, only: str,
                 row["final_url"] = final
             rows.append(row)
         read.append({"url": url, "origin": origin})
+    # /llms.txt is written for AI assistants, so its figures and names count too.
+    # Not part of the sitemap; read once, unless --only narrows the run to a section.
+    llms = site + "/llms.txt"
+    if not only and not data.get("pages") and read and not fetcher.blocked(llms):
+        status, ctype, body, _ = fetcher.get(llms)
+        if status == 200 and body and "html" not in ctype.lower():
+            for row in check_page(llms, {"llms.txt": decode(body, ctype)}, facts, retired_phrases):
+                row["origin"] = "own"
+                rows.append(row)
+            also_read.append(llms)
     return {
         "site": site,
         "date": _dt.date.today().isoformat(),
         "source": source,
         "pages_listed": len(pages),
         "read": read, "failed": failed, "skipped": skipped,
-        "notes": notes, "rows": rows,
+        "notes": notes, "rows": rows, "also_read": also_read,
         "facts": facts, "retired_phrases": retired_phrases,
         "positioning": None if not pos else {"pages": pos_pages, "uncovered": uncovered,
                                              "redirected": redirected},
@@ -943,7 +986,8 @@ def report_md(result: dict) -> str:
              % (result["date"], result["source"], result["pages_listed"],
                 sum(1 for p in result["read"] if p["origin"] == "own"),
                 sum(1 for p in result["failed"] if p["origin"] == "own"),
-                sum(1 for p in result["skipped"] if p["origin"] == "own")))
+                sum(1 for p in result["skipped"] if p["origin"] == "own"))
+             + ("".join(" Also read: %s." % u for u in result.get("also_read", []))))
     if result["pages_listed"] == 0:
         L.append("")
         L.append("**No pages were found, so nothing was checked.** See the notes at the end.")
@@ -988,9 +1032,11 @@ def report_md(result: dict) -> str:
                 continue
             L.append("")
             L.append("### %s: approved %s%s" % (f.get("label") or f["id"], fmt_value(f["value"]), f.get("unit", "")))
-            src = f.get("source", "")
-            if src and not src.startswith("["):
-                L.append("Source: %s." % src)
+            prov = [(k, f.get(key, "")) for k, key in
+                    (("Source", "source"), ("Owner", "owner"), ("Last confirmed", "checked"))]
+            prov = ["%s: %s." % (k, v) for k, v in prov if isinstance(v, str) and v and not v.startswith("[")]
+            if prov:
+                L.append(" ".join(prov))
             for r in sorted(fh, key=lambda r: (r["origin"] != "own", r["url"], r["where"])):
                 tag = "" if r["origin"] == "own" else " (not your site)"
                 L.append("- %s%s, %s: found **%s**. \u201c%s\u201d"

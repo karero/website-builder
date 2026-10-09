@@ -87,8 +87,12 @@ python3 skills/facts-check/scripts/facts_check.py facts.json \
 - `--only /en/` checks one section first (useful on a large site, and for a first look).
 - `--max-pages` (default 1000), `--delay` (default 0.5 seconds between requests),
   `--timeout`.
-- robots.txt is respected. `--ignore-robots` reads disallowed pages too: only on a site
-  the owner runs, never on someone else's.
+- robots.txt is respected. One that answers with a server error, or not at all, keeps the
+  site out, as the robots convention says; the report gives that reason. `--ignore-robots`
+  reads disallowed pages too: only on a site the owner runs, never on someone else's.
+- The site's `/llms.txt`, written for AI assistants, is read too when it exists (not with
+  `--only` or a fixed `pages` list). Pages over 5 MB are read up to 5 MB, and the report
+  says so.
 
 Exit code: **0** every tied number matches, **1** at least one finding, **2** the run
 could not start or read no page of the site (a bad facts file, no sitemap found). A
@@ -108,9 +112,13 @@ The report opens with one line of counts and a table per fact, then:
 - **Not checked**: pages that answered with an error, were skipped by robots.txt, or were
   not HTML (a PDF).
 
-Each finding carries the page, where on the page (page text, title, meta description,
-social description, structured data) and the sentence around the number, with the
-number in bold, so the editor can find it.
+Each finding carries the page, where on the page and the sentence around the number,
+with the number in bold, so the editor can find it. The places read are the page text,
+the title, the meta description, the social description, the share title (`og:title`,
+`twitter:title`, site name, author), image alt texts, the structured data and `llms.txt`.
+Retired phrases are also searched in link addresses (links, canonical, `og:url`), so an old
+domain is found; figures are not, since numbers in addresses state nothing. The report
+prints each fact's source, owner and last-confirmed date next to its findings.
 
 A false tie (a number that is not about the fact) means the rules were too loose: shorten
 `window`, make a term more specific, or move it to `before`. Fix the list; never ignore a
