@@ -69,7 +69,7 @@ In traditional search, you need to rank on page 1. In AI search, a well-structur
 - AI Overviews appear on about 45% of the queries BrightEdge tracks ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing), late 2025)
 - When an AI Overview appears, the top-ranked page gets about 58% fewer clicks ([Ahrefs](https://ahrefs.com/blog/ai-overviews-reduce-clicks-update/), desktop, 300,000 keywords, December 2025 against December 2023)
 - On "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), 2025)
-- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 30-40% on the paper's word-count measure and 15-30% on its subjective-impression measure ([GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google)
+- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 27-41% on the paper's word-count measure and 13-28% on its subjective-impression measure (its text rounds these to 30-40% and 15-30%; [GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google)
 
 ---
 
@@ -171,29 +171,29 @@ For detailed templates for each block type, see [references/content-patterns.md]
 
 AI systems prefer sources they can trust. Build citation-worthiness.
 
-**The Princeton GEO research** (KDD 2024, studied across Perplexity.ai) ranked 9 optimization methods:
+**The Princeton GEO research** ([KDD 2024](https://arxiv.org/abs/2311.09735)) tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. The results below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page (split equally when a sentence cites several pages), weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics gained up to 37% there.
 
 | Method | Visibility Boost | How to Apply |
 |--------|:---------------:|--------------|
-| **Cite sources** | +40% | Add authoritative references with links |
-| **Add statistics** | +37% | Include specific numbers with sources |
-| **Add quotations** | +30% | Expert quotes with name and title |
-| **Authoritative tone** | +25% | Write with demonstrated expertise |
-| **Improve clarity** | +20% | Simplify complex concepts |
+| **Add quotations** | +41% | Expert quotes with name and title |
+| **Add statistics** | +31% | Include specific numbers with sources |
+| **Fluency optimization** | +28% | Improve readability and flow |
+| **Cite sources** | +27% | Add authoritative references with links |
 | **Technical terms** | +18% | Use domain-specific terminology |
-| **Unique vocabulary** | +15% | Increase word diversity |
-| **Fluency optimization** | +15-30% | Improve readability and flow |
-| ~~Keyword stuffing~~ | **-10%** | **Actively hurts AI visibility** |
+| **Improve clarity** | +14% | Simplify complex concepts |
+| **Authoritative tone** | +10% | Write with demonstrated expertise |
+| **Unique vocabulary** | +6% | Increase word diversity |
+| ~~Keyword stuffing~~ | **-8%** | **The only method that lowered this measure** |
 
-**Best combination:** Fluency + Statistics = maximum boost. Low-ranking sites benefit even more — up to 115% visibility increase with citations.
+**Best combination:** Fluency + Statistics = maximum boost. Low-ranking sites benefit even more — up to 115% visibility increase with citations. Sources already ranked first lost visibility from the same edits (citations −30%, quotations −23%, statistics −21%; Table 2 of the paper).
 
-**Statistics and data** (+37-40% citation boost)
+**Statistics and data** (+31% in the GEO study)
 - Include specific numbers with sources
 - Cite original research, not summaries of research
 - Add dates to all statistics
 - Original data beats aggregated data
 
-**Expert attribution** (+25-30% citation boost)
+**Expert attribution** (+41% for quotations in the GEO study)
 - Named authors with credentials
 - Expert quotes with titles and organizations
 - "According to [Source]" framing for claims
@@ -421,7 +421,7 @@ citations in code, and trends them next to your Google rankings.
 - **Gating all content** — AI can't access gated content. Keep your most authoritative content open
 - **Ignoring third-party presence** — You may get more AI citations from a Wikipedia mention than from your own blog
 - **No structured data** — Schema markup gives AI systems structured context about your content
-- **Keyword stuffing** — Unlike traditional SEO where it's just ineffective, keyword stuffing actively reduces AI visibility by 10% (Princeton GEO study)
+- **Keyword stuffing** — Unlike traditional SEO where it's just ineffective, keyword stuffing lowered visibility by about 8% on the Princeton GEO study's main measure, the only method that did
 - **Hiding pricing behind "contact sales" or JS-rendered pages** — AI agents evaluating your product on behalf of buyers can't parse what they can't read. Add a `/pricing.md` file
 - **Blocking AI bots** — If GPTBot, PerplexityBot, or ClaudeBot are blocked in robots.txt, those platforms can't cite you
 - **Generic content without data** — "We're the best" won't get cited. "Our customers see 3x improvement in [metric]" will
