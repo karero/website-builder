@@ -91,9 +91,9 @@ Copy this into the chat and send it:
 
 The assistant will take it from there: it checks what's on your computer, installs the
 website-builder skills, and asks your approval before doing anything that changes your
-system. If it asks whether the folder it's in is your websites folder, say yes — it's the
-one you chose in step 1. If you land in an empty chat after it restarts, type
-`new website`.
+system. If it asks whether the folder it's in is your websites folder, say yes only if
+it's the one you chose in step 1; otherwise tell it which folder to use. If you land in an
+empty chat after it restarts, type `new website`.
 
 ### 4. Answer its questions
 
