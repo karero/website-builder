@@ -9,7 +9,7 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ drafted, not reviewed | branch `feat/brand-kit-plan`, unpushed |
-| 2 | Close the open decisions below (D1 to D4) | ▶ D1 and D4 settled 2026-10-09; D2 spiked, waits for a yes; D3 answered by one trial 2026-10-10; D5 (where the step sits) proposed, waits for a yes | D4 row: branch `docs/buglog-missing-icons` (`12a4ac5`; Light gate, 2 rounds, 3 findings; unpushed) |
+| 2 | Close the open decisions below (D1 to D4) | ▶ D1, D4 settled 2026-10-09; D2 settled 2026-10-10; D3 answered by one trial 2026-10-10; D5 (where the step sits) proposed, waits for a yes | D4 row: branch `docs/buglog-missing-icons` (`12a4ac5`; Light gate, 2 rounds, 3 findings; unpushed) |
 | 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ✅ done 2026-10-10, on one Mac only | "Spike result" below; the throwaway script is not in the repo |
 | 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
 | 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
@@ -52,19 +52,22 @@ into the site.
 
 Two halves, one skill, optional, never run unasked.
 
-**Prompt half (judgment).** Two prompts, in the language the owner writes in, written
-from `POSITIONING.md` (and `STORY.md` if the owner chose it) and three short answers from
-the owner: mood words, colours to avoid, a brand they admire. Each prompt asks for FIVE
-variations, always; the owner picks one.
+**Prompt half (judgment).** Three prompts, in the language the owner writes in. The
+palette and logo prompts are written from `POSITIONING.md` (and `STORY.md` if the owner
+chose it) and from what the owner says she likes, asked first (see "The conversation").
 
 - **Palette prompt.** Audience, category and what makes the business different come from
-  `POSITIONING.md`. It asks for five different palettes, each as exactly the token table
-  in `BRAND.md` (primary, accent, and six tokens each for the light and the dark theme)
-  in hex, so the chosen one can be pasted back without reading.
+  `POSITIONING.md`; the colours the owner likes and wants to avoid come from her answers.
+  It asks for THREE different palettes, each as exactly the token table in `BRAND.md`
+  (primary, accent, and six tokens each for the light and the dark theme) in hex, so the
+  chosen one can be pasted back without reading.
 - **Logo prompt.** Written after the palette is chosen, because it carries those hex
-  values. It asks for five variations of a simple vector mark (SVG), each with a
+  values. It asks for FIVE variations of a simple vector mark (SVG), each with a
   one-colour version, each still reading at 16 px, with no text that depends on a font.
   It says what to hand back if the tool cannot draw a vector, so the owner is never stuck.
+- **Handover prompt.** Written only after the owner has picked her favourite variation.
+  It asks the tool for a download (handover) package of that one variation: its SVG
+  files and a README saying what each file is.
 
 Both prompts are tool-neutral: no tool name, no claim about what any tool can do.
 
@@ -78,7 +81,9 @@ Both prompts are tool-neutral: no tool name, no claim about what any tool can do
   The mark may arrive as `.svg` files, as pasted SVG code, inside an HTML page, or in a
   zip of SVG files with a README (see D3); the check is the same for all four. A zip is
   read for its `.svg` entries only, and an entry whose path leaves the folder is refused.
-- Only the variation the owner picked is checked and installed.
+- Only the variation the owner picked is checked and installed. The chosen SVG is
+  installed as `public/favicon.svg` and is the master any later run starts from
+  (scenario 16).
 - Colour check of the mark against the chosen palette: colours outside it are listed and
   the owner decides; nothing is recoloured silently.
 - A 16 px and a 32 px preview of the chosen mark for the owner to look at. Whether the
@@ -96,6 +101,27 @@ on" date, nothing about what a tool does in general. See D3.
 choice, generating raster images through an API (`image` skill), the OG card design
 (`og-images`), naming the business.
 
+## The conversation, in order
+
+What the owner experiences, with the assistant doing the work between her steps:
+
+1. **Do you already have a logo and brand colours?** Yes: the intake with her own files
+   (scenario 2). No: go on.
+2. **What kinds of colours do you like?** Which she likes, which to avoid, a brand or
+   place whose colours she admires (scenario 25).
+3. **Palette.** The skill writes the palette prompt (three palettes). She pastes it into
+   the tool she uses, picks one, pastes the hex table back. The intake checks contrast in
+   both themes and names any failing pair (scenarios 7 to 10).
+4. **Logo.** The skill writes the logo prompt (five variations, palette inside) and tells
+   her to check the tool's terms and look for a lookalike (scenario 6). She picks her
+   favourite.
+5. **Handover.** The skill gives her the words to ask the tool for a download package of
+   that one variation, and says where to save it (scenarios 26, 27).
+6. **Intake.** The skill checks the SVG for safety and colours, shows the mark at 16 and
+   32 px for her to look at, then makes the seven files, writes the tokens into
+   `BRAND.md` and `global.css`, and runs the site's own a11y test (scenarios 11 to 15, 21
+   to 23).
+
 ## Scenarios
 
 Written in the owner's words. The business is made up: a bakery in Leipzig that sells
@@ -107,7 +133,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 1 | `POSITIONING.md` is filled (and `STORY.md`, if the owner chose it), and the interview has not asked about a logo or colours | the build reaches the brand step, right after positioning and before the content guide | the owner is asked once, in plain words: "Do you already have a logo and brand colours?"; the answer is recorded in the project README; if they want no help, nothing more is said | — |
 | 2 | the owner answers Yes, they have them | the build goes on | no prompt is written; the skill goes straight to the intake with their files | — |
 | 3 | the owner said No during the build | months later they say "I need a logo" | the skill runs on the existing site, reading its `POSITIONING.md` and `BRAND.md` | — |
-| 4 | the positioning names the Leipzig bakery's audience and the owner says "warm, plain, no clichés" | the palette prompt is written | it names the audience and the mood, asks for five different palettes each as the `BRAND.md` token table in hex, and contains no tool name | — |
+| 4 | the positioning names the Leipzig bakery's audience, and the owner said she likes warm earthy colours and wants no green | the palette prompt is written | it carries the audience and those likes and dislikes, asks for three different palettes each as the `BRAND.md` token table in hex, and contains no tool name | — |
 | 5 | the owner chose a palette | the logo prompt is written | it holds the chosen hex values, asks for five variations of an SVG mark, each reading at 16 px and each with a one-colour version, and says what to return if the tool cannot draw a vector | — |
 | 6 | the owner is handed the logo prompt | they read the text around it | one line says: check the tool's terms for commercial use and look for a lookalike before relying on the mark; not legal advice | — |
 | 7 | a pasted palette has muted text on the dark background at 3.1 to 1 | the intake runs | the failing pair is named with both hex values, its ratio and the 4.5 it needs; `global.css` and `BRAND.md` are untouched | — |
@@ -125,9 +151,12 @@ the test exists; a row without a test is a promise, not a fact.
 | 19 | `sharp` is not installed on the site | the intake runs | it stops before writing anything and says what to run | — |
 | 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | — |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | — |
-| 22 | a zip arrives holding SVG files and a README | the intake runs | it reads only the `.svg` entries, ignores the rest, refuses any entry whose path leaves the folder, lists the variations and asks which one | — |
+| 22 | a zip arrives in `brand-handoff` holding SVG files and a README | the intake runs | it reads only the `.svg` entries, ignores the rest, refuses any entry whose path leaves the folder, lists the variations and asks which one | — |
 | 23 | the owner has picked a mark | the intake runs | it shows the mark at 16 and 32 px for the owner to look at, and does not decide for them whether it is legible | — |
 | 24 | `BRAND.md` does not exist yet, because the brand step runs right after positioning | the intake runs | it starts `BRAND.md` from the template and fills the palette and logo parts; the scaffold step later does not overwrite it | — |
+| 25 | the build reaches the palette step and the owner has not said which colours she likes | the skill is about to write the palette prompt | it asks first: which kinds of colours she likes, which she wants to avoid, a brand or place whose colours she admires; it writes no prompt until she has answered or says "surprise me" | — |
+| 26 | the owner has picked her favourite logo variation, say 3 of 5 | the conversation goes on | the skill tells her to ask the tool for a download (handover) package of that one variation, gives her the words to ask, says where to save it (the `brand-handoff` folder in the project), and waits; the intake does not run before the file is there | — |
+| 27 | the owner says she saved the package but `brand-handoff` is empty | the skill goes on | it says nothing arrived there, repeats where to save it, and offers to read it from a path she names; it never searches her Downloads folder on its own | — |
 
 Scenario 8 must enter through the same call the owner makes (the site's test run), not
 only through the intake script's own check; the script can pass while the site's test fails.
@@ -148,8 +177,15 @@ only through the intake script's own check; the script can pass while the site's
    skill never nudges a colour to make a pair pass.
 5. **Template co-located in the skill**, not in `new-website/templates/`
    (`new-website` is not copied into scaffolded sites; the story plan's decision 2).
-6. **Five variations, always** (the maintainer, 2026-10-10). Each prompt asks for five;
-   the owner picks one; the intake works on the one picked (scenario 20).
+6. **Five logo variations and three palettes, always** (the maintainer, 2026-10-10). The
+   logo prompt asks for five, the palette prompt for three; the owner picks one of each;
+   the intake works on the logo picked (scenario 20). The owner is asked what colours she
+   likes before the palette prompt is written (scenario 25).
+7. **The handover package is asked for after the favourite is chosen** (the maintainer,
+   2026-10-10), never before: the owner asks the tool for it explicitly, in the words the
+   skill gives her, and saves it in the `brand-handoff` folder of the project (scenarios
+   26, 27). The skill creates the folder and adds it to the site's `.gitignore`, so the
+   package is not committed. The folder name is the plan's proposal, not yet confirmed.
 
 ## Open decisions
 
@@ -164,7 +200,7 @@ only through the intake script's own check; the script can pass while the site's
   was one yes/no fewer for the owner, with three optional questions in a row (story,
   brand, tagline) as the cost of the split; the recommendation judged that saving
   smaller than the coupling, and the maintainer agreed. A judgment, not a measurement.
-- **D2. Where the derivation script lives. Spiked 2026-10-10; waits for a yes.**
+- **D2. SETTLED 2026-10-10 (maintainer decision): `sharp`, run once from the skill.**
   Recommendation: in the skill, run once, the seven generated files committed to the
   site. The starter gets no new dependency and no `npm run` step. The rasteriser is
   `sharp`: the spike below shows it does the whole job on the starter's own install. The
@@ -202,7 +238,7 @@ only through the intake script's own check; the script can pass while the site's
   What follows from it: the advice line says "ask Claude for the design", not "go to the
   Claude Design site", because that address goes away on 2026-12-14; the intake takes
   `.svg` files, pasted code, an HTML page with an inline `<svg>`, or a zip of SVG files
-  (scenarios 17, 18 and 22); five variations always (decision 6, scenario 20); the
+  (scenarios 17, 18 and 22); five logo variations always (decision 6, scenario 20); the
   intake checks the mark's colours against the palette (21) and shows the owner the mark
   at 16 and 32 px, because the tool does not (23). Still open: how an owner gets the SVG
   files out of the project in the in-Claude version, since the Export tab shows no way;
