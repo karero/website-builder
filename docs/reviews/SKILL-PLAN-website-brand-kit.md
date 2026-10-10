@@ -39,8 +39,8 @@ suite leaves to the owner, and both are hard for someone who is not a designer:
    `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png` and `COMPANY.logo`
    (`/images/logo.png`). The starter template ships none of them. The scaffold under it
    (`create-astro` 5.2.6, `--template minimal`, run in a scratch folder on 2026-10-10;
-   the prompts' "Use minimal (empty) template" option is that template, read in the package's
-   `dist/index.js` lines 586 to 606) adds its own `favicon.svg`
+   the prompts' option labelled "Use minimal (empty) template" carries `value: "minimal"`, read
+   in the package's `dist/index.js` lines 586 to 606) adds its own `favicon.svg`
    and `favicon.ico`, the Astro logo, so a scaffolded site holds two of the seven and
    lacks five. The starter's README (setup step 4) says
    "Add `public/` icons" and the launch checklist says "favicon/manifest icon set in
@@ -225,7 +225,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing the icon files it installed last time, and before replacing any icon file it did not install itself; it starts from `public/favicon.svg` | — |
 | 17 | an HTML file arrives with one inline `<svg>` that has no `xmlns`, or that relies on page CSS, a `<symbol>` sprite or `currentColor` | the intake runs | it takes the SVG out and serialises it with the `xmlns` where it can; it refuses the ones it cannot resolve and any whose render is blank; the checks are the same as for a pasted one (scenarios 13 to 15) | — |
 | 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | — |
-| 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake runs, after the scaffold's install | it stops before writing anything and says what to run | — |
+| 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake runs, after the scaffold's install | it stops before writing anything and says what to do: run a plain `npm install` in the site, which brings optional packages unless an install was told to omit them (not tried here), or, where no `sharp` binary exists for the machine, that it cannot render here; it never adds `sharp` to the site's `package.json` (D2, D7) | — |
 | 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | — |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | — |
 | 22 | a zip arrives (the intake has copied it into `brand-handoff`) holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries; an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
@@ -238,7 +238,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 29 | the intake writes the palette | it finishes | `:root` carries the light values, and `:root[data-theme="dark"]` and the `@media (prefers-color-scheme: dark)` block carry identical dark values; all three match `BRAND.md`'s rows, and a test fails when any of them drifts | — |
 | 30 | `public/favicon.svg` and `public/favicon.ico` are the scaffold's own default (the Astro logo) | the intake runs | it tells her they are the scaffold's placeholders and replaces them; any other icon file already there makes it ask (scenario 16) | — |
 | 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, names the failing check, and leaves her other files untouched | — |
-| 32 | the mark has more than one colour (the trial's: a brand-colour circle with a cream triangle) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.0199 or less, does; the brand colour alone on cream is 4.75 to 1) | — |
+| 32 | the mark has more than one colour (the trial's: a brand-colour circle with a cream triangle) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, compared unrounded, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.01988 or less, does, the exact ceiling being 0.019881; the brand colour alone on cream is 4.75 to 1) | — |
 | 33 | an SVG has a width and a height but no `viewBox`; another has neither | the intake runs | the first is accepted; the second is refused with the reason | — |
 | 34 | the intake has not run yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill records the path with her choices; the intake later copies the file into `brand-handoff`, which it creates, and does not search for it | — |
 | 35 | the intake finishes | the owner opens the manifest, `src/config.ts` and `public/images/og/` | `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours, and the share cards were regenerated with them; if the generator fails part-way, the whole `public/images/og/` folder is restored and she is told the cards still show the old colours and what to run | — |
@@ -508,5 +508,11 @@ the plan said "only the README is written before green" while its own handover f
 `.gitignore` line and package copy wrote earlier. Checking it showed `new-website` never says
 the README is written at "step 4"; what the file does say is that step 4 copies the doc
 templates and fills their slots, so the plan now follows that: docs at step 4, everything
-else after green. Round 4 is the next verification round: a fix that changes a
-requirement owes one.
+else after green. Round 4 (head `ad1e931`, Codex 176 s/74,664 tokens, GLM 138 s/53,099 tokens): 1 BUG fixed
+(the luminance ceiling in scenario 32, rounded the wrong way a second time; the exact value is
+0.019881), 1 RISK fixed (the `create-astro` mapping is now quoted in the plan, with its file and
+lines, and in the evidence pack), 1 NIT fixed (scenario 19 names its remedy), and 1 BUG refuted
+(GLM's claim that `BRAND.md`'s dark table lacks Hairline, Background and Surface rows; it has them
+at `brand.md` lines 46 to 51, and the evidence pack's excerpt stopped at line 48). The fixes
+change an illustrative figure, a quotation and the wording of one remedy, not a requirement, so
+no further round is owed; a single-seat wording pass over the whole plan follows.
