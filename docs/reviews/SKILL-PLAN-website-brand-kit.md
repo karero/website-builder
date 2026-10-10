@@ -94,8 +94,8 @@ Both prompts are tool-neutral: no tool name, no claim about what any tool can do
   values, and point `COMPANY.logo` (and the OG card's optional `LOGO`) at the new file.
 
 **Where the tools are named.** Only in `references/where-to-paste.md`: one line per
-tool as advice ("if you use Claude, open Claude Design and paste the prompt"), a "checked
-on" date, nothing about what a tool does in general. See D3.
+tool as advice ("if you use Claude, ask the assistant for the palette right here, then
+take the logo to Claude Design"), a "checked on" date, nothing about what a tool does in general. See D3.
 
 **Not in this skill:** a tagline (planned separately as `website-tagline`), the font
 choice, generating raster images through an API (`image` skill), the OG card design
@@ -111,7 +111,9 @@ What the owner experiences, with the assistant doing the work between her steps:
    place whose colours she admires (scenario 25).
 3. **Palette.** The skill writes the palette prompt (three palettes). She pastes it into
    the tool she uses, picks one, pastes the hex table back. The intake checks contrast in
-   both themes and names any failing pair (scenarios 7 to 10).
+   both themes and names any failing pair (scenarios 7 to 10). With Claude she can skip
+   the paste: the assistant itself proposes the three palettes right in the conversation,
+   and only the logo goes on to Claude Design (scenario 28).
 4. **Logo.** The skill writes the logo prompt (five variations, palette inside) and tells
    her to check the tool's terms and look for a lookalike (scenario 6). She picks her
    favourite.
@@ -157,6 +159,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 25 | the build reaches the palette step and the owner has not said which colours she likes | the skill is about to write the palette prompt | it asks first: which kinds of colours she likes, which she wants to avoid, a brand or place whose colours she admires; it writes no prompt until she has answered or says "surprise me" | — |
 | 26 | the owner has picked her favourite logo variation, say 3 of 5 | the conversation goes on | the skill tells her to ask the tool for a download (handover) package of that one variation, gives her the words to ask, says where to save it (the `brand-handoff` folder in the project), and waits; the intake does not run before the file is there | — |
 | 27 | the owner says she saved the package but `brand-handoff` is empty | the skill goes on | it says nothing arrived there, repeats where to save it, and offers to read it from a path she names; it never searches her Downloads folder on its own | — |
+| 28 | the owner's assistant is Claude | the palette step | she can ask the assistant itself for the three palettes, in the conversation, each as the `BRAND.md` token table; the intake checks them like any pasted palette (scenarios 7 to 10); the logo prompt then carries the chosen hex values to Claude Design | — |
 
 Scenario 8 must enter through the same call the owner makes (the site's test run), not
 only through the intake script's own check; the script can pass while the site's test fails.
