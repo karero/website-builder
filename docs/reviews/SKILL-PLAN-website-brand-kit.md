@@ -135,10 +135,10 @@ check on a palette she pastes, so that a failing pair is named while she is stil
   and apple-touch backgrounds are chosen by contrast against the mark's colours (3 to 1
   or better), never the mark's own colour (scenario 32; the spike's test mark vanished on
   its own colour).
-- **Writing.** The extended table (D6) is already in `BRAND.md` (written at step 4); the
-  intake writes the same values into all three places in `global.css` that carry colour,
-  and checks that `BRAND.md` and the stylesheet agree: `:root`, `:root[data-theme="dark"]` and the
-  `@media (prefers-color-scheme: dark)` block. `:root` must match the light rows, and the
+- **Writing.** The extended table (D6) is already in `BRAND.md` (written at step 4). The
+  intake writes the same values into all three places in `global.css` that carry colour
+  (`:root`, `:root[data-theme="dark"]` and the `@media (prefers-color-scheme: dark)`
+  block) and checks that `BRAND.md` and the stylesheet agree. `:root` must match the light rows, and the
   two dark blocks must carry identical values that match the dark rows; a test fails when
   either drifts, because the site's a11y test sets the theme through `localStorage` and
   never exercises the media block (scenario 29). Also set from the palette:
@@ -208,8 +208,8 @@ the test exists; a row without a test is a promise, not a fact.
 | # | Given | When | Then | Test |
 |---|-------|------|------|------|
 | 1 | `POSITIONING.md` is filled (and `STORY.md`, if the owner chose it), and the interview has not asked about a logo or colours | the build reaches the brand step (2b), right after positioning and before the content guide | the owner is asked once, in plain words, which of a logo and brand colours she already has (both, only the logo, only the colours, neither), and for each part she lacks whether she wants help; the answers are held and recorded in the project README when `new-website` §3 writes it; for a part she does not want help with, nothing more is said | — |
-| 2 | the owner has a logo and/or colours and wants them used | the build goes on | no prompt is written for that part; her files or values are held for the intake, which runs after the site is scaffolded and green | — |
-| 3 | the owner said No during the build | months later they say "I need a logo" | the skill runs on the existing site, reading its `POSITIONING.md` and `BRAND.md` | — |
+| 2 | the owner has a logo and/or colours and wants them used | the build goes on | no prompt is written for that part; the path of her file (or her values) is recorded with her choices and held for the intake, which runs after the site is scaffolded and green | — |
+| 3 | the owner wanted no help with a logo or colours during the build | months later she says "I need a logo" | the skill runs on the existing site, reading its `POSITIONING.md` and `BRAND.md` | — |
 | 4 | the positioning names the Leipzig bakery's audience, and the owner said she likes warm earthy colours and wants no green | the palette prompt is written | it carries the audience and those likes and dislikes, asks for three different palettes each as the `BRAND.md` token table in hex, and contains no tool name | — |
 | 5 | the owner chose a palette | the logo prompt is written | it holds the chosen hex values, asks for five variations of an SVG mark, each reading at 16 px and each with a one-colour version, and says what to return if the tool cannot draw a vector | — |
 | 6 | the owner is handed the logo prompt | they read the text around it | one line says: check the tool's terms for commercial use and look for a lookalike before relying on the mark; not legal advice | — |
