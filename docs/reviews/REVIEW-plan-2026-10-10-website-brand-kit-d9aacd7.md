@@ -121,3 +121,25 @@ Codex at its own effort 314 s/111,150 tokens; GLM 5.3 on melious.ai 206 s/52,364
 | V6 | RISK | glm | 5 | An owner's own palette cannot supply the rows D6 adds (dark accent, link, soft background), so BRAND.md's rows stay empty or the starter's values sit beside hers | FIXED: scenario 9 covers any row D6 adds, not only the dark theme: the assistant proposes, the check shows ratios, she confirms | — |
 | V7 | NIT | glm | 5 | Scenario 35 does not show the `LOGO` and `COMPANY.logo` setting that W1 added | FIXED: scenario 35 names them, the order, and `generate_og_cards.py` among the files opened | — |
 | V8 | NIT | glm | 5 | A JPG could be kept as `logo.png` with JPEG bytes | FIXED: the raster is converted to PNG when kept | — |
+
+## Round 6 (verification), head `c906f25`, 2026-10-10
+
+Codex at its own effort 271 s/93,496 tokens; GLM 5.3 on melious.ai 191 s/54,525 tokens. Codex 3 BUG, 3 RISK; GLM 2 BUG, 3 NIT. Distinct: **3 BUG, 3 RISK, 3 NIT**, all fixed in the plan. Both seats confirmed V1, V2 and V5 to V8, T4, P9 and P31. Distinct findings by round: 35, 10, 6, 5, 8 (the closing read), 8, 9. The count has stopped falling because each branch added late brings its own interactions with the rest: about half of the findings of rounds 5 and 6 concern the raster logo branch, which was not asked for and was added to answer a round-1 finding about owners who have only a PNG or PDF logo.
+
+| id | Sev | Source | Round | Finding — one line | Status | Evidence |
+|---|---|---|---|---|---|---|
+| X1 | BUG | codex, glm | 6 | The operations table assigns share-card regeneration to the palette part only, so a logo-only run sets `LOGO` and never regenerates the cards, and nobody is told | FIXED: regeneration, rollback and the BRAND.md-stylesheet agreement check sit in a third row, 'either part ran'; scenario 39 states the regeneration | — |
+| X2 | BUG | codex, glm | 6 | The raster fallback (best-contrast background, no one-colour version) contradicts scenarios 15 and 32 and the preview paragraph, which still require a one-colour version or a guaranteed 3 to 1 | FIXED: the raster's four differences are stated once under Forms of input and scenarios 15, 32 and the preview paragraph refer there | — |
+| X3 | BUG | codex | 6 | Scenario 38 says `COMPANY.logo` stays 'unset'; the starter sets it to `/images/logo.png` | FIXED: it stays as the starter has it, a path to a file that does not exist yet; `LOGO` stays unset | `src/config.ts:34` |
+| X4 | RISK | codex | 6 | A raster whose pixels are all partly transparent has no opaque sample, so no colour or background can be assessed | FIXED: colours are sampled from pixels more than half opaque; an image with none is refused with the reason (scenario 12) | codex reproduced a uniformly half-transparent PNG with zero opaque pixels |
+| X5 | RISK | codex | 6 | Logo-only intake assumes the starter's colours although scenario 3 covers existing, customised sites | FIXED: the palette in force is hers or chosen, else the site's current palette read from `global.css` and `BRAND.md` (the starter's own only on a fresh scaffold); scenario 39 | — |
+| X6 | RISK | codex | 6 | The unconditional missing-`sharp` stop also blocks a palette-only run, which renders nothing | FIXED: the preflight applies to the operations that render, which are the logo ones (scenario 19, the table's note) | — |
+| X7 | NIT | glm | 6 | The raster master is recorded once as `images/logo.png` and once as `public/images/logo.png` | FIXED: one form, `public/images/logo.png` | — |
+| X8 | NIT | glm | 6 | 'At least 512 px' does not say which side, and the square master's size is unstated | FIXED: the shorter side at least 512 px; the square is padded on the longer side and scaled to 512 by 512 | — |
+| X9 | NIT | glm | 6 | Rollback and the BRAND.md-stylesheet agreement check are in no row of the parts table | FIXED: the 'either part ran' row (X1) | — |
+
+Options for what follows, recorded for the maintainer (the review cannot decide them):
+
+- **A. Run round 7** (Codex and GLM, full effort, about ten minutes). It will probably find more interactions of the same kind; each so far has been real.
+- **B. Simplify, then run round 7.** Take the raster branch out of version 1: a PNG, JPG or PDF is refused with a plain explanation and what to ask the tool for, and raster support waits for a later release. That removes about half of the recent findings' surface. Against it: owners who already have only a PNG logo are the likeliest 'I have a logo' case, so their path ends in a request to redraw it.
+- **C. Close the plan gate here.** All BUGs of rounds 1 to 6 are fixed, but round 6's fixes are not re-verified, and the classes still producing findings are branch interactions in features not yet built, which tests at step 4 and the High gate on the finished skill (step 7) will force into precision. The trail would say the gate was stopped by the maintainer's decision after round 6.
