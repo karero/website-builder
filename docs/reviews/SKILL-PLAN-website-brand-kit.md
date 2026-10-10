@@ -9,7 +9,7 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ drafted, not reviewed | branch `feat/brand-kit-plan`, unpushed |
-| 2 | Close the open decisions below (D1 to D4) | ▶ D1 to D5 all settled or answered by 2026-10-10; two details open: the `brand-handoff` folder name, and how files leave the project (waits for the handoff zip) | D4 row: PR #242, branch `docs/buglog-missing-icons` (`12a4ac5`; Light gate, 2 rounds, 3 findings; open) |
+| 2 | Close the open decisions below (D1 to D4) | ▶ D1 to D5 all settled or answered by 2026-10-10; two details open: the `brand-handoff` folder name, and how files leave the project (waits for the handoff zip) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ✅ done 2026-10-10, on one Mac only | "Spike result" below; the throwaway script is not in the repo |
 | 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
 | 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
