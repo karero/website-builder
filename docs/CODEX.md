@@ -42,8 +42,8 @@ $new-website
 ```
 
 Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay into a
-new folder for the site inside your websites folder, and sequences the rest of the
-`website-*` skills.
+new folder for the site inside the folder you opened Codex in, and sequences the rest of
+the `website-*` skills.
 
 > With a large skill set, Codex itself notes it may not surface every skill automatically
 > when context is tight. Not a breakage — invoke any skill by name: `$og-images`, `$seo-audit`, etc.

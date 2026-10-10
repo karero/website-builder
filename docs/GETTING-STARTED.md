@@ -48,17 +48,20 @@ Your website will live in a folder on your computer — a container for its file
 folders you already know. We suggest one called **Websites**, inside your **Documents**
 folder. You can open Documents from your computer's file manager (Finder on a Mac, File
 Explorer on Windows), so your site stays easy to find. If you already have a folder where
-you keep your projects, use that one instead — it's yours to choose. If your Documents
-folder syncs to iCloud or OneDrive, pick a folder outside it, for example a Websites folder
-in your home folder. Your backup is your GitHub account, so you don't need iCloud or
-OneDrive for that. It only protects you when it's properly synced: before you stop for the
-day, ask your assistant to make sure GitHub has your latest work.
+you keep your projects, use that one instead — it's yours to choose.
+
+If your Documents folder syncs to iCloud or OneDrive, pick a folder outside it, for example
+a Websites folder in your home folder (the one with your name on it). Your site's files are
+backed up on GitHub, in your own account — you set that up with your assistant — so you
+don't need iCloud or OneDrive for that. That backup only protects you when GitHub is
+properly synced: before you stop for the day, ask your assistant to make sure GitHub has
+your latest work.
 
 This folder can hold as many websites as you like: each new site gets its own folder inside
 it, so it doesn't need to be empty. Please don't use Downloads — things get lost there.
 
-Don't have it yet? Open Documents, make a new folder, and name it **Websites**. (Stuck?
-Start your assistant as in step 2 and ask it to make the folder for you.)
+Don't have it yet? Make a new folder called **Websites** in the place you chose above.
+(Stuck? Start your assistant as in step 2 and ask it to make the folder for you.)
 
 ### 2. Open your AI assistant in your websites folder
 
@@ -79,16 +82,18 @@ Copy this into the chat and send it:
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
 > actually needed. Then install the website-builder skills. My websites live in one
-> folder: ask me which one (suggest Documents/Websites unless I already keep my projects
-> somewhere else, or my Documents folder syncs to iCloud or OneDrive — then suggest a
-> Websites folder in my home folder). Tell me when to restart or reopen you in that folder
-> so the skills load, then start `new website` there. When the site has its own folder,
-> tell me where it is on my computer (its full path).
+> folder: check which folder you're open in and ask me whether that's it; if not, ask me
+> which one it is (suggest Documents/Websites unless I already keep my projects somewhere
+> else, or my Documents folder syncs to iCloud or OneDrive — then suggest a Websites
+> folder in my home folder). Tell me when to restart or reopen you in that folder so the
+> skills load, then start `new website` there. When the site has its own folder, tell me
+> where it is on my computer (its full path).
 
 The assistant will take it from there: it checks what's on your computer, installs the
 website-builder skills, and asks your approval before doing anything that changes your
-system. If it asks which folder, tell it the one you chose in step 1. If you land in an
-empty chat after it restarts, type `new website`.
+system. If it asks whether the folder it's in is your websites folder, say yes — it's the
+one you chose in step 1. If you land in an empty chat after it restarts, type
+`new website`.
 
 ### 4. Answer its questions
 

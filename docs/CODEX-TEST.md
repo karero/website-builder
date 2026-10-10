@@ -57,7 +57,8 @@ commands.
 **Expected:** `.gitignore`, `SETUP.md`, `PUBLISHING.md`, `AGENTS.md`, `CLAUDE.md`, and the
 bundled sibling skills copy into the new project with **no "No such file or directory"**
 errors. The project is a new folder inside your websites folder, everything that was
-already in the websites folder is untouched, and Codex can tell you the new folder's path.
+already in the websites folder is untouched, and the path Codex gives when you ask for it
+points at the new folder.
 
 ### 5b. Generated project is Codex-self-contained
 The scaffold derives `$PROJECT_SKILLS_DIR` from `$SKILLS_ROOT`. If you installed via Codex
@@ -73,8 +74,8 @@ ls <site>/.agents/skills   # <site> = the new folder inside your websites folder
 
 ### 6. (Optional) build the generated site
 ```bash
-cd <site>                  # the new folder inside your websites folder
-npm install && npm run build && npm test
+cd <site> && npm install && npm run build && npm test
+# <site> = the new folder inside your websites folder
 ```
 **Expected:** green (the bundled Playwright gate: a11y, seo, positioning, etc.).
 
