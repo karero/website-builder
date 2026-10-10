@@ -63,8 +63,9 @@ project with **no "No such file or directory"** errors. The project is a new fol
 your websites folder, everything that was already in the websites folder is untouched, and
 the path Antigravity gives when you ask for it points at the new folder.
 `.claude/settings.json` is Claude Code-only and is skipped under Antigravity (it uses its
-own sandbox approval model). The bundled skills land in `$PROJECT_SKILLS_DIR` — `.agents/skills` for an Antigravity install
-(`export PROJECT_SKILLS_DIR=.agents/skills` to force it).
+own sandbox approval model). The bundled skills land in `$PROJECT_SKILLS_DIR` —
+`.agents/skills` for an Antigravity install (`export PROJECT_SKILLS_DIR=.agents/skills`
+to force it).
 
 ### 6. (Optional) build the generated site
 ```bash
