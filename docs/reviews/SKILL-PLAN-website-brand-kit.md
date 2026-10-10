@@ -4,15 +4,15 @@ Requirements record for a skill that does not exist yet. Where this plan and the
 files disagree, the files win. Names of sites and people stay out of this public repo on
 purpose; the business in the scenarios is made up.
 
-## Status — 2026-10-10 · grounded on origin/main 938e625; claims about the repo re-checked against 7c22680
+## Status — 2026-10-10 · branch base origin/main 938e625; claims about the repo re-checked on 2026-10-10 against origin/main 7c22680, the newest tip then
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Plan and scenarios (this file) | ▶ drafted, not reviewed | branch `feat/brand-kit-plan`, unpushed |
-| 2 | Close the open decisions below (D1 to D4) | ▶ D1 to D5 all settled or answered by 2026-10-10; two details open: the `brand-handoff` folder name, and how files leave the project (waits for the handoff zip) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
-| 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ✅ done 2026-10-10, on one Mac only | "Spike result" below; the throwaway script is not in the repo |
-| 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
-| 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
+| 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, round 1 answered and handled, round 2 (verification) next | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
+| 2 | Close the open decisions below | ▶ D1 to D4 settled; D5 settled, its refinement after review proposed; D6 (the `BRAND.md` table) proposed; D7 (intake language, zip reader) open until step 4; two details open: the `brand-handoff` folder name, and how files leave the design project (waits for the handoff zip) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
+| 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26 (the starter pins 24). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
+| 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7) | ⏸ not started | — |
+| 5 | `SKILL.md`, the three prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
 | 6 | Hooks into the other skills (listed under "Hooks") | ⏸ not started | — |
 | 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ⏸ not started | — |
 | 8 | Evals, with and without the skill, as `website-story` had | ⏸ not started | — |
@@ -27,17 +27,21 @@ content. Build after #212 merges and v0.31 is cut.
 ## Why
 
 The suite decides what a site says (`website-positioning`), how the home page tells it
-(`website-story`) and how it is tested (`website-qa`). It leaves two things to the owner,
-and both are hard for someone who is not a designer:
+(`website-story`) and how it is tested (`website-qa`). This plan takes on two things the
+suite leaves to the owner, and both are hard for someone who is not a designer:
 
-1. **Colours.** `BRAND.md` has a palette table with a fixed set of tokens, and every pair
-   must pass WCAG AA in both themes. No skill in the suite guides the choice of colours:
+1. **Colours.** `BRAND.md` has a palette table with a fixed set of tokens (which lacks rows
+   the stylesheet needs, D6), and every pair must pass WCAG AA in both themes. No skill in the suite guides the choice of colours:
    the template asks only for the values and one "palette mood" line (searched on
    origin/main 2026-10-10 for colour-choosing guidance). A palette that fails contrast
    shows up as a red `a11y.spec.ts` at step 7.
 2. **A logo.** The starter links `/favicon.svg`, `/favicon.ico`, `/apple-touch-icon.png`,
    `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png` and `COMPANY.logo`
-   (`/images/logo.png`). It ships none of them. The starter's README (setup step 4) says
+   (`/images/logo.png`). The starter template ships none of them. The scaffold under it
+   (`create-astro` 5.2.6, `--template minimal`, run in a scratch folder on 2026-10-10;
+   that this is the option the prompts call Empty is assumed) adds its own `favicon.svg`
+   and `favicon.ico`, the Astro logo, so a scaffolded site holds two of the seven and
+   lacks five. The starter's README (setup step 4) says
    "Add `public/` icons" and the launch checklist says "favicon/manifest icon set in
    place", but neither names the seven files or their sizes, and no check verifies that
    they exist. Checked on origin/main 2026-10-09: `Base.astro:147-149`,
@@ -52,7 +56,9 @@ site.
 
 ## Shape
 
-Two halves, one skill, optional, never run unasked.
+Two halves, one skill, optional, never run unasked. And two moments: the owner's choices
+are made at step 2b, before the project exists; everything that writes into the site waits
+until the project is scaffolded and its tests are green (D5).
 
 **Prompt half (judgment).** Three prompts, in the language the owner writes in. The
 palette and logo prompts are written from `POSITIONING.md` (and `STORY.md` if the owner
@@ -60,9 +66,8 @@ chose it) and from what the owner says she likes, asked first (see "The conversa
 
 - **Palette prompt.** Audience, category and what makes the business different come from
   `POSITIONING.md`; the colours the owner likes and wants to avoid come from her answers.
-  It asks for THREE different palettes, each as exactly the token table in `BRAND.md`
-  (primary, accent, and six tokens each for the light and the dark theme) in hex, so the
-  chosen one can be pasted back without reading.
+  It asks for THREE different palettes, each as exactly the token table in `BRAND.md` as
+  extended in D6, in hex, so the chosen one can be pasted back without reading.
 - **Logo prompt.** Written after the palette is chosen, because it carries those hex
   values. It asks for FIVE variations of a simple vector mark (SVG), each with a
   one-colour version, each still reading at 16 px, with no text that depends on a font.
@@ -71,33 +76,76 @@ chose it) and from what the owner says she likes, asked first (see "The conversa
   It asks the tool for a download (handover) package of that one variation: its SVG
   files and a README saying what each file is.
 
-Both prompts are tool-neutral: no tool name, no claim about what any tool can do.
+All three prompts are tool-neutral: no tool name, no claim about what any tool can do.
 
-**Intake half (code, not an LLM).** Deterministic, with tests:
+**Intake half (code, not an LLM).** Deterministic, with tests. It runs after the site is
+scaffolded and `npm run build && npm test` is green (`new-website` §3 step 5), never
+before (D5). Its language and its zip reader are D7.
 
-- Contrast check of the returned palette against the same thresholds `a11y.spec.ts` uses
-  (4.5 for text, 3 for large text and UI), in both themes, before anything is written.
-  A failing pair is named; nothing is derived or "fixed" silently.
-- SVG safety check, because the file comes from outside and is served from the site:
-  refuse `<script>`, event attributes, `<foreignObject>` and references to other hosts.
-  The mark may arrive as `.svg` files, as pasted SVG code, inside an HTML page, or in a
-  zip of SVG files with a README (see D3); the check is the same for all four. A zip is
-  read for its `.svg` entries only, and an entry whose path leaves the folder is refused.
-- Only the variation the owner picked is checked and installed. The chosen SVG is
-  installed as `public/favicon.svg` and is the master any later run starts from
-  (scenario 16).
-- Colour check of the mark against the chosen palette: colours outside it are listed and
-  the owner decides; nothing is recoloured silently.
-- A 16 px and a 32 px preview of the chosen mark for the owner to look at. Whether the
-  mark is legible is the owner's call, not the script's.
-- Derive the seven files from one master SVG, at the sizes the starter links, the
-  maskable one with its safe zone.
-- Write the tokens into `BRAND.md` and the token block of `global.css` with the same hex
-  values, and point `COMPANY.logo` (and the OG card's optional `LOGO`) at the new file.
+- **Contrast.** WCAG AA's thresholds, as `BRAND.md` states them (4.5 for text, 3 for
+  large text and UI components), over a named pair matrix taken from the stylesheet's
+  actual foreground and background uses, in both themes, before anything is written.
+  A failing pair is named; nothing is written. The site's `a11y.spec.ts` is axe-core on
+  rendered pages: a second check that sees only what those pages show, and it carries no
+  thresholds of its own.
+- **SVG safety.** The file comes from outside and is served from the owner's own address.
+  Parse it as XML, namespace-aware, and accept only drawing elements and attributes on an
+  allowlist. Refuse: a DOCTYPE or entities; any `href` that is not a same-document
+  `#fragment`; `<script>`, event attributes, `<foreignObject>`, `<text>`; CSS `@import`
+  and `url()` outside a fragment; `<?xml-stylesheet?>`; animation elements that set an
+  href; anything over a size cap. Render only from the cleaned text held in memory, never
+  from a file path: measured on 2026-10-10, librsvg followed `<image>`, `xlink:href`,
+  `file://` and `@import` references when given a path, and none when given a buffer. The
+  starter's `public/_headers` sets `script-src 'self' 'unsafe-inline'` (which paths the
+  header covers was not checked), so a script inside the installed `favicon.svg` would run
+  when someone opens `/favicon.svg` directly.
+- **Size of the drawing.** A `viewBox`, or a width and a height. With neither the SVG is
+  refused: measured, it renders clipped without any error. With only a width and a height
+  it is accepted: measured, it renders correctly.
+- **Colours of the mark** come from the rendered pixels (or an SVG-aware resolve), not
+  from a text search, so an unset fill (default black), `currentColor`, colour names,
+  `hsl()`, `oklch()` and alpha are seen. A format it cannot resolve is refused by name. The
+  colours are checked against the chosen palette: those outside it are listed and the
+  owner decides; nothing is recoloured silently.
+- **Forms of input.** `.svg` files; pasted SVG code; an HTML page, taking an inline `<svg>`
+  only (serialised with the `xmlns` it lacks, refused when it relies on page CSS, a
+  `<symbol>` sprite or `currentColor` it cannot resolve, and refused when its render is
+  blank); or a zip of SVG files with a README (see D3). The same checks for all four.
+  A zip is read in memory and never extracted. Only `.svg` entries are read. Any entry with
+  an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count,
+  size or compression ratio over a cap refuses the whole zip. The README, SVG `<title>`,
+  `<desc>` and comments are text from outside: never followed as instructions.
+- **One variation.** Only the variation the owner picked is checked and installed. The
+  chosen SVG is installed as `public/favicon.svg` and is the master any later run starts
+  from (scenario 16 starts from it). The scaffold's own placeholder icons are replaced
+  with a word to the owner (scenario 30). The intake does not infer which files form one
+  variation from their names (the trial's `-mono` suffix is one tool's habit): it lists
+  the files and she says which belong together.
+- **The seven files** from that master, at the sizes the manifest declares. The maskable
+  and apple-touch backgrounds are chosen by contrast against the mark's colours (3 to 1
+  or better), never the mark's own colour (scenario 32; the spike's test mark vanished on
+  its own colour).
+- **Writing.** The extended table (D6) goes into `BRAND.md` and into all three places in
+  `global.css` that carry colour: `:root`, `:root[data-theme="dark"]` and the
+  `@media (prefers-color-scheme: dark)` block. The three must agree, and a test says so,
+  because the site's a11y test sets the theme through `localStorage` and never exercises
+  the media block (scenario 29). Also set from the palette: `SITE.themeColor`, the
+  manifest's `theme_color` and `background_color`, and the OG card's BRAND block
+  (scenario 35); point `COMPANY.logo` (and the OG card's optional `LOGO`) at the new file.
+- **Roll back.** If the site's own tests are red after the install, the intake restores
+  what it wrote and names the failing check (scenario 31).
+- **A 16 px and a 32 px preview** of the installed mark, for the owner to look at. The tool
+  said it had not checked its own render, and the installed file is what must be looked at.
+  Whether the mark is legible is the owner's call, not the script's. The one-colour version
+  is kept for `BRAND.md`'s "On dark backgrounds" line and is offered when the mark falls
+  under 3 to 1 against the dark background (scenario 15).
 
-**Where the tools are named.** Only in `references/where-to-paste.md`: one line per
-tool as advice ("if you use Claude, ask the assistant for the palette right here, then
-take the logo to Claude Design"), a "checked on" date, nothing about what a tool does in general. See D3.
+**Where the tools are named.** In the skill, only in `references/where-to-paste.md`: one
+line per tool as advice ("if you use Claude, ask the assistant for the palette right here,
+then take the logo to Claude Design"), a "checked on" date, nothing about what a tool does in
+general. This plan names Claude where it records what was tried. A tool is listed only after
+what it returns has been seen: Claude Design's logo output has been seen (D3); its handoff
+package has not. See D3.
 
 **Not in this skill:** a tagline (planned separately as `website-tagline`), the font
 choice, generating raster images through an API (`image` skill), the OG card design
@@ -105,82 +153,100 @@ choice, generating raster images through an API (`image` skill), the OG card des
 
 ## The conversation, in order
 
-What the owner experiences, with the assistant doing the work between her steps:
+What the owner experiences, with the assistant doing the work between her steps. Steps 1
+to 5 happen at step 2b, before the project exists; step 6 happens later.
 
-1. **Do you already have a logo and brand colours?** Yes: the intake with her own files
-   (scenario 2). No: go on.
+1. **Which of the two do you already have, a logo and brand colours?** Both, only the logo,
+   only the colours, or neither. For each part she lacks: "Shall I help with it?" What she
+   has is held for the intake (scenario 2); if her colours come without dark-theme values,
+   the skill proposes them and she confirms (scenario 9). A part she does not want help
+   with: nothing more is said (scenario 1).
 2. **What kinds of colours do you like?** Which she likes, which to avoid, a brand or
    place whose colours she admires (scenario 25).
 3. **Palette.** The skill writes the palette prompt (three palettes). She pastes it into
-   the tool she uses, picks one, pastes the hex table back. The intake checks contrast in
-   both themes and names any failing pair (scenarios 7 to 10). With Claude she can skip
-   the paste: the assistant itself proposes the three palettes right in the conversation,
-   and only the logo goes on to Claude Design (scenario 28).
+   the tool she uses, picks one, pastes the hex table back. The intake's contrast check
+   names any failing pair (scenarios 7 to 10). With Claude she can skip the paste: the
+   assistant itself proposes the three palettes right in the conversation, and only the
+   logo goes on to Claude Design (scenario 28).
 4. **Logo.** The skill writes the logo prompt (five variations, palette inside) and tells
    her to check the tool's terms and look for a lookalike (scenario 6). She picks her
    favourite.
 5. **Handover.** The skill gives her the words to ask the tool for a download package of
-   that one variation, and says where to save it (scenarios 26, 27).
-6. **Intake.** The skill checks the SVG for safety and colours, shows the mark at 16 and
-   32 px for her to look at, then makes the seven files, writes the tokens into
-   `BRAND.md` and `global.css`, and runs the site's own a11y test (scenarios 11 to 15, 21
-   to 23).
+   that one variation, and says where to save it (scenarios 26, 27, 34).
+6. **Later, once the site is scaffolded and its tests are green: the intake.** It checks
+   the SVG for safety and colours, shows the mark at 16 and 32 px, makes the seven files,
+   writes the tokens, and runs the site's tests again; red means rollback (scenarios 11 to
+   15, 21 to 23, 29 to 35). The answers from step 1 are recorded in the project README when
+   `new-website` §3 writes it.
 
 ## Scenarios
 
-Written in the owner's words. The business is made up: a bakery in Leipzig that sells
+Written as given, when, then, in plain words where an owner would read them; technical terms stay in the cells that name a file or a check. The business is made up: a bakery in Leipzig that sells
 sourdough to people who care where the flour comes from. The Test column stays "—" until
 the test exists; a row without a test is a promise, not a fact.
 
 | # | Given | When | Then | Test |
 |---|-------|------|------|------|
-| 1 | `POSITIONING.md` is filled (and `STORY.md`, if the owner chose it), and the interview has not asked about a logo or colours | the build reaches the brand step, right after positioning and before the content guide | the owner is asked once, in plain words: "Do you already have a logo and brand colours?"; the answer is recorded in the project README; if they want no help, nothing more is said | — |
-| 2 | the owner answers Yes, they have them | the build goes on | no prompt is written; the skill goes straight to the intake with their files | — |
+| 1 | `POSITIONING.md` is filled (and `STORY.md`, if the owner chose it), and the interview has not asked about a logo or colours | the build reaches the brand step (2b), right after positioning and before the content guide | the owner is asked once, in plain words, which of a logo and brand colours she already has (both, only the logo, only the colours, neither), and for each part she lacks whether she wants help; the answers are held and recorded in the project README when `new-website` §3 writes it; for a part she does not want help with, nothing more is said | — |
+| 2 | the owner has a logo and/or colours and wants them used | the build goes on | no prompt is written for that part; her files or values are held for the intake, which runs after the site is scaffolded and green | — |
 | 3 | the owner said No during the build | months later they say "I need a logo" | the skill runs on the existing site, reading its `POSITIONING.md` and `BRAND.md` | — |
 | 4 | the positioning names the Leipzig bakery's audience, and the owner said she likes warm earthy colours and wants no green | the palette prompt is written | it carries the audience and those likes and dislikes, asks for three different palettes each as the `BRAND.md` token table in hex, and contains no tool name | — |
 | 5 | the owner chose a palette | the logo prompt is written | it holds the chosen hex values, asks for five variations of an SVG mark, each reading at 16 px and each with a one-colour version, and says what to return if the tool cannot draw a vector | — |
 | 6 | the owner is handed the logo prompt | they read the text around it | one line says: check the tool's terms for commercial use and look for a lookalike before relying on the mark; not legal advice | — |
 | 7 | a pasted palette has muted text on the dark background at 3.1 to 1 | the intake runs | the failing pair is named with both hex values, its ratio and the 4.5 it needs; `global.css` and `BRAND.md` are untouched | — |
-| 8 | a pasted palette passes every pair in both themes | the intake runs | `BRAND.md` and the `global.css` token block carry the same hex values, and the site's own `a11y.spec.ts` stays green, run the way the owner runs it | — |
-| 9 | a pasted palette has the light theme only | the intake runs | it asks for the dark tokens; it does not invent them | — |
-| 10 | a colour arrives as `#FFF` or `rgb(255, 255, 255)` | the intake runs | it is read as `#ffffff` everywhere it is used, by one helper | — |
+| 8 | a pasted palette passes every pair of the matrix in both themes, and the site's tests were green before the install | the intake runs | `BRAND.md` and the three colour places of `global.css` carry the same values, and the site's own tests are green afterwards, run the way the owner runs them | — |
+| 9 | the palette has the light theme only (a pasted one, or the owner's own colours) | the intake runs | the skill proposes the dark values, shows them with their ratios, and asks her to confirm or change them; nothing is written until she does | — |
+| 10 | a colour arrives as `#FFF`, `rgb(255, 255, 255)`, a colour name, `hsl()` or `oklch()` | the intake runs | each is read as the same six-digit hex by one helper, or refused by name when it cannot be resolved (a colour with alpha is refused by name) | — |
 | 11 | an SVG with a `viewBox` arrives | the intake runs | the seven files exist at the sizes the starter links, the manifest icons are 192, 512 and 512 maskable, and the 32 px icon is not blank | — |
-| 12 | a PNG arrives instead of an SVG | the intake runs | it builds what a raster can honestly give, says plainly which files it could not make (no `favicon.svg`), and asks for an SVG | — |
-| 13 | an SVG contains `<script>`, an `onload` attribute or a link to another host | the intake runs | it is refused with the reason, and nothing is copied into `public/` | — |
-| 14 | an SVG draws its name as text in a font the visitor will not have | the intake runs | it warns that the text should be outlined, and does not copy it as it is | — |
+| 12 | a PNG or JPG arrives instead of an SVG, or a PDF | the intake runs | for a PNG or JPG it builds what a raster can honestly give, says plainly which files it could not make (no `favicon.svg`), and asks for an SVG; for a PDF it says it cannot use it and asks for an SVG or a PNG | — |
+| 13 | an SVG contains `<script>`, an event attribute, a DOCTYPE or entity, a CSS `@import`, or a link that is not a `#fragment` (another host, a local path, `data:`, `javascript:`) | the intake runs | it is refused with the reason, nothing is copied into `public/`, and the file was only ever parsed and rendered from memory, never from a path | — |
+| 14 | an SVG contains a `<text>` element | the intake runs | it is refused with: ask the tool to turn the letters into shapes | — |
 | 15 | the mark is dark on a dark theme background | the intake runs | it names the theme where the mark falls under 3 to 1 against `--bg` | — |
-| 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing files that already exist | — |
-| 17 | an HTML file arrives with one inline `<svg>` | the intake runs | the SVG is taken out and goes through the same checks as a pasted one (scenarios 13 to 15) | — |
+| 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing the icon files it installed last time, and starts from `public/favicon.svg` | — |
+| 17 | an HTML file arrives with one inline `<svg>` that has no `xmlns`, or that relies on page CSS, a `<symbol>` sprite or `currentColor` | the intake runs | it takes the SVG out and serialises it with the `xmlns` where it can; it refuses the ones it cannot resolve and any whose render is blank; the checks are the same as for a pasted one (scenarios 13 to 15) | — |
 | 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | — |
-| 19 | `sharp` is not installed on the site | the intake runs | it stops before writing anything and says what to run | — |
+| 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake runs, after the scaffold's install | it stops before writing anything and says what to run | — |
 | 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | — |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | — |
-| 22 | a zip arrives in `brand-handoff` holding SVG files and a README | the intake runs | it reads only the `.svg` entries, ignores the rest, refuses any entry whose path leaves the folder, lists the variations and asks which one | — |
+| 22 | a zip arrives in `brand-handoff` holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries; an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
 | 23 | the owner has picked a mark | the intake runs | it shows the mark at 16 and 32 px for the owner to look at, and does not decide for them whether it is legible | — |
-| 24 | `BRAND.md` does not exist yet, because the brand step runs right after positioning | the intake runs | it starts `BRAND.md` from the template and fills the palette and logo parts; the scaffold step later does not overwrite it | — |
+| 24 | the owner made her choices at step 2b, and the site is scaffolded later | the intake runs after `npm run build && npm test` is green | it fills the palette and logo parts of the `BRAND.md` the scaffold copied; nothing from step 2b was written into the site before then, so the scaffold's copy of the doc templates overwrites nothing | — |
 | 25 | the build reaches the palette step and the owner has not said which colours she likes | the skill is about to write the palette prompt | it asks first: which kinds of colours she likes, which she wants to avoid, a brand or place whose colours she admires; it writes no prompt until she has answered or says "surprise me" | — |
-| 26 | the owner has picked her favourite logo variation, say 3 of 5 | the conversation goes on | the skill tells her to ask the tool for a download (handover) package of that one variation, gives her the words to ask, says where to save it (the `brand-handoff` folder in the project), and waits; the intake does not run before the file is there | — |
+| 26 | the owner has picked her favourite logo variation, say 3 of 5 | the conversation goes on | the skill tells her to ask the tool for a download (handover) package of that one variation, gives her the words to ask, says where to save it (the `brand-handoff` folder of the project once it exists, otherwise anywhere she likes, and then she tells the assistant the path), and waits; the intake does not run before the file is there | — |
 | 27 | the owner says she saved the package but `brand-handoff` is empty | the skill goes on | it says nothing arrived there, repeats where to save it, and offers to read it from a path she names; it never searches her Downloads folder on its own | — |
 | 28 | the owner's assistant is Claude | the palette step | she can ask the assistant itself for the three palettes, in the conversation, each as the `BRAND.md` token table; the intake checks them like any pasted palette (scenarios 7 to 10); the logo prompt then carries the chosen hex values to Claude Design | — |
+| 29 | the intake writes the palette | it finishes | `:root`, `:root[data-theme="dark"]` and the `@media (prefers-color-scheme: dark)` block of `global.css` carry the same dark values, and a test fails when they differ | — |
+| 30 | `public/favicon.svg` and `public/favicon.ico` are the scaffold's own default (the Astro logo) | the intake runs | it tells her they are the scaffold's placeholders and replaces them; any other icon file already there makes it ask (scenario 16) | — |
+| 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, names the failing check, and leaves her other files untouched | — |
+| 32 | the mark's main colour is the brand colour | the maskable and apple-touch icons are made | their background is chosen so the mark stays at 3 to 1 or better against it (here the cream), never the mark's own colour | — |
+| 33 | an SVG has a width and a height but no `viewBox`; another has neither | the intake runs | the first is accepted; the second is refused with the reason | — |
+| 34 | the site folder does not exist yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill notes it, copies it into `brand-handoff` once the site exists, and does not search for it | — |
+| 35 | the intake finishes | the owner opens the manifest and `src/config.ts` | `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours | — |
 
-Scenario 8 must enter through the same call the owner makes (the site's test run), not
-only through the intake script's own check; the script can pass while the site's test fails.
+Scenario 8 must enter through the same call the owner makes (the site's test run), after a
+green run before the install, not only through the intake script's own check; the script can
+pass while the site's test fails, and a red site before the install says nothing about the
+palette.
 
 ## Decisions taken
 
 1. **Optional, asked once, never run unasked.** The ask is an interview question right
-   after positioning (and the story, if chosen), before step 3 (D5), not a pitch: "Do you already have a logo and brand colours?" Yes means the
-   intake with the owner's files; No means an offer to write the prompts. The offer's
-   wording lives once in the skill and `new-website` reads it from there, as in
+   after positioning (and the story, if chosen), before step 3 (D5), not a pitch: which of
+   a logo and brand colours she already has, and for what she lacks, whether she wants
+   help. Her answer is what starts anything; "I have them" starts only the intake, later.
+   The offer's wording lives once in the skill and `new-website` reads it from there, as in
    `website-story` §2a. Today the interview asks nothing about a logo, colours or a
-   tagline (checked on origin/main 2026-10-09).
+   tagline (checked on origin/main 2026-10-10: the interview section, lines 75 to 183,
+   mentions none of them).
 2. **Palette before logo.** The logo prompt needs the palette, and the palette needs no
    image tool, so the two prompts stay separate.
 3. **The prompt is judgment, the intake is code.** Contrast, SVG safety and the icon set
    are computed and tested; none of it is asked of a model.
 4. **Never silent.** A palette or a logo that cannot be used is named and sent back. The
-   skill never nudges a colour to make a pair pass.
-5. **Template co-located in the skill**, not in `new-website/templates/`
+   skill never nudges a colour to make a pair pass. A value it proposes (dark-theme
+   colours for an owner's existing palette) is shown with its ratios and written only after
+   she confirms it; a proposal she sees is not silent.
+5. **The prompts and templates live in the skill**, not in `new-website/templates/`
    (`new-website` is not copied into scaffolded sites; the story plan's decision 2).
 6. **Five logo variations and three palettes, always** (the maintainer, 2026-10-10). The
    logo prompt asks for five, the palette prompt for three; the owner picks one of each;
@@ -230,10 +296,12 @@ only through the intake script's own check; the script can pass while the site's
   the logo prompt for the made-up bakery). Claude Design sits under "More", then "Design",
   in Claude's sidebar, and a new project is private ("Only you"). It drew five variations
   as TEN SVG files in the project's assets, a colour file and a one-colour file each, named
-  with plain letters (the "ä" became "ae"), plus a numbered artboard ("Created 12 files").
+  with plain letters (the "ä" became "ae"), plus a numbered artboard; the progress panel said "Created 12 files" (ten are the SVGs;
+  the other two were not examined).
   It said plainly that it had not looked at its own render, so legibility at 16 px was
-  unchecked; and its colour versions used a second colour, a darker brown, that the
-  prompt had not forbidden. The project's Export tab offered HTML, PDF and PNG and a list
+  unchecked; and its colour versions used a second colour, a darker brown. The draft
+  prompt's colour clause was only "Colours: brand colour #b4531a on cream #fff8ee.", with
+  no "only these colours". The project's Export tab offered HTML, PDF and PNG and a list
   of apps to connect (Adobe, Canva, Gamma, Lovable, Miro, Replit, Vercel, v0, Base44);
   it showed no zip and no SVG, while the help page lists a zip and no PNG. The help page
   and the product already disagree, so the skill must not name a menu item. The
@@ -244,8 +312,9 @@ only through the intake script's own check; the script can pass while the site's
   Claude Design site", because that address goes away on 2026-12-14; the intake takes
   `.svg` files, pasted code, an HTML page with an inline `<svg>`, or a zip of SVG files
   (scenarios 17, 18 and 22); five logo variations always (decision 6, scenario 20); the
-  intake checks the mark's colours against the palette (21) and shows the owner the mark
-  at 16 and 32 px, because the tool does not (23). Still open: how an owner gets the SVG
+  intake checks the mark's colours against the palette (21) and gives the owner its own
+  16 and 32 px preview of the installed mark (23), because the tool said it had not
+  checked its own render and the installed file is what must be looked at. Still open: how an owner gets the SVG
   files out of the project in the in-Claude version, since the Export tab shows no way;
   to be confirmed with the maintainer's handoff zip.
 - **D4. SETTLED 2026-10-09 (maintainer decision): log it separately.** A site that never opts in still
@@ -268,51 +337,115 @@ only through the intake script's own check; the script can pass while the site's
   (step 6), and no skill says who chooses the palette (same search). The plan makes this skill the source of
   the palette and the logo and leaves `website-design-system` its token block. Cost: the
   scaffold step copies `brand.md` to `BRAND.md`, so it must not overwrite one the skill
-  already started (scenario 24). Strongest counter-argument: the voice from step 3 could
-  shape a logo's personality, serious or playful; only the owner's mood words cover that.
+  already started (scenario 24, rewritten after review). Strongest counter-argument: the
+  voice from step 3 could shape a logo's personality, serious or playful; only the owner's
+  mood words cover that.
+
+  **Refined after review round 1; proposed, waits for a yes.** Three seats found, two of them
+  independently, that nothing written at 2b can reach the site: §3 step 0 (`mkdir <site> &&
+  git init`, `new-website/SKILL.md:278`) creates the project after the pipeline's step 2b, and
+  §3 step 4 (line 434) copies all three doc templates unconditionally, `POSITIONING.md`
+  included. So the step is two moments. At 2b the owner's answers and picks are held in the
+  conversation and written when §3 writes the docs. The install (seven files, tokens, theme
+  colour, tests) runs after §3 step 5 "Confirm green". The handover package goes into the
+  project's `brand-handoff` folder once it exists. "Copy `brand.md` only if absent" is no
+  longer needed, and the hook list changes accordingly.
+
+- **D6. The `BRAND.md` table. Proposed 2026-10-10; waits for a yes.** The template's table
+  cannot serve the stylesheet. It has one "fixed" Accent and no dark accent, link or soft
+  background, while `global.css` overrides `--accent` in the dark theme, adds `--link` and
+  `--bg-soft`, and writes the dark values twice. No single accent reaches 4.5 to 1 on both
+  `#ffffff` and the starter's dark background `#0a0b1e`: it would need a relative luminance
+  of at most 0.183 on the first and at least 0.193 on the second (computed 2026-10-10).
+  Proposal: the template and the palette prompt gain rows for Accent (light), Accent
+  (dark), Link (light and dark) and Soft background (light and dark), and the intake
+  carries a written map from each row to its CSS variable. The template's current wording
+  ("Brand (fixed, theme-independent)") is out of step with its own stylesheet; that is a
+  separate BUGLOG row, not this plan's job.
+- **D7. The intake's language and its zip reader. Open until step 4.** Constraint: no new
+  dependency in the site (D2). So the reader and the XML parser come with the skill's own
+  script: a standard-library script, or a dependency kept in the skill's folder, not the
+  site's. Step 4 includes a `clean.yml` job for the intake's tests, as `search-console-insights`
+  and `facts-check` have (`search-console-insights-tests`, `facts-check-tests`), and a
+  `make` target if `make check` or `make test` does not already reach them; a test that
+  needs `sharp` runs on an install of the starter, as the template tests do; the PR that adds the job says so in its description,
+  so the maintainer can make it a required check.
 
 ## Spike result (step 3, 2026-10-10)
 
 Setup: the starter copied from origin/main 938e625 into a scratch folder and installed
-with `npm ci` (286 packages). That install brought `sharp` 0.35.5 with its macOS arm64
-binaries, and it loads. Node 26.11.0. The input was a made-up two-shape SVG with a
-`viewBox` and no width or height, the shape a design tool is likely to hand back.
+with `npm ci` (286 packages in 2 s; it ran the starter's `postinstall`,
+`scripts/wire-hooks.mjs`). That install brought `sharp` 0.35.5 with its macOS arm64
+binaries; `require.resolve('sharp')` from the scratch folder printed
+`.../fresh/node_modules/sharp/dist/index.cjs`, and librsvg is 2.63.2. The script's default
+`SHARP_FROM` points at another project's `sharp` (the first run used it, with the same
+output); the recorded run set it to the scratch scaffold. Node 26.11.0 on macOS arm64: the
+starter's `.nvmrc` says 24 and its `engines` says `>=22.12.0`, so the pinned Node was not
+used. The input was a made-up two-shape SVG with a `viewBox` and no width or height.
 
 Shown, on that install:
 
 - All seven files come out of that one SVG with `sharp`. `file` reads the `.ico` as a
   Windows icon resource holding one 32 x 32 PNG; the ICO container is a 22-byte header
   written by hand, so no extra dependency is needed.
-- `apple-touch-icon.png` (180) is fully opaque, which matters because iOS paints
-  transparency black. The two manifest icons and `logo.png` have the sizes the starter
-  links. The 32 px icon is not blank.
+- `apple-touch-icon.png` (180) is fully opaque (the reason usually given, that iOS paints
+  transparency black, was not checked here). The manifest icons have the sizes the
+  manifest declares; `logo.png` is 512 x 512 by the spike's choice, because the starter
+  fixes only its path. The 32 px icon is not blank.
 - The maskable icon has a solid brand background and the mark scaled to 56 %. A mark that
   fills its `viewBox` then has its corners at 0.396 of the icon's width from the centre,
-  inside the 80 % safe circle (0.4), by construction, whatever the mark looks like.
+  inside the safe circle of 0.4, by construction, whatever the mark looks like. The
+  Web Application Manifest, section 2.3 "Icon masks and safe zone", defines that circle as
+  "a circle with center point in the center of the icon and with a radius of 2/5 (40%) of
+  the icon size" (read through a page summary on 2026-10-10). One flaw found in review:
+  the test mark's circle was the brand colour on the brand-coloured maskable background,
+  so it vanished, and the spike's probe still printed OK because it looked only at the
+  cream triangle. Scenario 32 is the lesson.
 - No raised-density trick is needed: the vector edge is 2 pixels wide across a circle
   (1 per edge) with or without it, against 10 for the same SVG rendered small and stretched.
 
+Measured the same day on the same install, SVG rendering (harmless files in a scratch
+folder, `sharp` given either a file path or a buffer):
+
+- Given a **path**, librsvg followed a relative `<image href>`, an `xlink:href`, a
+  `file://` URL and a CSS `@import` (each drew the referenced file's content). Given a
+  **buffer**, it followed none of them.
+- An external entity (`<!ENTITY x SYSTEM "file://...">`) was refused with an XML parse
+  error; an internal entity expanded; a `<script>` and an `onload` were ignored by the
+  renderer (a browser would not ignore them).
+- Without a `viewBox`: width and height alone rendered correctly (also in `cm`); neither
+  rendered clipped to an 80 x 80 canvas, with no error.
+
 Not shown, so not claimed: Linux and Windows; a real browser opening the `.ico`; an SVG
-from a real design tool (gradients, filters, CSS classes, embedded images); `<text>`
-drawn in a font the machine lacks; the starter installed without its optional packages.
+from a real design tool (gradients, filters, CSS classes, embedded images); `<text>` drawn
+in a font the machine lacks; the starter installed without its optional packages; the
+icons in a built site; the site's tests with new tokens; the pinned Node.
 
 ## Hooks
 
 To check against origin/main at step 6, as the story plan did; not listed as done.
 
-`new-website` (pipeline row, offer, README decision record), `README.md` (layout, the
-optional-skills paragraph), `website-qa` (one line: the icons exist when the skill ran),
-`website-design-system` (it already owns the tokens: point to the intake instead of
-saying "mirror by hand"), `BRAND.md` template, `check_skill_budgets.sh` count comment,
-`new-website` §3 step 4 (copy `brand.md` only if `BRAND.md` does not exist) and the
-pipeline table's step 3 row (the `BRAND.md` ownership wording, D5).
-Files the other plans touch: `README.md` and `new-website/SKILL.md` (with
-`website-tagline`), `README.md` (with #212, which renames product-name prose).
+`new-website`: the pipeline table (a step 2b row), the question and its README decision
+record at §3, the skill copy list in §3 step 3 and its prose (as `website-story` and
+`website-motion` are), and a place for the install after §3 step 5; `README.md` (layout, the
+optional-skills paragraph); `website-qa` (one line: the icons exist when the skill ran);
+`website-design-system` (it already owns the tokens: point to the intake instead of saying
+"mirror by hand"); the `BRAND.md` template (the D6 rows); `website-content-guide` lines 33
+and 34 and the pipeline table's step 3 row (the `BRAND.md` ownership wording, D5);
+`check_skill_budgets.sh` count comment; a `clean.yml` job (D7);
+`scripts/check_model_agnostic.sh`, re-run to confirm it still leaves the new skill alone (it
+scans only `skills/independent-review`).
+Files the other plans touch: `README.md` and `new-website/SKILL.md` (with `website-tagline`),
+`README.md` (with #212, which renames product-name prose).
+
+Found while planning, not this plan's to fix: §3 step 4 copies all three doc templates
+unconditionally, so anything the pipeline's steps 2 and 3 wrote into the project before then
+would be overwritten; the plan avoids it by holding the choices until step 4 (D5).
 
 ## The existing `image` skill disagrees
 
-`skills/image` says an AI logo is "Poor, not vector" and to "always design or commission"
-one. This skill does not ask a raster generator for a logo. It asks for an SVG, checks
+`skills/image` says of a logo: "Poor — inconsistent, not vector", and "Always design or
+commission logos". This skill does not ask a raster generator for a logo. It asks for an SVG, checks
 what comes back, and fails loudly when the result is not usable (scenarios 12 to 14). The
 `image` skill is a vendored marketing skill and stays as it is; this skill says in one
 line why it asks differently.
@@ -325,6 +458,10 @@ prompt (scenario 6) and does not try to search trademark registers.
 
 ## Review trail
 
-None yet. The plan gets the Normal gate (Codex plus GLM 5.3) once the two open details in
-the status table are closed; reviewing a plan whose steps still move is how it reaches
-round seven. D1 to D5 are settled.
+Normal PLAN gate, round 1, 2026-10-10, head `d9aacd7`: Codex (config effort) 395 s/98,843
+tokens; GLM 5.3 on melious.ai 196 s/37,327 tokens; a fresh-eyes sonnet sub-agent (about 590 s,
+245k tokens). Three seats, 5 BUG, 17 RISK and 13 NIT after merging duplicates, almost all
+fixed in this version; the register with each finding's disposition is
+`REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md`. Round 2 is the verification round
+(Codex and GLM, `--verify` with that register). A fix that changes a requirement owes it,
+and this one does.
