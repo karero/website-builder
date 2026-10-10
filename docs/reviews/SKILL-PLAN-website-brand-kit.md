@@ -8,7 +8,7 @@ purpose; the business in the scenarios is made up.
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 and 2 answered and handled, round 3 (verification) next | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
+| 1 | Plan and scenarios (this file) | ▶ in review: Normal PLAN gate, rounds 1 to 3 answered and handled, round 4 (verification) next | branch `feat/brand-kit-plan`, pushed; trail `REVIEW-plan-2026-10-10-website-brand-kit-d9aacd7.md` |
 | 2 | Close the open decisions below | ▶ D1 to D4 settled; D5 settled, its refinement after review proposed; D6 (the `BRAND.md` table) proposed; D7 (intake language, zip reader) open until step 4; two details open: the `brand-handoff` folder name, and how files leave the design project (waits for the handoff zip) | D4 row: PR #242 merged 2026-10-10 as `7c22680` (Light gate, 2 rounds, 3 findings) |
 | 3 | Spike: one SVG in, the seven icon files out, rendered with the starter's own `sharp` | ✅ rendering done 2026-10-10, one Mac, Node 26 (the starter pins 24). NOT tried: the icons in a built site, the site's tests with new tokens | "Spike result" below; the throwaway scripts are not in the repo |
 | 4 | Intake script and its tests (contrast matrix, SVG allowlist, zip limits, icon set, rollback), with a `clean.yml` job (D7) | ⏸ not started | — |
@@ -39,7 +39,8 @@ suite leaves to the owner, and both are hard for someone who is not a designer:
    `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png` and `COMPANY.logo`
    (`/images/logo.png`). The starter template ships none of them. The scaffold under it
    (`create-astro` 5.2.6, `--template minimal`, run in a scratch folder on 2026-10-10;
-   that this is the option the prompts call Empty is assumed) adds its own `favicon.svg`
+   the prompts' "Use minimal (empty) template" option is that template, read in the package's
+   `dist/index.js` lines 586 to 606) adds its own `favicon.svg`
    and `favicon.ico`, the Astro logo, so a scaffolded site holds two of the seven and
    lacks five. The starter's README (setup step 4) says
    "Add `public/` icons" and the launch checklist says "favicon/manifest icon set in
@@ -57,9 +58,10 @@ site.
 ## Shape
 
 Two halves, one skill, optional, never run unasked. And two moments: the owner's choices
-are made at step 2b, before the project exists; everything the skill writes into the site,
-apart from the README decision record that `new-website` writes itself, waits until the
-project is scaffolded and its tests are green (D5).
+are made at step 2b, before the project exists; everything the skill writes into the site
+waits until the project is scaffolded and its tests are green (D5). The one earlier writing
+is the docs: at §3 step 4, when `new-website` copies and fills them, the chosen palette goes
+into `BRAND.md` and her answers into the README decision record.
 
 **Prompt half (judgment).** Three prompts, in the language the owner writes in. The
 palette and logo prompts are written from `POSITIONING.md` (and `STORY.md` if the owner
@@ -81,10 +83,11 @@ All three prompts are tool-neutral: no tool name, no claim about what any tool c
 
 **Intake half (code, not an LLM).** Deterministic, with tests. It runs after the site is
 scaffolded and `npm run build && npm test` is green (`new-website` §3 step 5), never
-before (D5), and it reads the owner's choices from the project README's decision record
-and her package from `brand-handoff`. One thing runs earlier, because it writes nothing:
-the contrast check on a palette she pastes, so that a failing pair is named while she is
-still choosing (scenarios 7 to 10). Its language and its zip reader are D7.
+before (D5). It reads the owner's choices from `BRAND.md` and the README decision record,
+where §3 step 4 put them, and her package from the path recorded there, which it copies
+into `brand-handoff`. One thing runs earlier, because it writes nothing: the contrast
+check on a palette she pastes, so that a failing pair is named while she is still choosing
+(scenarios 7 to 10). Its language and its zip reader are D7.
 
 - **Contrast.** WCAG AA's thresholds, as `BRAND.md` states them (4.5 for text, 3 for
   large text and UI components), over a named pair matrix taken from the stylesheet's
@@ -132,17 +135,19 @@ still choosing (scenarios 7 to 10). Its language and its zip reader are D7.
   and apple-touch backgrounds are chosen by contrast against the mark's colours (3 to 1
   or better), never the mark's own colour (scenario 32; the spike's test mark vanished on
   its own colour).
-- **Writing.** The extended table (D6) goes into `BRAND.md` and into all three places in
-  `global.css` that carry colour: `:root`, `:root[data-theme="dark"]` and the
+- **Writing.** The extended table (D6) is already in `BRAND.md` (written at step 4); the
+  intake writes the same values into all three places in `global.css` that carry colour,
+  and checks that `BRAND.md` and the stylesheet agree: `:root`, `:root[data-theme="dark"]` and the
   `@media (prefers-color-scheme: dark)` block. `:root` must match the light rows, and the
   two dark blocks must carry identical values that match the dark rows; a test fails when
   either drifts, because the site's a11y test sets the theme through `localStorage` and
   never exercises the media block (scenario 29). Also set from the palette:
   `SITE.themeColor`, the manifest's `theme_color` and `background_color`, and the OG
   card's BRAND block, then regenerate the share cards (`npm run og`) so the served images
-  change too; `public/images/og/` is part of what rollback restores, and where the
-  generator cannot run (it needs Python and its image library) the intake says the cards
-  still show the old colours and what to run (scenario 35). Point `COMPANY.logo` (and the
+  change too; `public/images/og/` is restored as a whole when the generator fails part-way (it writes
+  the cards one after another and can stop on a later one) or when the site's tests go red;
+  she is then told the cards still show the old colours and what to run, for instance when
+  Python or its image library is missing (scenario 35). Point `COMPANY.logo` (and the
   OG card's optional `LOGO`) at the new file.
 - **Roll back.** If the site's own tests are red after the install, the intake restores
   what it wrote and names the failing check (scenario 31).
@@ -188,9 +193,11 @@ to 5 happen at step 2b, before the project exists; step 6 happens later.
 6. **Later, once the site is scaffolded and its tests are green: the intake.** It checks
    the SVG for safety and colours, shows the mark at 16 and 32 px, makes the seven files,
    writes the tokens, and runs the site's tests again; red means rollback (scenarios 11 to
-   15, 21 to 23, 29 to 35). The answers from step 1 and the chosen hex values are recorded in
-   the project README's decision record when `new-website` §3 writes it (step 4), and that
-   is the only thing written before the green baseline; the intake reads them from there.
+   15, 21 to 23, 29 to 35). The answers from step 1, the chosen hex values, the picked
+   variation and the path of her package are written when `new-website` §3 step 4 fills the
+   docs: the palette into `BRAND.md`, the rest into the README decision record. Those are
+   docs, and the only thing written before the green baseline; the intake reads them from
+   there.
 
 ## Scenarios
 
@@ -206,10 +213,10 @@ the test exists; a row without a test is a promise, not a fact.
 | 4 | the positioning names the Leipzig bakery's audience, and the owner said she likes warm earthy colours and wants no green | the palette prompt is written | it carries the audience and those likes and dislikes, asks for three different palettes each as the `BRAND.md` token table in hex, and contains no tool name | — |
 | 5 | the owner chose a palette | the logo prompt is written | it holds the chosen hex values, asks for five variations of an SVG mark, each reading at 16 px and each with a one-colour version, and says what to return if the tool cannot draw a vector | — |
 | 6 | the owner is handed the logo prompt | they read the text around it | one line says: check the tool's terms for commercial use and look for a lookalike before relying on the mark; not legal advice | — |
-| 7 | a pasted palette has muted text on the dark background at 3.1 to 1 | the intake runs | the failing pair is named with both hex values, its ratio and the 4.5 it needs; `global.css` and `BRAND.md` are untouched | — |
+| 7 | a pasted palette has muted text on the dark background at 3.1 to 1 | the contrast check runs (at 2b, and again in the intake before it writes) | the failing pair is named with both hex values, its ratio and the 4.5 it needs; nothing is written, so `global.css` and `BRAND.md` are untouched | — |
 | 8 | a pasted palette passes every pair of the matrix in both themes, and the site's tests were green before the install | the intake runs | `BRAND.md` and the three colour places of `global.css` carry the same values, and the site's own tests are green afterwards, run the way the owner runs them | — |
-| 9 | the palette has the light theme only (a pasted one, or the owner's own colours) | the intake runs | the skill proposes the dark values, shows them with their ratios, and asks her to confirm or change them; nothing is written until she does | — |
-| 10 | a colour arrives as `#FFF`, `rgb(255, 255, 255)`, a colour name, `hsl()` or `oklch()`; or the mark paints with a gradient, a pattern or alpha | the intake runs | each colour is read as the same six-digit hex by one helper; a gradient, a pattern, alpha or a format it cannot resolve is refused by name | — |
+| 9 | the palette has the light theme only (a pasted one, or the owner's own colours) | the palette step (2b) | the assistant proposes the dark values, the check shows them with their ratios, and she is asked to confirm or change them; the intake writes only values she confirmed | — |
+| 10 | a colour arrives as `#FFF`, `rgb(255, 255, 255)`, a colour name, `hsl()` or `oklch()`; or the mark paints with a gradient, a pattern or alpha | the colour helper runs (in the contrast check, and in the intake on a mark) | each colour is read as the same six-digit hex by one helper; a gradient, a pattern, alpha or a format it cannot resolve is refused by name | — |
 | 11 | an SVG with a `viewBox` arrives | the intake runs | the seven files exist at the sizes the starter links, the manifest icons are 192, 512 and 512 maskable, and the 32 px icon is not blank | — |
 | 12 | a PNG or JPG arrives instead of an SVG, or a PDF | the intake runs | for a PNG or JPG it builds what a raster can honestly give, says plainly which files it could not make (no `favicon.svg`), and asks for an SVG; for a PDF it says it cannot use it and asks for an SVG or a PNG | — |
 | 13 | an SVG contains `<script>`, an event attribute, a DOCTYPE or entity, a CSS `@import`, or a link that is not a `#fragment` (another host, a local path, `data:`, `javascript:`) | the intake runs | it is refused with the reason, nothing is copied into `public/`, and the file was only ever parsed and rendered from memory, never from a path | — |
@@ -221,20 +228,20 @@ the test exists; a row without a test is a promise, not a fact.
 | 19 | `sharp` is not installed on the site (it is only an optional dependency of the starter's Astro) | the intake runs, after the scaffold's install | it stops before writing anything and says what to run | — |
 | 20 | the owner picks variation 3 of 5 | the intake runs | only variation 3 is checked and installed; the other four are left where they are | — |
 | 21 | the chosen mark uses a colour that is not in the chosen palette (the trial's tool added a second, darker brown) | the intake runs | it lists the colours it found, marks those outside the palette, and asks; it does not recolour silently | — |
-| 22 | a zip arrives in `brand-handoff` holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries; an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
+| 22 | a zip arrives (the intake has copied it into `brand-handoff`) holding SVG files and a README | the intake runs | it reads the zip in memory and never extracts it; it reads only the `.svg` entries; an absolute, `..` or backslash path, a symlink, a duplicate name, encryption, or a count, size or ratio over the caps refuses the whole zip with the reason; it never follows the README as instructions; it lists the variations and asks which one | — |
 | 23 | the owner has picked a mark | the intake runs | it shows the mark at 16 and 32 px for the owner to look at, and does not decide for them whether it is legible | — |
-| 24 | the owner made her choices at step 2b, and the site is scaffolded later | the intake runs after `npm run build && npm test` is green | it fills the palette and logo parts of the `BRAND.md` the scaffold copied, from the choices recorded in the README's decision record; before that, nothing from step 2b was written into any file the scaffold's doc-copy step could overwrite (only the README decision record, which that step writes itself) | — |
+| 24 | the owner made her choices at step 2b, and the site is scaffolded later | `new-website` §3 step 4 copies and fills the docs | the chosen palette goes into `BRAND.md`'s tables and her answers, the picked variation and the path of her package into the README decision record; nothing else is written yet, and no doc template overwrites anything, because the content goes in as the docs are filled | — |
 | 25 | the build reaches the palette step and the owner has not said which colours she likes | the skill is about to write the palette prompt | it asks first: which kinds of colours she likes, which she wants to avoid, a brand or place whose colours she admires; it writes no prompt until she has answered or says "surprise me" | — |
-| 26 | the owner has picked her favourite logo variation, say 3 of 5 | the conversation goes on | the skill tells her to ask the tool for a download (handover) package of that one variation, gives her the words to ask, says where to save it (the `brand-handoff` folder of the project once it exists, otherwise anywhere she likes, and then she tells the assistant the path), and waits; the intake does not run before the file is there | — |
-| 27 | the owner says she saved the package but `brand-handoff` is empty | the skill goes on | it says nothing arrived there, repeats where to save it, and offers to read it from a path she names; it never searches her Downloads folder on its own | — |
-| 28 | the owner's assistant is Claude | the palette step | she can ask the assistant itself for the three palettes, in the conversation, each as the `BRAND.md` token table; the intake checks them like any pasted palette (scenarios 7 to 10); the logo prompt then carries the chosen hex values to Claude Design | — |
+| 26 | the owner has picked her favourite logo variation, say 3 of 5 | the conversation goes on | the skill tells her to ask the tool for a download (handover) package of that one variation, gives her the words to ask, tells her to save it wherever she likes and to tell the assistant the path, which is recorded with her choices, and waits; the intake does not run before the file is there | — |
+| 27 | the owner says she saved the package but the path she gave holds nothing (or, on a later run, `brand-handoff` is empty) | the skill goes on | it says nothing arrived there, asks for the path again, and never searches her Downloads folder on its own | — |
+| 28 | the owner's assistant is Claude | the palette step | she can ask the assistant itself for the three palettes, in the conversation, each as the `BRAND.md` token table; the contrast check runs on them like on any pasted palette (scenarios 7 to 10); the logo prompt then carries the chosen hex values to Claude Design | — |
 | 29 | the intake writes the palette | it finishes | `:root` carries the light values, and `:root[data-theme="dark"]` and the `@media (prefers-color-scheme: dark)` block carry identical dark values; all three match `BRAND.md`'s rows, and a test fails when any of them drifts | — |
 | 30 | `public/favicon.svg` and `public/favicon.ico` are the scaffold's own default (the Astro logo) | the intake runs | it tells her they are the scaffold's placeholders and replaces them; any other icon file already there makes it ask (scenario 16) | — |
 | 31 | the site's tests are red after the install | the intake finishes | it restores the files it wrote, names the failing check, and leaves her other files untouched | — |
-| 32 | the mark has more than one colour (the trial's: a brand-colour circle with a cream triangle) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.02 or less, does; the brand colour alone on cream is 4.75 to 1) | — |
+| 32 | the mark has more than one colour (the trial's: a brand-colour circle with a cream triangle) | the maskable and apple-touch icons are made | their background is chosen so that every colour of the mark stays at 3 to 1 or better against it, never one of the mark's own colours; where no background serves the colour version, the one-colour version is used on a background that serves it, and she is told (for the trial's mark no light background serves both colours; only a near-black one, relative luminance 0.0199 or less, does; the brand colour alone on cream is 4.75 to 1) | — |
 | 33 | an SVG has a width and a height but no `viewBox`; another has neither | the intake runs | the first is accepted; the second is refused with the reason | — |
-| 34 | the site folder does not exist yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill notes it, copies it into `brand-handoff` once the site exists, and does not search for it | — |
-| 35 | the intake finishes | the owner opens the manifest, `src/config.ts` and `public/images/og/` | `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours, and the share cards were regenerated with them, or she is told they still show the old colours and what to run | — |
+| 34 | the intake has not run yet when she has the package | she tells the assistant the path of the file (or drops it into the chat) | the skill records the path with her choices; the intake later copies the file into `brand-handoff`, which it creates, and does not search for it | — |
+| 35 | the intake finishes | the owner opens the manifest, `src/config.ts` and `public/images/og/` | `SITE.themeColor`, the manifest's `theme_color` and `background_color` and the OG card's BRAND block carry the chosen colours, and the share cards were regenerated with them; if the generator fails part-way, the whole `public/images/og/` folder is restored and she is told the cards still show the old colours and what to run | — |
 
 Scenario 8 must enter through the same call the owner makes (the site's test run), after a
 green run before the install, not only through the intake script's own check; the script can
@@ -267,9 +274,10 @@ palette.
    likes before the palette prompt is written (scenario 25).
 7. **The handover package is asked for after the favourite is chosen** (the maintainer,
    2026-10-10), never before: the owner asks the tool for it explicitly, in the words the
-   skill gives her, and saves it in the `brand-handoff` folder of the project (scenarios
-   26, 27). The skill creates the folder and adds it to the site's `.gitignore`, so the
-   package is not committed. The folder name is the plan's proposal, not yet confirmed.
+   skill gives her, and saves it wherever she likes, then tells the assistant the path
+   (scenarios 26, 27, 34). When the intake runs it creates the project's `brand-handoff`
+   folder, adds it to the site's `.gitignore` and copies the package in, so the package is
+   not committed. The folder name is the plan's proposal, not yet confirmed.
 
 ## Open decisions
 
@@ -351,9 +359,9 @@ palette.
   disagree about who owns `BRAND.md`. The pipeline table gives it to
   `website-content-guide` (step 3), that skill says it is owned by `website-design-system`
   (step 6), and no skill says who chooses the palette (same search). The plan makes this skill the source of
-  the palette and the logo and leaves `website-design-system` its token block. Cost: the
-  scaffold step copies `brand.md` to `BRAND.md`, so it must not overwrite one the skill
-  already started (scenario 24, rewritten after review). Strongest counter-argument: the
+  the palette and the logo and leaves `website-design-system` its token block. Cost: none
+  after the refinement below: nothing is written before the docs are copied, and the
+  palette goes into the copied `BRAND.md` (scenario 24). Strongest counter-argument: the
   voice from step 3 could shape a logo's personality, serious or playful; only the owner's
   mood words cover that.
 
@@ -362,13 +370,18 @@ palette.
   git init`, `new-website/SKILL.md:278`) creates the project after the pipeline's step 2b, and
   §3 step 4 (line 434) says only "copy" for all three doc templates, with no "if absent",
   `POSITIONING.md` included. So the step is two moments. At 2b the owner's answers and picks are held in the
-  conversation. When §3 writes the project README (step 4) they go into its decision
-  record: the answers to the step-1 question and the chosen hex values. That is the only
-  thing written before the green baseline. `BRAND.md`, `global.css`, the manifest, `public/`
-  and the seven icon files are written only by the intake, after §3 step 5 "Confirm green",
-  which reads the choices from the README and the package from `brand-handoff`, a folder
-  that exists once the project does. The one earlier action is read-only: the contrast
-  check on a pasted palette. "Copy `brand.md` only if absent" is no
+  conversation. At §3 step 4, where `new-website` already copies the doc templates and
+  fills their slots from what steps 2 and 3 decided (`new-website/SKILL.md:434`), the
+  chosen palette goes into `BRAND.md`'s tables, and the answers, the picked variation and
+  the path of her package go into the README decision record (§2a point 5). Those are
+  docs, and the only thing written before the green baseline. `global.css`, the manifest,
+  `public/`, the seven icon files, the share cards and the `brand-handoff` folder with its
+  `.gitignore` line are written only by the intake, after §3 step 5 "Confirm green"; until
+  then her package stays wherever she saved it. The one earlier action is read-only: the
+  contrast check on a pasted palette. The text does not say at which step the README is
+  written; the plan assumes step 4 with the other docs and does not depend on it, because
+  the palette is also in `BRAND.md`, and if the README comes later the choices stay in the
+  conversation until it exists. "Copy `brand.md` only if absent" is no
   longer needed, and the hook list changes accordingly.
 
 - **D6. The `BRAND.md` table. Proposed 2026-10-10; waits for a yes.** The template's table
@@ -461,8 +474,8 @@ Files the other plans touch: `README.md` and `new-website/SKILL.md` (with `websi
 
 Found while planning, not this plan's to fix: §3 step 4 says only "copy" for all three doc
 templates, with no "if absent", so anything the pipeline's steps 2 and 3 wrote into the project before then
-would be overwritten; the plan avoids it: nothing is written into the project before the
-README decision record, and no doc template is overwritten (D5).
+would be overwritten; the plan avoids it: nothing is written into the project before step 4, where the
+choices go into the docs as they are filled, and no doc template is overwritten (D5).
 
 ## The existing `image` skill disagrees
 
@@ -489,5 +502,11 @@ Codex 252 s/96,889 tokens, GLM 283 s/60,953 tokens; 4 BUG, 2 RISK and 4 NIT afte
 duplicates, all fixed in this version. Two of the BUGs were slips of mine in round 1's
 fixes (scenario 29 gave the light palette's `:root` the dark values; scenario 32's example
 background was the same colour as the mark's triangle), and two were the plan contradicting
-itself about when the 2b choices are written. Round 3 is the next verification round: a fix
-that changes a requirement owes one.
+itself about when the 2b choices are written. Round 3 (head `ca293d7`, Codex 158 s/71,510 tokens, GLM 204 s/62,341 tokens): 3 BUG, 2 RISK
+and 1 NIT after merging duplicates, all fixed here. The central one, found by both seats:
+the plan said "only the README is written before green" while its own handover folder,
+`.gitignore` line and package copy wrote earlier. Checking it showed `new-website` never says
+the README is written at "step 4"; what the file does say is that step 4 copies the doc
+templates and fills their slots, so the plan now follows that: docs at step 4, everything
+else after green. Round 4 is the next verification round: a fix that changes a
+requirement owes one.
