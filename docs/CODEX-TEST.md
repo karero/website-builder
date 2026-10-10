@@ -56,7 +56,8 @@ Let the orchestrator run the scaffold (steps 0–3). Watch the `cp "$SKILLS_ROOT
 commands.
 **Expected:** `.gitignore`, `SETUP.md`, `PUBLISHING.md`, `AGENTS.md`, `CLAUDE.md`, and the
 bundled sibling skills copy into the new project with **no "No such file or directory"**
-errors.
+errors. The project is a new folder inside your websites folder, everything that was
+already in the websites folder is untouched, and Codex can tell you the new folder's path.
 
 ### 5b. Generated project is Codex-self-contained
 The scaffold derives `$PROJECT_SKILLS_DIR` from `$SKILLS_ROOT`. If you installed via Codex
@@ -64,13 +65,15 @@ The scaffold derives `$PROJECT_SKILLS_DIR` from `$SKILLS_ROOT`. If you installed
 (not `.claude/skills/`), so the generated project works in Codex without renaming. To force
 it regardless: `export PROJECT_SKILLS_DIR=.agents/skills` before scaffolding.
 ```bash
-ls .agents/skills        # expect the bundled sibling skills
+ls <site>/.agents/skills   # <site> = the new folder inside your websites folder
+                           # expect the bundled sibling skills
 ```
-**Expected:** `.agents/skills/` exists with the bundled skills. (The Claude-only
+**Expected:** `<site>/.agents/skills/` exists with the bundled skills. (The Claude-only
 `.claude/settings.json` step is skipped for Codex — see docs/CODEX.md.)
 
 ### 6. (Optional) build the generated site
 ```bash
+cd <site>                  # the new folder inside your websites folder
 npm install && npm run build && npm test
 ```
 **Expected:** green (the bundled Playwright gate: a11y, seo, positioning, etc.).
