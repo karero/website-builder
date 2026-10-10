@@ -97,8 +97,8 @@ before (D5). Its language and its zip reader are D7.
   from a file path: measured on 2026-10-10, librsvg followed `<image>`, `xlink:href`,
   `file://` and `@import` references when given a path, and none when given a buffer. The
   starter's `public/_headers` sets `script-src 'self' 'unsafe-inline'` (which paths the
-  header covers was not checked), so a script inside the installed `favicon.svg` would run
-  when someone opens `/favicon.svg` directly.
+  header covers was not checked), so that policy would not stop a script inside the installed
+  `favicon.svg` when someone opens `/favicon.svg` directly. Not tried in a browser.
 - **Size of the drawing.** A `viewBox`, or a width and a height. With neither the SVG is
   refused: measured, it renders clipped without any error. With only a width and a height
   it is accepted: measured, it renders correctly.
@@ -341,11 +341,11 @@ palette.
   voice from step 3 could shape a logo's personality, serious or playful; only the owner's
   mood words cover that.
 
-  **Refined after review round 1; proposed, waits for a yes.** Three seats found, two of them
-  independently, that nothing written at 2b can reach the site: §3 step 0 (`mkdir <site> &&
+  **Refined after review round 1; proposed, waits for a yes.** All three seats found, each on
+  its own, that nothing written at 2b can reach the site: §3 step 0 (`mkdir <site> &&
   git init`, `new-website/SKILL.md:278`) creates the project after the pipeline's step 2b, and
-  §3 step 4 (line 434) copies all three doc templates unconditionally, `POSITIONING.md`
-  included. So the step is two moments. At 2b the owner's answers and picks are held in the
+  §3 step 4 (line 434) says only "copy" for all three doc templates, with no "if absent",
+  `POSITIONING.md` included. So the step is two moments. At 2b the owner's answers and picks are held in the
   conversation and written when §3 writes the docs. The install (seven files, tokens, theme
   colour, tests) runs after §3 step 5 "Confirm green". The handover package goes into the
   project's `brand-handoff` folder once it exists. "Copy `brand.md` only if absent" is no
@@ -374,7 +374,7 @@ palette.
 ## Spike result (step 3, 2026-10-10)
 
 Setup: the starter copied from origin/main 938e625 into a scratch folder and installed
-with `npm ci` (286 packages in 2 s; it ran the starter's `postinstall`,
+with `npm ci` (286 packages in 2 s; it ran the starter's `prepare` script,
 `scripts/wire-hooks.mjs`). That install brought `sharp` 0.35.5 with its macOS arm64
 binaries; `require.resolve('sharp')` from the scratch folder printed
 `.../fresh/node_modules/sharp/dist/index.cjs`, and librsvg is 2.63.2. The script's default
@@ -412,7 +412,7 @@ folder, `sharp` given either a file path or a buffer):
   **buffer**, it followed none of them.
 - An external entity (`<!ENTITY x SYSTEM "file://...">`) was refused with an XML parse
   error; an internal entity expanded; a `<script>` and an `onload` were ignored by the
-  renderer (a browser would not ignore them).
+  renderer; what a browser does with them when the file is opened directly was not tried.
 - Without a `viewBox`: width and height alone rendered correctly (also in `cm`); neither
   rendered clipped to an 80 x 80 canvas, with no error.
 
@@ -438,8 +438,8 @@ scans only `skills/independent-review`).
 Files the other plans touch: `README.md` and `new-website/SKILL.md` (with `website-tagline`),
 `README.md` (with #212, which renames product-name prose).
 
-Found while planning, not this plan's to fix: §3 step 4 copies all three doc templates
-unconditionally, so anything the pipeline's steps 2 and 3 wrote into the project before then
+Found while planning, not this plan's to fix: §3 step 4 says only "copy" for all three doc
+templates, with no "if absent", so anything the pipeline's steps 2 and 3 wrote into the project before then
 would be overwritten; the plan avoids it by holding the choices until step 4 (D5).
 
 ## The existing `image` skill disagrees
