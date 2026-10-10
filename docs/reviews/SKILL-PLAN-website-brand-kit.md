@@ -9,7 +9,7 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ drafted, not reviewed | branch `feat/brand-kit-plan`, unpushed |
-| 2 | Close the open decisions below (D1 to D4) | ▶ D1, D4 settled 2026-10-09; D2 settled 2026-10-10; D3 answered by one trial 2026-10-10; D5 (where the step sits) proposed, waits for a yes | D4 row: branch `docs/buglog-missing-icons` (`12a4ac5`; Light gate, 2 rounds, 3 findings; unpushed) |
+| 2 | Close the open decisions below (D1 to D4) | ▶ D1 to D5 all settled or answered by 2026-10-10; two details open: the `brand-handoff` folder name, and how files leave the project (waits for the handoff zip) | D4 row: PR #242, branch `docs/buglog-missing-icons` (`12a4ac5`; Light gate, 2 rounds, 3 findings; open) |
 | 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ✅ done 2026-10-10, on one Mac only | "Spike result" below; the throwaway script is not in the repo |
 | 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
 | 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
@@ -251,7 +251,7 @@ only through the intake script's own check; the script can pass while the site's
   check belongs, and what the fix is (placeholder icons plus a test, or no links until a
   site has the files). Not fixed here.
 
-- **D5. Where the brand step sits. Proposed 2026-10-10; waits for a yes.** Right after
+- **D5. Where the brand step sits. SETTLED 2026-10-10 (maintainer decision).** Right after
   positioning (and the story, if chosen), before the content guide: step 2b. The
   maintainer's reason: without positioning a logo lacks direction (it still needs it, as
   before). A second reason from the files: the first section of `BRAND.md` is "Brand in one
@@ -320,6 +320,6 @@ prompt (scenario 6) and does not try to search trademark registers.
 
 ## Review trail
 
-None yet. The plan gets the Normal gate (Codex plus GLM 5.3) once D2 and D3 are closed
-(D1 and D4 were settled 2026-10-09); reviewing before then is how a plan reaches round
-seven.
+None yet. The plan gets the Normal gate (Codex plus GLM 5.3) once the two open details in
+the status table are closed; reviewing a plan whose steps still move is how it reaches
+round seven. D1 to D5 are settled.
