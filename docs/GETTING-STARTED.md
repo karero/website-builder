@@ -42,16 +42,29 @@ protecting it the same way, with two-factor sign-in (your fingerprint or face un
 
 ## Step by step
 
-### 1. Open your AI assistant
+### 1. Choose a home for your websites
 
-Start the assistant you installed (for example, Claude Code). You'll get a chat box where
-you type to it in normal language — like texting a knowledgeable friend.
+Your website will live in a folder on your computer — a container for its files, like the
+folders you already know. We suggest one called **Websites**, inside your **Documents**
+folder. You'll find Documents in the sidebar of Finder (Mac) or File Explorer (Windows), so
+your site is easy to find again. If you already have a folder where you keep your
+projects, use that one instead — it's yours to choose.
 
-### 2. Make a new, empty folder for your website
+This folder can hold as many websites as you like: each new site gets its own folder inside
+it, so it doesn't need to be empty. Please don't use Downloads — things get lost there.
 
-A "folder" is just like a folder on your desktop — a container for your website's files.
-Make a fresh, empty one so your new site starts clean and nothing gets mixed up. You can
-ask your assistant: *"Help me make a new empty folder for my website and open it."*
+Don't have it yet? Open Documents, right-click an empty spot, make a new folder, and name
+it **Websites**.
+
+### 2. Open your AI assistant in that folder
+
+Start the assistant you installed (for example, Claude Code) and have it work in your
+Websites folder. If you use an app, choose that folder as the one to work in. If you use a
+terminal, go to the folder first and start the assistant from there. Not sure how? Ask it:
+*"How do I open you in my Websites folder?"*
+
+You'll get a chat box where you type to it in normal language — like texting a
+knowledgeable friend.
 
 ### 3. Paste the starter prompt
 
@@ -62,8 +75,10 @@ Copy this into the chat and send it:
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
 > actually needed. Then install the website-builder skills, tell me when to restart or
-> reopen you so the skills load, and continue from there — starting a fresh site by running
-> `new website` in a new, empty folder.
+> reopen you so the skills load, and continue from there. To start a fresh site, ask me
+> which folder my websites should live in (suggest Documents/Websites unless I already
+> keep my projects somewhere else), tell me to reopen you in that folder if needed, and
+> run `new website` there. When the site's folder is ready, tell me its full path.
 
 The assistant will take it from there: it checks what's on your computer, installs the
 website-builder skills, and asks your approval before doing anything that changes your
@@ -88,6 +103,11 @@ Answer in your own words. There are no wrong answers, and you can change your mi
 From your answers, the assistant creates the site, drafts the pages, adds the behind-the-
 scenes things that make a site fast and findable (SEO, accessibility checks, structured
 data), and runs its own quality tests. It'll show you what it made and help you adjust.
+
+**Where your site lives.** Your site gets its own folder inside the folder you chose in
+step 1. When it's created, the assistant tells you the full path. To see the folder, ask: *"Show me where
+my website's folder is."* Next time you want to work on that site, open your assistant in the
+site's own folder.
 
 ### 6. Publish when you're ready
 

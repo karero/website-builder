@@ -48,7 +48,7 @@ echo "$SKILLS_ROOT"                   # expect: .../.agents/skills
 **Expected:** prints your `~/.agents/skills`.
 
 ### 4. Trigger the orchestrator
-In a **fresh, empty** folder, say `new website` — or invoke it explicitly: `$new-website`.
+In your websites folder (for example `Documents/Websites`; it doesn't need to be empty), say `new website` — or invoke it explicitly: `$new-website`.
 **Expected:** the stack-decision interview starts.
 
 ### 5. Scaffold copies resolve

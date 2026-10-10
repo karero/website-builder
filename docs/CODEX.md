@@ -28,7 +28,8 @@ yourself into another worktree of this repo, which is kept and reported;
 
 ## Use
 
-Restart Codex, open it in a **fresh, empty** folder for your new site, and say:
+Restart Codex, open it in your websites folder (`Documents/Websites`, or wherever you keep
+your projects), and say:
 
 ```text
 new website
@@ -40,8 +41,8 @@ or invoke the orchestrator explicitly:
 $new-website
 ```
 
-Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay, and
-sequences the rest of the `website-*` skills.
+Codex runs the stack-decision interview, scaffolds the `templates/astro` overlay into a
+new folder for the site inside it, and sequences the rest of the `website-*` skills.
 
 > With a large skill set, Codex itself notes it may not surface every skill automatically
 > when context is tight. Not a breakage — invoke any skill by name: `$og-images`, `$seo-audit`, etc.

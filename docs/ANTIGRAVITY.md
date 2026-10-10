@@ -28,7 +28,7 @@ cp -R path/to/website-builder/skills/* .agents/skills/
 
 ## 2. Usage
 
-Once installed, open an Antigravity chat in your target directory and simply trigger the orchestrator just as you would with Claude:
+Once installed, open an Antigravity chat in your websites folder (`Documents/Websites`, or wherever you keep your projects; with Option B, the folder you installed the skills into) and simply trigger the orchestrator just as you would with Claude:
 
 > *"I want to build a new website"* or *"new website"*
 

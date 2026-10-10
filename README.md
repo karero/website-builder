@@ -63,8 +63,10 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > First, check which required tools this computer already has.
 > Explain every command before you run it, and install missing tools only when they're
 > actually needed. Then install the website-builder skills, tell me when to restart or
-> reopen you so the skills load, and continue from there — starting a fresh site by running
-> `new website` in a new, empty folder.
+> reopen you so the skills load, and continue from there. To start a fresh site, ask me
+> which folder my websites should live in (suggest Documents/Websites unless I already
+> keep my projects somewhere else), tell me to reopen you in that folder if needed, and
+> run `new website` there. When the site's folder is ready, tell me its full path.
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
@@ -145,11 +147,13 @@ unzip website-builder.zip && cd website-builder
 ```
 # 3. Restart Claude Code so it discovers the new skills.
 
-# 4. Open Claude Code in a FRESH, EMPTY folder for your new site, and say:
+# 4. Open Claude Code in your websites folder — Documents/Websites, or wherever you
+#    keep your projects — and say:
        new website
 ```
 
-The `new-website` orchestrator takes over from there: it runs the stack-decision
+The site gets its own folder inside the one you opened, so that folder doesn't need to be
+empty. The `new-website` orchestrator takes over from there: it runs the stack-decision
 interview, scaffolds a git-first repo (Astro overlay + test suite + permission
 allowlist), then sequences the sibling skills through **positioning → content → SEO/GEO
 → design → QA → review → launch**. It also walks you through the one-time build tools
