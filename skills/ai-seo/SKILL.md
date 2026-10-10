@@ -216,8 +216,8 @@ AI systems prefer sources they can trust. Build citation-worthiness.
 AI systems don't just cite your website — they cite where you appear.
 
 **Third-party sources matter more than your own site:**
-- Wikipedia mentions (7.8% of all ChatGPT citations)
-- Reddit discussions (1.8% of ChatGPT citations)
+- Wikipedia mentions (7.8% of all ChatGPT citations; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
+- Reddit discussions (1.8% of ChatGPT citations; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), same study)
 - Industry publications and guest posts
 - Review sites (G2, Capterra, TrustRadius for B2B SaaS)
 - YouTube (frequently cited by Google AI Overviews)
