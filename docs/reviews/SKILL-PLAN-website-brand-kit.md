@@ -14,7 +14,7 @@ purpose; the business in the scenarios is made up.
 | 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
 | 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
 | 6 | Hooks into the other skills (listed under "Hooks") | ⏸ not started | — |
-| 7 | Review gate on the finished skill (Normal, never Light: instruction files) | ⏸ not started | — |
+| 7 | Review gate on the finished skill (High, never Light: the intake reads untrusted SVG, HTML and zip files from outside, and its output is served from the owner's site) | ⏸ not started | — |
 | 8 | Evals, with and without the skill, as `website-story` had | ⏸ not started | — |
 | 9 | Release note line in 0.32 | ⏸ waits for #212 and v0.31 | — |
 
