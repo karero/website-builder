@@ -48,7 +48,11 @@ Your website will live in a folder on your computer — a container for its file
 folders you already know. We suggest one called **Websites**, inside your **Documents**
 folder. You can open Documents from your computer's file manager (Finder on a Mac, File
 Explorer on Windows), so your site stays easy to find. If you already have a folder where
-you keep your projects, use that one instead — it's yours to choose.
+you keep your projects, use that one instead — it's yours to choose. If your Documents
+folder syncs to iCloud or OneDrive, pick a folder outside it, for example a Websites folder
+in your home folder. Your backup is your GitHub account, so you don't need iCloud or
+OneDrive for that. It only protects you when it's properly synced: before you stop for the
+day, ask your assistant to make sure GitHub has your latest work.
 
 This folder can hold as many websites as you like: each new site gets its own folder inside
 it, so it doesn't need to be empty. Please don't use Downloads — things get lost there.
@@ -76,9 +80,10 @@ Copy this into the chat and send it:
 > Explain every command before you run it, and install missing tools only when they're
 > actually needed. Then install the website-builder skills. My websites live in one
 > folder: ask me which one (suggest Documents/Websites unless I already keep my projects
-> somewhere else). Tell me when to restart or reopen you in that folder so the skills
-> load, then start `new website` there. When the site has its own folder, tell me where
-> it is on my computer (its full path).
+> somewhere else, or my Documents folder syncs to iCloud or OneDrive — then suggest a
+> Websites folder in my home folder). Tell me when to restart or reopen you in that folder
+> so the skills load, then start `new website` there. When the site has its own folder,
+> tell me where it is on my computer (its full path).
 
 The assistant will take it from there: it checks what's on your computer, installs the
 website-builder skills, and asks your approval before doing anything that changes your

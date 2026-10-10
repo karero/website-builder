@@ -64,9 +64,10 @@ If you ever feel lost, you can literally type *"what does this do?"* and it will
 > Explain every command before you run it, and install missing tools only when they're
 > actually needed. Then install the website-builder skills. My websites live in one
 > folder: ask me which one (suggest Documents/Websites unless I already keep my projects
-> somewhere else). Tell me when to restart or reopen you in that folder so the skills
-> load, then start `new website` there. When the site has its own folder, tell me where
-> it is on my computer (its full path).
+> somewhere else, or my Documents folder syncs to iCloud or OneDrive — then suggest a
+> Websites folder in my home folder). Tell me when to restart or reopen you in that folder
+> so the skills load, then start `new website` there. When the site has its own folder,
+> tell me where it is on my computer (its full path).
 
 You don't have to memorise any of this — the assistant runs the real commands for you. (If
 you'd rather type the commands yourself, see [Manual install](#manual-install--technical-reference)
