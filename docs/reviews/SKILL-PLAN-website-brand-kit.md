@@ -4,7 +4,7 @@ Requirements record for a skill that does not exist yet. Where this plan and the
 files disagree, the files win. Names of sites and people stay out of this public repo on
 purpose; the business in the scenarios is made up.
 
-## Status — 2026-10-10 · grounded on origin/main 938e625
+## Status — 2026-10-10 · grounded on origin/main 938e625; claims about the repo re-checked against 7c22680
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
@@ -31,7 +31,9 @@ The suite decides what a site says (`website-positioning`), how the home page te
 and both are hard for someone who is not a designer:
 
 1. **Colours.** `BRAND.md` has a palette table with a fixed set of tokens, and every pair
-   must pass WCAG AA in both themes. Nothing helps the owner pick the colours; a wrong pick
+   must pass WCAG AA in both themes. No skill in the suite guides the choice of colours:
+   the template asks only for the values and one "palette mood" line (searched on
+   origin/main 2026-10-10 for colour-choosing guidance). A palette that fails contrast
    shows up as a red `a11y.spec.ts` at step 7.
 2. **A logo.** The starter links `/favicon.svg`, `/favicon.ico`, `/apple-touch-icon.png`,
    `/icon-192.png`, `/icon-512.png`, `/icon-maskable-512.png` and `COMPANY.logo`
@@ -44,9 +46,9 @@ and both are hard for someone who is not a designer:
    the Light review of the BUGLOG row for this bug corrected both, and this is the
    corrected text. What a built site serves was never run.)
 
-Many owners already use an AI design tool. The skill writes the question to put to it,
-and then does the part a tool cannot be trusted with: checking the answer and putting it
-into the site.
+An owner can already use an AI design tool for this. The skill writes the question to put
+to it, and then does the part that code can check: the answer, and putting it into the
+site.
 
 ## Shape
 
@@ -263,7 +265,7 @@ only through the intake script's own check; the script can pass while the site's
   and the owner's own mood words give the direction. Found while checking: the files
   disagree about who owns `BRAND.md`. The pipeline table gives it to
   `website-content-guide` (step 3), that skill says it is owned by `website-design-system`
-  (step 6), and nothing says who picks the palette. The plan makes this skill the source of
+  (step 6), and no skill says who chooses the palette (same search). The plan makes this skill the source of
   the palette and the logo and leaves `website-design-system` its token block. Cost: the
   scaffold step copies `brand.md` to `BRAND.md`, so it must not overwrite one the skill
   already started (scenario 24). Strongest counter-argument: the voice from step 3 could
@@ -317,8 +319,8 @@ line why it asks differently.
 
 ## Legal note (not legal advice)
 
-A generated mark can look like an existing one, and the terms on commercial use differ per
-tool and change. The skill says this in one line at the moment the owner receives the logo
+A generated mark can look like an existing one, and each tool sets its own terms on
+commercial use. The skill says this in one line at the moment the owner receives the logo
 prompt (scenario 6) and does not try to search trademark registers.
 
 ## Review trail
