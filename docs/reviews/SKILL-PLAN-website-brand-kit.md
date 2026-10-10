@@ -9,8 +9,8 @@ purpose; the business in the scenarios is made up.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | Plan and scenarios (this file) | ▶ drafted, not reviewed | branch `feat/brand-kit-plan`, unpushed |
-| 2 | Close the open decisions below (D1 to D4) | ▶ D1 and D4 settled 2026-10-09; D2 and D3 open | D4 row: branch `docs/buglog-missing-icons` (84d9792, unpushed) |
-| 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ⏸ not started | — |
+| 2 | Close the open decisions below (D1 to D4) | ▶ D1 and D4 settled 2026-10-09; D2 spiked, waits for a yes; D3 partly answered | D4 row: branch `docs/buglog-missing-icons` (84d9792, unpushed) |
+| 3 | Spike: one SVG in, the seven icon files out, tried on a fresh scaffold | ✅ done 2026-10-10, on one Mac only | "Spike result" below; the throwaway script is not in the repo |
 | 4 | Intake script and its tests (contrast, SVG safety, icon set) | ⏸ not started | — |
 | 5 | `SKILL.md`, the two prompt templates, `references/where-to-paste.md` | ⏸ not started | — |
 | 6 | Hooks into the other skills (listed under "Hooks") | ⏸ not started | — |
@@ -70,6 +70,8 @@ Both prompts are tool-neutral: no tool name, no claim about what any tool can do
   A failing pair is named; nothing is derived or "fixed" silently.
 - SVG safety check, because the file comes from outside and is served from the site:
   refuse `<script>`, event attributes, `<foreignObject>` and references to other hosts.
+  The mark may arrive as an `.svg` file, as pasted SVG code, or inside an HTML page
+  (see D3); the check is the same for all three.
 - Derive the seven files from one master SVG, at the sizes the starter links, the
   maskable one with its safe zone.
 - Write the tokens into `BRAND.md` and the token block of `global.css` with the same hex
@@ -107,6 +109,9 @@ the test exists; a row without a test is a promise, not a fact.
 | 14 | an SVG draws its name as text in a font the visitor will not have | the intake runs | it warns that the text should be outlined, and does not copy it as it is | — |
 | 15 | the mark is dark on a dark theme background | the intake runs | it names the theme where the mark falls under 3 to 1 against `--bg` | — |
 | 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing files that already exist | — |
+| 17 | an HTML file arrives with one inline `<svg>` | the intake runs | the SVG is taken out and goes through the same checks as a pasted one (scenarios 13 to 15) | — |
+| 18 | the HTML holds several `<svg>` elements, or the mark is drawn with CSS or an `<img>` | the intake runs | with several it asks which one; with none it can use it says so and asks for an SVG | — |
+| 19 | `sharp` is not installed on the site | the intake runs | it stops before writing anything and says what to run | — |
 
 Scenario 8 must enter through the same call the owner makes (the site's test run), not
 only through the intake script's own check; the script can pass while the site's test fails.
@@ -141,18 +146,30 @@ only through the intake script's own check; the script can pass while the site's
   was one yes/no fewer for the owner, with three optional questions in a row (story,
   brand, tagline) as the cost of the split; the recommendation judged that saving
   smaller than the coupling, and the maintainer agreed. A judgment, not a measurement.
-- **D2. Where the derivation script lives.** Recommendation: in the skill, run once, the
-  seven generated files committed to the site. The starter gets no new dependency and no
-  `npm run` step. The rasteriser is open: `sharp` is in the starter's lockfile through
-  Astro but is not a direct dependency (`package.json`), so step 3 must show it renders
-  an SVG on a fresh scaffold before this is settled.
+- **D2. Where the derivation script lives. Spiked 2026-10-10; waits for a yes.**
+  Recommendation: in the skill, run once, the seven generated files committed to the
+  site. The starter gets no new dependency and no `npm run` step. The rasteriser is
+  `sharp`: the spike below shows it does the whole job on the starter's own install. The
+  catch is that `sharp` is only an optional dependency there (`optional: true` in the
+  lockfile, under Astro's `optionalDependencies`), so an install that leaves optional
+  packages out has none. Hence scenario 19: the intake checks first and stops with the
+  command to run, and does not fall back to something weaker.
 - **D3. Naming tools in `where-to-paste.md`.** Recommendation: yes, as advice, one file,
   dated. `check_model_agnostic.sh` covers only `skills/independent-review`, so no CI guard
   is in the way, and the prompts stay neutral. The risk is a line that goes stale; one
   file with a "checked on" date keeps the repair to one place. A tool is listed only after
-  someone has tried it and seen what it returns; an untried tool stays out. Not yet
-  verified for any tool: what Claude Design returns (an SVG, a page, an image), and who
-  can use it.
+  someone has tried it and seen what it returns; an untried tool stays out.
+  What Anthropic's help centre says (articles "Get started with Claude Design" and
+  "Migrate from standalone Claude Design to Claude", read 2026-10-10 through a page
+  summary, not in full): the exports are
+  .zip, PDF, PPTX, standalone HTML and Google Slides, plus a handoff to Claude Code; no
+  SVG or PNG export is listed and logos are not mentioned; it is open to the Free, Pro,
+  Max, Team and Enterprise plans; and the standalone site closes on 2026-12-14, after
+  which designs live inside Claude as artifacts. Two consequences: the advice line says
+  "ask Claude for the design", not "go to the Claude Design site", because that address
+  goes away on 2026-12-14, which may fall before or soon after 0.32 ships; and the intake takes an HTML page with an
+  inline SVG (scenarios 17 and 18), because HTML is what that tool exports. Still not
+  verified by anyone: what a logo request actually returns. That takes one real try.
 - **D4. SETTLED 2026-10-09 (maintainer decision): log it separately.** A site that never opts in still
   links seven files it does not have, and no test says so. That is a bug in the starter,
   not in this skill. It is one row in `docs/BUGLOG.md` (bug-triage bucket C) on its own
@@ -160,6 +177,31 @@ only through the intake script's own check; the script can pass while the site's
   Still open for step 2: whether the skill's own test is where a "linked icons exist"
   check belongs, and what the fix is (placeholder icons plus a test, or no links until a
   site has the files). Not fixed here.
+
+## Spike result (step 3, 2026-10-10)
+
+Setup: the starter copied from origin/main 938e625 into a scratch folder and installed
+with `npm ci` (286 packages). That install brought `sharp` 0.35.5 with its macOS arm64
+binaries, and it loads. Node 26.11.0. The input was a made-up two-shape SVG with a
+`viewBox` and no width or height, the shape a design tool is likely to hand back.
+
+Shown, on that install:
+
+- All seven files come out of that one SVG with `sharp`. `file` reads the `.ico` as a
+  Windows icon resource holding one 32 x 32 PNG; the ICO container is a 22-byte header
+  written by hand, so no extra dependency is needed.
+- `apple-touch-icon.png` (180) is fully opaque, which matters because iOS paints
+  transparency black. The two manifest icons and `logo.png` have the sizes the starter
+  links. The 32 px icon is not blank.
+- The maskable icon has a solid brand background and the mark scaled to 56 %. A mark that
+  fills its `viewBox` then has its corners at 0.396 of the icon's width from the centre,
+  inside the 80 % safe circle (0.4), by construction, whatever the mark looks like.
+- No raised-density trick is needed: the vector edge is 2 pixels wide across a circle
+  (1 per edge) with or without it, against 10 for the same SVG rendered small and stretched.
+
+Not shown, so not claimed: Linux and Windows; a real browser opening the `.ico`; an SVG
+from a real design tool (gradients, filters, CSS classes, embedded images); `<text>`
+drawn in a font the machine lacks; the starter installed without its optional packages.
 
 ## Hooks
 
